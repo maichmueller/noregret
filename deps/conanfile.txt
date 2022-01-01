@@ -1,0 +1,9 @@
+[requires]
+gtest/1.11.0
+pybind11/2.7.1
+cppitertools/2.1
+
+[generators]
+cmake
+cmake_find_package
+cmake_paths

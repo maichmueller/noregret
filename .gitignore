@@ -1,0 +1,13 @@
+
+**/.idea/
+**/cmake-build*
+_skbuild
+.tox
+**/__pycache__/**
+**/*.egg-info/**
+
+*.so
+
+*.pyd
+
+*.egg
