@@ -12,8 +12,8 @@ add_executable(${nor_test} ${TEST_SOURCES})
 
 target_link_libraries(${nor_test}
         PRIVATE
-        project_warnings
         ${nor_lib}
+        project_warnings
         CONAN_PKG::gtest
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>

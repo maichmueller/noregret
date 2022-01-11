@@ -30,9 +30,9 @@ option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
 # settings
 
-# Use C++17
-set(PROJ_CXX_STD_FEATURE cxx_std_17)
-set(PROJ_CXX_STANDARD C++17)
+# Use C++20
+set(PROJ_CXX_STD_FEATURE cxx_std_20)
+set(PROJ_CXX_STANDARD C++20)
 
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)
