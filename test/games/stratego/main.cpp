@@ -5,25 +5,26 @@
 #include <memory>
 #include <xtensor/xtensor.hpp>
 
-#include "GameStratego.h"
-#include "PieceStratego.h"
-#include "RepresenterStratego.h"
-#include "StateStratego.h"
+#include "Game.h"
+#include "Piece.h"
+#include "Representer.h"
+#include "State.h"
 
 int main()
 {
+   using namespace stratego;
    size_t board_size = 5;
 
    //
    // create the action representer
    //
-   auto action_rep_sptr = std::make_shared< RepresenterStratego >(5);
+   auto action_rep_sptr = std::make_shared< Representer >(5);
 
    //
    // build the neural network
    //
    std::vector< unsigned int > filters{128, 128, 128, 128};
-   auto alphazero_net_ptr = std::make_shared< StrategoAlphaZero >(
+   auto alphazero_net_ptr = std::make_shared< AlphaZero >(
       board_size * board_size * filters.front(),
       action_rep_sptr->get_actions().size(),
       5,
@@ -37,16 +38,16 @@ int main()
    //
    // build the agents to train.
    //
-   auto agent_0 = std::make_shared< AlphaZeroAgent< StateStratego, RepresenterStratego > >(
+   auto agent_0 = std::make_shared< AlphaZeroAgent< State, Representer > >(
       0, network_0, action_rep_sptr);
-   auto agent_1 = std::make_shared< AlphaZeroAgent< StateStratego, RepresenterStratego > >(
+   auto agent_1 = std::make_shared< AlphaZeroAgent< State, Representer > >(
       1, network_1, action_rep_sptr);
 
    //
    // setup the game
    //
-   std::map< BoardStratego::position_type, BoardStratego::token_type > setup0;
-   std::map< BoardStratego::position_type, BoardStratego::token_type > setup1;
+   std::map< Board::position_type, Board::token_type > setup0;
+   std::map< Board::position_type, Board::token_type > setup1;
 
    setup0[{0, 0}] = {0, 0};
    setup0[{0, 1}] = {1, 0};
@@ -69,8 +70,8 @@ int main()
    setup1[{4, 3}] = {3, 1};
    setup1[{4, 4}] = {0, 0};
 
-   auto g = GameStratego(std::array< size_t, 2 >{5, 5}, setup0, setup1, agent_0, agent_1);
-   auto game = std::make_shared< GameStratego >(
+   auto g = Game(std::array< size_t, 2 >{5, 5}, setup0, setup1, agent_0, agent_1);
+   auto game = std::make_shared< Game >(
       std::array< size_t, 2 >{5, 5}, setup0, setup1, agent_0, agent_1);
 
    //

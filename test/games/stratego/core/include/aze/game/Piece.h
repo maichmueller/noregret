@@ -7,6 +7,7 @@
 
 #include "aze/utils/utils.h"
 
+namespace aze {
 
 template < typename Position, typename Token >
 class Piece {
@@ -88,3 +89,4 @@ class Piece {
 
    bool operator!=(const Piece &other) const { return ! (*this == other); }
 };
+}  // namespace aze

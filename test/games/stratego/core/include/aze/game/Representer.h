@@ -15,6 +15,9 @@
 #include "Position.h"
 #include "aze/game/State.h"
 
+
+namespace aze {
+
 template < typename StateType, typename DerivedType >
 class RepresenterBase {
   private:
@@ -91,3 +94,4 @@ class RepresenterBase {
       return action_to_move(bos, get_actions()[action_index], team);
    }
 };
+}

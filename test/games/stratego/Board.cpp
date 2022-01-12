@@ -1,17 +1,19 @@
 
-#include "BoardStratego.h"
+#include "Board.h"
 
-#include "LogicStratego.h"
+#include "Logic.h"
 
 #define VERT_BAR "\u2588"
 #define RESET "\x1B[0m"
 #define BLUE "\x1B[44m"
 #define RED "\x1B[41m"
 
-std::vector< sptr< typename BoardStratego::piece_type > > BoardStratego::adapt_setup(
+namespace stratego {
+
+std::vector< sptr< typename Board::piece_type > > Board::adapt_setup(
    const std::map< position_type, int > &setup)
 {
-   std::vector< sptr< BoardStratego::piece_type > > vector_out;
+   std::vector< sptr< Board::piece_type > > vector_out;
 
    std::map< position_type, int > seen_pos;
    std::map< int, int > version_count;
@@ -32,7 +34,7 @@ std::vector< sptr< typename BoardStratego::piece_type > > BoardStratego::adapt_s
    return vector_out;
 }
 
-std::string BoardStratego::print_board(Team team, bool hide_unknowns) const
+std::string Board::print_board(Team team, bool hide_unknowns) const
 {
    int H_SIZE_PER_PIECE = 9;
    int V_SIZE_PER_PIECE = 3;
@@ -148,19 +150,21 @@ std::string BoardStratego::print_board(Team team, bool hide_unknowns) const
    return board_print.str();
 }
 
-void BoardStratego::_add_obstacles()
+void Board::_add_obstacles()
 {
-   auto obstacle_positions = LogicStratego< BoardStratego >::get_obstacle_positions(m_shape[0]);
+   auto obstacle_positions = Logic< Board >::get_obstacle_positions(m_shape[0]);
    for(const auto &obstacle_pos : obstacle_positions) {
       m_map[obstacle_pos] = std::make_shared< piece_type >(obstacle_pos, token_type{99, 99}, -1);
    }
 }
 
-BoardStratego *BoardStratego::clone_impl() const
+Board *Board::clone_impl() const
 {
-   auto *board_copy_ptr = new BoardStratego(*this);
+   auto *board_copy_ptr = new Board(*this);
    for(auto &sptr : *board_copy_ptr) {
       sptr.second = std::make_shared< piece_type >(*sptr.second);
    }
    return board_copy_ptr;
 }
+
+}  // namespace stratego

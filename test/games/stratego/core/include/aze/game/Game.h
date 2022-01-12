@@ -12,6 +12,8 @@
 #include "aze/utils/logging_macros.h"
 #include "aze/utils/utils.h"
 
+namespace aze {
+
 template < class StateType, class LogicType, class Derived, size_t nr_teams = 2 >
 class Game {
   public:
@@ -211,3 +213,4 @@ int Game< StateType, LogicType, Derived, n_teams >::run_game(bool show)
          run_step();
    }
 }
+}  // namespace aze

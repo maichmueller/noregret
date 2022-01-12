@@ -4,6 +4,9 @@
 
 #include <array>
 
+
+namespace stratego {
+
 enum class Token {
    flag = 0,
    spy = 1,
@@ -20,10 +23,12 @@ enum class Token {
    obstacle = 99
 };
 
-class PieceStratego: public Piece< Position< int, 2 >, Token > {
+class Piece: public aze::Piece< aze::Position< int, 2 >, Token > {
   public:
-   using base_type = Piece< Position< int, 2 >, Token >;
+   using base_type = Piece< aze::Position< int, 2 >, Token >;
 
    // inheriting the base constructors with the next command!
    using base_type::base_type;
 };
+
+}

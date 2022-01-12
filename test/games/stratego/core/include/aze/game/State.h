@@ -10,6 +10,8 @@
 #include "Position.h"
 #include "aze/types.h"
 
+namespace aze {
+
 template < class BoardType, class HistoryType >
 class State {
   public:
@@ -204,3 +206,4 @@ State< BoardType, HistoryType >::State(
       m_graveyard(graveyard)
 {
 }
+}  // namespace aze

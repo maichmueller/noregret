@@ -9,6 +9,9 @@
 
 #include "aze/utils/prime_list.h"
 
+
+namespace aze {
+
 // forward declare class and operators in conjunction with number types
 template < typename ValueType, size_t N >
 class Position;
@@ -315,10 +318,13 @@ Position< ValueType, N > Position< ValueType, N >::invert(
    return inverted;
 }
 
+
+}
+
 namespace std {
 template < typename ValueType, size_t N >
-struct hash< Position< ValueType, N > > {
-   constexpr size_t operator()(const Position< ValueType, N > &pos) const
+struct hash< aze::Position< ValueType, N > > {
+   constexpr size_t operator()(const aze::Position< ValueType, N > &pos) const
    {
       // ( x*p1 xor y*p2 xor z*p3) mod n is supposedly a better spatial hash
       // function

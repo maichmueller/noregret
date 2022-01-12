@@ -1,52 +1,55 @@
-#include "StateStratego.h"
+#include "State.h"
 
 #include <functional>
 
-StateStratego::StateStratego(size_t shape_x, size_t shape_y)
-    : StateStratego(std::array< size_t, 2 >{shape_x, shape_y}, std::array< int, 2 >{0, 0})
+
+namespace stratego {
+
+State::State(size_t shape_x, size_t shape_y)
+    : State(std::array< size_t, 2 >{shape_x, shape_y}, std::array< int, 2 >{0, 0})
 {
 }
 
-StateStratego::StateStratego(size_t shape) : StateStratego(shape, shape) {}
+State::State(size_t shape) : State(shape, shape) {}
 
-StateStratego::StateStratego(
+State::State(
    std::array< size_t, 2 > shape,
    const std::map< position_type, token_type > &setup_0,
    const std::map< position_type, token_type > &setup_1)
-    : StateStratego(shape, std::array< int, 2 >{0, 0}, setup_0, setup_1)
+    : State(shape, std::array< int, 2 >{0, 0}, setup_0, setup_1)
 {
 }
 
-StateStratego::StateStratego(
+State::State(
    size_t shape,
    const std::map< position_type, token_type > &setup_0,
    const std::map< position_type, token_type > &setup_1)
-    : StateStratego(std::array< size_t, 2 >{shape, shape}, setup_0, setup_1)
+    : State(std::array< size_t, 2 >{shape, shape}, setup_0, setup_1)
 {
 }
 
-StateStratego::StateStratego(
+State::State(
    std::array< size_t, 2 > shape,
    const std::map< position_type, int > &setup_0,
    const std::map< position_type, int > &setup_1)
-    : StateStratego(std::make_shared< board_type >(shape, setup_0, setup_1))
+    : State(std::make_shared< board_type >(shape, setup_0, setup_1))
 {
 }
 
-StateStratego::StateStratego(
+State::State(
    size_t shape,
    const std::map< position_type, int > &setup_0,
    const std::map< position_type, int > &setup_1)
-    : StateStratego({shape, shape}, setup_0, setup_1)
+    : State({shape, shape}, setup_0, setup_1)
 {
 }
 
-int StateStratego::fight(piece_type &attacker, piece_type &defender)
+int State::fight(piece_type &attacker, piece_type &defender)
 {
-   return LogicStratego< board_type >::fight_outcome(attacker, defender);
+   return Logic< board_type >::fight_outcome(attacker, defender);
 }
 
-int StateStratego::_do_move(const move_type &move)
+int State::_do_move(const move_type &move)
 {
    // preliminaries
    const position_type &from = move[0];
@@ -102,7 +105,7 @@ int StateStratego::_do_move(const move_type &move)
    }
    return fight_outcome;
 }
-StateStratego *StateStratego::clone_impl() const
+State *State::clone_impl() const
 {
    const auto &hist = history();
    HistoryStratego hist_copy;
@@ -112,7 +115,7 @@ StateStratego *StateStratego::clone_impl() const
          &HistoryStratego::commit_move,
          std::tuple_cat(std::forward_as_tuple(hist_copy, turn), hist.get_by_turn(turn)));
    }
-   return new StateStratego(
+   return new State(
       std::static_pointer_cast< board_type >(board()->clone()),
       status(),
       false,
@@ -120,4 +123,6 @@ StateStratego *StateStratego::clone_impl() const
       hist,
       nr_rounds_without_fight(),
       graveyard());
+}
+
 }

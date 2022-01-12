@@ -1,6 +1,3 @@
-//
-// Created by Michael on 08/03/2019.
-//
 
 #pragma once
 
@@ -13,10 +10,20 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <optional>
 
 #include "aze/types.h"
 
-namespace utils {
+namespace aze::utils {
+
+/**
+ * @brief Creates and returns a new random number generator from a potential seed.
+ * @param seed the seed for the Mersenne Twister algorithm.
+ * @return The Mersenne Twister RNG object
+ */
+auto create_rng(auto seed = std::nullopt) {
+   return std::mt19937_64{seed.has_value() ? seed.value() : std::random_device{}()};
+}
 
 inline std::string repeat(std::string str, const std::size_t n)
 {

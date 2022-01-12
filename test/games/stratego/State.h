@@ -3,14 +3,17 @@
 
 #include <unordered_set>
 
-#include "BoardStratego.h"
-#include "LogicStratego.h"
+#include "Board.h"
+#include "Logic.h"
 #include <aze/aze.h>
+
+
+namespace stratego {
 
 class HistoryStratego {
   public:
-   using move_type = BoardStratego::move_type;
-   using piece_type = BoardStratego::piece_type;
+   using move_type = Board::move_type;
+   using piece_type = Board::piece_type;
 
    inline auto get_by_turn(size_t turn)
       -> std::tuple< Team, move_type, std::array< piece_type, 2 > >
@@ -47,7 +50,7 @@ class HistoryStratego {
       m_turns[turn] = turn;
    }
 
-   void commit_move(const BoardStratego &board, move_type move, size_t turn)
+   void commit_move(const Board &board, move_type move, size_t turn)
    {
       commit_move(turn, Team(turn % 2), move, {*board[move[0]], *board[move[1]]});
    }
@@ -76,43 +79,43 @@ class HistoryStratego {
 
   private:
    std::vector< size_t > m_turns;
-   std::map< size_t, BoardStratego::move_type > m_moves;
+   std::map< size_t, Board::move_type > m_moves;
    std::map< size_t, Team > m_teams;
-   std::map< size_t, std::array< BoardStratego::piece_type, 2 > > m_pieces;
+   std::map< size_t, std::array< Board::piece_type, 2 > > m_pieces;
 };
 
-class StateStratego: public State< BoardStratego, HistoryStratego > {
+class State: public aze::State< Board, HistoryStratego > {
   public:
-   using base_type = State< BoardStratego, HistoryStratego >;
+   using base_type = aze::State< Board, HistoryStratego >;
 
    // just decorate all base constructors with initializing also the dead pieces
    // variable.
    template < typename... Params >
-   StateStratego(Params &&...params) : base_type(std::forward< Params >(params)...), m_dead_pieces()
+   State(Params &&...params) : base_type(std::forward< Params >(params)...), m_dead_pieces()
    {
    }
 
    // also declare some explicit constructors
-   explicit StateStratego(size_t shape_x, size_t shape_y);
+   explicit State(size_t shape_x, size_t shape_y);
 
-   explicit StateStratego(size_t shape = 5);
+   explicit State(size_t shape = 5);
 
-   StateStratego(
+   State(
       size_t shape,
       const std::map< position_type, token_type > &setup_0,
       const std::map< position_type, token_type > &setup_1);
 
-   StateStratego(
+   State(
       std::array< size_t, 2 > shape,
       const std::map< position_type, token_type > &setup_0,
       const std::map< position_type, token_type > &setup_1);
 
-   StateStratego(
+   State(
       size_t shape,
       const std::map< position_type, int > &setup_0,
       const std::map< position_type, int > &setup_1);
 
-   StateStratego(
+   State(
       std::array< size_t, 2 > shape,
       const std::map< position_type, int > &setup_0,
       const std::map< position_type, int > &setup_1);
@@ -132,5 +135,7 @@ class StateStratego: public State< BoardStratego, HistoryStratego > {
          m_dead_pieces[piece->get_team()].emplace(piece->get_token());
    }
 
-   StateStratego *clone_impl() const override;
+   State *clone_impl() const override;
 };
+
+}

@@ -1,5 +1,7 @@
 #pragma once
 
+namespace aze {
+
 enum class Status {
    ONGOING = 404,
    TIE = 0,
@@ -8,3 +10,4 @@ enum class Status {
 };
 enum class Team { BLUE = 0, RED = 1 };
 
+}  // namespace aze

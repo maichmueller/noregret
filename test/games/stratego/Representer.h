@@ -6,33 +6,35 @@
 #include <xtensor/xarray.hpp>
 #include <xtensor/xtensor.hpp>
 
-#include "StateStratego.h"
+#include "State.h"
 
-class RepresenterStratego: public RepresenterBase< StateStratego, RepresenterStratego > {
+namespace stratego {
+
+class Representer: public aze::RepresenterBase< State, Representer > {
   public:
-   using state_type = StateStratego;
+   using state_type = State;
    using position_type = state_type::position_type;
    using token_type = state_type::piece_type::token_type;
    using move_type = state_type::move_type;
    using piece_type = state_type::piece_type;
    using board_type = state_type::board_type;
-   using action_type = Action< position_type, token_type >;
+   using action_type = aze::Action< position_type, token_type >;
    using condition_container = std::vector<
-      std::tuple< typename BoardStratego::piece_type::token_type, int, bool > >;
+      std::tuple< typename Board::piece_type::token_type, int, bool > >;
    static_assert(
       std::is_same_v< typename move_type::position_type, typename board_type::position_type >);
 
-   explicit RepresenterStratego(size_t shape)
-       : RepresenterStratego(_build_actions(shape), _build_conditions(shape))
+   explicit Representer(size_t shape)
+       : Representer(_build_actions(shape), _build_conditions(shape))
    {
    }
 
-   RepresenterStratego(size_t shape, const condition_container &conditions)
-       : RepresenterStratego(_build_actions(shape), conditions)
+   Representer(size_t shape, const condition_container &conditions)
+       : Representer(_build_actions(shape), conditions)
    {
    }
 
-   [[nodiscard]] xt::xarray< double > state_representation_(const state_type &state, Team team)
+   [[nodiscard]] xt::xarray< double > state_representation_(const state_type &state, aze::Team team)
       const
    {
       return state_representation_(state, team, m_conditions);
@@ -56,7 +58,7 @@ class RepresenterStratego: public RepresenterBase< StateStratego, RepresenterStr
    template < typename condition_type = std::tuple< token_type, int, bool > >
    xt::xarray< double > state_representation_(
       const state_type &state,
-      Team team,
+      aze::Team team,
       std::vector< condition_type > conditions) const;
 
    [[nodiscard]] const auto &get_actions_() const { return m_actions; }
@@ -72,16 +74,16 @@ class RepresenterStratego: public RepresenterBase< StateStratego, RepresenterStr
    }
 
    template < typename Board >
-   std::vector< unsigned int > get_action_mask_(const Board &board, Team team);
+   std::vector< unsigned int > get_action_mask_(const Board &board, aze::Team team);
 
    template < typename Board >
    static std::vector< unsigned int >
-   get_action_mask_(const std::vector< action_type > &actions, const Board &board, Team team);
+   get_action_mask_(const std::vector< action_type > &actions, const Board &board, aze::Team team);
 
   private:
    // Delegator constructor to initialize both const fields actions and
    // token_to_actions_map.
-   RepresenterStratego(
+   Representer(
       std::tuple<
          std::vector< action_type >,
          std::unordered_map< token_type, std::vector< action_type > > > &&actions_map,
@@ -113,9 +115,9 @@ class RepresenterStratego: public RepresenterBase< StateStratego, RepresenterStr
 };
 
 template < typename condition_type >
-xt::xarray< double > RepresenterStratego::state_representation_(
+xt::xarray< double > Representer::state_representation_(
    const state_type &state,
-   Team team,
+   aze::Team team,
    std::vector< condition_type > conditions) const
 {
    auto board = state.board();
@@ -146,7 +148,7 @@ xt::xarray< double > RepresenterStratego::state_representation_(
    });
 
    for(const auto &pos_piece : *board) {
-      Position pos = pos_piece.first;
+      auto pos = pos_piece.first;
       pos = canonize_pos(pos);
       auto piece = pos_piece.second;
       if(! piece->is_null()) {
@@ -165,13 +167,13 @@ xt::xarray< double > RepresenterStratego::state_representation_(
 }
 
 template < typename Board >
-std::vector< unsigned int > RepresenterStratego::get_action_mask_(const Board &board, Team team)
+std::vector< unsigned int > Representer::get_action_mask_(const Board &board, aze::Team team)
 {
    return get_action_mask_(m_actions, board, team);
 }
 
 template < typename Piece >
-bool RepresenterStratego::_check_condition(
+bool Representer::_check_condition(
    const sptr< Piece > &piece,
    const token_type &token,
    int team,
@@ -221,10 +223,10 @@ bool RepresenterStratego::_check_condition(
 }
 
 template < typename Board >
-std::vector< unsigned int > RepresenterStratego::get_action_mask_(
+std::vector< unsigned int > Representer::get_action_mask_(
    const std::vector< action_type > &actions,
    const Board &board,
-   Team team)
+   aze::Team team)
 {
    std::vector< unsigned int > action_mask(actions.size(), 0);
    for(const auto &action : actions) {
@@ -235,9 +237,10 @@ std::vector< unsigned int > RepresenterStratego::get_action_mask_(
       } else
          old_pos = pos_pointer->second;
       position_type new_pos = old_pos + action.get_effect();
-      if(LogicStratego< board_type >::is_legal_move_(board, {old_pos, new_pos})) {
+      if(Logic< board_type >::is_legal_move_(board, {old_pos, new_pos})) {
          action_mask[action.get_index()] = 1;
       }
    }
    return action_mask;
+}
 }

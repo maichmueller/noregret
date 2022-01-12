@@ -6,6 +6,9 @@
 #include <iostream>
 #include <vector>
 
+
+namespace aze {
+
 template < class SuperClass, class... Containers >
 class IteratorCollection {
   public:
@@ -160,3 +163,4 @@ class Permutations {
    const iterator_tuple m_end;
    iterator_tuple m_current;
 };
+}

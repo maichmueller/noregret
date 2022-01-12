@@ -6,6 +6,8 @@
 
 #include "Position.h"
 
+namespace aze {
+
 // forward declare class and operators in conjunction with number types
 template < class Position >
 class Move;
@@ -90,10 +92,12 @@ Move< Position > operator/(const Number& n, const Move< Position >& pos)
    return m;
 }
 
+}  // namespace aze
+
 namespace std {
 template < typename Position >
-struct hash< Move< Position > > {
-   constexpr size_t operator()(const Move< Position >& move) const
+struct hash< aze::Move< Position > > {
+   constexpr size_t operator()(const aze::Move< Position >& move) const
    {
       // ( x*p1 xor y*p2 xor z*p3) mod n is supposedly a better spatial hash
       // function

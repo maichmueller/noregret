@@ -3,8 +3,11 @@
 
 #include <functional>
 
-#include "StateStratego.h"
+#include "State.h"
 #include <aze/aze.h>
+
+
+namespace stratego {
 
 struct BattleMatrix {
    static const std::map< std::array< int, 2 >, int > battle_matrix;
@@ -18,8 +21,8 @@ struct BattleMatrix {
 };
 
 template < class StateType >
-struct LogicStratego: public Logic< StateType, LogicStratego< StateType > > {
-   using base_type = Logic< StateType, LogicStratego< StateType > >;
+struct Logic: public Logic< StateType, Logic< StateType > > {
+   using base_type = Logic< StateType, Logic< StateType > >;
    using state_type = typename base_type::state_type;
    using move_type = typename base_type::move_type;
    using position_type = typename base_type::position_type;
@@ -28,8 +31,7 @@ struct LogicStratego: public Logic< StateType, LogicStratego< StateType > > {
 
    static bool is_legal_move_(const state_type &state, const move_type &move);
 
-   static std::vector< move_type >
-   get_legal_moves_(const state_type &state, Team team);
+   static std::vector< move_type > get_legal_moves_(const state_type &state, Team team);
 
    static bool has_legal_moves_(const state_type &state, Team team);
 
@@ -109,10 +111,10 @@ struct LogicStratego: public Logic< StateType, LogicStratego< StateType > > {
 };
 
 template < typename StateType >
-bool LogicStratego< StateType >::is_legal_move_(const state_type &state, const move_type &move)
+bool Logic< StateType >::is_legal_move_(const state_type &state, const move_type &move)
 {
    const auto &[pos_before, pos_after] = move.get_positions();
-   const auto& board = state.board();
+   const auto &board = state.board();
    if(! (std::get< 0 >(board.check_bounds(pos_before)))
       || ! (std::get< 0 >(board.check_bounds(pos_after))))
       return false;
@@ -161,10 +163,9 @@ bool LogicStratego< StateType >::is_legal_move_(const state_type &state, const m
 }
 
 template < class StateType >
-std::vector< typename LogicStratego< StateType >::move_type >
-LogicStratego< StateType >::get_legal_moves_(const state_type &state, Team team)
+std::vector< typename Logic< StateType >::move_type > Logic< StateType >::get_legal_moves_(const state_type &state, Team team)
 {
-   const auto& board = state.board();
+   const auto &board = state.board();
    int shape_x = board.get_shape()[0];
    int shape_y = board.get_shape()[1];
    int starts_x = board.get_starts()[0];
@@ -229,9 +230,9 @@ LogicStratego< StateType >::get_legal_moves_(const state_type &state, Team team)
 }
 
 template < class StateType >
-bool LogicStratego< StateType >::has_legal_moves_(const state_type &state, Team team)
+bool Logic< StateType >::has_legal_moves_(const state_type &state, Team team)
 {
-   const auto& board = state.board();
+   const auto &board = state.board();
    int shape_x = board.get_shape()[0];
    int shape_y = board.get_shape()[1];
    int starts_x = board.get_starts()[0];
@@ -294,4 +295,6 @@ bool LogicStratego< StateType >::has_legal_moves_(const state_type &state, Team 
       }
    }
    return false;
+}
+
 }

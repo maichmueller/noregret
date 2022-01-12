@@ -1,5 +1,7 @@
 
-#include "LogicStratego.h"
+#include "Logic.h"
+
+namespace stratego {
 
 std::map< std::array< int, 2 >, int > BattleMatrix::initialize_battle_matrix()
 {
@@ -23,7 +25,7 @@ std::map< std::array< int, 2 >, int > BattleMatrix::initialize_battle_matrix()
 const std::map< std::array< int, 2 >, int >
    BattleMatrix::battle_matrix = initialize_battle_matrix();
 
-// int LogicStratego::_find_action_idx(std::vector<strat_move_base_t>
+// int Logic::_find_action_idx(std::vector<strat_move_base_t>
 // &vec_to_search, strat_move_base_t &action_to_find) {
 //
 //    // func to find a specific vector in another (assuming types are all
@@ -90,7 +92,7 @@ const std::map< std::array< int, 2 >, int >
 // * @param pos_to the target position.
 // * @param flip_board switch to flip the for team 1.
 // */
-// void LogicStratego::enable_action_if_legal(std::vector<int>& action_mask,
+// void Logic::enable_action_if_legal(std::vector<int>& action_mask,
 // const Board& board,
 //                                           int act_range_start,
 //                                           const std::vector<strat_move_base_t
@@ -112,13 +114,13 @@ const std::map< std::array< int, 2 >, int >
 //        for(unsigned long idx = 0; idx < slice.size(); ++idx) {
 //            slice[idx] = action_arr[act_range[idx]];
 //        }
-//        int idx = LogicStratego::_find_action_idx(slice, action_effect);
+//        int idx = Logic::_find_action_idx(slice, action_effect);
 //        action_mask[act_range_start + idx] = 1;
 //    }
 //};
 //
 //
-// std::vector<int> LogicStratego::get_action_mask(
+// std::vector<int> Logic::get_action_mask(
 //        const Board &board, const std::vector<strat_move_base_t >& action_arr,
 //        const std::map<std::array<int, 2>, std::tuple<int, std::vector<int>>>&
 //        piece_act_map, Team team) {
@@ -171,7 +173,7 @@ const std::map< std::array< int, 2 >, int >
 //
 //            }
 //            for(auto& pos_to : all_pos_targets) {
-//                LogicStratego::_enable_action_if_legal(action_mask, board,
+//                Logic::_enable_action_if_legal(action_mask, board,
 //                                                       start_idx, action_arr,
 //                                                       act_range, pos, pos_to,
 //                                                       team);
@@ -180,3 +182,5 @@ const std::map< std::array< int, 2 >, int >
 //    }
 //    return action_mask;
 //}
+
+}

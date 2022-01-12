@@ -15,6 +15,8 @@
 #include "aze/utils/logging_macros.h"
 #include "aze/utils/utils.h"
 
+namespace aze {
+
 template < typename PieceType >
 class Board {
   public:
@@ -367,3 +369,4 @@ inline void Board< PieceType >::is_within_bounds(const position_type &pos)
       throw std::invalid_argument(ss.str());
    }
 }
+}  // namespace aze

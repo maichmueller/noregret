@@ -5,6 +5,8 @@
 #include "core/include/aze/game/Board.h"
 #include "core/include/aze/game/Logic.h"
 
+namespace aze {
+
 template < class StateType >
 class Agent {
   public:
@@ -51,3 +53,4 @@ class RandomAgent: public Agent< StateType > {
   private:
    std::mt19937 mt;
 };
+}

@@ -1,5 +1,7 @@
 
-#include "RepresenterStratego.h"
+#include "Representer.h"
+
+namespace stratego {
 
 /**
 * We are trying to build a state representation of a Stratego board.
@@ -27,7 +29,7 @@
     of 0's and 1's on the positions for which the relevant condition was
 *   true (1) or wrong (0)
 **/
-RepresenterStratego::condition_container RepresenterStratego::_build_conditions(size_t shape)
+Representer::condition_container Representer::_build_conditions(size_t shape)
 {
    std::vector< std::tuple< token_type, int, bool > > conditions(0);
    int own_team = 0;
@@ -61,11 +63,10 @@ RepresenterStratego::condition_container RepresenterStratego::_build_conditions(
 }
 
 std::tuple<
-   std::vector< RepresenterStratego::action_type >,
-   std::unordered_map<
-      RepresenterStratego::token_type,
-      std::vector< RepresenterStratego::action_type > > >
-RepresenterStratego::_build_actions(size_t shape)
+   std::vector< Representer::action_type >,
+   std::unordered_map< Representer::token_type,
+      std::vector< Representer::action_type > > >
+Representer::_build_actions(size_t shape)
 {
    std::vector< action_type > actions;
    std::unordered_map< token_type, std::vector< action_type > > token_to_action_map;
@@ -108,4 +109,6 @@ RepresenterStratego::_build_actions(size_t shape)
       }
    }
    return std::make_tuple(actions, token_to_action_map);
+}
+
 }

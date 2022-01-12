@@ -10,6 +10,9 @@
 #include "core/include/aze/game/Move.h"
 #include "aze/types.h"
 
+
+namespace aze {
+
 template < class StateType, class DerivedType >
 struct Logic {
    using state_type = StateType;
@@ -20,8 +23,7 @@ struct Logic {
    {
       return DerivedType::is_legal_move_(state, move);
    };
-   static std::vector< move_type >
-   get_legal_moves(const state_type& state, Team team)
+   static std::vector< move_type > get_legal_moves(const state_type& state, Team team)
    {
       return DerivedType::get_legal_moves_(state, team);
    }
@@ -30,3 +32,5 @@ struct Logic {
       return DerivedType::has_legal_moves_(state, team);
    }
 };
+
+}
