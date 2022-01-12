@@ -1,11 +1,11 @@
 
 #pragma once
 
-#include "State.h"
 #include <aze/aze.h>
 
-#include "StrategoDefs.hpp"
 #include "Config.hpp"
+#include "State.h"
+#include "StrategoDefs.hpp"
 
 namespace stratego {
 
@@ -42,8 +42,8 @@ class Game: public aze::Game< State, Logic< Board >, Game > {
       const sptr< aze::Agent< state_type > > &ag0,
       const sptr< aze::Agent< state_type > > &ag1);
 
-   std::map< position_type, sptr_piece_type > draw_setup_(int team);
+   std::map< position_type, sptr_piece_type > draw_setup_(aze::Team team);
 
    aze::Status check_terminal() override;
 };
-}
+}  // namespace stratego

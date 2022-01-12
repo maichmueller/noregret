@@ -24,8 +24,7 @@ class Representer: public aze::RepresenterBase< State, Representer > {
    static_assert(
       std::is_same_v< typename move_type::position_type, typename board_type::position_type >);
 
-   explicit Representer(size_t shape)
-       : Representer(_build_actions(shape), _build_conditions(shape))
+   explicit Representer(size_t shape) : Representer(_build_actions(shape), _build_conditions(shape))
    {
    }
 
@@ -243,4 +242,4 @@ std::vector< unsigned int > Representer::get_action_mask_(
    }
    return action_mask;
 }
-}
+}  // namespace stratego

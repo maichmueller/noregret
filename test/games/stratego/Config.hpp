@@ -46,21 +46,22 @@ auto _default_bm()
    return bm;
 }
 
-auto _default_setups(size_t game_size) {
-   std::map< Team, std::map< Position< int, 2 >, Token > > setups;
-
-
+auto _default_setups(size_t game_size)
+{
+   using Team = aze::Team;
+   std::map< Team, std::map< aze::Position< int, 2 >, Token > > setups;
 
    return setups;
 }
 
 struct Config {
+   using Team = aze::Team;
    Team starting_team;
    size_t game_size = 5;
-   std::map< Team, std::map< Position< int, 2 >, Token > > setups = _default_setups(game_size);
+   std::map< Team, std::map< aze::Position< int, 2 >, Token > > setups = _default_setups(game_size);
    size_t max_turn_count = 500;
    std::map< std::array< Token, 2 >, int > battle_matrix = _default_bm();
    std::map< Token, int > move_ranges = _default_mr();
 };
 
-}
+}  // namespace stratego

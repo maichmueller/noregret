@@ -13,7 +13,7 @@ namespace stratego {
 
 class Board: public aze::Board< Piece > {
   public:
-   using base_type = Board< PieceStratego >;
+   using base_type = aze::Board< Piece >;
 
    // also specializing one
    Board(

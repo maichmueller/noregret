@@ -42,14 +42,12 @@ Game::Game(
 {
 }
 
-std::map< Game::position_type, Game::sptr_piece_type > Game::draw_setup_(
-   int team)
+std::map< Game::position_type, Game::sptr_piece_type > Game::draw_setup_(aze::Team team)
 {
    int shape = get_state().board()->get_shape()[0];
    auto avail_types = Logic< board_type >::get_available_types(shape);
 
-   std::vector< position_type > poss_pos = Logic< board_type >::get_start_positions(
-      shape, team);
+   std::vector< position_type > poss_pos = Logic< board_type >::get_start_positions(shape, team);
 
    std::map< position_type, sptr_piece_type > setup_out;
 
@@ -83,19 +81,18 @@ aze::Status Game::check_terminal()
              dead_pieces.find(token_type::flag) != dead_pieces.end()) {
       // flag of team 1 has been captured (killed), therefore team 1 lost
       return state.set_status(aze::Status::WIN_BLUE);
-
    }
 
    // committing draw rules here
 
    // Rule 1: If either team has no moves left.
-   else if(
-      not Logic< board_type >::has_legal_moves_(*state.board(), aze::Team::BLUE)
+   if(not Logic< board_type >::has_legal_moves_(*state.board(), aze::Team::BLUE)
       or not Logic< board_type >::has_legal_moves_(*state.board(), aze::Team::RED)) {
       return state.set_status(aze::Status::TIE);
    }
 
-   else if(state.turn_count() > MAX_TURN_COUNT) {
+   // Rule 1: The maximum turn count has been reached
+   if(state.turn_count() >= state.config().max_turn_count) {
       return state.set_status(aze::Status::TIE);
    }
    return state.status();

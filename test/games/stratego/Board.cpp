@@ -34,7 +34,7 @@ std::vector< sptr< typename Board::piece_type > > Board::adapt_setup(
    return vector_out;
 }
 
-std::string Board::print_board(Team team, bool hide_unknowns) const
+std::string Board::print_board(aze::Team team, bool hide_unknowns) const
 {
    int H_SIZE_PER_PIECE = 9;
    int V_SIZE_PER_PIECE = 3;
@@ -57,14 +57,14 @@ std::string Board::print_board(Team team, bool hide_unknowns) const
       std::string color = BLUE;  // blue by default (for team 0)
       if(piece.get_team() == -1 && ! piece.is_null())
          // piece is an obstacle (return a gray colored field)
-         return "\x1B[30;47m" + utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
+         return "\x1B[30;47m" + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
       else if(piece.get_team(static_cast< bool >(team)) == 1) {
          color = RED;  // background red, text "white"
       }
       if(line == mid - 1) {
          // hidden info line
          std::string h = piece.get_flag_hidden() ? "?" : " ";
-         return color + utils::center(h, H_SIZE_PER_PIECE, " ") + RESET;
+         return color + aze::utils::center(h, H_SIZE_PER_PIECE, " ") + RESET;
       } else if(line == mid) {
          // type and version info line
          if(hide_unknowns && piece.get_flag_hidden() && piece.get_team(static_cast< bool >(team))) {
@@ -72,14 +72,14 @@ std::string Board::print_board(Team team, bool hide_unknowns) const
          }
          const auto &token = piece.get_token();
          return color
-                + utils::center(
-                   std::to_string(token[0]) + '.' + std::to_string(token[1]), H_SIZE_PER_PIECE, " ")
+                + aze::utils::center(
+                   std::to_string(static_cast<int>(token)), H_SIZE_PER_PIECE, " ")
                 + RESET;
       } else if(line == mid + 1)
          // team info line
          // return color + center(std::to_string(piece.get_team(flip_board)),
          // H_SIZE_PER_PIECE, " ") + reset;
-         return color + utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
+         return color + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
       else
          // empty line
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
@@ -89,7 +89,7 @@ std::string Board::print_board(Team team, bool hide_unknowns) const
    board_print << "\n";
 
    std::string init_space = std::string(static_cast< unsigned long >(row_ind_space), ' ');
-   std::string h_border = utils::repeat(
+   std::string h_border = aze::utils::repeat(
       VERT_BAR, static_cast< unsigned long >(dim_x * (H_SIZE_PER_PIECE + 1) - 1));
 
    board_print << init_space << VERT_BAR << h_border << VERT_BAR << "\n";
@@ -144,7 +144,7 @@ std::string Board::print_board(Team team, bool hide_unknowns) const
    board_print << std::string(static_cast< unsigned long >(row_ind_space), ' ');
    // print the column index rows
    for(int i = m_starts[0]; i < dim_x; ++i) {
-      board_print << utils::center(std::to_string(i), H_SIZE_PER_PIECE + 1, " ");
+      board_print << aze::utils::center(std::to_string(i), H_SIZE_PER_PIECE + 1, " ");
    }
    board_print << "\n";
    return board_print.str();
@@ -154,7 +154,7 @@ void Board::_add_obstacles()
 {
    auto obstacle_positions = Logic< Board >::get_obstacle_positions(m_shape[0]);
    for(const auto &obstacle_pos : obstacle_positions) {
-      m_map[obstacle_pos] = std::make_shared< piece_type >(obstacle_pos, token_type{99, 99}, -1);
+      m_map[obstacle_pos] = std::make_shared< piece_type >(obstacle_pos, token_type{99}, -1);
    }
 }
 

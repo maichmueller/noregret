@@ -4,7 +4,6 @@
 #include "Move.h"
 #include "Position.h"
 
-
 namespace aze {
 
 template < typename Effect, typename TokenType >
@@ -34,8 +33,8 @@ struct Action {
    }
 };
 
-  // namespace std
-}
+// namespace std
+}  // namespace aze
 namespace std {
 template < typename VectorType, typename TokenType >
 struct hash< aze::Action< VectorType, TokenType > > {
@@ -44,4 +43,4 @@ struct hash< aze::Action< VectorType, TokenType > > {
       return std::hash< TokenType >()(action.get_assoc_token());
    }
 };
-}
+}  // namespace std

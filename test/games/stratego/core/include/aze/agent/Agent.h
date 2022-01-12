@@ -53,4 +53,4 @@ class RandomAgent: public Agent< StateType > {
   private:
    std::mt19937 mt;
 };
-}
+}  // namespace aze

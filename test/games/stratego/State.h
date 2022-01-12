@@ -1,16 +1,18 @@
 
 #pragma once
 
+#include <aze/aze.h>
+
 #include <unordered_set>
 
 #include "Board.h"
 #include "Logic.h"
-#include <aze/aze.h>
-
 
 namespace stratego {
 
-class HistoryStratego {
+class History {
+   using Team = aze::Team;
+
   public:
    using move_type = Board::move_type;
    using piece_type = Board::piece_type;
@@ -84,12 +86,11 @@ class HistoryStratego {
    std::map< size_t, std::array< Board::piece_type, 2 > > m_pieces;
 };
 
-class State: public aze::State< Board, HistoryStratego > {
+class State: public aze::State< Board, History > {
   public:
-   using base_type = aze::State< Board, HistoryStratego >;
+   using base_type = aze::State< Board, History >;
 
    // just decorate all base constructors with initializing also the dead pieces
-   // variable.
    template < typename... Params >
    State(Params &&...params) : base_type(std::forward< Params >(params)...), m_dead_pieces()
    {
@@ -135,7 +136,7 @@ class State: public aze::State< Board, HistoryStratego > {
          m_dead_pieces[piece->get_team()].emplace(piece->get_token());
    }
 
-   State *clone_impl() const override;
+   [[nodiscard]] State *clone_impl() const override;
 };
 
-}
+}  // namespace stratego

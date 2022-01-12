@@ -183,4 +183,4 @@ const std::map< std::array< int, 2 >, int >
 //    return action_mask;
 //}
 
-}
+}  // namespace stratego

@@ -6,10 +6,9 @@
 
 #include <functional>
 
+#include "aze/types.h"
 #include "core/include/aze/game/Board.h"
 #include "core/include/aze/game/Move.h"
-#include "aze/types.h"
-
 
 namespace aze {
 
@@ -33,4 +32,4 @@ struct Logic {
    }
 };
 
-}
+}  // namespace aze

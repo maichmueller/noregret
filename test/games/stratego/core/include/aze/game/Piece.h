@@ -5,6 +5,7 @@
 #include <array>
 #include <random>
 
+#include "aze/game/Defs.h"
 #include "aze/utils/utils.h"
 
 namespace aze {
@@ -41,7 +42,7 @@ class Piece {
    {
    }
 
-   Piece(position_type position, token_type type, int team)
+   Piece(position_type position, token_type type, Team team)
        : Piece(position, type, team, true, false)
    {
    }
@@ -87,6 +88,6 @@ class Piece {
              && m_has_moved == other.get_flag_has_moved();
    }
 
-   bool operator!=(const Piece &other) const { return ! (*this == other); }
+   bool operator!=(const Piece &other) const { return *this != other; }
 };
 }  // namespace aze

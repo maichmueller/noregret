@@ -6,11 +6,11 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <random>
 #include <sstream>
 #include <string>
 #include <utility>
-#include <optional>
 
 #include "aze/types.h"
 
@@ -21,7 +21,8 @@ namespace aze::utils {
  * @param seed the seed for the Mersenne Twister algorithm.
  * @return The Mersenne Twister RNG object
  */
-auto create_rng(auto seed = std::nullopt) {
+auto create_rng(auto seed = std::nullopt)
+{
    return std::mt19937_64{seed.has_value() ? seed.value() : std::random_device{}()};
 }
 
@@ -237,7 +238,7 @@ auto call_min_from_tuple(Tuple& args, std::index_sequence< I... >)
    return min(std::get< I >(args)...);
 }
 
-};  // namespace utils
+};  // namespace aze::utils
 
 #include <tuple>
 

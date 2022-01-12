@@ -7,6 +7,8 @@
 #include "aze/agent/Agent.h"
 #include "aze/utils/utils.h"
 
+namespace aze {
+
 struct StatTrack {
    int wins;
    int draws;
@@ -114,3 +116,5 @@ Arena::pit(GameType &game, int num_sims, bool show_game, bool save_results)
    std::cout << std::endl;
    return std::make_tuple(stats0, stats1);
 }
+
+}  // namespace aze

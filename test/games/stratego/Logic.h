@@ -1,11 +1,11 @@
 
 #pragma once
 
+#include <aze/aze.h>
+
 #include <functional>
 
 #include "State.h"
-#include <aze/aze.h>
-
 
 namespace stratego {
 
@@ -21,8 +21,9 @@ struct BattleMatrix {
 };
 
 template < class StateType >
-struct Logic: public Logic< StateType, Logic< StateType > > {
-   using base_type = Logic< StateType, Logic< StateType > >;
+struct Logic: public aze::Logic< StateType, Logic< StateType > > {
+   using Team = aze::Team;
+   using base_type = aze::Logic< StateType, Logic< StateType > >;
    using state_type = typename base_type::state_type;
    using move_type = typename base_type::move_type;
    using position_type = typename base_type::position_type;
@@ -72,18 +73,19 @@ struct Logic: public Logic< StateType, Logic< StateType > > {
          throw std::invalid_argument("'shape' not in {5, 7, 10}.");
    }
 
-   static inline std::vector< position_type > get_start_positions(int shape, int team)
+   static inline std::vector< position_type > get_start_positions(int shape, aze::Team team)
    {
-      if(team != 0 && team != 1)
+      int t = static_cast<int>(team);
+      if(t != 0 && t != 1)
          throw std::invalid_argument("'team' not in {0, 1}.");
 
       if(shape == 5) {
-         if(team == 0)
+         if(t == 0)
             return {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}};
          else
             return {{4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}, {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}};
       } else if(shape == 7) {
-         if(team == 0)
+         if(t == 0)
             return {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {0, 6},
                     {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6},
                     {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}, {2, 5}, {2, 6}};
@@ -93,7 +95,7 @@ struct Logic: public Logic< StateType, Logic< StateType > > {
                     {6, 0}, {6, 1}, {6, 2}, {6, 3}, {6, 4}, {6, 5}, {6, 6}};
 
       } else if(shape == 10) {
-         if(team == 0)
+         if(t == 0)
             return {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {0, 6}, {0, 7}, {0, 8}, {0, 9},
                     {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9},
                     {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}, {2, 5}, {2, 6}, {2, 7}, {2, 8}, {2, 9},
@@ -163,7 +165,9 @@ bool Logic< StateType >::is_legal_move_(const state_type &state, const move_type
 }
 
 template < class StateType >
-std::vector< typename Logic< StateType >::move_type > Logic< StateType >::get_legal_moves_(const state_type &state, Team team)
+std::vector< typename Logic< StateType >::move_type > Logic< StateType >::get_legal_moves_(
+   const state_type &state,
+   Team team)
 {
    const auto &board = state.board();
    int shape_x = board.get_shape()[0];
@@ -175,7 +179,7 @@ std::vector< typename Logic< StateType >::move_type > Logic< StateType >::get_le
       sptr< piece_type > piece = elem->second;
       if(! piece->is_null() && piece->get_team() == team) {
          // the position we are dealing with
-         Position pos = piece->get_position();
+         auto pos = piece->get_position();
 
          if(piece->get_token()[0] == 2) {
             // all possible moves to the right until board ends
@@ -243,7 +247,7 @@ bool Logic< StateType >::has_legal_moves_(const state_type &state, Team team)
          ! piece->is_null() && piece->get_team() == team && essential_token != 0
          && essential_token != 11) {
          // the position we are dealing with
-         Position pos = piece->get_position();
+         auto pos = piece->get_position();
 
          if(piece->get_token()[0] == 2) {
             // all possible moves to the right until board ends
@@ -297,4 +301,4 @@ bool Logic< StateType >::has_legal_moves_(const state_type &state, Team team)
    return false;
 }
 
-}
+}  // namespace stratego

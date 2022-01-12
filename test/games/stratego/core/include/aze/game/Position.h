@@ -9,7 +9,6 @@
 
 #include "aze/utils/prime_list.h"
 
-
 namespace aze {
 
 // forward declare class and operators in conjunction with number types
@@ -318,8 +317,7 @@ Position< ValueType, N > Position< ValueType, N >::invert(
    return inverted;
 }
 
-
-}
+}  // namespace aze
 
 namespace std {
 template < typename ValueType, size_t N >

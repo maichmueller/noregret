@@ -2,7 +2,6 @@
 
 #include <functional>
 
-
 namespace stratego {
 
 State::State(size_t shape_x, size_t shape_y)
@@ -108,11 +107,11 @@ int State::_do_move(const move_type &move)
 State *State::clone_impl() const
 {
    const auto &hist = history();
-   HistoryStratego hist_copy;
+   History hist_copy;
    // copy the contents of each map
    for(const auto &turn : hist.turns()) {
       std::apply(
-         &HistoryStratego::commit_move,
+         &History::commit_move,
          std::tuple_cat(std::forward_as_tuple(hist_copy, turn), hist.get_by_turn(turn)));
    }
    return new State(
@@ -125,4 +124,4 @@ State *State::clone_impl() const
       graveyard());
 }
 
-}
+}  // namespace stratego

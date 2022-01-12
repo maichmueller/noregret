@@ -33,45 +33,44 @@ Representer::condition_container Representer::_build_conditions(size_t shape)
 {
    std::vector< std::tuple< token_type, int, bool > > conditions(0);
    int own_team = 0;
-   auto counter = utils::counter(LogicStratego< board_type >::get_available_types(shape));
+   auto counter = aze::utils::counter(Logic< board_type >::get_available_types(shape));
    // own m_team 0
    // [flag, 1, 2, 3, 4, ..., 10, bombs] UNHIDDEN
    for(const auto& entry : counter) {
       int type = entry.first;
       for(decltype(entry.second) version = 0; version < entry.second; ++version) {
-         conditions.emplace_back(std::make_tuple(token_type(type, version), own_team, false));
+         conditions.emplace_back(std::make_tuple(token_type(type), own_team, false));
       }
    }
    // [all own pieces] HIDDEN
    // Note: type and version info are unused
    // in the check in this case (thus -1)
-   conditions.emplace_back(std::make_tuple(token_type(-1, -1), own_team, true));
+   conditions.emplace_back(std::make_tuple(token_type(-1), own_team, true));
 
    // enemy m_team 1
    // [flag, 1, 2, 3, 4, ..., 10, bombs] UNHIDDEN
    for(const auto& entry : counter) {
       int type = entry.first;
       for(decltype(entry.second) version = 0; version < entry.second; ++version) {
-         conditions.emplace_back(std::make_tuple(token_type(type, version), 1 - own_team, false));
+         conditions.emplace_back(std::make_tuple(token_type(type), 1 - own_team, false));
       }
    }
    // [all enemy pieces] HIDDEN
    // Note: type and version info are unused
    // in the check in this case (thus -1)
-   conditions.emplace_back(std::make_tuple(token_type(-1, -1), 1 - own_team, true));
+   conditions.emplace_back(std::make_tuple(token_type(-1), 1 - own_team, true));
    return conditions;
 }
 
 std::tuple<
    std::vector< Representer::action_type >,
-   std::unordered_map< Representer::token_type,
-      std::vector< Representer::action_type > > >
+   std::unordered_map< Representer::token_type, std::vector< Representer::action_type > > >
 Representer::_build_actions(size_t shape)
 {
    std::vector< action_type > actions;
    std::unordered_map< token_type, std::vector< action_type > > token_to_action_map;
 
-   const auto& available_types = LogicStratego< board_type >::get_available_types(shape);
+   const auto& available_types = Logic< board_type >::get_available_types(shape);
    int curr_token = -1;
    int curr_token_version = -1;
    /*
@@ -96,7 +95,7 @@ Representer::_build_actions(size_t shape)
          acts.reserve(max_steps);
          std::vector< size_t > curr_indices;
          curr_indices.reserve(max_steps);
-         token_type token(curr_token, curr_token_version);
+         auto token(static_cast< token_type >(curr_token));
          for(unsigned int i = 1; i < max_steps + 1; ++i) {
             acts.emplace_back(action_type(position_type(0, i), token, index));
             acts.emplace_back(action_type(position_type(i, 0), token, index + 1));
@@ -111,4 +110,4 @@ Representer::_build_actions(size_t shape)
    return std::make_tuple(actions, token_to_action_map);
 }
 
-}
+}  // namespace stratego

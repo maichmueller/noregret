@@ -4,7 +4,6 @@
 
 #include <array>
 
-
 namespace stratego {
 
 enum class Token {
@@ -25,10 +24,10 @@ enum class Token {
 
 class Piece: public aze::Piece< aze::Position< int, 2 >, Token > {
   public:
-   using base_type = Piece< aze::Position< int, 2 >, Token >;
+   using base_type = aze::Piece< aze::Position< int, 2 >, Token >;
 
-   // inheriting the base constructors with the next command!
+   // inheriting the base constructors
    using base_type::base_type;
 };
 
-}
+}  // namespace stratego
