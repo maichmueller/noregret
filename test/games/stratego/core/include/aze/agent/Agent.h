@@ -1,9 +1,9 @@
 #pragma once
 
 #include <vector>
+#include <random>
 
-#include "core/include/aze/game/Board.h"
-#include "core/include/aze/game/Logic.h"
+#include "aze/game/Defs.h"
 
 namespace aze {
 
@@ -14,11 +14,10 @@ class Agent {
    using move_type = typename state_type::move_type;
 
   protected:
-   int m_team;
-   bool m_is_learner;
+   Team m_team;
 
   public:
-   explicit Agent(int team, bool learner = false) : m_team(team), m_is_learner(learner) {}
+   explicit Agent(Team team) : m_team(team) {}
 
    virtual ~Agent() = default;
 

@@ -76,11 +76,11 @@ aze::Status Game::check_terminal()
    if(auto dead_pieces = state.graveyard(0);
       dead_pieces.find(token_type::flag) != dead_pieces.end()) {
       // flag of team 0 has been captured (killed), therefore team 0 lost
-      return state.set_status(aze::Status::WIN_RED);
+      return state.status(aze::Status::WIN_RED);
    } else if(dead_pieces = state.graveyard(1);
              dead_pieces.find(token_type::flag) != dead_pieces.end()) {
       // flag of team 1 has been captured (killed), therefore team 1 lost
-      return state.set_status(aze::Status::WIN_BLUE);
+      return state.status(aze::Status::WIN_BLUE);
    }
 
    // committing draw rules here
@@ -88,12 +88,12 @@ aze::Status Game::check_terminal()
    // Rule 1: If either team has no moves left.
    if(not Logic< board_type >::has_legal_moves_(*state.board(), aze::Team::BLUE)
       or not Logic< board_type >::has_legal_moves_(*state.board(), aze::Team::RED)) {
-      return state.set_status(aze::Status::TIE);
+      return state.status(aze::Status::TIE);
    }
 
    // Rule 1: The maximum turn count has been reached
    if(state.turn_count() >= state.config().max_turn_count) {
-      return state.set_status(aze::Status::TIE);
+      return state.status(aze::Status::TIE);
    }
    return state.status();
 }

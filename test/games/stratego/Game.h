@@ -3,47 +3,46 @@
 
 #include <aze/aze.h>
 
+#include "Action.h"
 #include "Config.hpp"
 #include "State.h"
 #include "StrategoDefs.hpp"
 
 namespace stratego {
 
-class Game: public aze::Game< State, Logic< Board >, Game > {
+class Game: public aze::Game< State, Logic< State >, Game, 2 > {
   public:
-   using base_type = aze::Game< State, Logic< Board >, Game >;
+   using base_type = aze::Game< State, Logic< State >, Game, 2 >;
    using base_type::base_type;
 
    Game(
       const std::array< size_t, 2 > &shape,
-      const std::map< position_type, int > &setup_0,
-      const std::map< position_type, int > &setup_1,
-      const sptr< aze::Agent< state_type > > &ag0,
-      const sptr< aze::Agent< state_type > > &ag1);
+      const std::map< Position , int > &setup_0,
+      const std::map< Position, int > &setup_1,
+      const sptr< aze::Agent< State > > &ag0,
+      const sptr< aze::Agent< State > > &ag1);
 
    Game(
       size_t shape,
-      const std::map< position_type, int > &setup_0,
-      const std::map< position_type, int > &setup_1,
-      const sptr< aze::Agent< state_type > > &ag0,
-      const sptr< aze::Agent< state_type > > &ag1);
+      const std::map< Position, int > &setup_0,
+      const std::map< Position, int > &setup_1,
+      const sptr< aze::Agent< State > > &ag0,
+      const sptr< aze::Agent< State > > &ag1);
 
    Game(
       const std::array< size_t, 2 > &shape,
-      const std::map< position_type, token_type > &setup_0,
-      const std::map< position_type, token_type > &setup_1,
-      const sptr< aze::Agent< state_type > > &ag0,
-      const sptr< aze::Agent< state_type > > &ag1);
+      const std::map< Position, Token > &setup_0,
+      const std::map< Position, Token > &setup_1,
+      const sptr< aze::Agent< State > > &ag0,
+      const sptr< aze::Agent< State > > &ag1);
 
    Game(
       size_t shape,
-      const std::map< position_type, token_type > &setup_0,
-      const std::map< position_type, token_type > &setup_1,
-      const sptr< aze::Agent< state_type > > &ag0,
-      const sptr< aze::Agent< state_type > > &ag1);
+      const std::map< Position, Token > &setup_0,
+      const std::map< Position, Token > &setup_1,
+      const sptr< aze::Agent< State > > &ag0,
+      const sptr< aze::Agent< State > > &ag1);
 
-   std::map< position_type, sptr_piece_type > draw_setup_(aze::Team team);
-
-   aze::Status check_terminal() override;
+   std::map< Position, Piece > draw_setup_(aze::Team team);
 };
 }  // namespace stratego

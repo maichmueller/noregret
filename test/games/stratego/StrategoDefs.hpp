@@ -1,5 +1,38 @@
 #pragma once
 
+#include <xtensor/xtensor.hpp>
+
+#include <aze/aze.h>
+#include "aze/game/Position.h"
+#include "aze/game/Piece.h"
+
+//#include "aze/game/Piece.h"
+
+
+namespace stratego {
+
+enum class Token {
+   flag = 0,
+   spy = 1,
+   scout = 2,
+   miner = 3,
+   sergeant = 4,
+   lieutenant = 5,
+   captain = 6,
+   major = 7,
+   colonel = 8,
+   general = 9,
+   marshall = 10,
+   bomb = 11,
+   obstacle = 99
+};
+
+using Position = aze::Position<int, 2>;
+using Piece = aze::Piece< Position, Token >;
+using Board = xt::xtensor< std::optional< Piece >, 2 >;
+
+}  // namespace stratego
+
 namespace aze {
 
 enum class Status {

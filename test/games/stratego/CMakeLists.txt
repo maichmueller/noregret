@@ -17,11 +17,8 @@ target_link_libraries(
 )
 
 set(STRATEGO_SOURCES
-		Board.cpp
-		Game.cpp
-		Representer.cpp
+        Game.cpp
         State.cpp
-		Logic.cpp
 		)
 
 add_executable(stratego ${STRATEGO_SOURCES})

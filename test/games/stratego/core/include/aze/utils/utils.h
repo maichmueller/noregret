@@ -12,10 +12,23 @@
 #include <string>
 #include <utility>
 
-#include "aze/types.h"
+
+template < typename T >
+using uptr = std::unique_ptr< T >;
+template < typename T >
+using sptr = std::shared_ptr< T >;
+template < typename T >
+using wptr = std::weak_ptr< T >;
 
 namespace aze::utils {
 
+template<typename ... Ts>
+struct Overload : Ts ... {
+   using Ts::operator() ...;
+};
+template<class... Ts> Overload(Ts...) -> Overload<Ts...>;
+
+using RNG = std::mt19937_64;
 /**
  * @brief Creates and returns a new random number generator from a potential seed.
  * @param seed the seed for the Mersenne Twister algorithm.
@@ -23,7 +36,7 @@ namespace aze::utils {
  */
 auto create_rng(auto seed = std::nullopt)
 {
-   return std::mt19937_64{seed.has_value() ? seed.value() : std::random_device{}()};
+   return RNG{seed.has_value() ? seed.value() : std::random_device{}()};
 }
 
 inline std::string repeat(std::string str, const std::size_t n)
@@ -93,24 +106,24 @@ board_str_rep(const BoardType& board, bool flip_board = false, bool hide_unknown
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
       std::string reset = "\x1B[0m";
       std::string color = "\x1B[44m";  // blue by default (for team 1)
-      if(piece.get_team() == 99)
+      if(piece.team() == 99)
          return "\x1B[30;47m" + center("", H_SIZE_PER_PIECE, " ") + "\x1B[0m";
-      else if(piece.get_team(flip_board) == 0) {
+      else if(piece.team(flip_board) == 0) {
          color = "\x1B[41m";  // background red, text "white"
       }
       if(line == mid - 1) {
          // hidden info line
-         std::string h = piece.get_flag_hidden() ? "?" : " ";
+         std::string h = piece.flag_hidden() ? "?" : " ";
          // return color + center(h, H_SIZE_PER_PIECE, " ") + reset;
          return color + center(h, H_SIZE_PER_PIECE, " ") + reset;
       } else if(line == mid) {
          // type and version info line
-         if(hide_unknowns && piece.get_flag_hidden() && piece.get_team(flip_board)) {
+         if(hide_unknowns && piece.flag_hidden() && piece.team(flip_board)) {
             return color + std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ') + reset;
          }
-         //                std::cout << "PieceType: type " << piece.get_token() <<
+         //                std::cout << "PieceType: type " << piece.token() <<
          //                "." << piece.get_version() << " at (" <<
-         //                                                                                                          piece.get_position()[0] << ", " << piece.get_position()[1] <<") \n";
+         //                                                                                                          piece.get_position()[0] << ", " << piece.position()[1] <<") \n";
          return color
                 + center(
                    std::to_string(piece.get_type()) + '.' + std::to_string(piece.get_version()),
@@ -119,7 +132,7 @@ board_str_rep(const BoardType& board, bool flip_board = false, bool hide_unknown
                 + reset;
       } else if(line == mid + 1)
          // m_team info line
-         // return color + center(std::to_string(piece.get_team(flip_board)),
+         // return color + center(std::to_string(piece.team(flip_board)),
          // H_SIZE_PER_PIECE, " ") + reset;
          return color + center("", H_SIZE_PER_PIECE, " ") + reset;
       else
@@ -199,9 +212,10 @@ inline void print_board(const BoardType& board, bool flip_board = false, bool hi
    std::cout << output << std::endl;
 }
 
-inline std::map< int, unsigned int > counter(const std::vector< int >& vals)
+template <typename T>
+inline std::map< T, unsigned int > counter(const std::vector< T >& vals)
 {
-   std::map< int, unsigned int > rv;
+   std::map< T, unsigned int > rv;
 
    for(auto val = vals.begin(); val != vals.end(); ++val) {
       rv[*val]++;
@@ -209,6 +223,7 @@ inline std::map< int, unsigned int > counter(const std::vector< int >& vals)
 
    return rv;
 }
+
 
 template < int N >
 struct faculty {

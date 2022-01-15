@@ -1,9 +1,8 @@
-
-#ifndef AZE_DEFS_H
-#define AZE_DEFS_H
+#pragma once
 
 namespace aze {
+
 enum class Team;
 enum class Status;
+
 }  // namespace aze
-#endif  // AZE_DEFS_H

@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <map>
+#include <set>
+#include <utility>
+#include <variant>
 
-#include "Piece.h"
+#include "StrategoDefs.hpp"
 #include "aze/aze.h"
 
 namespace stratego {
@@ -12,7 +15,7 @@ auto _default_mr()
 {
    std::map< Token, int > mr;
    for(auto token_value : std::array{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99}) {
-      Token token = Token(token_value);
+      auto token = Token(token_value);
       if(token == Token::scout) {
          mr[token] = std::numeric_limits< int >::infinity();
       } else if(token == Token::flag or token == Token::bomb) {
@@ -46,22 +49,169 @@ auto _default_bm()
    return bm;
 }
 
-auto _default_setups(size_t game_size)
+auto _default_setups(size_t game_dims)
 {
    using Team = aze::Team;
-   std::map< Team, std::map< aze::Position< int, 2 >, Token > > setups;
+   std::map< Team, std::map< Position, Token > > setups;
 
    return setups;
 }
+auto _default_setups(std::array< size_t, 2 > game_dims)
+{
+   if(game_dims[0] == game_dims[1] and std::set{5, 7, 10}.contains(game_dims[0])) {
+      return _default_setups(game_dims[0]);
+   } else {
+      throw std::invalid_argument("Cannot provide default setups for non-default game dimensions.");
+   }
+}
+
+std::vector< Position > _default_obs(size_t game_dims)
+{
+   if(game_dims == 5)
+      return {{2, 2}};
+   else if(game_dims == 7)
+      return {{3, 1}, {3, 5}};
+   else if(game_dims == 10)
+      return {{4, 2}, {5, 2}, {4, 3}, {5, 3}, {4, 6}, {5, 6}, {4, 7}, {5, 7}};
+   else
+      throw std::invalid_argument(
+         "'dimension' not in {5, 7, 10}. User has to provide custom obstacle positions.");
+}
+auto _default_obs(std::array< size_t, 2 > game_dims)
+{
+   if(game_dims[0] == game_dims[1] and std::set{5, 7, 10}.contains(game_dims[0])) {
+      return _default_obs(game_dims[0]);
+   } else {
+      throw std::invalid_argument(
+         "Cannot provide default obstacle positions for non-default game dimensions.");
+   }
+}
+template < size_t... Is >
+constexpr auto make_tokens(std::index_sequence< Is... >)
+{
+   return std::vector{Token(Is)...};
+}
+
+inline std::map< aze::Team, std::vector< Token > > _token_set(size_t game_dim)
+{
+   switch(game_dim) {
+      case 5: {
+         using seq = std::index_sequence< 0, 1, 2, 2, 2, 3, 3, 10, 11, 11 >;
+         return {make_tokens(seq()), make_tokens(seq())};
+      }
+      case 7: {
+         using seq = std::
+            index_sequence< 0, 1, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 10, 11, 11, 11, 11 >;
+         return {make_tokens(seq()), make_tokens(seq())};
+      }
+      case 10: {
+         using seq = std::index_sequence<
+            0,
+            1,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            3,
+            3,
+            3,
+            3,
+            3,
+            4,
+            4,
+            4,
+            4,
+            5,
+            5,
+            5,
+            5,
+            6,
+            6,
+            6,
+            6,
+            7,
+            7,
+            7,
+            8,
+            8,
+            9,
+            10,
+            11,
+            11,
+            11,
+            11,
+            11,
+            11 >;
+         return {make_tokens(seq()), make_tokens(seq())};
+      }
+      default:
+         throw std::invalid_argument("Cannot provide tokenset for non-default game dimensions.");
+   }
+}
 
 struct Config {
-   using Team = aze::Team;
-   Team starting_team;
-   size_t game_size = 5;
-   std::map< Team, std::map< aze::Position< int, 2 >, Token > > setups = _default_setups(game_size);
-   size_t max_turn_count = 500;
-   std::map< std::array< Token, 2 >, int > battle_matrix = _default_bm();
-   std::map< Token, int > move_ranges = _default_mr();
+   using setup_type = std::map< Position, Token >;
+   using token_counter = std::map< Token, unsigned int >;
+
+   aze::Team starting_team;
+   std::array< size_t, 2 > game_dims;
+   size_t max_turn_count;
+   std::optional< std::map< aze::Team, setup_type > > setups;
+   std::optional< std::map< aze::Team, token_counter > > token_set;
+   std::map< std::array< Token, 2 >, int > battle_matrix;
+   std::vector< Position > obstacle_positions;
+   std::map< Token, int > move_ranges;
+
+   Config(
+      aze::Team starting_team_,
+      std::variant< size_t, std::array< size_t, 2 > > game_dims_ = size_t(5),
+      size_t max_turn_count_ = 500,
+      std::optional< std::map< aze::Team, setup_type > > setups_ = std::nullopt,
+      std::optional< std::map< aze::Team, std::vector<Token> > > token_set_ = std::nullopt,
+      std::map< std::array< Token, 2 >, int > battle_matrix_ = _default_bm(),
+      std::optional< std::vector< Position > > obstacle_positions_ = std::nullopt,
+      std::map< Token, int > move_ranges_ = _default_mr())
+       : starting_team(starting_team_),
+         game_dims(std::visit(
+            aze::utils::Overload{
+               [](size_t d) {
+                  return std::array{d, d};
+               },
+               [](std::array< size_t, 2 > d) { return d; }},
+            game_dims_)),
+         max_turn_count(max_turn_count_),
+         setups(
+            setups_.has_value() ? std::move(setups_.value())
+                                : std::visit(
+                                   aze::utils::Overload{
+                                      [](size_t d) { return _default_setups(d); },
+                                      [](std::array< size_t, 2 > a) { return _default_setups(a); }},
+                                   game_dims_)),
+         token_set(
+            token_set_.has_value()
+               ? setups_.has_value() ? _verify_integrity(token_set_.value(), setups_.value())
+                                     : std::move(token_set_.value())
+               : std::visit(
+                  aze::utils::Overload{
+                     [](size_t d) { return _default_setups(d); },
+                     [](std::array< size_t, 2 > a) { return _default_setups(a); }},
+                  game_dims_)),
+         battle_matrix(std::move(battle_matrix_)),
+         obstacle_positions(
+            obstacle_positions_.has_value()
+               ? std::move(obstacle_positions_.value())
+               : std::visit(
+                  aze::utils::Overload{
+                     [](size_t d) { return _default_obs(d); },
+                     [](std::array< size_t, 2 > a) { return _default_obs(a); }},
+                  game_dims_)),
+         move_ranges(std::move(move_ranges_))
+   {
+   }
 };
 
 }  // namespace stratego

@@ -1,48 +1,29 @@
+#pragma once
 
-#include "Board.h"
+#include <aze/aze.h>
+#include "StrategoDefs.hpp"
+#include <string>
+#include <xtensor/xtensor.hpp>
 
-#include "Logic.h"
+namespace stratego::utils {
+
+template < typename DType>
+std::string print_board(xt::xtensor<DType, 2> board, aze::Team team, bool hide_unknowns)
+{
+   using Team = aze::Team;
 
 #define VERT_BAR "\u2588"
 #define RESET "\x1B[0m"
 #define BLUE "\x1B[44m"
 #define RED "\x1B[41m"
 
-namespace stratego {
-
-std::vector< sptr< typename Board::piece_type > > Board::adapt_setup(
-   const std::map< position_type, int > &setup)
-{
-   std::vector< sptr< Board::piece_type > > vector_out;
-
-   std::map< position_type, int > seen_pos;
-   std::map< int, int > version_count;
-   for(auto &elem : setup) {
-      position_type pos = elem.first;
-      auto type = elem.second;
-
-      if(seen_pos.find(pos) != seen_pos.end()) {
-         // element found
-         throw std::invalid_argument(
-            "Parameter setup has more than one piece for the "
-            "same position (position: '"
-            + pos.to_string() + "').");
-      }
-      seen_pos[pos] = 1;
-      vector_out.push_back(std::make_shared< piece_type >(pos, token_type(type), 0));
-   }
-   return vector_out;
-}
-
-std::string Board::print_board(aze::Team team, bool hide_unknowns) const
-{
    int H_SIZE_PER_PIECE = 9;
    int V_SIZE_PER_PIECE = 3;
    // the space needed to assign row indices to the rows and to add a splitting
    // bar "|"
    int row_ind_space = 4;
-   int dim_x = m_shape[0];
-   int dim_y = m_shape[1];
+   int dim_x = board.shape(0);
+   int dim_y = board.shape(1);
    int mid = V_SIZE_PER_PIECE / 2;
 
    // piece string lambda function that returns a str of the kin
@@ -50,7 +31,7 @@ std::string Board::print_board(aze::Team team, bool hide_unknowns) const
    // 10.1 \n
    //   1"
    auto create_piece_str = [&H_SIZE_PER_PIECE, &mid, &team, &hide_unknowns](
-                              const piece_type &piece, int line) {
+                              const auto &piece, int line) {
       if(piece.is_null())
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
 
@@ -73,7 +54,7 @@ std::string Board::print_board(aze::Team team, bool hide_unknowns) const
          const auto &token = piece.get_token();
          return color
                 + aze::utils::center(
-                   std::to_string(static_cast<int>(token)), H_SIZE_PER_PIECE, " ")
+                   std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " ")
                 + RESET;
       } else if(line == mid + 1)
          // team info line
@@ -94,20 +75,20 @@ std::string Board::print_board(aze::Team team, bool hide_unknowns) const
 
    board_print << init_space << VERT_BAR << h_border << VERT_BAR << "\n";
    std::string init = board_print.str();
-   sptr< piece_type > curr_piece;
+   sptr< DType > curr_piece;
 
    // row means row of the board. not actual rows of console output.
-   for(int row = dim_y - 1; row > m_starts[1] - 1;
+   for(int row = dim_y - 1; row > - 1;
        --row) {  // iterate backwards through the rows for correct display
       // per piece we have V_SIZE_PER_PIECE many lines to fill consecutively.
       // Iterate over every column and append the new segment to the right line.
       std::vector< std::stringstream > line_streams(static_cast< unsigned int >(V_SIZE_PER_PIECE));
 
-      for(int col = m_starts[0]; col < dim_x; ++col) {
+      for(int col = 0; col < dim_x; ++col) {
          if(static_cast< bool >(team)) {
-            curr_piece = (*this)[{dim_x - 1 - row, dim_y - 1 - col}];
+            curr_piece = board(dim_x - 1 - row, dim_y - 1 - col);
          } else
-            curr_piece = (*this)[{row, col}];
+            curr_piece = board(row, col);
 
          for(int i = 0; i < V_SIZE_PER_PIECE; ++i) {
             std::stringstream curr_stream;
@@ -143,28 +124,10 @@ std::string Board::print_board(aze::Team team, bool hide_unknowns) const
    // column width for the row index plus vertical dash
    board_print << std::string(static_cast< unsigned long >(row_ind_space), ' ');
    // print the column index rows
-   for(int i = m_starts[0]; i < dim_x; ++i) {
+   for(int i = 0; i < dim_x; ++i) {
       board_print << aze::utils::center(std::to_string(i), H_SIZE_PER_PIECE + 1, " ");
    }
    board_print << "\n";
    return board_print.str();
 }
-
-void Board::_add_obstacles()
-{
-   auto obstacle_positions = Logic< Board >::get_obstacle_positions(m_shape[0]);
-   for(const auto &obstacle_pos : obstacle_positions) {
-      m_map[obstacle_pos] = std::make_shared< piece_type >(obstacle_pos, token_type{99}, -1);
-   }
-}
-
-Board *Board::clone_impl() const
-{
-   auto *board_copy_ptr = new Board(*this);
-   for(auto &sptr : *board_copy_ptr) {
-      sptr.second = std::make_shared< piece_type >(*sptr.second);
-   }
-   return board_copy_ptr;
-}
-
-}  // namespace stratego
+}  // namespace stratego::utils

@@ -8,41 +8,38 @@
 
 #include "State.h"
 #include "aze/agent/Agent.h"
-#include "aze/types.h"
 #include "aze/utils/logging_macros.h"
 #include "aze/utils/utils.h"
 
 namespace aze {
 
-template < class StateType, class LogicType, class Derived, size_t nr_teams = 2 >
+template < class StateType, class LogicType, class Derived, size_t NPlayers>
 class Game {
   public:
    using state_type = StateType;
    using logic_type = LogicType;
    using piece_type = typename state_type::piece_type;
-   using token_type = typename state_type::token_type;
+   using token_type = typename piece_type::token_type;
    using position_type = typename state_type::position_type;
-   using move_type = typename state_type::move_type;
    using board_type = typename state_type::board_type;
    using agent_type = Agent< state_type >;
 
    using sptr_piece_type = sptr< piece_type >;
 
-   virtual ~Game() = default;
 
   private:
-   static const size_t n_teams = nr_teams;
+   static const size_t n_teams = NPlayers;
    state_type m_game_state;
    std::array< sptr< Agent< state_type > >, n_teams > m_agents;
    std::array< std::vector< sptr_piece_type >, n_teams > m_setups;
 
    std::vector< sptr_piece_type > extract_pieces_from_setup(
       const std::map< position_type, token_type > &setup,
-      int team);
+      Team team);
 
    std::vector< sptr_piece_type > extract_pieces_from_setup(
       const std::map< position_type, sptr_piece_type > &setup,
-      int team);
+      Team team);
 
   public:
    Game(
@@ -69,17 +66,12 @@ class Game {
 
    void set_setup(const std::vector< sptr_piece_type > &setup, int team) { m_setups[team] = setup; }
 
-   auto get_agents() { return m_agents; }
-   auto get_agent(Team team) { return m_agents.at(team); }
-   auto get_state() const { return m_game_state; }
-   auto &get_state() { return m_game_state; }
+   auto agents() { return m_agents; }
+   auto agent(Team team) { return m_agents.at(team); }
+   auto state() const { return m_game_state; }
+   auto &state() { return m_game_state; }
 
-   virtual Status check_terminal() = 0;
-
-   std::map< position_type, sptr_piece_type > draw_setup(int team)
-   {
-      return static_cast< Derived * >(this)->draw_setup_(team);
-   }
+   std::map< position_type, sptr_piece_type > draw_setup(Team team);
 };
 
 template < class StateType, class LogicType, class Derived, size_t n_teams >
@@ -128,7 +120,7 @@ template < class StateType, class LogicType, class Derived, size_t n_teams >
 std::vector< typename Game< StateType, LogicType, Derived, n_teams >::sptr_piece_type >
 Game< StateType, LogicType, Derived, n_teams >::extract_pieces_from_setup(
    const std::map< position_type, token_type > &setup,
-   int team)
+   Team team)
 {
    using val_type = typename std::map< position_type, token_type >::value_type;
    std::vector< sptr_piece_type > pc_vec;
@@ -147,7 +139,7 @@ template < class StateType, class LogicType, class Derived, size_t n_teams >
 std::vector< typename Game< StateType, LogicType, Derived, n_teams >::sptr_piece_type >
 Game< StateType, LogicType, Derived, n_teams >::extract_pieces_from_setup(
    const std::map< position_type, sptr_piece_type > &setup,
-   int team)
+   Team team)
 {
    using val_type = typename std::map< position_type, sptr_piece_type >::value_type;
    std::vector< sptr_piece_type > pc_vec;
@@ -158,11 +150,11 @@ Game< StateType, LogicType, Derived, n_teams >::extract_pieces_from_setup(
       std::back_inserter(pc_vec),
       [&](const val_type &pos_piecesptr) -> sptr_piece_type {
          auto piece_sptr = pos_piecesptr.second;
-         if(piece_sptr->get_team() != team)
+         if(piece_sptr->team() != team)
             throw std::logic_error(
-               "Pieces of team " + std::to_string(team)
+               "Pieces of team " + std::to_string(static_cast< int >(team))
                + " were expected, but received piece of team "
-               + std::to_string(piece_sptr->get_team()));
+               + std::to_string(piece_sptr->team()));
          return piece_sptr;
       });
    return pc_vec;
@@ -187,9 +179,9 @@ int Game< StateType, LogicType, Derived, n_teams >::run_step()
    auto move = m_agents[turn]->decide_move(
       m_game_state, logic_type::get_legal_moves(*m_game_state.board(), turn));
    LOGD2("Possible Moves", logic_type::get_legal_moves(*m_game_state.board(), turn));
-   LOGD2("Selected Move by team " + std::to_string(turn), move);
+   LOGD2("Selected Action by team " + std::to_string(turn), move);
 
-   int outcome = m_game_state.do_move(move);
+   int outcome = m_game_state.apply_action(move);
 
    return outcome;
 }

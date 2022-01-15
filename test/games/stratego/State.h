@@ -4,9 +4,11 @@
 #include <aze/aze.h>
 
 #include <unordered_set>
+#include <utility>
 
-#include "Board.h"
+#include "Config.hpp"
 #include "Logic.h"
+#include "StrategoDefs.hpp"
 
 namespace stratego {
 
@@ -14,47 +16,43 @@ class History {
    using Team = aze::Team;
 
   public:
-   using move_type = Board::move_type;
-   using piece_type = Board::piece_type;
+   ;
 
-   inline auto get_by_turn(size_t turn)
-      -> std::tuple< Team, move_type, std::array< piece_type, 2 > >
+   inline auto get_by_turn(size_t turn) -> std::tuple< Team, Action, std::array< Piece, 2 > >
    {
-      return {m_teams[turn], m_moves[turn], m_pieces[turn]};
+      return {m_teams[turn], m_actions[turn], m_pieces[turn]};
    }
    [[nodiscard]] inline auto get_by_turn(size_t turn) const
-      -> std::tuple< Team, move_type, std::array< piece_type, 2 > >
+      -> std::tuple< Team, Action, std::array< Piece, 2 > >
    {
-      return {m_teams.at(turn), m_moves.at(turn), m_pieces.at(turn)};
+      return {m_teams.at(turn), m_actions.at(turn), m_pieces.at(turn)};
    }
-   inline auto get_by_index(size_t index)
-      -> std::tuple< Team, move_type, std::array< piece_type, 2 > >
+   inline auto get_by_index(size_t index) -> std::tuple< Team, Action, std::array< Piece, 2 > >
    {
       auto turn = m_turns[index];
       return get_by_turn(turn);
    }
    [[nodiscard]] inline auto get_by_index(size_t index) const
-      -> std::tuple< Team, move_type, std::array< piece_type, 2 > >
+      -> std::tuple< Team, Action, std::array< Piece, 2 > >
    {
       auto turn = m_turns[index];
       return get_by_turn(turn);
    }
 
-   void commit_move(
-      size_t turn,
-      Team team,
-      const move_type &move,
-      const std::array< piece_type, 2 > &pieces)
+   void
+   commit_action(size_t turn, Team team, const Action &action, const std::array< Piece, 2 > &pieces)
    {
-      m_moves[turn] = move;
+      m_actions[turn] = action;
       m_pieces[turn] = pieces;
-      m_teams[turn] = Team(turn % 2);
+      m_teams[turn] = team;
       m_turns[turn] = turn;
    }
 
-   void commit_move(const Board &board, move_type move, size_t turn)
+   void commit_action(const Board &board, Action action, size_t turn)
    {
-      commit_move(turn, Team(turn % 2), move, {*board[move[0]], *board[move[1]]});
+      Board b;
+      b(Position{0,0});
+      commit_action(turn, Team(turn % 2), action, {board(action[0]), board(action[1])});
    }
 
    auto pop_last()
@@ -66,74 +64,58 @@ class History {
        *  all removed entries in sequence: turn, team, move, pieces
        */
       auto turn = m_turns.back();
-      auto ret = std::tuple{turn, m_teams.at(turn), m_moves.at(turn), m_pieces.at(turn)};
+      auto ret = std::tuple{turn, m_teams.at(turn), m_actions.at(turn), m_pieces.at(turn)};
       m_teams.erase(turn);
-      m_moves.erase(turn);
+      m_actions.erase(turn);
       m_pieces.erase(turn);
       return ret;
    }
 
    [[nodiscard]] auto size() const { return m_turns.size(); }
    [[nodiscard]] auto &turns() const { return m_turns; }
-   [[nodiscard]] auto &moves() const { return m_moves; }
+   [[nodiscard]] auto &actions() const { return m_actions; }
    [[nodiscard]] auto &pieces() const { return m_pieces; }
    [[nodiscard]] auto &teams() const { return m_teams; }
 
   private:
    std::vector< size_t > m_turns;
-   std::map< size_t, Board::move_type > m_moves;
+   std::map< size_t, Action > m_actions;
    std::map< size_t, Team > m_teams;
-   std::map< size_t, std::array< Board::piece_type, 2 > > m_pieces;
+   std::map< size_t, std::array< Piece, 2 > > m_pieces;
 };
 
-class State: public aze::State< Board, History > {
+class State: public aze::State< Board, History, Piece, Action > {
   public:
-   using base_type = aze::State< Board, History >;
+   using base_type = aze::State< Board, History, Piece, Action >;
+   using graveyard_type = std::array< std::unordered_set< Piece::token_type >, 2 >;
 
-   // just decorate all base constructors with initializing also the dead pieces
    template < typename... Params >
-   State(Params &&...params) : base_type(std::forward< Params >(params)...), m_dead_pieces()
+   State(Config config, Params &&...params)
+       : base_type(std::forward< Params >(params)...), m_config(std::move(config)), m_graveyard()
    {
    }
 
-   // also declare some explicit constructors
-   explicit State(size_t shape_x, size_t shape_y);
+   explicit State(Config config);
 
-   explicit State(size_t shape = 5);
+   int apply_action(const action_type &action) override;
 
-   State(
-      size_t shape,
-      const std::map< position_type, token_type > &setup_0,
-      const std::map< position_type, token_type > &setup_1);
-
-   State(
-      std::array< size_t, 2 > shape,
-      const std::map< position_type, token_type > &setup_0,
-      const std::map< position_type, token_type > &setup_1);
-
-   State(
-      size_t shape,
-      const std::map< position_type, int > &setup_0,
-      const std::map< position_type, int > &setup_1);
-
-   State(
-      std::array< size_t, 2 > shape,
-      const std::map< position_type, int > &setup_0,
-      const std::map< position_type, int > &setup_1);
-
-   int _do_move(const move_type &move) override;
+   [[nodiscard]] inline auto &config() const { return m_config; }
+   [[nodiscard]] inline auto graveyard() const { return m_graveyard; }
+   [[nodiscard]] inline auto graveyard(int team) const { return m_graveyard[team]; }
 
   protected:
    static int fight(piece_type &attacker, piece_type &defender);
 
   private:
-   using dead_pieces_type = std::array< std::unordered_set< token_type >, 2 >;
-   dead_pieces_type m_dead_pieces;
+   /// the specific configuration of the stratego game belonging to this state
+   Config m_config;
+   /// the graveyard of dead pieces
+   graveyard_type m_graveyard;
 
-   void _update_dead_pieces(const sptr< piece_type > &piece)
+   void _to_graveyard(const std::optional< piece_type > &piece_opt)
    {
-      if(! piece->is_null())
-         m_dead_pieces[piece->get_team()].emplace(piece->get_token());
+      if(! piece_opt.has_value())
+         m_graveyard[static_cast<int>(piece_opt.value().team())].emplace(piece_opt.value().token());
    }
 
    [[nodiscard]] State *clone_impl() const override;
