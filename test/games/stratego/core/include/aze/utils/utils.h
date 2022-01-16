@@ -12,7 +12,6 @@
 #include <string>
 #include <utility>
 
-
 template < typename T >
 using uptr = std::unique_ptr< T >;
 template < typename T >
@@ -22,11 +21,12 @@ using wptr = std::weak_ptr< T >;
 
 namespace aze::utils {
 
-template<typename ... Ts>
-struct Overload : Ts ... {
-   using Ts::operator() ...;
+template < typename... Ts >
+struct Overload: Ts... {
+   using Ts::operator()...;
 };
-template<class... Ts> Overload(Ts...) -> Overload<Ts...>;
+template < typename... Ts >
+Overload(Ts...) -> Overload< Ts... >;
 
 using RNG = std::mt19937_64;
 /**
@@ -63,7 +63,7 @@ inline std::string repeat(std::string str, const std::size_t n)
 
 inline std::string center(const std::string& str, int width, const char* fillchar)
 {
-   int len = str.length();
+   size_t len = str.length();
    if(width < len) {
       return str;
    }
@@ -212,7 +212,7 @@ inline void print_board(const BoardType& board, bool flip_board = false, bool hi
    std::cout << output << std::endl;
 }
 
-template <typename T>
+template < typename T >
 inline std::map< T, unsigned int > counter(const std::vector< T >& vals)
 {
    std::map< T, unsigned int > rv;
@@ -224,6 +224,30 @@ inline std::map< T, unsigned int > counter(const std::vector< T >& vals)
    return rv;
 }
 
+template < typename T, typename Allocator, typename Accessor >
+inline auto counter(const std::vector<T, Allocator>& vals, Accessor acc = [](const auto& iter) {return *iter;})
+{
+   std::map< T, unsigned int > rv;
+
+   for(auto val_iter = vals.begin(); val_iter != vals.end(); ++val_iter) {
+      rv[acc(val_iter)]++;
+   }
+
+   return rv;
+}
+
+
+template < typename Container, typename Accessor >
+inline auto counter(const Container& vals, Accessor acc = [](const auto& iter) {return *iter;})
+{
+   std::map< typename Container::mapped_type, unsigned int > rv;
+
+   for(auto val_iter = vals.begin(); val_iter != vals.end(); ++val_iter) {
+      rv[acc(val_iter)]++;
+   }
+
+   return rv;
+}
 
 template < int N >
 struct faculty {

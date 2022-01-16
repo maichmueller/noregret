@@ -153,6 +153,26 @@ inline std::map< aze::Team, std::vector< Token > > _token_set(size_t game_dim)
    }
 }
 
+auto _gen_tokensets(const std::map< aze::Team, std::map< Position, Token > >& setups)
+{
+   std::map< aze::Team, std::vector< Token > > tokens;
+   for(const auto& [team, setup] : setups) {
+      for(const auto& [_, token] : setup) {
+         tokens[team].emplace_back(token);
+      }
+   }
+   return tokens;
+}
+
+auto to_tokencounters(const std::map< aze::Team, std::vector< Token > >& token_vecs)
+{
+   std::map< aze::Team, std::map< Token, unsigned int > > m;
+   for(const auto& [team, vec] : token_vecs) {
+      m[team] = aze::utils::counter(vec);
+   }
+   return m;
+}
+
 struct Config {
    using setup_type = std::map< Position, Token >;
    using token_counter = std::map< Token, unsigned int >;
@@ -160,8 +180,9 @@ struct Config {
    aze::Team starting_team;
    std::array< size_t, 2 > game_dims;
    size_t max_turn_count;
+   bool fixed_setups;
    std::optional< std::map< aze::Team, setup_type > > setups;
-   std::optional< std::map< aze::Team, token_counter > > token_set;
+   std::optional< std::map< aze::Team, token_counter > > token_counters;
    std::map< std::array< Token, 2 >, int > battle_matrix;
    std::vector< Position > obstacle_positions;
    std::map< Token, int > move_ranges;
@@ -170,8 +191,9 @@ struct Config {
       aze::Team starting_team_,
       std::variant< size_t, std::array< size_t, 2 > > game_dims_ = size_t(5),
       size_t max_turn_count_ = 500,
+      bool fixed_setups_ = false,
       std::optional< std::map< aze::Team, setup_type > > setups_ = std::nullopt,
-      std::optional< std::map< aze::Team, std::vector<Token> > > token_set_ = std::nullopt,
+      std::optional< std::map< aze::Team, std::vector< Token > > > token_set_ = std::nullopt,
       std::map< std::array< Token, 2 >, int > battle_matrix_ = _default_bm(),
       std::optional< std::vector< Position > > obstacle_positions_ = std::nullopt,
       std::map< Token, int > move_ranges_ = _default_mr())
@@ -184,22 +206,21 @@ struct Config {
                [](std::array< size_t, 2 > d) { return d; }},
             game_dims_)),
          max_turn_count(max_turn_count_),
+         fixed_setups(fixed_setups_),
          setups(
-            setups_.has_value() ? std::move(setups_.value())
+            setups_.has_value() ? setups_.value()
                                 : std::visit(
                                    aze::utils::Overload{
                                       [](size_t d) { return _default_setups(d); },
                                       [](std::array< size_t, 2 > a) { return _default_setups(a); }},
                                    game_dims_)),
-         token_set(
-            token_set_.has_value()
-               ? setups_.has_value() ? _verify_integrity(token_set_.value(), setups_.value())
-                                     : std::move(token_set_.value())
-               : std::visit(
-                  aze::utils::Overload{
-                     [](size_t d) { return _default_setups(d); },
-                     [](std::array< size_t, 2 > a) { return _default_setups(a); }},
-                  game_dims_)),
+         token_counters(to_tokencounters(
+            setups_.has_value()
+               ? _gen_tokensets(setups_.value())
+               : (token_set_.has_value()
+                     ? std::move(token_set_.value())
+                     : throw std::invalid_argument("No setup passed and no tokenset passed. Either "
+                                                   "of these need to be set.")))),
          battle_matrix(std::move(battle_matrix_)),
          obstacle_positions(
             obstacle_positions_.has_value()
