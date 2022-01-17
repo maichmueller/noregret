@@ -7,10 +7,11 @@
 #include <utility>
 
 #include "Config.hpp"
-#include "Logic.h"
 #include "StrategoDefs.hpp"
 
 namespace stratego {
+
+class Logic;
 
 class History {
    using Team = aze::Team;
@@ -18,29 +19,34 @@ class History {
   public:
    ;
 
-   inline auto get_by_turn(size_t turn) -> std::tuple< Team, Action, std::array< Piece, 2 > >
+   inline auto get_by_turn(size_t turn)
+      -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
       return {m_teams[turn], m_actions[turn], m_pieces[turn]};
    }
    [[nodiscard]] inline auto get_by_turn(size_t turn) const
-      -> std::tuple< Team, Action, std::array< Piece, 2 > >
+      -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
       return {m_teams.at(turn), m_actions.at(turn), m_pieces.at(turn)};
    }
-   inline auto get_by_index(size_t index) -> std::tuple< Team, Action, std::array< Piece, 2 > >
+   inline auto get_by_index(size_t index)
+      -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
       auto turn = m_turns[index];
       return get_by_turn(turn);
    }
    [[nodiscard]] inline auto get_by_index(size_t index) const
-      -> std::tuple< Team, Action, std::array< Piece, 2 > >
+      -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
       auto turn = m_turns[index];
       return get_by_turn(turn);
    }
 
-   void
-   commit_action(size_t turn, Team team, const Action &action, const std::array< Piece, 2 > &pieces)
+   void commit_action(
+      size_t turn,
+      Team team,
+      const Action &action,
+      const std::array< std::optional< Piece >, 2 > &pieces)
    {
       m_actions[turn] = action;
       m_pieces[turn] = pieces;
@@ -50,9 +56,7 @@ class History {
 
    void commit_action(const Board &board, Action action, size_t turn)
    {
-      Board b;
-      b(Position{0,0});
-      commit_action(turn, Team(turn % 2), action, {board(action[0]), board(action[1])});
+      commit_action(turn, Team(turn % 2), action, {board[action[0]], board[action[1]]});
    }
 
    auto pop_last()
@@ -81,7 +85,7 @@ class History {
    std::vector< size_t > m_turns;
    std::map< size_t, Action > m_actions;
    std::map< size_t, Team > m_teams;
-   std::map< size_t, std::array< Piece, 2 > > m_pieces;
+   std::map< size_t, std::array< std::optional< Piece >, 2 > > m_pieces;
 };
 
 class State: public aze::State< Board, History, Piece, Action > {
@@ -100,6 +104,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    int apply_action(const action_type &action) override;
 
    [[nodiscard]] inline auto &config() const { return m_config; }
+   [[nodiscard]] inline auto &logic() const { return m_logic; }
    [[nodiscard]] inline auto graveyard() const { return m_graveyard; }
    [[nodiscard]] inline auto graveyard(int team) const { return m_graveyard[team]; }
 
@@ -111,11 +116,14 @@ class State: public aze::State< Board, History, Piece, Action > {
    Config m_config;
    /// the graveyard of dead pieces
    graveyard_type m_graveyard;
+   /// the currently used game logic on this state
+   sptr< Logic > m_logic;
 
    void _to_graveyard(const std::optional< piece_type > &piece_opt)
    {
       if(! piece_opt.has_value())
-         m_graveyard[static_cast<int>(piece_opt.value().team())].emplace(piece_opt.value().token());
+         m_graveyard[static_cast< int >(piece_opt.value().team())].emplace(
+            piece_opt.value().token());
    }
 
    [[nodiscard]] State *clone_impl() const override;

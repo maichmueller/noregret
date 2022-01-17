@@ -10,9 +10,9 @@
 
 namespace stratego {
 
-class Game: public aze::Game< State, Logic< State >, Game, 2 > {
+class Game: public aze::Game< State, Logic, Game, 2 > {
   public:
-   using base_type = aze::Game< State, Logic< State >, Game, 2 >;
+   using base_type = aze::Game< State, Logic, Game, 2 >;
    using base_type::base_type;
 
    Game(

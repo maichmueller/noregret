@@ -1,63 +1,58 @@
 #include "State.h"
 
 #include <functional>
+#include <utility>
+
+#include "Logic.h"
 
 namespace stratego {
 
-int State::fight(piece_type &attacker, piece_type &defender)
-{
-   return Logic< board_type >::fight_outcome(attacker, defender);
-}
-
-int State::do_move(const move_type &move)
+int State::apply_action(const action_type &action)
 {
    // preliminaries
-   const position_type &from = move[0];
-   const position_type &to = move[1];
+   const position_type &from = action[0];
+   const position_type &to = action[1];
    int fight_outcome = 404;
 
    // save the access to the pieces in question
    // (removes redundant searching in board later)
-   sptr< piece_type > piece_from = (*board())[from];
-   sptr< piece_type > piece_to = (*board())[to];
-   piece_from->flag_has_moved();
+   auto piece_from = board()[from].value();
+   auto piece_to_opt = board()[to];
+
+   piece_from.flag_has_moved();
 
    // enact the move
-   if(! piece_to->is_null()) {
+   if(piece_to_opt.has_value()) {
+      auto &piece_to = piece_to_opt.value();
       // uncover participant pieces
-      piece_from->flag_unhidden();
-      piece_to->flag_unhidden();
+      piece_from.flag_unhidden(true);
+      piece_to.flag_unhidden(true);
 
       // engage in fight, since piece_to is not a null piece
-      fight_outcome = fight(*piece_from, *piece_to);
+      fight_outcome = m_logic->fight(m_config, piece_from, piece_to);
       if(fight_outcome == 1) {
          // 1 means attacker won, defender died
-         auto null_piece = std::make_shared< piece_type >(from);
-         board()->update_board(from, null_piece);
-         board()->update_board(to, piece_from);
+         board()[from] = std::nullopt;
+         board()[to] = piece_from;
 
          _to_graveyard(piece_to);
       } else if(fight_outcome == 0) {
          // 0 means stalemate, both die
-         auto null_piece_from = std::make_shared< piece_type >(from);
-         board()->update_board(from, null_piece_from);
-         auto null_piece_to = std::make_shared< piece_type >(to);
-         board()->update_board(to, null_piece_to);
+         board()[from] = std::nullopt;
+         board()[to] = std::nullopt;
 
          _to_graveyard(piece_from);
          _to_graveyard(piece_to);
       } else {
          // -1 means defender won, attacker died
-         auto null_piece = std::make_shared< piece_type >(from);
-         board()->update_board(from, null_piece);
+         board()[from] = std::nullopt;
 
          _to_graveyard(piece_from);
       }
    } else {
       // no fight happened, simply move piece_from onto new position
-      auto null_piece = std::make_shared< piece_type >(from);
-      board()->update_board(from, null_piece);
-      board()->update_board(to, piece_from);
+      board()[from] = std::nullopt;
+      board()[to] = piece_from;
    }
    return fight_outcome;
 }
@@ -71,16 +66,8 @@ State *State::clone_impl() const
          &History::commit_move,
          std::tuple_cat(std::forward_as_tuple(hist_copy, turn), hist.get_by_turn(turn)));
    }
-   return new State(
-      std::static_pointer_cast< board_type >(board()->clone()),
-      status(),
-      false,
-      turn_count(),
-      hist,
-      graveyard());
+   return new State(board(), status(), false, turn_count(), hist, graveyard());
 }
-State::State(Config config) : base_type(nullptr), m_config(config), m_graveyard() {
-
-}
+State::State(Config config) : base_type(nullptr), m_config(std::move(config)), m_graveyard() {}
 
 }  // namespace stratego

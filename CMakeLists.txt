@@ -33,6 +33,12 @@ option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 # Use C++20
 set(PROJ_CXX_STD_FEATURE cxx_std_20)
 set(PROJ_CXX_STANDARD C++20)
+if (MSVC AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.29.30129 AND CMAKE_VERSION VERSION_GREATER 3.20.3)
+    # this change happened in CMake 3.20.4
+    set(PROJ_CXX_STD_FEATURE cxx_std_23)# /std:c++latest - unlocks the non stable cpp20 features. For new 16.11 versions
+else ()
+    set(PROJ_CXX_STD_FEATURE cxx_std_20) # /std:c++latest for msvc and -std=c++20 for everyone else.
+endif ()
 
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)
@@ -98,7 +104,6 @@ string(
         ">"
 )
 target_compile_options(project_options INTERFACE "${_options}")
-
 
 # Set up some extra Conan dependencies based on our needs
 # before loading Conan

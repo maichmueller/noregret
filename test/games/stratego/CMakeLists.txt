@@ -18,7 +18,8 @@ target_link_libraries(
 
 set(STRATEGO_SOURCES
         Game.cpp
-        State.cpp
+		State.cpp
+		Logic.cpp
 		)
 
 add_executable(stratego ${STRATEGO_SOURCES})
@@ -28,4 +29,4 @@ target_include_directories(stratego
 		${CMAKE_CURRENT_SOURCE_DIR}
 		)
 
-target_link_libraries(stratego PRIVATE core)
+target_link_libraries(stratego PRIVATE core CONAN_PKG::range-v3)

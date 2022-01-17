@@ -173,6 +173,80 @@ auto to_tokencounters(const std::map< aze::Team, std::vector< Token > >& token_v
    return m;
 }
 
+std::vector< Position > _default_start_positions(size_t game_dim, aze::Team team)
+{
+   using aze::Team;
+   if(std::set{Team::RED, Team::BLUE}.contains(team))
+      throw std::invalid_argument("'team' not in {0, 1}.");
+
+   switch(game_dim) {
+      case 5: {
+         if(team == Team::BLUE)
+            return {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}};
+         else
+            return {{4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}, {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}};
+      }
+      case 7: {
+         if(team == Team::BLUE)
+            return {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {0, 6},
+                    {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6},
+                    {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}, {2, 5}, {2, 6}};
+         else
+            return {{4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}, {4, 5}, {4, 6},
+                    {5, 0}, {5, 1}, {5, 2}, {5, 3}, {5, 4}, {5, 5}, {5, 6},
+                    {6, 0}, {6, 1}, {6, 2}, {6, 3}, {6, 4}, {6, 5}, {6, 6}};
+      }
+      case 10: {
+         if(team == Team::BLUE)
+            return {{0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {0, 6}, {0, 7}, {0, 8}, {0, 9},
+                    {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9},
+                    {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}, {2, 5}, {2, 6}, {2, 7}, {2, 8}, {2, 9},
+                    {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {3, 5}, {3, 6}, {3, 7}, {3, 8}, {3, 9}};
+
+         else
+            return {{6, 0}, {6, 1}, {6, 2}, {6, 3}, {6, 4}, {6, 5}, {6, 6}, {6, 7}, {6, 8}, {6, 9},
+                    {7, 0}, {7, 1}, {7, 2}, {7, 3}, {7, 4}, {7, 5}, {7, 6}, {7, 7}, {7, 8}, {7, 9},
+                    {8, 0}, {8, 1}, {8, 2}, {8, 3}, {8, 4}, {8, 5}, {8, 6}, {8, 7}, {8, 8}, {8, 9},
+                    {9, 0}, {9, 1}, {9, 2}, {9, 3}, {9, 4}, {9, 5}, {9, 6}, {9, 7}, {9, 8}, {9, 9}};
+      }
+      default: {
+         throw std::invalid_argument("'shape' not in {5, 7, 10}.");
+      }
+   }
+}
+
+std::map< aze::Team, std::vector< Position > > _check_alignment(
+   const std::map< aze::Team, std::vector< Position > >& positions,
+   const std::map< aze::Team, std::map< Position, Token > >& setups)
+{
+   for(const auto& [team, setup] : setups) {
+      const auto& pos_vec = positions.at(team);
+      if(pos_vec.size() != setup.size()
+         or std::any_of(pos_vec.begin(), pos_vec.end(), [&setup = setup](const Position& pos) {
+               return not setup.contains(pos);
+            })) {
+         throw std::invalid_argument(
+            "Passed starting positions parameter and setup parameter do not match for team "
+            + std::to_string(static_cast< int >(team)) + " .");
+      }
+   }
+   return positions;
+}
+
+std::map< aze::Team, std::vector< Position > > _positions_from_setups(
+   std::map< aze::Team, std::map< Position, Token > >& setups)
+{
+   std::map< aze::Team, std::vector< Position > > positions;
+   for(const auto& [team, setup] : setups) {
+      std::vector< Position > pos;
+      pos.reserve(setup.size());
+      std::transform(setup.begin(), setup.end(), std::back_inserter(pos), [](const auto& pair) {
+         return pair.first;
+      });
+   }
+   return positions;
+}
+
 struct Config {
    using setup_type = std::map< Position, Token >;
    using token_counter = std::map< Token, unsigned int >;
@@ -183,6 +257,7 @@ struct Config {
    bool fixed_setups;
    std::optional< std::map< aze::Team, setup_type > > setups;
    std::optional< std::map< aze::Team, token_counter > > token_counters;
+   std::optional< std::map< aze::Team, std::vector< Position > > > start_positions;
    std::map< std::array< Token, 2 >, int > battle_matrix;
    std::vector< Position > obstacle_positions;
    std::map< Token, int > move_ranges;
@@ -194,6 +269,8 @@ struct Config {
       bool fixed_setups_ = false,
       std::optional< std::map< aze::Team, setup_type > > setups_ = std::nullopt,
       std::optional< std::map< aze::Team, std::vector< Token > > > token_set_ = std::nullopt,
+      std::optional< std::map< aze::Team, std::vector< Position > > > start_positions_ =
+         std::nullopt,
       std::map< std::array< Token, 2 >, int > battle_matrix_ = _default_bm(),
       std::optional< std::vector< Position > > obstacle_positions_ = std::nullopt,
       std::map< Token, int > move_ranges_ = _default_mr())
@@ -221,6 +298,11 @@ struct Config {
                      ? std::move(token_set_.value())
                      : throw std::invalid_argument("No setup passed and no tokenset passed. Either "
                                                    "of these need to be set.")))),
+         start_positions(
+            start_positions_.has_value()
+               ? setups_.has_value() ? _check_alignment(start_positions_.value(), setups_.value())
+                                     : start_positions_.value()
+               : _positions_from_setups(setups_.value())),
          battle_matrix(std::move(battle_matrix_)),
          obstacle_positions(
             obstacle_positions_.has_value()

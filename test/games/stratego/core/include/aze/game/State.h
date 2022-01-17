@@ -15,11 +15,12 @@ class State {
   public:
    using board_type = BoardType;
    using piece_type = PieceType;
+   using position_type = typename piece_type::position_type;
    using action_type = ActionType;
    using history_type = HistoryType;
 
   private:
-   sptr< board_type > m_board;
+   board_type m_board;
 
    Status m_status;
    bool m_status_checked;

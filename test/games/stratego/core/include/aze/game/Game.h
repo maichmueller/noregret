@@ -29,7 +29,7 @@ class Game {
 
   private:
    static const size_t n_teams = NPlayers;
-   state_type m_game_state;
+   sptr<state_type> m_game_state;
    std::array< sptr< Agent< state_type > >, n_teams > m_agents;
    std::array< std::vector< sptr_piece_type >, n_teams > m_setups;
 

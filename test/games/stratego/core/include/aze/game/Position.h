@@ -54,7 +54,7 @@ class Position {
 
    Position() : m_coordinates() {}
 
-   Position(const Position &position) : m_coordinates(position.get_coordinates()) {}
+   Position(const Position &position) : m_coordinates(position.coordinates()) {}
 
    explicit Position(container_type coords) : m_coordinates(std::move(coords)) {}
 
@@ -102,7 +102,9 @@ class Position {
 
    bool operator>=(const Position &other) const;
 
-   container_type get_coordinates() const { return m_coordinates; }
+   container_type coordinates() const { return m_coordinates; }
+
+   [[nodiscard]] constexpr size_t size() const { return m_coordinates.size(); }
 
    template < typename container_start, typename container_end >
    Position invert(const container_start &starts, const container_end &ends);
