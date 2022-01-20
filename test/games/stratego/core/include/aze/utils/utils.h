@@ -21,6 +21,41 @@ using wptr = std::weak_ptr< T >;
 
 namespace aze::utils {
 
+template < typename T >
+requires requires(T t)
+{
+   {
+      std::cout << t
+      } -> std::same_as< std::ostream& >;
+}
+struct VectorPrinter {
+   const std::vector< T >& vector;
+   std::string delimiter;
+
+   VectorPrinter(const std::vector< T >& vec, std::string delimiter = ", ")
+       : vector(vec), delimiter(std::move(delimiter))
+   {
+   }
+
+   friend auto& operator<<(std::ostream& os, const VectorPrinter& printer)
+   {
+      os << "[";
+      for(int i = 0; i < printer.vector.size() - 1; ++i) {
+         os << printer.vector[i] << printer.delimiter;
+      }
+      os << printer.vector.back() << "]";
+      return os;
+   }
+};
+
+template < typename StateType >
+class Plotter {
+  public:
+   virtual ~Plotter() = default;
+
+   virtual void plot(const StateType& state) = 0;
+};
+
 template < typename... Ts >
 struct Overload: Ts... {
    using Ts::operator()...;
@@ -34,9 +69,17 @@ using RNG = std::mt19937_64;
  * @param seed the seed for the Mersenne Twister algorithm.
  * @return The Mersenne Twister RNG object
  */
-auto create_rng(auto seed = std::nullopt)
+inline auto create_rng()
 {
-   return RNG{seed.has_value() ? seed.value() : std::random_device{}()};
+   return RNG{std::random_device{}()};
+}
+inline auto create_rng(size_t seed)
+{
+   return RNG{seed};
+}
+inline auto create_rng(RNG rng)
+{
+   return rng;
 }
 
 inline std::string repeat(std::string str, const std::size_t n)
@@ -225,7 +268,9 @@ inline std::map< T, unsigned int > counter(const std::vector< T >& vals)
 }
 
 template < typename T, typename Allocator, typename Accessor >
-inline auto counter(const std::vector<T, Allocator>& vals, Accessor acc = [](const auto& iter) {return *iter;})
+inline auto counter(
+   const std::vector< T, Allocator >& vals,
+   Accessor acc = [](const auto& iter) { return *iter; })
 {
    std::map< T, unsigned int > rv;
 
@@ -236,9 +281,10 @@ inline auto counter(const std::vector<T, Allocator>& vals, Accessor acc = [](con
    return rv;
 }
 
-
 template < typename Container, typename Accessor >
-inline auto counter(const Container& vals, Accessor acc = [](const auto& iter) {return *iter;})
+inline auto counter(
+   const Container& vals,
+   Accessor acc = [](const auto& iter) { return *iter; })
 {
    std::map< typename Container::mapped_type, unsigned int > rv;
 
@@ -276,7 +322,6 @@ auto call_min_from_tuple(Tuple& args, std::index_sequence< I... >)
 {
    return min(std::get< I >(args)...);
 }
-
 };  // namespace aze::utils
 
 #include <tuple>

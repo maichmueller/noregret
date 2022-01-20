@@ -1,101 +1,38 @@
+
 #include "Game.h"
+#include "Logic.h"
 
 namespace stratego {
 
-Game::Game(
-   const std::array< size_t, 2 > &shape,
-   const std::map< position_type, int > &setup_0,
-   const std::map< position_type, int > &setup_1,
-   const sptr< aze::Agent< state_type > > &ag0,
-   const sptr< aze::Agent< state_type > > &ag1)
-    : base_type(state_type(shape, setup_0, setup_1), ag0, ag1)
+aze::Status Game::run_game(const sptr<aze::utils::Plotter<state_type>>& plotter)
 {
-}
+   while(true) {
+      if(plotter)
+         plotter->plot(*state());
 
-Game::Game(
-   const std::array< size_t, 2 > &shape,
-   const std::map< position_type, token_type > &setup_0,
-   const std::map< position_type, token_type > &setup_1,
-   const sptr< aze::Agent< state_type > > &ag0,
-   const sptr< aze::Agent< state_type > > &ag1)
-    : base_type(state_type(shape, setup_0, setup_1), ag0, ag1)
-{
-}
+      aze::Status outcome = state()->status();
 
-Game::Game(
-   size_t shape,
-   const std::map< position_type, int > &setup_0,
-   const std::map< position_type, int > &setup_1,
-   const sptr< aze::Agent< state_type > > &ag0,
-   const sptr< aze::Agent< state_type > > &ag1)
-    : base_type(state_type({shape, shape}, setup_0, setup_1), ag0, ag1)
-{
-}
+      LOGD(std::string("\n") + state()->string_representation(aze::Team::BLUE, false));
+      LOGD2("Status", static_cast< int >(outcome));
 
-Game::Game(
-   size_t shape,
-   const std::map< position_type, token_type > &setup_0,
-   const std::map< position_type, token_type > &setup_1,
-   const sptr< aze::Agent< state_type > > &ag0,
-   const sptr< aze::Agent< state_type > > &ag1)
-    : base_type(state_type({shape, shape}, setup_0, setup_1), ag0, ag1)
-{
-}
-
-std::map< Game::position_type, Game::sptr_piece_type > Game::draw_setup_(aze::Team team)
-{
-   int shape = get_state().board()->get_shape()[0];
-   auto avail_types = Logic< board_type >::get_available_types(shape);
-
-   std::vector< position_type > poss_pos = Logic< board_type >::get_start_positions(shape, team);
-
-   std::map< position_type, sptr_piece_type > setup_out;
-
-   std::random_device rd;
-   std::mt19937 rng(rd());
-   std::shuffle(poss_pos.begin(), poss_pos.end(), rng);
-   std::shuffle(avail_types.begin(), avail_types.end(), rng);
-
-   auto counter = aze::utils::counter(avail_types);
-
-   while(! poss_pos.empty()) {
-      auto &pos = poss_pos.back();
-      auto &type = avail_types.back();
-
-      setup_out[pos] = std::make_shared< piece_type >(pos, piece_type::token_type(type), team);
-
-      poss_pos.pop_back();
-      avail_types.pop_back();
+      if(state()->logic()->check_terminal(*state()) != aze::Status::ONGOING)
+         return state()->status();
+      else
+         run_step();
    }
-   return setup_out;
 }
 
-aze::Status Game::check_terminal()
+
+aze::Status Game::run_step()
 {
-   auto state = get_state();
-   if(auto dead_pieces = state.graveyard(0);
-      dead_pieces.find(token_type::flag) != dead_pieces.end()) {
-      // flag of team 0 has been captured (killed), therefore team 0 lost
-      return state.status(aze::Status::WIN_RED);
-   } else if(dead_pieces = state.graveyard(1);
-             dead_pieces.find(token_type::flag) != dead_pieces.end()) {
-      // flag of team 1 has been captured (killed), therefore team 1 lost
-      return state.status(aze::Status::WIN_BLUE);
-   }
+   size_t turn = state()->turn_count() % n_teams;
+   auto action = agents()[turn]->decide_action(*state(), state()->logic()->valid_actions(*state(), aze::Team(turn)));
+   LOGD2("Possible Moves", aze::utils::VectorPrinter{state()->logic()->valid_actions(*state(), aze::Team(turn))});
+   LOGD2("Selected Action by team " + std::to_string(turn), action);
 
-   // committing draw rules here
+   state()->apply_action(action);
 
-   // Rule 1: If either team has no moves left.
-   if(not Logic< board_type >::has_legal_moves_(*state.board(), aze::Team::BLUE)
-      or not Logic< board_type >::has_legal_moves_(*state.board(), aze::Team::RED)) {
-      return state.status(aze::Status::TIE);
-   }
-
-   // Rule 1: The maximum turn count has been reached
-   if(state.turn_count() >= state.config().max_turn_count) {
-      return state.status(aze::Status::TIE);
-   }
-   return state.status();
+   return state()->status();
 }
 
 }  // namespace stratego

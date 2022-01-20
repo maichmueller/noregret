@@ -17,8 +17,11 @@ target_link_libraries(
 )
 
 set(STRATEGO_SOURCES
-        Game.cpp
-		State.cpp
+		main.cpp
+		Game.cpp
+		Config.cpp
+		utils.cpp
+        State.cpp
 		Logic.cpp
 		)
 

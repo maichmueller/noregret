@@ -17,24 +17,13 @@ class History {
    using Team = aze::Team;
 
   public:
-   ;
 
-   inline auto get_by_turn(size_t turn)
-      -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
-   {
-      return {m_teams[turn], m_actions[turn], m_pieces[turn]};
-   }
    [[nodiscard]] inline auto get_by_turn(size_t turn) const
       -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
-      return {m_teams.at(turn), m_actions.at(turn), m_pieces.at(turn)};
+      return {m_teams.at(turn), m_actions.find(turn)->second, m_pieces.at(turn)};
    }
-   inline auto get_by_index(size_t index)
-      -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
-   {
-      auto turn = m_turns[index];
-      return get_by_turn(turn);
-   }
+
    [[nodiscard]] inline auto get_by_index(size_t index) const
       -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
@@ -48,7 +37,7 @@ class History {
       const Action &action,
       const std::array< std::optional< Piece >, 2 > &pieces)
    {
-      m_actions[turn] = action;
+      m_actions.insert({turn, action});
       m_pieces[turn] = pieces;
       m_teams[turn] = team;
       m_turns[turn] = turn;
@@ -94,22 +83,32 @@ class State: public aze::State< Board, History, Piece, Action > {
    using graveyard_type = std::array< std::unordered_set< Piece::token_type >, 2 >;
 
    template < typename... Params >
-   State(Config config, Params &&...params)
-       : base_type(std::forward< Params >(params)...), m_config(std::move(config)), m_graveyard()
+   State(Config config, graveyard_type graveyard, Params &&...params)
+       : base_type(std::forward< Params >(params)...),
+         m_config(std::move(config)),
+         m_graveyard(std::move(graveyard))
    {
    }
 
    explicit State(Config config);
 
-   int apply_action(const action_type &action) override;
+   void to_graveyard(const std::optional< piece_type > &piece_opt)
+   {
+      if(! piece_opt.has_value())
+         m_graveyard[static_cast< int >(piece_opt.value().team())].emplace(
+            piece_opt.value().token());
+   }
+
+   void apply_action(const action_type &action) override;
+
+   [[nodiscard]] std::string string_representation() const override;
+   [[nodiscard]] std::string string_representation(aze::Team team, bool hide_unknowns)
+      const override;
 
    [[nodiscard]] inline auto &config() const { return m_config; }
    [[nodiscard]] inline auto &logic() const { return m_logic; }
    [[nodiscard]] inline auto graveyard() const { return m_graveyard; }
    [[nodiscard]] inline auto graveyard(int team) const { return m_graveyard[team]; }
-
-  protected:
-   static int fight(piece_type &attacker, piece_type &defender);
 
   private:
    /// the specific configuration of the stratego game belonging to this state
@@ -118,13 +117,6 @@ class State: public aze::State< Board, History, Piece, Action > {
    graveyard_type m_graveyard;
    /// the currently used game logic on this state
    sptr< Logic > m_logic;
-
-   void _to_graveyard(const std::optional< piece_type > &piece_opt)
-   {
-      if(! piece_opt.has_value())
-         m_graveyard[static_cast< int >(piece_opt.value().team())].emplace(
-            piece_opt.value().token());
-   }
 
    [[nodiscard]] State *clone_impl() const override;
 };

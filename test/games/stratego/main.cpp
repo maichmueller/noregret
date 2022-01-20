@@ -6,81 +6,58 @@
 #include <xtensor/xtensor.hpp>
 
 #include "Game.h"
-#include "Piece.h"
-#include "Representer.h"
 #include "State.h"
 
 int main()
 {
    using namespace stratego;
-   size_t board_size = 5;
 
    //
-   // create the action representer
+   // build the agents to play.
    //
-   auto action_rep_sptr = std::make_shared< Representer >(5);
-
-   //
-   // build the neural network
-   //
-   std::vector< unsigned int > filters{128, 128, 128, 128};
-   auto alphazero_net_ptr = std::make_shared< AlphaZero >(
-      board_size * board_size * filters.front(),
-      action_rep_sptr->get_actions().size(),
-      5,
-      10,
-      action_rep_sptr->get_conditions().size(),
-      filters,
-      std::vector< unsigned int >{3, 3, 3, 3},
-      std::vector< bool >{false, false, false, false},
-      std::vector< float >{0.0, 0.0, 0.0, 0.0});
-
-   //
-   // build the agents to train.
-   //
-   auto agent_0 = std::make_shared< AlphaZeroAgent< State, Representer > >(
-      0, network_0, action_rep_sptr);
-   auto agent_1 = std::make_shared< AlphaZeroAgent< State, Representer > >(
-      1, network_1, action_rep_sptr);
+   auto agent_0 = std::make_shared< aze::RandomAgent< State > >(aze::Team::BLUE);
+   auto agent_1 = std::make_shared< aze::RandomAgent< State > >(aze::Team::RED);
 
    //
    // setup the game
    //
-   std::map< Board::position_type, Board::token_type > setup0;
-   std::map< Board::position_type, Board::token_type > setup1;
+   std::map< Position, Token > setup0;
+   std::map< Position, Token > setup1;
 
-   setup0[{0, 0}] = {0, 0};
-   setup0[{0, 1}] = {1, 0};
-   setup0[{0, 2}] = {2, 0};
-   setup0[{0, 3}] = {2, 1};
-   setup0[{0, 4}] = {3, 0};
-   setup0[{1, 0}] = {11, 0};
-   setup0[{1, 1}] = {10, 0};
-   setup0[{1, 2}] = {2, 2};
-   setup0[{1, 3}] = {11, 1};
-   setup0[{1, 4}] = {3, 1};
-   setup1[{3, 0}] = {2, 0};
-   setup1[{3, 1}] = {2, 1};
-   setup1[{3, 2}] = {11, 0};
-   setup1[{3, 3}] = {2, 2};
-   setup1[{3, 4}] = {10, 0};
-   setup1[{4, 0}] = {3, 0};
-   setup1[{4, 1}] = {1, 0};
-   setup1[{4, 2}] = {11, 1};
-   setup1[{4, 3}] = {3, 1};
-   setup1[{4, 4}] = {0, 0};
+   setup0[{0, 0}] = Token::flag;
+   setup0[{0, 1}] = Token::spy;
+   setup0[{0, 2}] = Token::scout;
+   setup0[{0, 3}] = Token::scout;
+   setup0[{0, 4}] = Token::miner;
+   setup0[{1, 0}] = Token::bomb;
+   setup0[{1, 1}] = Token::marshall;
+   setup0[{1, 2}] = Token::scout;
+   setup0[{1, 3}] = Token::bomb;
+   setup0[{1, 4}] = Token::miner;
+   setup1[{3, 0}] = Token::scout;
+   setup1[{3, 1}] = Token::scout;
+   setup1[{3, 2}] = Token::bomb;
+   setup1[{3, 3}] = Token::scout;
+   setup1[{3, 4}] = Token::marshall;
+   setup1[{4, 0}] = Token::miner;
+   setup1[{4, 1}] = Token::spy;
+   setup1[{4, 2}] = Token::bomb;
+   setup1[{4, 3}] = Token::miner;
+   setup1[{4, 4}] = Token::flag;
 
-   auto g = Game(std::array< size_t, 2 >{5, 5}, setup0, setup1, agent_0, agent_1);
-   auto game = std::make_shared< Game >(
-      std::array< size_t, 2 >{5, 5}, setup0, setup1, agent_0, agent_1);
+   Config config{
+      aze::Team::BLUE,
+      size_t(5),
+      500,
+      false,
+      std::map< aze::Team, std::map< Position, Token > >{
+         {aze::Team::BLUE, setup0}, {aze::Team::RED, setup1}}};
+   auto game = Game(config, agent_0, agent_1);
 
    //
    // run/train on the game
    //
-
-   //    game->run_game(false);
-   Coach coach(game, network_0, "./checkpoints", 100, 1, 100);
-   coach.teach(*action_rep_sptr, false, false, false, false);
+   game.run_game(nullptr);
 
    return 0;
 }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vector>
 #include <random>
+#include <vector>
 
 #include "aze/game/Defs.h"
 
@@ -11,7 +11,7 @@ template < class StateType >
 class Agent {
   public:
    using state_type = StateType;
-   using move_type = typename state_type::move_type;
+   using action_type = typename state_type::action_type;
 
   protected:
    Team m_team;
@@ -21,29 +21,30 @@ class Agent {
 
    virtual ~Agent() = default;
 
-   virtual move_type decide_move(
+
+
+   virtual action_type decide_action(
       const state_type &state,
-      const std::vector< move_type > &poss_moves) = 0;
+      const std::vector< action_type > &poss_moves) = 0;
 };
 
 template < class StateType >
 class RandomAgent: public Agent< StateType > {
-   using state_type = StateType;
-   using base_type = Agent< state_type >;
+   using base_type = Agent< StateType >;
    using base_type::base_type;
-   using board_type = typename state_type::board_type;
-   using move_type = typename state_type::move_type;
 
   public:
-   explicit RandomAgent(int team, unsigned int seed = std::random_device{}())
+   explicit RandomAgent(Team team, unsigned int seed = std::random_device{}())
        : base_type(team), mt{seed}
    {
    }
 
-   move_type decide_move(const state_type &state, const std::vector< move_type > &poss_moves)
-      override
+   typename base_type::action_type decide_action(
+      const typename base_type::state_type &state,
+      const std::vector< typename base_type::action_type > &poss_moves) override
    {
-      std::array< move_type, 1 > selected_move{move_type{{0, 0}, {0, 0}}};
+      std::array< typename base_type::action_type, 1 > selected_move{
+         typename base_type::action_type{{0, 0}, {0, 0}}};
       std::sample(poss_moves.begin(), poss_moves.end(), selected_move.begin(), 1, mt);
 
       return selected_move[0];

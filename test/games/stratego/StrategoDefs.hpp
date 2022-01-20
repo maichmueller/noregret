@@ -27,6 +27,12 @@ enum class Token {
    obstacle = 99
 };
 
+enum class FightOutcome {
+   death = -1,
+   kill = 1,
+   stalemate = 0
+};
+
 using Position = aze::Position<int, 2>;
 using Piece = aze::Piece< Position, Token >;
 using Board = xt::xtensor< std::optional< Piece >, 2 >;
@@ -34,7 +40,7 @@ using Board = xt::xtensor< std::optional< Piece >, 2 >;
 }  // namespace stratego
 
 namespace aze {
-
+// specify exactly what statuses and teams are present in this game
 enum class Status {
    ONGOING = 404,
    TIE = 0,
@@ -42,5 +48,6 @@ enum class Status {
    WIN_RED = -1,
 };
 enum class Team { BLUE = 0, RED = 1 };
+
 
 }  // namespace aze

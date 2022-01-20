@@ -7,6 +7,7 @@
 #include <range/v3/all.hpp>
 
 #include "Action.h"
+#include "Config.hpp"
 #include "State.h"
 
 namespace stratego {
@@ -15,14 +16,40 @@ class Logic {
    using Team = aze::Team;
 
   public:
-   inline int fight(const Config &config, const Piece &attacker, const Piece &defender)
+
+   virtual ~Logic() = default;
+
+
+   inline FightOutcome fight(const Config &config, const Piece &attacker, const Piece &defender)
    {
       return fight(config, std::array{attacker.token(), defender.token()});
    }
 
-   inline int fight(const Config &config, const std::array< Token, 2 > &att_def)
+   inline FightOutcome fight(const Config &config, const std::array< Token, 2 > &att_def)
    {
       return config.battle_matrix.at(att_def);
+   }
+
+   template < FightOutcome Outcome >
+   void handle(State &state, Piece &attacker, Piece &defender)
+   {
+   }
+
+   template <>
+   virtual void handle< FightOutcome::death >(State &state, Piece &attacker, Piece &defender)
+   {
+      state.to_graveyard(attacker);
+   }
+   template <>
+   virtual void handle< FightOutcome::kill >(State &state, Piece &attacker, Piece &defender)
+   {
+      state.to_graveyard(defender);
+   }
+   template <>
+   virtual void handle< FightOutcome::stalemate >(State &state, Piece &attacker, Piece &defender)
+   {
+      state.to_graveyard(attacker);
+      state.to_graveyard(defender);
    }
 
    template < std::integral IntType >
@@ -65,6 +92,33 @@ class Logic {
          }
       }
       return true;
+   }
+
+   aze::Status check_terminal(State &state)
+   {
+      if(auto dead_pieces = state.graveyard(0);
+         dead_pieces.find(Token::flag) != dead_pieces.end()) {
+         // flag of team 0 has been captured (killed), therefore team 0 lost
+         return state.status(aze::Status::WIN_RED);
+      } else if(dead_pieces = state.graveyard(1);
+                dead_pieces.find(Token::flag) != dead_pieces.end()) {
+         // flag of team 1 has been captured (killed), therefore team 1 lost
+         return state.status(aze::Status::WIN_BLUE);
+      }
+
+      // committing draw rules here
+
+      // Rule 1: If either team has no moves left.
+      if(not has_valid_actions(state, aze::Team::BLUE)
+         or not has_valid_actions(state, aze::Team::RED)) {
+         return state.status(aze::Status::TIE);
+      }
+
+      // Rule 1: The maximum turn count has been reached
+      if(state.turn_count() >= state.config().max_turn_count) {
+         return state.status(aze::Status::TIE);
+      }
+      return state.status();
    }
 
    bool is_valid(const State &state, const Action &action)
@@ -161,8 +215,7 @@ class Logic {
                   }
                };
                if(piece.token() == Token::scout) {
-                  ranges::for_each(
-                     _valid_vectors(pos, std::span{board.shape()}), append_action);
+                  ranges::for_each(_valid_vectors(pos, std::span{board.shape()}), append_action);
                } else {
                   // all actions are 1 step to left, right, top, or bottom
                   ranges::for_each(
@@ -178,7 +231,6 @@ class Logic {
    bool has_valid_actions(const State &state, Team team)
    {
       const auto &board = state.board();
-      auto [shape_x, shape_y] = board.shape();
       for(const auto &piece_opt : board) {
          if(piece_opt.has_value()) {
             const auto &piece = piece_opt.value();
@@ -186,11 +238,12 @@ class Logic {
                piece.team() == team && token != Token::flag && token != Token::bomb) {
                // the position we are dealing with
                auto pos = piece.position();
-               auto check_legal = [&](const Position &pos_to) {
+               auto check_legal = [&](const Position &pos_to) -> bool {
                   Action action{pos, pos_to};
                   if(is_valid(state, action)) {
                      return true;
                   }
+                  return false;
                };
                if(piece.token() == Token::scout) {
                   if(ranges::any_of(_valid_vectors(pos, std::span{board.shape()}), check_legal)) {
@@ -205,6 +258,58 @@ class Logic {
          }
       }
       return false;
+   }
+
+   static std::map< Position, Token >
+   uniform_setup_draw(Config &config, aze::Team team, aze::utils::RNG &rng)
+   {
+      std::map< Position, Token > setup_out;
+
+      auto start_positions = config.start_positions.at(team);
+      auto token_counter = config.token_counters.at(team);
+      auto uniq_token_view = token_counter | ranges::views::keys;
+      std::vector< Token > tokenvec = {uniq_token_view.begin(), uniq_token_view.end()};
+
+      ranges::shuffle(start_positions, rng);
+      auto int_dist = std::uniform_int_distribution< size_t >(0, tokenvec.size());
+
+      while(not start_positions.empty()) {
+         auto &pos = start_positions.back();
+         auto choice = int_dist(rng);
+         if(auto token = tokenvec[choice]; token_counter[token] > 0) {
+            setup_out[pos] = token;
+            token_counter[token]--;
+            start_positions.pop_back();
+         } else {
+            tokenvec.erase(tokenvec.begin() + choice);
+         }
+      }
+      return setup_out;
+   }
+
+   template < typename SampleStrategyType >
+   Board draw_board(State &state, SampleStrategyType sampling_strategy = &Logic::uniform_setup_draw)
+   {
+      auto &config = state.config();
+      Board board;
+      if(config.fixed_setups) {
+         const auto &setups = config.setups.value();
+         for(int i = 0; i < 2; i++) {
+            auto team = aze::Team(i);
+            for(const auto &[position, token] : setups.at(team)) {
+               board[position] = Piece(position, token, team);
+            }
+         }
+      } else {
+         for(int i = 0; i < 2; i++) {
+            auto team = aze::Team(i);
+            auto setup = sampling_strategy(config, team);
+            for(const auto &[position, token] : setup) {
+               board[position] = Piece(position, token, team);
+            }
+         }
+      }
+      return board;
    }
 };
 

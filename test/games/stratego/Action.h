@@ -25,10 +25,13 @@ class Action {
    action_container from_to;
 
   public:
-   Action(Position pos_from, Position pos_to) : from_to{std::move(pos_from), std::move(pos_to)} {}
+   Action(const Position& pos_from, const Position& pos_to) : from_to{pos_from, pos_to} {}
 
    const Position& operator[](unsigned int index) const { return from_to[index]; }
    Position& operator[](unsigned int index) { return from_to[index]; }
+
+   [[nodiscard]] auto from() const {return (*this)[0];}
+   [[nodiscard]] auto to() const {return (*this)[1];}
 
    iterator begin() { return from_to.begin(); }
    [[nodiscard]] const_iterator begin() const { return from_to.begin(); }
@@ -65,12 +68,12 @@ class Action {
 
    friend auto& operator<<(std::ostream& os, const Action& action)
    {
-      os << action[0].to_string() << "->" << action[1].to_string();
+      os << action.from().to_string() << "->" << action.to().to_string();
       return os;
    }
    friend auto& operator<<(std::stringstream& os, const Action& action)
    {
-      os << action[0].to_string() << "->" << action[1].to_string();
+      os << action.from().to_string() << "->" << action.to().to_string();
       return os;
    }
 };

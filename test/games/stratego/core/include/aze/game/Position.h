@@ -66,9 +66,13 @@ class Position {
 
    ConstIterator begin() const { return m_coordinates.begin(); }
 
+   ConstIterator cbegin() const { return begin(); }
+
    Iterator end() { return m_coordinates.end(); }
 
    ConstIterator end() const { return m_coordinates.end(); }
+
+   ConstIterator cend() const { return end(); }
 
    Position< value_type, N > operator+(const Position< value_type, N > &pos) const;
 
