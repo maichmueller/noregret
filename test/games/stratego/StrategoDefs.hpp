@@ -24,7 +24,7 @@ enum class Token {
    general = 9,
    marshall = 10,
    bomb = 11,
-   obstacle = 99
+   hole = 99
 };
 
 enum class FightOutcome {

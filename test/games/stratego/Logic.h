@@ -142,8 +142,8 @@ class Logic {
             return false;  // cant fight
                            // pieces of
                            // own team
-         if(p_a.token() == Token::obstacle) {
-            return false;  // cant fight obstacle
+         if(p_a.token() == Token::hole) {
+            return false;  // cant fight hole
          }
       }
 

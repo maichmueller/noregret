@@ -105,7 +105,7 @@ struct Config {
    std::map< aze::Team, token_counter > token_counters;
    std::map< aze::Team, std::vector< Position > > start_positions;
    std::map< std::array< Token, 2 >, FightOutcome > battle_matrix;
-   std::vector< Position > obstacle_positions;
+   std::vector< Position > hole_positions;
    std::map< Token, int > move_ranges;
 
    Config(
@@ -118,7 +118,7 @@ struct Config {
       std::optional< std::map< aze::Team, std::vector< Position > > > start_positions_ =
          std::nullopt,
       std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = _default_bm(),
-      std::optional< std::vector< Position > > obstacle_positions_ = std::nullopt,
+      std::optional< std::vector< Position > > hole_positions_ = std::nullopt,
       std::map< Token, int > move_ranges_ = _default_mr())
        : starting_team(starting_team_),
          game_dims(std::visit(
@@ -150,9 +150,9 @@ struct Config {
                                      : start_positions_.value()
                : _positions_from_setups(setups_.value())),
          battle_matrix(std::move(battle_matrix_)),
-         obstacle_positions(
-            obstacle_positions_.has_value()
-               ? std::move(obstacle_positions_.value())
+         hole_positions(
+            hole_positions_.has_value()
+               ? std::move(hole_positions_.value())
                : std::visit(
                   aze::utils::Overload{
                      [](size_t d) { return _default_obs(d); },
@@ -161,7 +161,8 @@ struct Config {
          move_ranges(std::move(move_ranges_))
    {
       for(int i = 0; i < 2; ++i) {
-         if(utils::flatten_counter(token_counters[aze::Team(i)]).size() != start_positions.size()) {
+         if(utils::flatten_counter(token_counters[aze::Team(i)]).size()
+            != start_positions[aze::Team(i)].size()) {
             throw std::invalid_argument(
                "Token counters and start position vectors do not match in size");
          }

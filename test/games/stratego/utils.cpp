@@ -32,8 +32,8 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
       }
       const auto &piece = piece_opt.value();
       std::string color = BLUE;  // blue by default
-      if(piece.token() == Token::obstacle)
-         // piece is an obstacle -> return a gray colored field
+      if(piece.token() == Token::hole)
+         // piece is an hole -> return a gray colored field
          return "\x1B[30;47m" + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
       else if(piece.team() == Team::RED) {
          color = RED;  // background red, text "white"

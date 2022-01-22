@@ -31,6 +31,9 @@ std::map< std::array< Token, 2 >, FightOutcome > _default_bm()
             bm[{Token(i), Token(i)}] = FightOutcome::stalemate;
          }
       }
+      if(std::set{0, 11, 99}.contains(i)) {
+         continue;
+      }
       bm[{Token(i), Token::flag}] = FightOutcome::kill;
       if(Token(i) == Token::miner) {
          bm[{Token(i), Token::bomb}] = FightOutcome::kill;
@@ -69,7 +72,7 @@ std::vector< Position > _default_obs(size_t game_dims)
       return {{4, 2}, {5, 2}, {4, 3}, {5, 3}, {4, 6}, {5, 6}, {4, 7}, {5, 7}};
    else
       throw std::invalid_argument(
-         "'dimension' not in {5, 7, 10}. User has to provide custom obstacle positions.");
+         "'dimension' not in {5, 7, 10}. User has to provide custom hole positions.");
 }
 std::vector< Position > _default_obs(std::array< size_t, 2 > game_dims)
 {
@@ -77,7 +80,7 @@ std::vector< Position > _default_obs(std::array< size_t, 2 > game_dims)
       return _default_obs(game_dims[0]);
    } else {
       throw std::invalid_argument(
-         "Cannot provide default obstacle positions for non-default game dimensions.");
+         "Cannot provide default hole positions for non-default game dimensions.");
    }
 }
 
@@ -238,6 +241,7 @@ std::map< aze::Team, std::vector< Position > > _positions_from_setups(
       std::transform(setup.begin(), setup.end(), std::back_inserter(pos), [](const auto& pair) {
          return pair.first;
       });
+      positions[team] = std::move(pos);
    }
    return positions;
 }
