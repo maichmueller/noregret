@@ -23,7 +23,7 @@ auto _default_mr() -> std::map< Token, int >;
 
 auto _default_bm() -> std::map< std::array< Token, 2 >, FightOutcome >;
 
-auto _default_setups(size_t game_dims) -> std::map< aze::Team, std::map< Position, Token > >;
+auto _default_setup(size_t game_dims) -> std::map< aze::Team, std::map< Position, Token > >;
 auto _default_setups(std::array< size_t, 2 > game_dims)
    -> std::map< aze::Team, std::map< Position, Token > >;
 
@@ -33,21 +33,11 @@ auto _default_obs(std::array< size_t, 2 > game_dims) -> std::vector< Position >;
 
 auto _token_set(size_t game_dim) -> std::map< aze::Team, std::vector< Token > >;
 
-auto _gen_tokensets(const std::map< aze::Team, std::map< Position, Token > >& setups)
-   -> std::map< aze::Team, std::vector< Token > >;
-
-auto to_tokencounters(const std::map< aze::Team, std::vector< Token > >& token_vecs)
-   -> std::map< aze::Team, std::map< Token, unsigned int > >;
-
 auto _default_start_positions(size_t game_dim, aze::Team team) -> std::vector< Position >;
 
 auto _check_alignment(
-   const std::map< aze::Team, std::vector< Position > >& positions,
-   const std::map< aze::Team, std::map< Position, Token > >& setups)
-   -> std::map< aze::Team, std::vector< Position > >;
-
-auto _positions_from_setups(std::map< aze::Team, std::map< Position, Token > >& setups)
-   -> std::map< aze::Team, std::vector< Position > >;
+   const std::vector< Position >& positions,
+   const std::map< Position, Token >& setup) -> const std::vector< Position >&;
 
 // template < class StateType, class LogicType, class Derived, size_t n_teams >
 // std::vector< typename Game< StateType, LogicType, Derived, n_teams >::sptr_piece_type >
@@ -97,28 +87,58 @@ struct Config {
    using setup_type = std::map< Position, Token >;
    using token_counter = std::map< Token, unsigned int >;
 
+   /// the team that starts the game with the first turn
    aze::Team starting_team;
+   /// the board dimensions in (x,y)
    std::array< size_t, 2 > game_dims;
+   /// the maximum number of turns to play before the game is counted as a draw
    size_t max_turn_count;
-   bool fixed_setups;
-   std::optional< std::map< aze::Team, setup_type > > setups;
+   /// whether a given setup in the config is to be seen as fixed (no resampling on reset)
+   std::array< bool, 2 > fixed_setups;
+   /// an optional setup for each team
+   std::map< aze::Team, std::optional< setup_type > > setups;
    std::map< aze::Team, token_counter > token_counters;
    std::map< aze::Team, std::vector< Position > > start_positions;
    std::map< std::array< Token, 2 >, FightOutcome > battle_matrix;
    std::vector< Position > hole_positions;
    std::map< Token, int > move_ranges;
 
+  private:
+   static std::map< aze::Team, std::optional< setup_type > > _init_setups(
+      const std::map< aze::Team, std::optional< setup_type > >& setups_,
+      std::variant< size_t, std::array< size_t, 2 > > game_dims_);
+
+   static std::map< aze::Team, token_counter > _init_tokencounters(
+      const std::map< aze::Team, std::optional< std::vector< Token > > >& token_sets,
+      const std::map< aze::Team, std::optional< Config::setup_type > >& setups_);
+
+   static std::map< aze::Team, std::vector< Position > > _init_start_positions(
+      const std::map< aze::Team, std::optional< std::vector< Position > > >& start_pos,
+      const std::map< aze::Team, std::optional< Config::setup_type > >& setups_);
+
+   static std::vector< Position > _init_hole_positions(
+      const std::optional< std::vector< Position > >& hole_pos,
+      std::variant< size_t, std::array< size_t, 2 > > game_dims_);
+
+   template < typename T >
+   static constexpr std::map< aze::Team, std::optional< T > > null_arg()
+   {
+      return {std::pair{aze::Team::BLUE, std::nullopt}, std::pair{aze::Team::RED, std::nullopt}};
+   }
+
+  public:
    Config(
       aze::Team starting_team_,
       std::variant< size_t, std::array< size_t, 2 > > game_dims_ = size_t(5),
       size_t max_turn_count_ = 500,
-      bool fixed_setups_ = false,
-      std::optional< std::map< aze::Team, setup_type > > setups_ = std::nullopt,
-      std::optional< std::map< aze::Team, std::vector< Token > > > token_set_ = std::nullopt,
-      std::optional< std::map< aze::Team, std::vector< Position > > > start_positions_ =
-         std::nullopt,
+      std::array< bool, 2 > fixed_setups_ = {false, false},
+      const std::map< aze::Team, std::optional< setup_type > >& setups_ = null_arg< setup_type >(),
+      const std::map< aze::Team, std::optional< std::vector< Token > > >& token_set_ =
+         null_arg< std::vector< Token > >(),
+      const std::map< aze::Team, std::optional< std::vector< Position > > >& start_positions_ =
+         null_arg< std::vector< Position > >(),
       std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = _default_bm(),
-      std::optional< std::vector< Position > > hole_positions_ = std::nullopt,
+      const std::optional< std::vector< Position > >& hole_positions_ = std::nullopt,
       std::map< Token, int > move_ranges_ = _default_mr())
        : starting_team(starting_team_),
          game_dims(std::visit(
@@ -130,34 +150,11 @@ struct Config {
             game_dims_)),
          max_turn_count(max_turn_count_),
          fixed_setups(fixed_setups_),
-         setups(
-            setups_.has_value() ? setups_.value()
-                                : std::visit(
-                                   aze::utils::Overload{
-                                      [](size_t d) { return _default_setups(d); },
-                                      [](std::array< size_t, 2 > a) { return _default_setups(a); }},
-                                   game_dims_)),
-         token_counters(to_tokencounters(
-            setups_.has_value()
-               ? _gen_tokensets(setups_.value())
-               : (token_set_.has_value()
-                     ? std::move(token_set_.value())
-                     : throw std::invalid_argument("No setup passed and no tokenset passed. Either "
-                                                   "of these need to be set.")))),
-         start_positions(
-            start_positions_.has_value()
-               ? setups_.has_value() ? _check_alignment(start_positions_.value(), setups_.value())
-                                     : start_positions_.value()
-               : _positions_from_setups(setups_.value())),
+         setups(_init_setups(setups_, game_dims_)),
+         token_counters(_init_tokencounters(token_set_, setups_)),
+         start_positions(_init_start_positions(start_positions_, setups_)),
          battle_matrix(std::move(battle_matrix_)),
-         hole_positions(
-            hole_positions_.has_value()
-               ? std::move(hole_positions_.value())
-               : std::visit(
-                  aze::utils::Overload{
-                     [](size_t d) { return _default_obs(d); },
-                     [](std::array< size_t, 2 > a) { return _default_obs(a); }},
-                  game_dims_)),
+         hole_positions(_init_hole_positions(hole_positions_, game_dims_)),
          move_ranges(std::move(move_ranges_))
    {
       for(int i = 0; i < 2; ++i) {

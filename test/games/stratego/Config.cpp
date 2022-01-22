@@ -1,6 +1,8 @@
 
 #include "Config.hpp"
 
+#include <range/v3/all.hpp>
+
 namespace stratego {
 
 std::map< Token, int > _default_mr()
@@ -44,19 +46,19 @@ std::map< std::array< Token, 2 >, FightOutcome > _default_bm()
    return bm;
 }
 
-std::map< aze::Team, std::map< Position, Token > > _default_setups(size_t game_dims)
+std::map< Position, Token > _default_setup(size_t game_dims, aze::Team team)
 {
    using Team = aze::Team;
-   std::map< Team, std::map< Position, Token > > setups;
+   std::map< Position, Token > setup;
 
    // TODO: Fill
 
-   return setups;
+   return setup;
 }
-std::map< aze::Team, std::map< Position, Token > > _default_setups(std::array< size_t, 2 > game_dims)
+std::map< Position, Token > _default_setups(std::array< size_t, 2 > game_dims, aze::Team team)
 {
    if(game_dims[0] == game_dims[1] and std::set{5, 7, 10}.contains(game_dims[0])) {
-      return _default_setups(game_dims[0]);
+      return _default_setup(game_dims[0], team);
    } else {
       throw std::invalid_argument("Cannot provide default setups for non-default game dimensions.");
    }
@@ -151,26 +153,6 @@ std::map< aze::Team, std::vector< Token > > _token_set(size_t game_dim)
    }
 }
 
-std::map< aze::Team, std::vector< Token > > _gen_tokensets(const std::map< aze::Team, std::map< Position, Token > >& setups)
-{
-   std::map< aze::Team, std::vector< Token > > tokens;
-   for(const auto& [team, setup] : setups) {
-      for(const auto& [_, token] : setup) {
-         tokens[team].emplace_back(token);
-      }
-   }
-   return tokens;
-}
-
-std::map< aze::Team, std::map< Token, unsigned int > > to_tokencounters(const std::map< aze::Team, std::vector< Token > >& token_vecs)
-{
-   std::map< aze::Team, std::map< Token, unsigned int > > m;
-   for(const auto& [team, vec] : token_vecs) {
-      m[team] = aze::utils::counter(vec);
-   }
-   return m;
-}
-
 std::vector< Position > _default_start_positions(size_t game_dim, aze::Team team)
 {
    using aze::Team;
@@ -213,38 +195,97 @@ std::vector< Position > _default_start_positions(size_t game_dim, aze::Team team
    }
 }
 
-std::map< aze::Team, std::vector< Position > > _check_alignment(
-   const std::map< aze::Team, std::vector< Position > >& positions,
-   const std::map< aze::Team, std::map< Position, Token > >& setups)
+const std::vector< Position >& _check_alignment(
+   const std::vector< Position >& positions,
+   const std::map< Position, Token >& setup)
 {
-   for(const auto& [team, setup] : setups) {
-      const auto& pos_vec = positions.at(team);
-      if(pos_vec.size() != setup.size()
-         or std::any_of(pos_vec.begin(), pos_vec.end(), [&setup = setup](const Position& pos) {
-               return not setup.contains(pos);
-            })) {
-         throw std::invalid_argument(
-            "Passed starting positions parameter and setup parameter do not match for team "
-            + std::to_string(static_cast< int >(team)) + " .");
+   if(positions.size() != setup.size()
+      or std::any_of(positions.begin(), positions.end(), [&setup = setup](const Position& pos) {
+            return not setup.contains(pos);
+         })) {
+      throw std::invalid_argument(
+         "Passed starting positions parameter and setup parameter do not match.");
+   }
+   return positions;
+}
+
+std::map< aze::Team, std::optional< Config::setup_type > > Config::_init_setups(
+   const std::map< aze::Team, std::optional< Config::setup_type > >& setups_,
+   std::variant< size_t, std::array< size_t, 2 > > game_dims_)
+{
+   std::map< aze::Team, std::optional< setup_type > > sets;
+   for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
+      sets[team] = setups_.at(team).has_value()
+                      ? setups_.at(team).value()
+                      : std::visit(
+                         aze::utils::Overload{
+                            [&](size_t d) { return _default_setup(d, team); },
+                            [&](std::array< size_t, 2 > a) { return _default_setups(a, team); }},
+                         game_dims_);
+   }
+   return sets;
+}
+
+std::map< aze::Team, Config::token_counter > Config::_init_tokencounters(
+   const std::map< aze::Team, std::optional< std::vector< Token > > >& token_sets,
+   const std::map< aze::Team, std::optional< Config::setup_type > >& setups_)
+{
+   std::map< aze::Team, token_counter > counters;
+   for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
+      if(setups_.at(team).has_value()) {
+         auto values = setups_.at(team).value() | ranges::views::values;
+         counters[team] = aze::utils::counter(std::vector< Token >{values.begin(), values.end()});
+      } else {
+         if(token_sets.at(team).has_value()) {
+            counters[team] = aze::utils::counter(token_sets.at(team).value());
+         } else {
+            throw std::invalid_argument(
+               "No setup passed and no tokenset passed. Either "
+               "of these need to be set.");
+         }
+      }
+   }
+   return counters;
+}
+
+std::map< aze::Team, std::vector< Position > > Config::_init_start_positions(
+   const std::map< aze::Team, std::optional< std::vector< Position > > >& start_pos,
+   const std::map< aze::Team, std::optional< Config::setup_type > >& setups_)
+{
+   std::map< aze::Team, std::vector< Position > > positions;
+   for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
+      if(start_pos.at(team).has_value()) {
+         if(setups_.at(team).has_value()) {
+            positions[team] = _check_alignment(start_pos.at(team).value(), setups_.at(team).value());
+         } else {
+            positions[team] = start_pos.at(team).value();
+         }
+      } else {
+         positions[team] = [](const std::map< Position, Token >& setup) {
+            std::vector< Position > pos;
+            pos.reserve(setup.size());
+            std::transform(
+               setup.begin(), setup.end(), std::back_inserter(pos), [](const auto& pair) {
+                  return pair.first;
+               });
+            return pos;
+         }(setups_.at(team).value());
       }
    }
    return positions;
 }
 
-std::map< aze::Team, std::vector< Position > > _positions_from_setups(
-   std::map< aze::Team, std::map< Position, Token > >& setups)
+std::vector< Position > Config::_init_hole_positions(
+   const std::optional< std::vector< Position > >& hole_pos,
+   std::variant< size_t, std::array< size_t, 2 > > game_dims_)
 {
-   std::map< aze::Team, std::vector< Position > > positions;
-   for(const auto& [team, setup] : setups) {
-      std::vector< Position > pos;
-      pos.reserve(setup.size());
-      std::transform(setup.begin(), setup.end(), std::back_inserter(pos), [](const auto& pair) {
-         return pair.first;
-      });
-      positions[team] = std::move(pos);
-   }
-   return positions;
+   return hole_pos.has_value() ? hole_pos.value()
+                               : std::visit(
+                                  aze::utils::Overload{
+                                     [](size_t d) { return _default_obs(d); },
+                                     [](std::array< size_t, 2 > a) { return _default_obs(a); }},
+                                  game_dims_);
 }
 
 
-}
+}  // namespace stratego

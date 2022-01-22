@@ -16,9 +16,7 @@ class Logic {
    using Team = aze::Team;
 
   public:
-
    virtual ~Logic() = default;
-
 
    inline FightOutcome fight(const Config &config, const Piece &attacker, const Piece &defender)
    {
@@ -75,15 +73,15 @@ class Logic {
     * @return
     */
    template < typename Range >
-   requires std::ranges::sized_range< Range > && std::ranges::bidirectional_range<
-      Range > && std::integral< typename Range::value_type >
+   requires ranges::sized_range< Range > && ranges::bidirectional_range< Range > && std::integral<
+      typename Range::value_type >
    bool check_bounds(const Board &board, Range values)
    {
       auto shape = board.shape();
       if(values.size() > shape.size()) {
          return false;
       }
-      constexpr bool val = std::ranges::bidirectional_range< Position >;
+      constexpr bool val = ranges::bidirectional_range< Position >;
       auto size_diff = shape.size() - values.size();
       for(auto value : ranges::views::reverse(values)) {
          auto i = shape[value + size_diff];
@@ -93,6 +91,8 @@ class Logic {
       }
       return true;
    }
+
+   void place_setup(const std::map< Position, Token > setup, Board &board, aze::Team team);
 
    aze::Status check_terminal(State &state)
    {
@@ -261,7 +261,7 @@ class Logic {
    }
 
    static std::map< Position, Token >
-   uniform_setup_draw(Config &config, aze::Team team, aze::utils::RNG &rng)
+   uniform_setup_draw(const Config &config, aze::Team team, aze::utils::RNG &rng)
    {
       std::map< Position, Token > setup_out;
 
@@ -287,30 +287,59 @@ class Logic {
       return setup_out;
    }
 
-   template < typename SampleStrategyType >
-   Board draw_board(State &state, SampleStrategyType sampling_strategy = &Logic::uniform_setup_draw)
+   static Board create_empty_board(const Config &config)
    {
-      auto &config = state.config();
-      Board board;
-      if(config.fixed_setups) {
-         const auto &setups = config.setups.value();
-         for(int i = 0; i < 2; i++) {
-            auto team = aze::Team(i);
-            for(const auto &[position, token] : setups.at(team)) {
-               board[position] = Piece(position, token, team);
-            }
+      Board b;
+      for(auto x : ranges::views::iota(size_t(0), config.game_dims[0])) {
+         for(auto y : ranges::views::iota(size_t(0), config.game_dims[1])) {
+            b[{x, y}] = std::nullopt;
          }
-      } else {
-         for(int i = 0; i < 2; i++) {
-            auto team = aze::Team(i);
-            auto setup = sampling_strategy(config, team);
+      }
+      return b;
+   }
+
+   template < std::invocable< const Config &, aze::Team, aze::utils::RNG & > SampleStrategyType >
+   Board draw_board(
+      const Config &config,
+      aze::utils::RNG &rng,
+      SampleStrategyType setup_sampling_strategy)
+   {
+      Board board;
+      for(int i = 0; i < 2; i++) {
+         auto team = aze::Team(i);
+         if(config.fixed_setups[i]) {
+            const auto &setup = config.setups.at(team).value();
             for(const auto &[position, token] : setup) {
                board[position] = Piece(position, token, team);
             }
+         } else {
+            for(const auto &[position, token] : setup_sampling_strategy(config, team, rng)) {
+               board[position] = Piece(position, token, team);
+            }
          }
+         return board;
       }
-      return board;
+   }
+
+   template < std::invocable< const Config &, aze::Team, aze::utils::RNG & > SampleStrategyType >
+   Board
+   draw_setup(const Config &config, const Board &curr_board, SampleStrategyType sampling_strategy)
+   {
+      Board board;
+      for(int i = 0; i < 2; i++) {
+         auto team = aze::Team(i);
+         if(config.fixed_setups[i]) {
+            const auto &setup = config.setups.at(team).value();
+            for(const auto &[position, token] : setup) {
+               board[position] = Piece(position, token, team);
+            }
+         } else {
+            for(const auto &[position, token] : sampling_strategy(config, team)) {
+               board[position] = Piece(position, token, team);
+            }
+         }
+         return board;
+      }
    }
 };
-
 }  // namespace stratego

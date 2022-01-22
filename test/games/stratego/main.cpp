@@ -49,9 +49,10 @@ int main()
       aze::Team::BLUE,
       size_t(5),
       500,
-      false,
-      std::map< aze::Team, std::map< Position, Token > >{
-         {aze::Team::BLUE, setup0}, {aze::Team::RED, setup1}}};
+      {false, false},
+      std::map{
+         std::pair{aze::Team::BLUE, std::make_optional(setup0)},
+         std::pair{aze::Team::RED, std::make_optional(setup1)}}};
    auto game = Game(config, agent_0, agent_1);
 
    //
