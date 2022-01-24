@@ -1,17 +1,21 @@
 #include "utils.hpp"
 
-
-namespace stratego::utils  {
-
+namespace stratego::utils {
 
 std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
 {
    using Team = aze::Team;
-
+#if defined(_MSC_VER)
+   static const std::string VERT_BAR{"|"};
+   static const std::string RESET;
+   static const std::string BLUE;
+   static const std::string RED;
+#else
    static const std::string VERT_BAR{"\u2588"};
    static const std::string RESET{"\x1B[0m"};
    static const std::string BLUE{"\x1B[44m"};
    static const std::string RED{"\x1B[41m"};
+#endif
 
    int H_SIZE_PER_PIECE = 9;
    int V_SIZE_PER_PIECE = 3;
@@ -52,12 +56,16 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
                 + aze::utils::center(
                    std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " ")
                 + RESET;
-      } else if(line == mid + 1)
+      } else if(line == mid + 1) {
+#if defined(_MSC_VER)
          // team info line
-         // return color + center(std::to_string(piece.get_team(flip_board)),
-         // H_SIZE_PER_PIECE, " ") + reset;
+         return aze::utils::center(
+            piece.team() == aze::Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " ");
+#else
+         // for non msvc we have colored boxed to work for us
          return color + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
-      else
+#endif
+      } else
          // empty line
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
    };
@@ -74,14 +82,14 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
    std::optional< Piece > curr_piece = std::nullopt;
 
    // row means row of the board. not actual rows of console output.
-   for(int row = dim_y - 1; row > -1;
-       --row) {  // iterate backwards through the rows for correct display
+   // iterate backwards through the rows for correct display
+   for(int row = dim_y - 1; row > -1; --row) {
       // per piece we have V_SIZE_PER_PIECE many lines to fill consecutively.
       // Iterate over every column and append the new segment to the right line.
       std::vector< std::stringstream > line_streams(static_cast< unsigned int >(V_SIZE_PER_PIECE));
 
       for(int col = 0; col < dim_x; ++col) {
-         if(static_cast< bool >(team)) {
+         if(team == aze::Team::RED) {
             curr_piece = board(dim_x - 1 - row, dim_y - 1 - col);
          } else
             curr_piece = board(row, col);
@@ -93,7 +101,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
                if(col == 0) {
                   curr_stream << std::string(static_cast< unsigned long >(row_ind_space), ' ');
                }
-               curr_stream << VERT_BAR << create_piece_str(*curr_piece, i);
+               curr_stream << VERT_BAR << create_piece_str(curr_piece, i);
             } else if(i == mid) {
                if(col == 0) {
                   if(row < 10)
@@ -104,7 +112,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
                   curr_stream << std::string(static_cast< unsigned long >(row_ind_space - 2), ' ')
                               << VERT_BAR;
                }
-               curr_stream << create_piece_str(*curr_piece, i);
+               curr_stream << create_piece_str(curr_piece, i);
                if(col != dim_x - 1)
                   curr_stream << VERT_BAR;
             }
@@ -127,4 +135,4 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
    return board_print.str();
 }
 
-}
+}  // namespace stratego::utils

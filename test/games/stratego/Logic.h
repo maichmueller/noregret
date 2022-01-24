@@ -81,18 +81,20 @@ class Logic {
       if(values.size() > shape.size()) {
          return false;
       }
-      constexpr bool val = ranges::bidirectional_range< Position >;
-      auto size_diff = shape.size() - values.size();
-      for(auto value : ranges::views::reverse(values)) {
-         auto i = shape[value + size_diff];
-         if(std::cmp_less(value, 0) or std::cmp_greater_equal(value, shape[i])) {
+      for(auto [v, s] : ranges::views::zip(values, shape)) {
+         if(std::cmp_less(v, 0) or std::cmp_greater_equal(v, s)) {
             return false;
          }
       }
       return true;
    }
 
-   void place_setup(const std::map< Position, Token > setup, Board &board, aze::Team team);
+   void place_setup(const std::map< Position, Token >& setup, Board &board, aze::Team team)
+   {
+      for(const auto &[pos, token] : setup) {
+         board[pos] = Piece(pos, token, team);
+      }
+   }
 
    aze::Status check_terminal(State &state)
    {
@@ -133,12 +135,13 @@ class Logic {
 
       if(not p_b_opt.has_value())
          return false;
-      if(std::set{Token::flag, Token::bomb}.contains(p_b_opt.value().token())) {
+      const auto& p_b = p_b_opt.value();
+      if(std::set{Token::flag, Token::bomb}.contains(p_b.token())) {
          return false;
       }
-      if(not p_a_opt.has_value()) {
+      if(p_a_opt.has_value()) {
          const auto &p_a = p_a_opt.value();
-         if(p_a.team() == p_b_opt.value().team())
+         if(p_a.team() == p_b.team())
             return false;  // cant fight
                            // pieces of
                            // own team
@@ -149,7 +152,7 @@ class Logic {
 
       int move_dist = abs(pos_after[1] - pos_before[1]) + abs(pos_after[0] - pos_before[0]);
       if(move_dist > 1) {
-         if(p_b_opt.value().token() != Token::scout)
+         if(p_b.token() != Token::scout)
             return false;  // not of type 2 , but is supposed to go far
 
          if(pos_after[0] == pos_before[0]) {
@@ -261,7 +264,7 @@ class Logic {
    }
 
    static std::map< Position, Token >
-   uniform_setup_draw(const Config &config, aze::Team team, aze::utils::RNG &rng)
+   draw_setup_uniform(const Config &config, Board &curr_board, aze::Team team, aze::utils::RNG &rng)
    {
       std::map< Position, Token > setup_out;
 
@@ -271,25 +274,41 @@ class Logic {
       std::vector< Token > tokenvec = {uniq_token_view.begin(), uniq_token_view.end()};
 
       ranges::shuffle(start_positions, rng);
-      auto int_dist = std::uniform_int_distribution< size_t >(0, tokenvec.size());
+      auto int_dist = std::uniform_int_distribution< size_t >(0, tokenvec.size() - 1);
 
       while(not start_positions.empty()) {
          auto &pos = start_positions.back();
-         auto choice = int_dist(rng);
-         if(auto token = tokenvec[choice]; token_counter[token] > 0) {
-            setup_out[pos] = token;
-            token_counter[token]--;
+         if(curr_board[pos].has_value()) {
+            // if the current board already has a piece at this location, then remove the position
+            // from the possible ones.
             start_positions.pop_back();
-         } else {
-            tokenvec.erase(tokenvec.begin() + choice);
+            continue;
          }
+         auto choice = int_dist(rng);
+         auto token = tokenvec[choice];
+         // needs to be refernce since it is decremented inplace
+         auto& count = token_counter[token];
+         if(count > 0) {
+            setup_out[pos] = token;
+            count--;
+            start_positions.pop_back();
+         }
+         if(count == 0) {
+            tokenvec.erase(tokenvec.begin() + choice);
+            int_dist = std::uniform_int_distribution< size_t >(0, tokenvec.size() - 1);
+         }
+      }
+      if(not tokenvec.empty()) {
+         throw std::invalid_argument(
+            "Current board setup and config could not be made to agree with number of tokens to "
+            "place on it.");
       }
       return setup_out;
    }
 
    static Board create_empty_board(const Config &config)
    {
-      Board b;
+      Board b(config.game_dims);
       for(auto x : ranges::views::iota(size_t(0), config.game_dims[0])) {
          for(auto y : ranges::views::iota(size_t(0), config.game_dims[1])) {
             b[{x, y}] = std::nullopt;
@@ -298,48 +317,25 @@ class Logic {
       return b;
    }
 
-   template < std::invocable< const Config &, aze::Team, aze::utils::RNG & > SampleStrategyType >
+   template <
+      std::invocable< const Config &, Board &, aze::Team, aze::utils::RNG & > SampleStrategyType >
    Board draw_board(
       const Config &config,
+      Board curr_board,
       aze::utils::RNG &rng,
-      SampleStrategyType setup_sampling_strategy)
+      SampleStrategyType setup_sampler = [](...) { return; })
    {
-      Board board;
       for(int i = 0; i < 2; i++) {
          auto team = aze::Team(i);
          if(config.fixed_setups[i]) {
-            const auto &setup = config.setups.at(team).value();
-            for(const auto &[position, token] : setup) {
-               board[position] = Piece(position, token, team);
-            }
+            place_setup(config.setups.at(team).value(), curr_board, team);
          } else {
-            for(const auto &[position, token] : setup_sampling_strategy(config, team, rng)) {
-               board[position] = Piece(position, token, team);
+            for(const auto &[position, token] : setup_sampler(config, curr_board, team, rng)) {
+               curr_board[position] = Piece(position, token, team);
             }
          }
-         return board;
       }
-   }
-
-   template < std::invocable< const Config &, aze::Team, aze::utils::RNG & > SampleStrategyType >
-   Board
-   draw_setup(const Config &config, const Board &curr_board, SampleStrategyType sampling_strategy)
-   {
-      Board board;
-      for(int i = 0; i < 2; i++) {
-         auto team = aze::Team(i);
-         if(config.fixed_setups[i]) {
-            const auto &setup = config.setups.at(team).value();
-            for(const auto &[position, token] : setup) {
-               board[position] = Piece(position, token, team);
-            }
-         } else {
-            for(const auto &[position, token] : sampling_strategy(config, team)) {
-               board[position] = Piece(position, token, team);
-            }
-         }
-         return board;
-      }
+      return curr_board;
    }
 };
 }  // namespace stratego

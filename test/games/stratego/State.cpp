@@ -65,16 +65,10 @@ State *State::clone_impl() const
    }
    return new State(m_config, graveyard(), board(), turn_count(), hist_copy, rng());
 }
-State::State(Config config)
-    : base_type(Logic::create_empty_board()), m_config(std::move(config)), m_graveyard()
+State::State(Config cfg)
+    : base_type(Logic::create_empty_board(cfg)), m_config(std::move(cfg)), m_graveyard()
 {
-   for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
-      if(config.fixed_setups[static_cast< unsigned int >(team)]) {
-         logic()->place_setup(config.setups[team].value(), board(), team);
-      } else {
-         logic()->draw_board(config, rng(), &Logic::uniform_setup_draw);
-      }
-   }
+   board() = logic()->draw_board(config(), board(), rng(), &Logic::draw_setup_uniform);
 }
 
 std::string State::string_representation() const
