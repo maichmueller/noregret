@@ -19,7 +19,7 @@ inline constexpr auto make_tokens(std::index_sequence< Is... >)
    return std::vector{Token(Is)...};
 }
 
-auto _default_mr() -> std::map< Token, int >;
+auto _default_mr() -> std::map< Token, std::function< bool(size_t) > >;
 
 auto _default_bm() -> std::map< std::array< Token, 2 >, FightOutcome >;
 
@@ -97,11 +97,16 @@ struct Config {
    std::array< bool, 2 > fixed_setups;
    /// an optional setup for each team
    std::map< aze::Team, std::optional< setup_type > > setups;
+   /// the tokens that each player gets to place on the board
    std::map< aze::Team, token_counter > token_counters;
+   /// the start positions that each team can use to place tokens
    std::map< aze::Team, std::vector< Position > > start_positions;
+   /// the battle matrix determining outcomes of token fights
    std::map< std::array< Token, 2 >, FightOutcome > battle_matrix;
+   /// the positions of the holes for the gane
    std::vector< Position > hole_positions;
-   std::map< Token, int > move_ranges;
+   /// holds a predicate for each token to check if a given distance is within move range
+   std::map< Token, std::function< bool(size_t) > > move_ranges;
 
   private:
    static std::map< aze::Team, std::optional< setup_type > > _init_setups(
@@ -139,7 +144,7 @@ struct Config {
          null_arg< std::vector< Position > >(),
       std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = _default_bm(),
       const std::optional< std::vector< Position > >& hole_positions_ = std::nullopt,
-      std::map< Token, int > move_ranges_ = _default_mr())
+      std::map< Token, std::function< bool(size_t) > > move_ranges_ = _default_mr())
        : starting_team(starting_team_),
          game_dims(std::visit(
             aze::utils::Overload{

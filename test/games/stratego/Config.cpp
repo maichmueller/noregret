@@ -5,17 +5,17 @@
 
 namespace stratego {
 
-std::map< Token, int > _default_mr()
+std::map< Token, std::function< bool(size_t) > > _default_mr()
 {
-   std::map< Token, int > mr;
+   std::map< Token, std::function< bool(size_t) > > mr;
    for(auto token_value : std::array{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99}) {
       auto token = Token(token_value);
       if(token == Token::scout) {
-         mr[token] = std::numeric_limits< int >::infinity();
+         mr[token] = [](size_t dist) { return true; };
       } else if(token == Token::flag or token == Token::bomb) {
-         mr[token] = 0;
+         mr[token] = [](size_t dist) { return 0 == dist; };
       } else {
-         mr[token] = 1;
+         mr[token] = [](size_t dist) { return 1 == dist; };
       }
    }
    return mr;
@@ -256,7 +256,8 @@ std::map< aze::Team, std::vector< Position > > Config::_init_start_positions(
    for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
       if(start_pos.at(team).has_value()) {
          if(setups_.at(team).has_value()) {
-            positions[team] = _check_alignment(start_pos.at(team).value(), setups_.at(team).value());
+            positions[team] = _check_alignment(
+               start_pos.at(team).value(), setups_.at(team).value());
          } else {
             positions[team] = start_pos.at(team).value();
          }
@@ -286,6 +287,5 @@ std::vector< Position > Config::_init_hole_positions(
                                      [](std::array< size_t, 2 > a) { return _default_obs(a); }},
                                   game_dims_);
 }
-
 
 }  // namespace stratego

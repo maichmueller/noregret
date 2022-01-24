@@ -89,16 +89,16 @@ class Logic {
       return true;
    }
 
-   static void place_setup(const std::map< Position, Token >& setup, Board &board, aze::Team team)
+   static void place_setup(const std::map< Position, Token > &setup, Board &board, aze::Team team)
    {
       for(const auto &[pos, token] : setup) {
          board[pos] = Piece(pos, token, team);
       }
    }
 
-   static void place_holes(const Config& cfg, Board &board)
+   static void place_holes(const Config &cfg, Board &board)
    {
-      for(const auto& pos : cfg.hole_positions) {
+      for(const auto &pos : cfg.hole_positions) {
          board[pos] = Piece(pos, Token::hole, Team::BLUE);
       }
    }
@@ -134,6 +134,7 @@ class Logic {
    {
       const auto &[pos_before, pos_after] = action.positions();
       const auto &board = state.board();
+
       if(not check_bounds(board, pos_before) or not check_bounds(board, pos_after))
          return false;
 
@@ -142,10 +143,10 @@ class Logic {
 
       if(not p_b_opt.has_value())
          return false;
-      const auto& p_b = p_b_opt.value();
-      if(std::set{Token::flag, Token::bomb}.contains(p_b.token())) {
-         return false;
-      }
+
+      const auto &p_b = p_b_opt.value();
+
+      // check if the target position holds a piece and whose team it belongs to
       if(p_a_opt.has_value()) {
          const auto &p_a = p_a_opt.value();
          if(p_a.team() == p_b.team())
@@ -158,10 +159,15 @@ class Logic {
       }
 
       int move_dist = abs(pos_after[1] - pos_before[1]) + abs(pos_after[0] - pos_before[0]);
-      if(move_dist > 1) {
-         if(p_b.token() != Token::scout)
-            return false;  // not of type 2 , but is supposed to go far
 
+      // check if the move distance is within the move range of the token
+      if(not state.config().move_ranges.at(p_b.token())(move_dist)) {
+         return false;
+      }
+
+      // check for any "diagonal" moves (move not in a straight line) and, if not, for any pieces
+      // blocking the way
+      if(move_dist > 1) {
          if(pos_after[0] == pos_before[0]) {
             int dist = pos_after[1] - pos_before[1];
             int sign = (dist >= 0) ? 1 : -1;
@@ -249,7 +255,7 @@ class Logic {
                // the position we are dealing with
                auto pos = piece.position();
                auto check_legal = [&](const Position &pos_to) -> bool {
-                  Action action{pos, pos_to};
+                  Action action{pos, pos + pos_to};
                   if(is_valid(state, action)) {
                      return true;
                   }
@@ -294,7 +300,7 @@ class Logic {
          auto choice = int_dist(rng);
          auto token = tokenvec[choice];
          // needs to be refernce since it is decremented inplace
-         auto& count = token_counter[token];
+         auto &count = token_counter[token];
          if(count > 0) {
             setup_out[pos] = token;
             count--;
