@@ -68,6 +68,7 @@ State *State::clone_impl() const
 State::State(Config cfg)
     : base_type(Logic::create_empty_board(cfg)), m_config(std::move(cfg)), m_graveyard()
 {
+   Logic::place_holes(config(), board());
    board() = logic()->draw_board(config(), board(), rng(), &Logic::draw_setup_uniform);
 }
 

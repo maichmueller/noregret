@@ -29,16 +29,22 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
    // "-1 \n
    // 10.1 \n
    //   1"
-   auto create_piece_str = [&H_SIZE_PER_PIECE, &mid, &team, &hide_unknowns](
+   auto create_piece_str = [&H_SIZE_PER_PIECE, &mid, &hide_unknowns](
                               const std::optional< Piece > &piece_opt, int line) {
       if(not piece_opt.has_value()) {
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
       }
       const auto &piece = piece_opt.value();
       std::string color = BLUE;  // blue by default
-      if(piece.token() == Token::hole)
-         // piece is an hole -> return a gray colored field
+      if(piece.token() == Token::hole) {
+#if defined(_MSC_VER)
+         // print hole over field
+         return aze::utils::center("HOLE", H_SIZE_PER_PIECE, " ");
+#else
+         // piece is a hole -> return a gray colored field
          return "\x1B[30;47m" + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
+#endif
+      }
       else if(piece.team() == Team::RED) {
          color = RED;  // background red, text "white"
       }
