@@ -25,6 +25,7 @@ class Game: public aze::Game< State, Logic, 2 > {
 
    aze::Status run_game(const sptr< aze::utils::Plotter< state_type > > &plotter) override;
    aze::Status run_step() override;
+   void reset() override;
 
 };
 

@@ -30,12 +30,13 @@ class Game {
    std::array< sptr< Agent< state_type > >, n_teams > m_agents;
 
   public:
-   Game(sptr< state_type> stateptr, std::array< sptr< agent_type >, n_teams > agents);
+   Game(sptr< state_type > stateptr, std::array< sptr< agent_type >, n_teams > agents);
    Game(state_type &&state, std::array< sptr< agent_type >, n_teams > agents);
    virtual ~Game() = default;
 
-   virtual Status run_game(const sptr<utils::Plotter<state_type>>& plotter) = 0;
+   virtual Status run_game(const sptr< utils::Plotter< state_type > > &plotter) = 0;
    virtual Status run_step() = 0;
+   virtual void reset() = 0;
 
    constexpr auto nr_players() const { return n_teams; }
    auto agents() { return m_agents; }
@@ -44,21 +45,20 @@ class Game {
    auto &state() { return m_state; }
 };
 
-template < class StateType, class LogicType,  size_t NPlayers >
+template < class StateType, class LogicType, size_t NPlayers >
 Game< StateType, LogicType, NPlayers >::Game(
-   state_type && state,
+   state_type &&state,
    std::array< sptr< Agent< state_type > >, n_teams > agents)
-    : m_state(std::make_shared<state_type >(std::move(state))), m_agents(agents)
+    : m_state(std::make_shared< state_type >(std::move(state))), m_agents(agents)
 {
 }
 
-template < class StateType, class LogicType,  size_t NPlayers >
+template < class StateType, class LogicType, size_t NPlayers >
 Game< StateType, LogicType, NPlayers >::Game(
-   sptr<state_type>  stateptr,
+   sptr< state_type > stateptr,
    std::array< sptr< Agent< state_type > >, n_teams > agents)
     : m_state(std::move(stateptr)), m_agents(agents)
 {
 }
-
 
 }  // namespace aze
