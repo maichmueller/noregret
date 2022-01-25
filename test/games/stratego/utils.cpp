@@ -68,7 +68,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
          return aze::utils::center(
             piece.team() == aze::Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " ");
 #else
-         // for non msvc we have colored boxed to work for us
+         // for non msvc we have colored box to work for us
          return color + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
 #endif
       } else

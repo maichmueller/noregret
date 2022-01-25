@@ -17,7 +17,6 @@ class History {
    using Team = aze::Team;
 
   public:
-
    [[nodiscard]] inline auto get_by_turn(size_t turn) const
       -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
@@ -83,10 +82,11 @@ class State: public aze::State< Board, History, Piece, Action > {
    using graveyard_type = std::array< std::unordered_set< Piece::token_type >, 2 >;
 
    template < typename... Params >
-   State(Config config, graveyard_type graveyard, Params &&...params)
+   State(Config config, graveyard_type graveyard, sptr< Logic > logic, Params &&...params)
        : base_type(std::forward< Params >(params)...),
          m_config(std::move(config)),
-         m_graveyard(std::move(graveyard))
+         m_graveyard(std::move(graveyard)),
+         m_logic(std::move(logic))
    {
    }
 
@@ -94,12 +94,13 @@ class State: public aze::State< Board, History, Piece, Action > {
 
    void to_graveyard(const std::optional< piece_type > &piece_opt)
    {
-      if(! piece_opt.has_value())
+      if(not piece_opt.has_value())
          m_graveyard[static_cast< int >(piece_opt.value().team())].emplace(
             piece_opt.value().token());
    }
 
    void apply_action(const action_type &action) override;
+   aze::Status check_terminal() override;
 
    [[nodiscard]] std::string string_representation() const override;
    [[nodiscard]] std::string string_representation(aze::Team team, bool hide_unknowns)

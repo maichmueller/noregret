@@ -32,6 +32,7 @@ class State {
    aze::utils::RNG m_rng;
 
   protected:
+   inline bool& status_checked() { return m_status_checked; }
    virtual State *clone_impl() const = 0;
    virtual void apply_action(const stratego::Action &move);
 
@@ -44,15 +45,7 @@ class State {
 
    virtual ~State() = default;
 
-   auto &operator[](const typename piece_type::position_type &position)
-   {
-      return (*m_board)[position];
-   }
-
-   const auto &operator[](const typename piece_type::position_type &position) const
-   {
-      return (*m_board)[position];
-   }
+   virtual Status check_terminal() = 0;
 
    sptr< State > clone() const { return sptr< State >(clone_impl()); }
 
@@ -67,7 +60,11 @@ class State {
 
    [[nodiscard]] inline auto rng() const { return m_rng; }
    [[nodiscard]] inline int turn_count() const { return m_turn_count; }
-   [[nodiscard]] inline Status status() const { return m_status; }
+   Status status() {
+      if(m_status_checked)
+         return m_status;
+      return check_terminal();
+   }
    [[nodiscard]] inline auto history() const { return m_move_history; }
    [[nodiscard]] inline auto &history() { return m_move_history; }
    [[nodiscard]] inline auto board() const { return m_board; }

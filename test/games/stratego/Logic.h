@@ -18,36 +18,78 @@ class Logic {
   public:
    virtual ~Logic() = default;
 
-   inline FightOutcome fight(const Config &config, const Piece &attacker, const Piece &defender)
+   static inline FightOutcome
+   fight(const Config &config, const Piece &attacker, const Piece &defender)
    {
       return fight(config, std::array{attacker.token(), defender.token()});
    }
 
-   inline FightOutcome fight(const Config &config, const std::array< Token, 2 > &att_def)
+   static inline FightOutcome fight(const Config &config, const std::array< Token, 2 > &att_def)
    {
       return config.battle_matrix.at(att_def);
    }
 
-   template < FightOutcome Outcome >
-   void handle(State &state, Piece &attacker, Piece &defender)
+   static void update_board(Board &board, const Position &new_pos, Piece &piece)
    {
+      board[new_pos] = piece;
+      piece.position(new_pos);
+   }
+   static void update_board(Board &board, const Position &new_pos)
+   {
+      board[new_pos] = std::nullopt;
    }
 
-   template <>
-   virtual void handle< FightOutcome::death >(State &state, Piece &attacker, Piece &defender)
+   FightOutcome handle_fight(State &state, Piece &attacker, Piece &defender)
    {
-      state.to_graveyard(attacker);
+      auto &board = state.board();
+      // uncover participant pieces
+      attacker.flag_unhidden(true);
+      defender.flag_unhidden(true);
+      auto outcome = fight(state.config(), attacker, defender);
+      switch(outcome) {
+         case FightOutcome::kill: {
+            state.to_graveyard(defender);
+            update_board(board, attacker.position());
+            update_board(board, defender.position(), attacker);
+         }
+         case FightOutcome::death: {
+            state.to_graveyard(attacker);
+            update_board(board, attacker.position());
+         }
+         case FightOutcome::stalemate: {
+            state.to_graveyard(attacker);
+            state.to_graveyard(defender);
+            update_board(board, attacker.position());
+            update_board(board, defender.position());
+         }
+      }
+      return outcome;
    }
-   template <>
-   virtual void handle< FightOutcome::kill >(State &state, Piece &attacker, Piece &defender)
+
+   void apply_action(State &state, const Action &action)
    {
-      state.to_graveyard(defender);
-   }
-   template <>
-   virtual void handle< FightOutcome::stalemate >(State &state, Piece &attacker, Piece &defender)
-   {
-      state.to_graveyard(attacker);
-      state.to_graveyard(defender);
+      // preliminaries
+      const Position &from = action[0];
+      const Position &to = action[1];
+
+      // save the access to the pieces in question
+      // (removes redundant searching in board later)
+      Board &board = state.board();
+      auto piece_from = board[from].value();
+      auto piece_to_opt = board[to];
+
+      piece_from.flag_has_moved(true);
+
+      // enact the move
+      if(piece_to_opt.has_value()) {
+         auto &piece_to = piece_to_opt.value();
+         // engage in fight, since piece_to is not a null piece
+         handle_fight(state, piece_from, piece_to);
+      } else {
+         // no fight happened, simply move piece_from onto new position
+         update_board(board, to, piece_from);
+         update_board(board, from);
+      }
    }
 
    template < std::integral IntType >
@@ -120,11 +162,17 @@ class Logic {
       // Rule 1: If either team has no moves left.
       if(not has_valid_actions(state, aze::Team::BLUE)
          or not has_valid_actions(state, aze::Team::RED)) {
+         LOGD2(
+            "Valid actions BLUE:",
+            aze::utils::VectorPrinter(valid_actions(state, aze::Team::BLUE)));
+         LOGD2(
+            "Valid actions RED:", aze::utils::VectorPrinter(valid_actions(state, aze::Team::RED)));
          return state.status(aze::Status::TIE);
       }
 
       // Rule 1: The maximum turn count has been reached
       if(state.turn_count() >= state.config().max_turn_count) {
+         LOGD2("Turn count on finish: ", state.turn_count());
          return state.status(aze::Status::TIE);
       }
       return state.status();
@@ -190,28 +238,31 @@ class Logic {
       return true;
    }
 
-   template < typename T, size_t N >
-   auto _valid_vectors(const Position &pos, const std::span< T, N > &shape)
+   template < ranges::contiguous_range Range >
+   auto _valid_vectors(Position pos, Range shape, int distance = 1)
    {
-      // all possible positions to the left until board ends
-      auto left_view = ranges::views::iota(1, pos[0] + 1) | ranges::views::transform([&](auto i) {
-                          return Position{-i, 0};
-                       });
-      // all possible positions to the right until board ends
-      auto right_view = ranges::views::iota(size_t(1), shape[0] - pos[0])
-                        | ranges::views::transform([&](auto i) {
-                             return Position{i, 0};
-                          });
-      // all possible positions to the bottom until board ends
-      auto down_view = ranges::views::iota(1, pos[1] + 1) | ranges::views::transform([&](auto i) {
-                          return Position{0, -i};
-                       });
-      // all possible positions to the top until board ends
-      auto top_view = ranges::views::iota(size_t(1), shape[1] - pos[1])
-                      | ranges::views::transform([&](auto i) {
-                           return Position{0, i};
-                        });
-      return ranges::views::concat(right_view, top_view, left_view, down_view);
+      int right_end = shape[0] - pos[0];
+      int top_end = shape[1] - pos[1];
+      return ranges::views::concat(
+                // all possible positions to the left until board ends
+                ranges::views::zip(
+                   ranges::views::iota(std::max(-distance, -pos[0]), 0), ranges::views::repeat(0)),
+                // all possible positions to the right until board ends
+                ranges::views::zip(
+                   ranges::views::iota(1, std::min(right_end, distance + 1)),
+                   ranges::views::repeat(0)),
+                // all possible positions to the bottom until board ends
+                ranges::views::zip(
+                   ranges::views::repeat(0), ranges::views::iota(std::max(-distance, -pos[1]), 0)),
+                // all possible positions to the top until board ends
+                ranges::views::zip(
+                   ranges::views::repeat(0),
+                   ranges::views::iota(1, std::min(top_end, distance + 1))))
+             | ranges::views::transform([](auto x_y) {
+                  LOGD2("In _valid_vectors x: ", std::get< 0 >(x_y));
+                  LOGD2("In _valid_vectors y: ", std::get< 1 >(x_y));
+                  return Position(std::get< 0 >(x_y), std::get< 1 >(x_y));
+               });
    }
 
    std::vector< Action > valid_actions(const State &state, Team team)
@@ -224,19 +275,23 @@ class Logic {
             if(piece.team() == team) {
                // the position we are dealing with
                auto pos = piece.position();
-               auto append_action = [&](const Position &pos_to) {
-                  Action action{pos, pos + pos_to};
-                  if(is_valid(state, action)) {
-                     actions_possible.emplace_back(action);
+               int token_move_range = 0;
+               auto mr_tester = state.config().move_ranges.at(piece.token());
+               for(int distance : ranges::views::iota(1, int(ranges::max(board.shape())))
+                                     | ranges::views::reverse) {
+                  if(mr_tester(distance)) {
+                     token_move_range = distance;
+                     break;
                   }
-               };
-               if(piece.token() == Token::scout) {
-                  ranges::for_each(_valid_vectors(pos, std::span{board.shape()}), append_action);
-               } else {
-                  // all actions are 1 step to left, right, top, or bottom
-                  ranges::for_each(
-                     std::vector< Position >{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}, append_action);
                }
+               ranges::for_each(
+                  _valid_vectors(pos, board.shape(), token_move_range),
+                  [&](const Position &pos_to) {
+                     Action action{pos, pos + pos_to};
+                     if(is_valid(state, action)) {
+                        actions_possible.emplace_back(action);
+                     }
+                  });
             }
          }
       }
@@ -251,24 +306,26 @@ class Logic {
          if(piece_opt.has_value()) {
             const auto &piece = piece_opt.value();
             if(Token token = piece.token();
-               piece.team() == team && token != Token::flag && token != Token::bomb) {
+               piece.team() == team && not std::set{Token::flag, Token::bomb}.contains(token)) {
                // the position we are dealing with
                auto pos = piece.position();
-               auto check_legal = [&](const Position &pos_to) -> bool {
-                  Action action{pos, pos + pos_to};
-                  if(is_valid(state, action)) {
-                     return true;
+
+               int token_move_range = 0;
+               auto mr_tester = state.config().move_ranges.at(piece.token());
+               for(int distance : ranges::views::iota(1, int(ranges::max(board.shape())))
+                                     | ranges::views::reverse) {
+                  if(mr_tester(distance)) {
+                     token_move_range = distance;
+                     break;
                   }
-                  return false;
-               };
-               if(piece.token() == Token::scout) {
-                  if(ranges::any_of(_valid_vectors(pos, std::span{board.shape()}), check_legal)) {
-                     return true;
-                  }
-               } else {
-                  // all actions are 1 step to left, right, top, or bottom
-                  ranges::any_of(
-                     std::vector< Position >{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}, check_legal);
+               }
+
+               if(ranges::any_of(
+                     _valid_vectors(pos, board.shape(), token_move_range),
+                     [&](const Position& vector) -> bool {
+                        return is_valid(state, Action{pos, pos + vector});
+                     })) {
+                  return true;
                }
             }
          }
@@ -351,4 +408,5 @@ class Logic {
       return curr_board;
    }
 };
+
 }  // namespace stratego

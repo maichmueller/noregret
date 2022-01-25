@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "aze/utils/prime_list.h"
 
@@ -37,16 +38,22 @@ class Position {
    Position(std::index_sequence< Indices... >, Types &&...args)
    {
       // c++17 fold expression
-      (static_cast< void >(m_coordinates[Indices] = args), ...);
+      ((m_coordinates[Indices] = args), ...);
    }
 
   public:
    /*
     * Constructor that allows to initialize the position by typing out all N
-    * coordinates. For details on how this implementation works read up on
-    * 'SFINAE'.
+    * coordinates.
     */
-   template < typename... Types, typename std::enable_if< sizeof...(Types) == N, int >::type = 0 >
+// C++17 SFINAE solution
+//   template < typename... Types, typename std::enable_if< sizeof...(Types) == N, int >::type = 0 >
+//   Position(Types &&...args)
+//       : Position(std::index_sequence_for< Types... >{}, std::forward< Types >(args)...)
+//   {
+//   }
+   // C++20 concept solution
+   template < typename... Types > requires (sizeof...(Types) == N)
    Position(Types &&...args)
        : Position(std::index_sequence_for< Types... >{}, std::forward< Types >(args)...)
    {
@@ -114,6 +121,17 @@ class Position {
    Position invert(const container_start &starts, const container_end &ends);
 
    [[nodiscard]] std::string to_string() const;
+
+   friend auto& operator<<(std::ostream& os, const Position& position)
+   {
+      os << position.to_string();
+      return os;
+   }
+   friend auto& operator<<(std::stringstream& os, const Position& position)
+   {
+      os << position.to_string();
+      return os;
+   }
 };
 
 // free operators for switched call positions

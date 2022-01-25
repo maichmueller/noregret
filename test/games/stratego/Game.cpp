@@ -16,7 +16,7 @@ aze::Status Game::run_game(const sptr< aze::utils::Plotter< state_type > >& plot
       LOGD(std::string("\n") + state()->string_representation(aze::Team::BLUE, false));
       LOGD2("Status", static_cast< int >(outcome));
 
-      if(state()->logic()->check_terminal(*state()) != aze::Status::ONGOING)
+      if(state()->status() != aze::Status::ONGOING)
          return state()->status();
       else
          run_step();
