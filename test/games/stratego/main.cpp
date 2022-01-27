@@ -15,8 +15,8 @@ int main()
    //
    // build the agents to play.
    //
-   auto agent_0 = std::make_shared< aze::RandomAgent< State > >(aze::Team::BLUE);
-   auto agent_1 = std::make_shared< aze::RandomAgent< State > >(aze::Team::RED);
+   auto agent_0 = std::make_shared< aze::RandomAgent< State > >(Team::BLUE);
+   auto agent_1 = std::make_shared< aze::RandomAgent< State > >(Team::RED);
 
    //
    // setup the game
@@ -46,13 +46,13 @@ int main()
    setup1[{4, 4}] = Token::flag;
 
    Config config{
-      aze::Team::BLUE,
+      Team::BLUE,
       size_t(5),
       500,
       {false, false},
       std::map{
-         std::pair{aze::Team::BLUE, std::make_optional(setup0)},
-         std::pair{aze::Team::RED, std::make_optional(setup1)}}};
+         std::pair{Team::BLUE, std::make_optional(setup0)},
+         std::pair{Team::RED, std::make_optional(setup1)}}};
    auto game = Game(config, agent_0, agent_1);
 
    //

@@ -259,8 +259,7 @@ class Logic {
                    ranges::views::repeat(0),
                    ranges::views::iota(1, std::min(top_end, distance + 1))))
              | ranges::views::transform([](auto x_y) {
-                  LOGD2("In _valid_vectors x: ", std::get< 0 >(x_y));
-                  LOGD2("In _valid_vectors y: ", std::get< 1 >(x_y));
+//                  LOGD2("In _valid_vectors: ", Position(std::get< 0 >(x_y), std::get< 1 >(x_y)));
                   return Position(std::get< 0 >(x_y), std::get< 1 >(x_y));
                });
    }
@@ -320,9 +319,15 @@ class Logic {
                   }
                }
 
+//               auto val = ranges::any_of(
+//                  _valid_vectors(pos, board.shape(), token_move_range),
+//                  [&](const Position &vector) -> bool {
+//                     return is_valid(state, Action{pos, pos + vector});
+//                  });
+               LOGD("We re here again");
                if(ranges::any_of(
                      _valid_vectors(pos, board.shape(), token_move_range),
-                     [&](const Position& vector) -> bool {
+                     [&](const Position &vector) -> bool {
                         return is_valid(state, Action{pos, pos + vector});
                      })) {
                   return true;
@@ -334,7 +339,7 @@ class Logic {
    }
 
    static std::map< Position, Token >
-   draw_setup_uniform(const Config &config, Board &curr_board, aze::Team team, aze::utils::RNG &rng)
+   draw_setup_uniform(const Config &config, Board &curr_board, Team team, aze::utils::RNG &rng)
    {
       std::map< Position, Token > setup_out;
 
@@ -388,7 +393,7 @@ class Logic {
    }
 
    template <
-      std::invocable< const Config &, Board &, aze::Team, aze::utils::RNG & > SampleStrategyType >
+      std::invocable< const Config &, Board &, Team, aze::utils::RNG & > SampleStrategyType >
    Board draw_board(
       const Config &config,
       Board curr_board,
@@ -396,13 +401,11 @@ class Logic {
       SampleStrategyType setup_sampler = [](...) { return; })
    {
       for(int i = 0; i < 2; i++) {
-         auto team = aze::Team(i);
+         auto team = Team(i);
          if(config.fixed_setups[i]) {
             place_setup(config.setups.at(team).value(), curr_board, team);
          } else {
-            for(const auto &[position, token] : setup_sampler(config, curr_board, team, rng)) {
-               curr_board[position] = Piece(position, token, team);
-            }
+            place_setup(setup_sampler(config, curr_board, team, rng), curr_board, team);
          }
       }
       return curr_board;

@@ -51,3 +51,9 @@ enum class Team { BLUE = 0, RED = 1 };
 
 
 }  // namespace aze
+
+namespace stratego {
+
+using Team = aze::Team;
+using Status = aze::Status;
+}

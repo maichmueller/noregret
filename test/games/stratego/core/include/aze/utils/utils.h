@@ -317,11 +317,18 @@ auto min(first f, second s)
    return f < s ? f : s;
 }
 
-template < typename Tuple, size_t... I >
-auto call_min_from_tuple(Tuple& args, std::index_sequence< I... >)
-{
-   return min(std::get< I >(args)...);
-}
+template < class T, class... Ts >
+struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {
+};
+template < class T, class... Ts >
+inline constexpr bool is_any_v = is_any< T, Ts... >::value;
+
+template < class T, class... Ts >
+struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {
+};
+template < class T, class... Ts >
+inline constexpr bool is_same_v = is_same< T, Ts... >::value;
+
 };  // namespace aze::utils
 
 #include <tuple>

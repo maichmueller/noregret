@@ -2,10 +2,10 @@
 #pragma once
 
 #include <array>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <iostream>
 
 #include "aze/utils/prime_list.h"
 
@@ -46,16 +46,26 @@ class Position {
     * Constructor that allows to initialize the position by typing out all N
     * coordinates.
     */
-// C++17 SFINAE solution
-//   template < typename... Types, typename std::enable_if< sizeof...(Types) == N, int >::type = 0 >
-//   Position(Types &&...args)
-//       : Position(std::index_sequence_for< Types... >{}, std::forward< Types >(args)...)
-//   {
-//   }
+   // C++17 SFINAE solution
+   //   template < typename... Types, typename std::enable_if< sizeof...(Types) == N, int >::type =
+   //   0 > Position(Types &&...args)
+   //       : Position(std::index_sequence_for< Types... >{}, std::forward< Types >(args)...)
+   //   {
+   //   }
    // C++20 concept solution
-   template < typename... Types > requires (sizeof...(Types) == N)
-   Position(Types &&...args)
+   template < typename... Types >
+   requires(sizeof...(Types) == N)
+      && aze::utils::is_same_v< value_type, std::decay_t< Types >... > Position(
+         Types &&...args)
        : Position(std::index_sequence_for< Types... >{}, std::forward< Types >(args)...)
+   {
+   }
+
+   template < typename... Types >
+   requires(std::tuple_size_v< std::tuple< Types... > > == N)
+      && aze::utils::is_same_v< value_type, std::decay_t< Types >... > Position(
+         std::tuple< Types... > coordinates)
+       : Position(std::index_sequence_for< Types... >{}, coordinates)
    {
    }
 
@@ -122,12 +132,12 @@ class Position {
 
    [[nodiscard]] std::string to_string() const;
 
-   friend auto& operator<<(std::ostream& os, const Position& position)
+   friend auto &operator<<(std::ostream &os, const Position &position)
    {
       os << position.to_string();
       return os;
    }
-   friend auto& operator<<(std::stringstream& os, const Position& position)
+   friend auto &operator<<(std::stringstream &os, const Position &position)
    {
       os << position.to_string();
       return os;
