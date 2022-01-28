@@ -25,16 +25,16 @@ Status Game::run_game(const sptr< aze::utils::Plotter< state_type > >& plotter)
 
 Status Game::run_step()
 {
-   size_t turn = state()->turn_count() % n_teams;
-   auto action = agents()[turn]->decide_action(
-      *state(), state()->logic()->valid_actions(*state(), Team(turn)));
+   LOGD("Running step.")
+   Team active_team = state()->active_team();
+   auto action = agents()[static_cast<int>(active_team)]->decide_action(
+      *state(), state()->logic()->valid_actions(*state(), active_team));
    LOGD2(
       "Possible Moves",
-      aze::utils::VectorPrinter{state()->logic()->valid_actions(*state(), Team(turn))});
-   LOGD2("Selected Action by team " + std::to_string(turn), action);
+      aze::utils::VectorPrinter{state()->logic()->valid_actions(*state(), active_team)});
+   LOGD2("Selected Action by team " + team_name(active_team), action);
 
    state()->apply_action(action);
-
    return state()->status();
 }
 

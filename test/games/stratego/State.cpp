@@ -12,6 +12,7 @@ void State::apply_action(const action_type &action)
 {
    status_checked() = false;
    logic()->apply_action(*this, action);
+   incr_turn_count();
 }
 
 State *State::clone_impl() const
@@ -33,6 +34,7 @@ State::State(Config cfg)
 {
    Logic::place_holes(config(), board());
    board() = logic()->draw_board(config(), board(), rng(), &Logic::draw_setup_uniform);
+   status(Status::ONGOING);
 }
 
 std::string State::string_representation() const

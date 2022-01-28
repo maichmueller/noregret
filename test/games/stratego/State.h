@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include "Action.h"
 #include "Config.hpp"
 #include "StrategoDefs.hpp"
 
@@ -101,6 +102,7 @@ class State: public aze::State< Board, History, Piece, Action > {
 
    void apply_action(const action_type &action) override;
    aze::Status check_terminal() override;
+   [[nodiscard]] Team active_team() const override { return Team(turn_count() % 2); }
 
    [[nodiscard]] std::string string_representation() const override;
    [[nodiscard]] std::string string_representation(aze::Team team, bool hide_unknowns)

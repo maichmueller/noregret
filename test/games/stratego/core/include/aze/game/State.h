@@ -5,7 +5,6 @@
 #include <unordered_set>
 #include <variant>
 
-#include "Action.h"
 #include "Piece.h"
 #include "aze/utils.h"
 
@@ -20,6 +19,8 @@ class State {
    using action_type = ActionType;
    using history_type = HistoryType;
 
+   [[nodiscard]] inline int turn_count() { return m_turn_count; }
+
   private:
    board_type m_board;
 
@@ -32,9 +33,9 @@ class State {
    aze::utils::RNG m_rng;
 
   protected:
-   inline bool& status_checked() { return m_status_checked; }
+   inline bool &status_checked() { return m_status_checked; }
+   inline void incr_turn_count(size_t amount = 1) { m_turn_count += amount; }
    virtual State *clone_impl() const = 0;
-   virtual void apply_action(const stratego::Action &move);
 
   public:
    explicit State(
@@ -45,13 +46,13 @@ class State {
 
    virtual ~State() = default;
 
+   virtual void apply_action(const action_type &action) = 0;
    virtual Status check_terminal() = 0;
+   virtual void restore_to_round(int round);
+
+   [[nodiscard]] virtual Team active_team() const = 0;
 
    sptr< State > clone() const { return sptr< State >(clone_impl()); }
-
-   int _apply_action(const action_type &action);
-
-   virtual void restore_to_round(int round);
 
    void undo_last_rounds(int n = 1);
 
@@ -60,10 +61,14 @@ class State {
 
    [[nodiscard]] inline auto rng() const { return m_rng; }
    [[nodiscard]] inline int turn_count() const { return m_turn_count; }
-   Status status() {
+   Status status()
+   {
       if(m_status_checked)
          return m_status;
-      return check_terminal();
+      LOGD("Checking terminality.")
+      m_status_checked = true;
+      m_status = check_terminal();
+      return m_status;
    }
    [[nodiscard]] inline auto history() const { return m_move_history; }
    [[nodiscard]] inline auto &history() { return m_move_history; }
@@ -81,13 +86,6 @@ class State {
 };
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >
-void State< BoardType, HistoryType, PieceType, Action >::apply_action(const stratego::Action &move)
-{
-   m_board[move[1]] = m_board[move[0]];
-   m_board[move[0]] = std::nullopt;
-}
-
-template < typename BoardType, typename HistoryType, typename PieceType, typename Action >
 void State< BoardType, HistoryType, PieceType, Action >::undo_last_rounds(int n)
 {
    for(int i = 0; i < n; ++i) {
@@ -102,25 +100,6 @@ template < typename BoardType, typename HistoryType, typename PieceType, typenam
 void State< BoardType, HistoryType, PieceType, Action >::restore_to_round(int round)
 {
    undo_last_rounds(m_turn_count - round);
-}
-
-template < typename BoardType, typename HistoryType, typename PieceType, typename Action >
-int State< BoardType, HistoryType, PieceType, Action >::_apply_action(
-   const State::action_type &action)
-{
-   // save all info to the history
-   sptr< piece_type > piece_from = (*m_board)[action[0]];
-   sptr< piece_type > piece_to = (*m_board)[action[1]];
-   // copying the pieces here, bc this way they can be fully restored later on
-   // (especially when flags have been altered - needed in undoing last rounds)
-   m_move_history.push_back(
-      {action,
-       {std::make_shared< piece_type >(*piece_from), std::make_shared< piece_type >(*piece_to)}});
-
-   m_status_checked = false;
-   m_turn_count += 1;
-
-   return apply_action(action);
 }
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >

@@ -259,13 +259,16 @@ class Logic {
                    ranges::views::repeat(0),
                    ranges::views::iota(1, std::min(top_end, distance + 1))))
              | ranges::views::transform([](auto x_y) {
-//                  LOGD2("In _valid_vectors: ", Position(std::get< 0 >(x_y), std::get< 1 >(x_y)));
+                  //                  LOGD2("In _valid_vectors: ", Position(std::get< 0 >(x_y),
+                  //                  std::get< 1 >(x_y)));
                   return Position(std::get< 0 >(x_y), std::get< 1 >(x_y));
                });
    }
 
    std::vector< Action > valid_actions(const State &state, Team team)
    {
+
+      LOGD("Checking for valid actions.")
       const auto &board = state.board();
       std::vector< Action > actions_possible;
       for(const auto &elem : board) {
@@ -309,6 +312,7 @@ class Logic {
                // the position we are dealing with
                auto pos = piece.position();
 
+//               LOGD2("check for piece", token_name(piece.token()) + " " + team_name(piece.team()));
                int token_move_range = 0;
                auto mr_tester = state.config().move_ranges.at(piece.token());
                for(int distance : ranges::views::iota(1, int(ranges::max(board.shape())))
@@ -319,12 +323,12 @@ class Logic {
                   }
                }
 
-//               auto val = ranges::any_of(
-//                  _valid_vectors(pos, board.shape(), token_move_range),
-//                  [&](const Position &vector) -> bool {
-//                     return is_valid(state, Action{pos, pos + vector});
-//                  });
-               LOGD("We re here again");
+               //               auto val = ranges::any_of(
+               //                  _valid_vectors(pos, board.shape(), token_move_range),
+               //                  [&](const Position &vector) -> bool {
+               //                     return is_valid(state, Action{pos, pos + vector});
+               //                  });
+//               LOGD("We're here again");
                if(ranges::any_of(
                      _valid_vectors(pos, board.shape(), token_move_range),
                      [&](const Position &vector) -> bool {
