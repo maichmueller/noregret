@@ -5,8 +5,8 @@
 #include <memory>
 #include <xtensor/xtensor.hpp>
 
-#include "stratego/Game.h"
-#include "stratego/State.h"
+#include "stratego/Game.hpp"
+#include "stratego/State.hpp"
 
 int main()
 {

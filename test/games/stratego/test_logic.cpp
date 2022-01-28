@@ -1,7 +1,9 @@
 
 #include <gtest/gtest.h>
 
-TEST(stratego_logic, valid_action)
+#include "state_fixture.hpp"
+
+TEST(MinimalState, valid_action)
 {
    ASSERT_EQ(true, true);
 }

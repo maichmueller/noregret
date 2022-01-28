@@ -42,6 +42,11 @@ class Piece {
    {
    }
 
+   Piece(const Piece&) = default;
+   Piece(Piece&&) noexcept = default;
+   Piece& operator=(const Piece&) = default;
+   Piece& operator=(Piece&&) noexcept = default;
+
    // getter and setter methods here only
 
    void flag_has_moved(bool has_moved) { this->m_has_moved = has_moved; }
@@ -52,7 +57,7 @@ class Piece {
 
    [[nodiscard]] position_type position() const { return m_position; }
 
-   [[nodiscard]] Team team() const {return m_team;}
+   [[nodiscard]] Team team() const { return m_team; }
 
    [[nodiscard]] token_type token() const { return m_token; }
 
@@ -60,13 +65,12 @@ class Piece {
 
    [[nodiscard]] bool flag_has_moved() const { return m_has_moved; }
 
-   bool operator==(const Piece &other) const
+   bool operator==(const Piece& other) const
    {
-      return other.position() == m_position && m_token == other.token()
-             && m_team == other.team() && m_hidden == other.flag_hidden()
-             && m_has_moved == other.flag_has_moved();
+      return other.position() == m_position && m_token == other.token() && m_team == other.team()
+             && m_hidden == other.flag_hidden() && m_has_moved == other.flag_has_moved();
    }
 
-   bool operator!=(const Piece &other) const { return *this != other; }
+   bool operator!=(const Piece& other) const { return *this != other; }
 };
 }  // namespace aze

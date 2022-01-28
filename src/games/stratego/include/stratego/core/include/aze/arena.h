@@ -49,7 +49,7 @@ inline void print_round_results(
    ss.clear();
 
    ss << "[ ";
-   for(int i = 0; i < agent_names.size(); ++i) {
+   for(unsigned int i = 0; i < agent_names.size(); ++i) {
       const auto &color = colors[i];
       ss << "Agent " << i << " (" << color << agent_names[i] << reset << "): W: " << color
          << stats[i].wins << reset << ", ";

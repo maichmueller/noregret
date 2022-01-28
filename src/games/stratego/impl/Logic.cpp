@@ -1,2 +1,2 @@
 
-#include "stratego/Logic.h"
+#include "stratego/Logic.hpp"

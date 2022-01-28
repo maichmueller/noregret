@@ -32,15 +32,15 @@ struct VectorPrinter {
    const std::vector< T >& vector;
    std::string delimiter;
 
-   VectorPrinter(const std::vector< T >& vec, std::string delimiter = ", ")
-       : vector(vec), delimiter(std::move(delimiter))
+   VectorPrinter(const std::vector< T >& vec, std::string delim = ", ")
+       : vector(vec), delimiter(std::move(delim))
    {
    }
 
    friend auto& operator<<(std::ostream& os, const VectorPrinter& printer)
    {
       os << "[";
-      for(int i = 0; i < printer.vector.size() - 1; ++i) {
+      for(unsigned int i = 0; i < printer.vector.size() - 1; ++i) {
          os << printer.vector[i] << printer.delimiter;
       }
       os << printer.vector.back() << "]";
@@ -107,14 +107,14 @@ inline std::string repeat(std::string str, const std::size_t n)
 inline std::string center(const std::string& str, int width, const char* fillchar)
 {
    size_t len = str.length();
-   if(width < len) {
+   if(std::cmp_less(width, len)) {
       return str;
    }
 
-   int diff = width - len;
+   int diff = static_cast<int>(static_cast< unsigned long >(width) - len);
    int pad1 = diff / 2;
    int pad2 = diff - pad1;
-   return std::string(pad2, *fillchar) + str + std::string(pad1, *fillchar);
+   return std::string(static_cast< unsigned long >(pad2), *fillchar) + str + std::string(static_cast< unsigned long >(pad1), *fillchar);
 }
 
 inline std::string operator*(std::string str, std::size_t n)

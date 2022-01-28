@@ -41,7 +41,13 @@ target_include_directories(
         ${PROJECT_GAMES_DIR}/stratego/include
 )
 
-target_link_libraries(stratego PUBLIC core CONAN_PKG::range-v3)
+target_link_libraries(
+        stratego
+        PUBLIC
+        project_options
+        core
+        CONAN_PKG::range-v3
+)
 
 
 #################################

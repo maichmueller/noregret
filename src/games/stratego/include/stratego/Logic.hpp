@@ -6,9 +6,9 @@
 #include <functional>
 #include <range/v3/all.hpp>
 
-#include "Action.h"
+#include "Action.hpp"
 #include "Config.hpp"
-#include "State.h"
+#include "State.hpp"
 
 namespace stratego {
 
@@ -147,11 +147,11 @@ class Logic {
 
    aze::Status check_terminal(State &state)
    {
-      if(auto dead_pieces = state.graveyard(0);
+      if(auto dead_pieces = state.graveyard(Team::BLUE);
          dead_pieces.find(Token::flag) != dead_pieces.end()) {
          // flag of team 0 has been captured (killed), therefore team 0 lost
          return state.status(aze::Status::WIN_RED);
-      } else if(dead_pieces = state.graveyard(1);
+      } else if(dead_pieces = state.graveyard(Team::RED);
                 dead_pieces.find(Token::flag) != dead_pieces.end()) {
          // flag of team 1 has been captured (killed), therefore team 1 lost
          return state.status(aze::Status::WIN_BLUE);
@@ -160,18 +160,18 @@ class Logic {
       // committing draw rules here
 
       // Rule 1: If either team has no moves left.
-      if(not has_valid_actions(state, aze::Team::BLUE)
-         or not has_valid_actions(state, aze::Team::RED)) {
+      if(not has_valid_actions(state, Team::BLUE)
+         or not has_valid_actions(state, Team::RED)) {
          LOGD2(
             "Valid actions BLUE:",
-            aze::utils::VectorPrinter(valid_actions(state, aze::Team::BLUE)));
+            aze::utils::VectorPrinter(valid_actions(state, Team::BLUE)));
          LOGD2(
-            "Valid actions RED:", aze::utils::VectorPrinter(valid_actions(state, aze::Team::RED)));
-         return state.status(aze::Status::TIE);
+            "Valid actions RED:", aze::utils::VectorPrinter(valid_actions(state, Team::RED)));
+         return state.status(Status::TIE);
       }
 
       // Rule 1: The maximum turn count has been reached
-      if(state.turn_count() >= state.config().max_turn_count) {
+      if(std::cmp_greater_equal(state.turn_count(), state.config().max_turn_count)) {
          LOGD2("Turn count on finish: ", state.turn_count());
          return state.status(aze::Status::TIE);
       }
@@ -209,7 +209,7 @@ class Logic {
       int move_dist = abs(pos_after[1] - pos_before[1]) + abs(pos_after[0] - pos_before[0]);
 
       // check if the move distance is within the move range of the token
-      if(not state.config().move_ranges.at(p_b.token())(move_dist)) {
+      if(not state.config().move_ranges.at(p_b.token())(static_cast< unsigned long >(move_dist))) {
          return false;
       }
 
@@ -241,8 +241,8 @@ class Logic {
    template < ranges::contiguous_range Range >
    auto _valid_vectors(Position pos, Range shape, int distance = 1)
    {
-      int right_end = shape[0] - pos[0];
-      int top_end = shape[1] - pos[1];
+      int right_end = static_cast< int >(shape[0]) - pos[0];
+      int top_end = static_cast< int >(shape[1]) - pos[1];
       return ranges::views::concat(
                 // all possible positions to the left until board ends
                 ranges::views::zip(
@@ -281,7 +281,7 @@ class Logic {
                auto mr_tester = state.config().move_ranges.at(piece.token());
                for(int distance : ranges::views::iota(1, int(ranges::max(board.shape())))
                                      | ranges::views::reverse) {
-                  if(mr_tester(distance)) {
+                  if(mr_tester(static_cast< size_t >(distance))) {
                      token_move_range = distance;
                      break;
                   }
@@ -317,7 +317,7 @@ class Logic {
                auto mr_tester = state.config().move_ranges.at(piece.token());
                for(int distance : ranges::views::iota(1, int(ranges::max(board.shape())))
                                      | ranges::views::reverse) {
-                  if(mr_tester(distance)) {
+                  if(mr_tester(static_cast< size_t >(distance))) {
                      token_move_range = distance;
                      break;
                   }
@@ -373,7 +373,7 @@ class Logic {
             start_positions.pop_back();
          }
          if(count == 0) {
-            tokenvec.erase(tokenvec.begin() + choice);
+            tokenvec.erase(tokenvec.begin() + static_cast< long >(choice));
             int_dist = std::uniform_int_distribution< size_t >(0, tokenvec.size() - 1);
          }
       }

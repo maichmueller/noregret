@@ -1,7 +1,7 @@
 
-#include "stratego/Game.h"
+#include "stratego/Game.hpp"
 
-#include "stratego/Logic.h"
+#include "stratego/Logic.hpp"
 
 namespace stratego {
 

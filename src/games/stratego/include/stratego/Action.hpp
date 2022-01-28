@@ -81,7 +81,7 @@ class Action {
 template < typename Number >
 Action operator/(const Number& n, const Action& m)
 {
-   return {1 / m[0], 1 / m[1]};
+   return {n / m[0], n / m[1]};
 }
 
 }  // namespace stratego

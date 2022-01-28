@@ -1,14 +1,13 @@
 
 #pragma once
 
-#include "aze/aze.h"
-
 #include <unordered_set>
 #include <utility>
 
-#include "Action.h"
+#include "Action.hpp"
 #include "Config.hpp"
 #include "StrategoDefs.hpp"
+#include "aze/aze.h"
 
 namespace stratego {
 
@@ -96,7 +95,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    void to_graveyard(const std::optional< piece_type > &piece_opt)
    {
       if(not piece_opt.has_value())
-         m_graveyard[static_cast< int >(piece_opt.value().team())].emplace(
+         m_graveyard[static_cast< unsigned int >(piece_opt.value().team())].emplace(
             piece_opt.value().token());
    }
 
@@ -111,7 +110,10 @@ class State: public aze::State< Board, History, Piece, Action > {
    [[nodiscard]] inline auto &config() const { return m_config; }
    [[nodiscard]] inline auto &logic() const { return m_logic; }
    [[nodiscard]] inline auto graveyard() const { return m_graveyard; }
-   [[nodiscard]] inline auto graveyard(int team) const { return m_graveyard[team]; }
+   [[nodiscard]] inline auto graveyard(Team team) const
+   {
+      return m_graveyard[static_cast< unsigned long >(team)];
+   }
 
   private:
    /// the specific configuration of the stratego game belonging to this state

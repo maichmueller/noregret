@@ -60,7 +60,6 @@ class Position {
        : Position(std::index_sequence_for< Types... >{}, std::forward< Types >(args)...)
    {
    }
-
    template < typename... Types >
    requires(std::tuple_size_v< std::tuple< Types... > > == N)
       && aze::utils::is_same_v< value_type, std::decay_t< Types >... > Position(
@@ -68,12 +67,13 @@ class Position {
        : Position(std::index_sequence_for< Types... >{}, coordinates)
    {
    }
-
-   Position() : m_coordinates() {}
-
-   Position(const Position &position) : m_coordinates(position.coordinates()) {}
-
+   Position() : m_coordinates(0) {}
    explicit Position(container_type coords) : m_coordinates(std::move(coords)) {}
+   
+   Position(const Position&) = default;
+   Position(Position&&) noexcept = default;
+   Position& operator=(const Position&) = default;
+   Position& operator=(Position&&) noexcept = default;
 
    const value_type &operator[](unsigned int index) const { return m_coordinates[index]; }
 
@@ -156,7 +156,7 @@ template < typename Number, typename ValueType, size_t N >
 Position< ValueType, N > operator/(const Number &n, const Position< ValueType, N > &pos)
 {
    Position< ValueType, N > p(pos);
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int i = 0; i < N; ++i) {
       p[i] = n / p[i];
    }
    return p;
@@ -169,7 +169,7 @@ Position< ValueType, N > Position< ValueType, N >::operator+(
    const Position< ValueType, N > &pos) const
 {
    Position< ValueType, N > p(*this);
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int i = 0; i < N; ++i) {
       p[i] += pos[i];
    }
    return p;
@@ -187,7 +187,7 @@ Position< ValueType, N > Position< ValueType, N >::operator*(
    const Position< ValueType, N > &pos) const
 {
    Position< ValueType, N > p(*this);
-   for(size_t i = 0; i < m_coordinates.size(); ++i) {
+   for(unsigned int  i = 0; i < m_coordinates.size(); ++i) {
       p[i] *= pos[i];
    }
    return p;
@@ -198,7 +198,7 @@ Position< ValueType, N > Position< ValueType, N >::operator/(
    const Position< ValueType, N > &pos) const
 {
    Position< ValueType, N > p(*this);
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int  i = 0; i < N; ++i) {
       p[i] /= pos[i];
    }
    return p;
@@ -209,7 +209,7 @@ template < typename Number >
 Position< ValueType, N > Position< ValueType, N >::operator+(const Number &n) const
 {
    Position< ValueType, N > p(*this);
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int  i = 0; i < N; ++i) {
       p[i] += n;
    }
    return p;
@@ -227,7 +227,7 @@ template < typename Number >
 Position< ValueType, N > Position< ValueType, N >::operator*(const Number &n) const
 {
    Position< ValueType, N > p(*this);
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int  i = 0; i < N; ++i) {
       p[i] *= n;
    }
    return p;
@@ -243,7 +243,7 @@ Position< ValueType, N > Position< ValueType, N >::operator/(const Number &n) co
 template < typename ValueType, size_t N >
 bool Position< ValueType, N >::operator==(const Position &other) const
 {
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int i = 0; i < N; ++i) {
       if((*this)[i] != other[i])
          return false;
    }
@@ -259,7 +259,7 @@ bool Position< ValueType, N >::operator!=(const Position &other) const
 template < typename ValueType, size_t N >
 bool Position< ValueType, N >::operator<(const Position &other) const
 {
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int i = 0; i < N; ++i) {
       if((*this)[i] < other[i])
          return true;
       else if((*this)[i] > other[i])
@@ -273,7 +273,7 @@ bool Position< ValueType, N >::operator<(const Position &other) const
 template < typename ValueType, size_t N >
 bool Position< ValueType, N >::operator<=(const Position &other) const
 {
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int  i = 0; i < N; ++i) {
       if((*this)[i] == other[i])
          continue;
       else
@@ -285,7 +285,7 @@ bool Position< ValueType, N >::operator<=(const Position &other) const
 template < typename ValueType, size_t N >
 bool Position< ValueType, N >::operator>(const Position &other) const
 {
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int  i = 0; i < N; ++i) {
       if((*this)[i] > other[i])
          return true;
       else if((*this)[i] < other[i])
@@ -299,7 +299,7 @@ bool Position< ValueType, N >::operator>(const Position &other) const
 template < typename ValueType, size_t N >
 bool Position< ValueType, N >::operator>=(const Position &other) const
 {
-   for(size_t i = 0; i < N; ++i) {
+   for(unsigned int  i = 0; i < N; ++i) {
       if((*this)[i] == other[i])
          continue;
       else
@@ -313,7 +313,7 @@ std::string Position< ValueType, N >::to_string() const
 {
    std::stringstream ss;
    ss << "(";
-   for(size_t i = 0; i < N - 1; ++i) {
+   for(unsigned int  i = 0; i < N - 1; ++i) {
       ss << std::to_string(m_coordinates[i]) << ", ";
    }
    ss << std::to_string(m_coordinates.back()) << ")";
@@ -360,7 +360,7 @@ struct hash< aze::Position< ValueType, N > > {
       // ( x*p1 xor y*p2 xor z*p3) mod n is supposedly a better spatial hash
       // function
       long int curr = pos[0] * primes::primes_list[0];
-      for(size_t i = 1; i < N; ++i) {
+      for(unsigned int  i = 1; i < N; ++i) {
          curr ^= pos[i] * primes::primes_list[i];
       }
       return curr % primes::primes_list.back();

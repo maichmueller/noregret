@@ -1,25 +1,19 @@
 
-#ifndef NOR_MINIMAL_SETUP_HPP
-#define NOR_MINIMAL_SETUP_HPP
+#ifndef NOR_STATE_FIXTURE_HPP
+#define NOR_STATE_FIXTURE_HPP
 
 #include <gtest/gtest.h>
 
-#include <stratego>
+#include <stratego/stratego.hpp>
+
+
+using namespace stratego;
 
 class MinimalState : public ::testing::Test {
   protected:
+   State state;
+
    void SetUp() override {
-      using namespace stratego;
-
-      //
-      // build the agents to play.
-      //
-      auto agent_0 = std::make_shared< aze::RandomAgent< State > >(Team::BLUE);
-      auto agent_1 = std::make_shared< aze::RandomAgent< State > >(Team::RED);
-
-      //
-      // setup the game
-      //
       std::map< Position, Token > setup0;
       std::map< Position, Token > setup1;
 
@@ -52,15 +46,10 @@ class MinimalState : public ::testing::Test {
          std::map{
             std::pair{Team::BLUE, std::make_optional(setup0)},
             std::pair{Team::RED, std::make_optional(setup1)}}};
-      auto state = State(config);
+
+      state = State(config);
 
    }
-
-   // void TearDown() override {}
-
-   Queue<int> q0_;
-   Queue<int> q1_;
-   Queue<int> q2_;
 };
 
-#endif  // NOR_MINIMAL_SETUP_HPP
+#endif  // NOR_STATE_FIXTURE_HPP

@@ -19,7 +19,7 @@ class State {
    using action_type = ActionType;
    using history_type = HistoryType;
 
-   [[nodiscard]] inline int turn_count() { return m_turn_count; }
+   [[nodiscard]] inline size_t turn_count() { return m_turn_count; }
 
   private:
    board_type m_board;
@@ -48,19 +48,19 @@ class State {
 
    virtual void apply_action(const action_type &action) = 0;
    virtual Status check_terminal() = 0;
-   virtual void restore_to_round(int round);
+   virtual void restore_to_round(size_t round);
 
    [[nodiscard]] virtual Team active_team() const = 0;
 
    sptr< State > clone() const { return sptr< State >(clone_impl()); }
 
-   void undo_last_rounds(int n = 1);
+   void undo_last_rounds(size_t n = 1);
 
    inline auto &rng() { return m_rng; }
    inline auto &board() { return m_board; }
 
    [[nodiscard]] inline auto rng() const { return m_rng; }
-   [[nodiscard]] inline int turn_count() const { return m_turn_count; }
+   [[nodiscard]] inline auto turn_count() const { return m_turn_count; }
    Status status()
    {
       if(m_status_checked)
@@ -86,9 +86,9 @@ class State {
 };
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >
-void State< BoardType, HistoryType, PieceType, Action >::undo_last_rounds(int n)
+void State< BoardType, HistoryType, PieceType, Action >::undo_last_rounds(size_t n)
 {
-   for(int i = 0; i < n; ++i) {
+   for(size_t i = 0; i < n; ++i) {
       auto [turn, team, move, pieces] = m_move_history.pop_last();
       m_board[move[1]] = std::move(pieces[1]);
       m_board[move[0]] = std::move(pieces[0]);
@@ -97,9 +97,13 @@ void State< BoardType, HistoryType, PieceType, Action >::undo_last_rounds(int n)
 }
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >
-void State< BoardType, HistoryType, PieceType, Action >::restore_to_round(int round)
+void State< BoardType, HistoryType, PieceType, Action >::restore_to_round(size_t round)
 {
-   undo_last_rounds(m_turn_count - round);
+   if(round > m_turn_count) [[unlikely]] {
+      throw std::invalid_argument("Given round is greater than current turn count.");
+   } else {
+      undo_last_rounds(m_turn_count - round);
+   }
 }
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >

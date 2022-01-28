@@ -3,9 +3,9 @@
 
 #include "aze/aze.h"
 
-#include "Action.h"
+#include "Action.hpp"
 #include "Config.hpp"
-#include "State.h"
+#include "State.hpp"
 #include "StrategoDefs.hpp"
 
 namespace stratego {
