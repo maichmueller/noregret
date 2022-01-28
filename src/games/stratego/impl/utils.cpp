@@ -1,4 +1,4 @@
-#include "utils.hpp"
+#include "stratego/utils.hpp"
 
 namespace stratego::utils {
 

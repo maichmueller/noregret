@@ -1,10 +1,9 @@
-#include "State.h"
-
 #include <functional>
 #include <utility>
 
-#include "Logic.h"
-#include "utils.hpp"
+#include "stratego/Logic.h"
+#include "stratego/State.h"
+#include "stratego/utils.hpp"
 
 namespace stratego {
 

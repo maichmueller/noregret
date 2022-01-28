@@ -1,5 +1,5 @@
 
-#include "Config.hpp"
+#include "stratego/Config.hpp"
 
 #include <range/v3/all.hpp>
 

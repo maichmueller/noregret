@@ -1,12 +1,12 @@
-#include <aze/aze.h>
+#include "aze/aze.h"
 
 #include <array>
 #include <iostream>
 #include <memory>
 #include <xtensor/xtensor.hpp>
 
-#include "Game.h"
-#include "State.h"
+#include "stratego/Game.h"
+#include "stratego/State.h"
 
 int main()
 {
@@ -53,7 +53,7 @@ int main()
       std::map{
          std::pair{Team::BLUE, std::make_optional(setup0)},
          std::pair{Team::RED, std::make_optional(setup1)}}};
-   auto game = Game(config, agent_0, agent_1);
+   auto game = Game(State(config), agent_0, agent_1);
 
    //
    // run/train on the game

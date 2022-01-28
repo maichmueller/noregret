@@ -44,7 +44,7 @@ endif ()
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)
 set(nor_pymodule pynor)
-set(nor_test tests)
+set(nor_test nor_tests)
 
 set(CONANFILE conanfile.txt)
 set(DEPENDENCY_DIR deps)  # has to be relative to CMAKE_CURRENT_SOURCE_DIR

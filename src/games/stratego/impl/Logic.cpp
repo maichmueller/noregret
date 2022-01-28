@@ -1,0 +1,2 @@
+
+#include "stratego/Logic.h"
