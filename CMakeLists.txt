@@ -25,6 +25,7 @@ option(ENABLE_SANITIZER_MEMORY "Enable memory sanitizer" OFF)
 option(ENABLE_SANITIZER_THREAD "Enable thread sanitizer" OFF)
 option(ENABLE_SANITIZER_UNDEFINED_BEHAVIOR "Enable undefined behavior sanitizer" OFF)
 option(ENABLE_TESTING "Enable Test Builds" ON)
+option(ENABLE_GAMES "Enable Game Builds" ON)
 option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" OFF)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
@@ -51,6 +52,7 @@ set(PROJECT_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(PROJECT_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test")
 set(PROJECT_NOR_DIR "${PROJECT_SRC_DIR}/libnor")
 set(PROJECT_PYNOR_DIR "${PROJECT_SRC_DIR}/nor")
+set(PROJECT_GAMES_DIR "${PROJECT_SRC_DIR}/games")
 set(PROJECT_NOR_SRC_DIR "${PROJECT_NOR_DIR}/impl")
 set(PROJECT_NOR_INCLUDE_DIR "${PROJECT_NOR_DIR}/include")
 set(PROJECT_NOR_BINDING_DIR "${PROJECT_PYNOR_DIR}/binding")
@@ -158,6 +160,10 @@ if (ENABLE_BUILD_PYTHON_EXTENSION)
     message(STATUS "Configuring Python Extension ${nor_pymodule}.")
     include(${_cmake_DIR}/targets/pynor.cmake)
 endif ()
+if (ENABLE_GAMES)
+    message(STATUS "Configuring Game Builds.")
+    include(${_cmake_DIR}/targets/games.cmake)
+endif ()
 
 # use, i.e. don't skip the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
@@ -248,7 +254,7 @@ else ()
             PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT Development
     )
 
-    if(ENABLE_BUILD_PYTHON_EXTENSION)
+    if (ENABLE_BUILD_PYTHON_EXTENSION)
         # to use the latest build of the library for a development package install (pip install path/to/project -e),
         # we configure an optional install component of the python extension in-source
         install(
@@ -263,7 +269,7 @@ else ()
                 COMMAND ${CMAKE_COMMAND} --install . --component PyExtension_inplace
                 DEPENDS ${nor_pymodule}
         )
-    endif()
+    endif ()
 
 
     install(

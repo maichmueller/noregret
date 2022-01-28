@@ -4,8 +4,6 @@ set(TEST_SOURCES
         )
 list(TRANSFORM TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/")
 
-add_subdirectory(${PROJECT_TEST_DIR}/games/stratego)
-
 add_executable(${nor_test} ${TEST_SOURCES})
 
 #set_target_properties(${per_test} PROPERTIES
