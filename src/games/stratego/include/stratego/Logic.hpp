@@ -1,14 +1,13 @@
 
 #pragma once
 
-#include "aze/aze.h"
-
 #include <functional>
 #include <range/v3/all.hpp>
 
 #include "Action.hpp"
 #include "Config.hpp"
 #include "State.hpp"
+#include "aze/aze.h"
 
 namespace stratego {
 
@@ -123,12 +122,10 @@ class Logic {
       if(values.size() > shape.size()) {
          return false;
       }
-      for(auto [v, s] : ranges::views::zip(values, shape)) {
-         if(std::cmp_less(v, 0) or std::cmp_greater_equal(v, s)) {
-            return false;
-         }
-      }
-      return true;
+      return ranges::all_of(ranges::views::zip(values, shape), [&](auto v_s) {
+         auto [v, s] = v_s;
+         return std::cmp_greater_equal(v, 0) and std::cmp_less(v, s);
+      });
    }
 
    static void place_setup(const std::map< Position, Token > &setup, Board &board, aze::Team team)
@@ -160,13 +157,9 @@ class Logic {
       // committing draw rules here
 
       // Rule 1: If either team has no moves left.
-      if(not has_valid_actions(state, Team::BLUE)
-         or not has_valid_actions(state, Team::RED)) {
-         LOGD2(
-            "Valid actions BLUE:",
-            aze::utils::VectorPrinter(valid_actions(state, Team::BLUE)));
-         LOGD2(
-            "Valid actions RED:", aze::utils::VectorPrinter(valid_actions(state, Team::RED)));
+      if(not has_valid_actions(state, Team::BLUE) or not has_valid_actions(state, Team::RED)) {
+         LOGD2("Valid actions BLUE:", aze::utils::VectorPrinter(valid_actions(state, Team::BLUE)));
+         LOGD2("Valid actions RED:", aze::utils::VectorPrinter(valid_actions(state, Team::RED)));
          return state.status(Status::TIE);
       }
 
@@ -267,7 +260,6 @@ class Logic {
 
    std::vector< Action > valid_actions(const State &state, Team team)
    {
-
       LOGD("Checking for valid actions.")
       const auto &board = state.board();
       std::vector< Action > actions_possible;
@@ -312,7 +304,8 @@ class Logic {
                // the position we are dealing with
                auto pos = piece.position();
 
-//               LOGD2("check for piece", token_name(piece.token()) + " " + team_name(piece.team()));
+               //               LOGD2("check for piece", token_name(piece.token()) + " " +
+               //               team_name(piece.team()));
                int token_move_range = 0;
                auto mr_tester = state.config().move_ranges.at(piece.token());
                for(int distance : ranges::views::iota(1, int(ranges::max(board.shape())))
@@ -328,7 +321,7 @@ class Logic {
                //                  [&](const Position &vector) -> bool {
                //                     return is_valid(state, Action{pos, pos + vector});
                //                  });
-//               LOGD("We're here again");
+               //               LOGD("We're here again");
                if(ranges::any_of(
                      _valid_vectors(pos, board.shape(), token_move_range),
                      [&](const Position &vector) -> bool {
@@ -358,8 +351,8 @@ class Logic {
       while(not start_positions.empty()) {
          auto &pos = start_positions.back();
          if(curr_board[pos].has_value()) {
-            // if the current board already has a piece at this location, then remove the position
-            // from the possible ones.
+            // if the current board already has a piece at this location, then remove the
+            // position from the possible ones.
             start_positions.pop_back();
             continue;
          }
@@ -404,7 +397,7 @@ class Logic {
       aze::utils::RNG &rng,
       SampleStrategyType setup_sampler = [](...) { return; })
    {
-      for(int i = 0; i < 2; i++) {
+      for(size_t i = 0; i < 2; i++) {
          auto team = Team(i);
          if(config.fixed_setups[i]) {
             place_setup(config.setups.at(team).value(), curr_board, team);

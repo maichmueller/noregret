@@ -69,7 +69,7 @@ class Position {
    }
    Position() : m_coordinates(0) {}
    explicit Position(container_type coords) : m_coordinates(std::move(coords)) {}
-   
+
    Position(const Position&) = default;
    Position(Position&&) noexcept = default;
    Position& operator=(const Position&) = default;
@@ -363,7 +363,7 @@ struct hash< aze::Position< ValueType, N > > {
       for(unsigned int  i = 1; i < N; ++i) {
          curr ^= pos[i] * primes::primes_list[i];
       }
-      return curr % primes::primes_list.back();
+      return static_cast< unsigned long >(curr) % primes::primes_list.back();
    }
 };
 }  // namespace std

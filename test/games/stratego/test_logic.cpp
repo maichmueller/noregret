@@ -3,7 +3,11 @@
 
 #include "state_fixture.hpp"
 
-TEST(MinimalState, valid_action)
+TEST_F(MinimalState, logic_is_valid)
 {
-   ASSERT_EQ(true, true);
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Position{1, 1}, Position{2, 1}}));
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Position{1, 4}, Position{2, 4}}));
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Position{3, 0}, Position{2, 0}}));
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Position{3, 0}, Position{2, 1}}));
+//   EXPECT_TRUE(state.logic()->is_valid(state, Action{Position{1, 1}, Position{2, 1}}));
 }

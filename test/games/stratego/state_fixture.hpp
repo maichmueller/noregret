@@ -9,10 +9,10 @@
 
 using namespace stratego;
 
-class MinimalState : public ::testing::Test {
-  protected:
-   State state;
+struct MinimalState : public ::testing::Test {
 
+   State state;
+  protected:
    void SetUp() override {
       std::map< Position, Token > setup0;
       std::map< Position, Token > setup1;
