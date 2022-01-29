@@ -1,19 +1,22 @@
 
-#ifndef NOR_STATE_FIXTURE_HPP
-#define NOR_STATE_FIXTURE_HPP
+#ifndef NOR_FIXTURES_HPP
+#define NOR_FIXTURES_HPP
 
 #include <gtest/gtest.h>
 
 #include <stratego/stratego.hpp>
 
-
 using namespace stratego;
 
-struct MinimalState : public ::testing::Test {
+class MinimalConfig: public ::testing::Test {
+  public:
+   Config cfg;
 
-   State state;
-  protected:
-   void SetUp() override {
+   MinimalConfig() : cfg(_init_cfg()) {}
+   ~MinimalConfig() override = default;
+
+   static Config _init_cfg()
+   {
       std::map< Position, Token > setup0;
       std::map< Position, Token > setup1;
 
@@ -47,9 +50,18 @@ struct MinimalState : public ::testing::Test {
             std::pair{Team::BLUE, std::make_optional(setup0)},
             std::pair{Team::RED, std::make_optional(setup1)}}};
 
-      state = State(config);
-
+      return config;
    }
+
 };
 
-#endif  // NOR_STATE_FIXTURE_HPP
+class MinimalState: public MinimalConfig {
+  public:
+   State state;
+
+   MinimalState() : state(cfg) {}
+   ~MinimalState() override = default;
+
+};
+
+#endif  // NOR_FIXTURES_HPP

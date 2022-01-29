@@ -30,8 +30,8 @@ class Action {
    const Position& operator[](unsigned int index) const { return from_to[index]; }
    Position& operator[](unsigned int index) { return from_to[index]; }
 
-   [[nodiscard]] auto from() const {return (*this)[0];}
-   [[nodiscard]] auto to() const {return (*this)[1];}
+   [[nodiscard]] auto from() const { return (*this)[0]; }
+   [[nodiscard]] auto to() const { return (*this)[1]; }
 
    iterator begin() { return from_to.begin(); }
    [[nodiscard]] const_iterator begin() const { return from_to.begin(); }
@@ -76,6 +76,15 @@ class Action {
       os << action.from().to_string() << "->" << action.to().to_string();
       return os;
    }
+
+   template < std::size_t Index >
+   std::tuple_element_t< Index, ::stratego::Action > get() const
+   {
+      if constexpr(Index == 0)
+         return from();
+      if constexpr(Index == 1)
+         return to();
+   }
 };
 
 template < typename Number >
@@ -85,3 +94,21 @@ Action operator/(const Number& n, const Action& m)
 }
 
 }  // namespace stratego
+
+// allow action to be unpacked by structured bindings
+namespace std {
+template <>
+struct tuple_size< ::stratego::Action >: integral_constant< size_t, 2 > {
+};
+
+template <>
+struct tuple_element< 0, ::stratego::Action > {
+   using type = ::stratego::Position;
+};
+
+template <>
+struct tuple_element< 1, ::stratego::Action > {
+   using type = ::stratego::Position;
+};
+
+}  // namespace std

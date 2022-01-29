@@ -173,7 +173,7 @@ class Logic {
 
    bool is_valid(const State &state, const Action &action)
    {
-      const auto &[pos_before, pos_after] = action.positions();
+      const auto &[pos_before, pos_after] = action;
       const auto &board = state.board();
 
       if(not check_bounds(board, pos_before) or not check_bounds(board, pos_after))
@@ -220,7 +220,7 @@ class Logic {
          } else if(pos_after[1] == pos_before[1]) {
             int dist = pos_after[0] - pos_before[0];
             int sign = (dist >= 0) ? 1 : -1;
-            for(int i = 1; i < std::abs(dist); ++i) {
+            for(int i = 1; i < sign * dist; ++i) {
                Position pos = {pos_before[0] + sign * i, pos_before[1]};
                if(board[pos].has_value())
                   return false;
