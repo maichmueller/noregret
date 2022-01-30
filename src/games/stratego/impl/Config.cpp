@@ -5,7 +5,7 @@
 
 namespace stratego {
 
-std::map< Token, std::function< bool(size_t) > > _default_mr()
+std::map< Token, std::function< bool(size_t) > > default_move_ranges()
 {
    std::map< Token, std::function< bool(size_t) > > mr;
    for(auto token_value : std::array{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99}) {
@@ -21,7 +21,7 @@ std::map< Token, std::function< bool(size_t) > > _default_mr()
    return mr;
 }
 
-std::map< std::array< Token, 2 >, FightOutcome > _default_bm()
+std::map< std::array< Token, 2 >, FightOutcome > default_battlematrix()
 {
    std::map< std::array< Token, 2 >, FightOutcome > bm;
    for(auto i : std::array{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99}) {
@@ -46,7 +46,7 @@ std::map< std::array< Token, 2 >, FightOutcome > _default_bm()
    return bm;
 }
 
-std::map< Position, Token > _default_setup(size_t game_dims, aze::Team team)
+std::map< Position, Token > default_setup(size_t game_dims, aze::Team team)
 {
    using Team = aze::Team;
    std::map< Position, Token > setup;
@@ -55,16 +55,16 @@ std::map< Position, Token > _default_setup(size_t game_dims, aze::Team team)
 
    return setup;
 }
-std::map< Position, Token > _default_setups(std::array< size_t, 2 > game_dims, aze::Team team)
+std::map< Position, Token > default_setup(ranges::span< size_t, 2 > game_dims, aze::Team team)
 {
    if(game_dims[0] == game_dims[1] and std::set{5, 7, 10}.contains(game_dims[0])) {
-      return _default_setup(game_dims[0], team);
+      return default_setup(game_dims[0], team);
    } else {
       throw std::invalid_argument("Cannot provide default setups for non-default game dimensions.");
    }
 }
 
-std::vector< Position > _default_obs(size_t game_dims)
+std::vector< Position > default_holes(size_t game_dims)
 {
    if(game_dims == 5)
       return {{2, 2}};
@@ -76,17 +76,17 @@ std::vector< Position > _default_obs(size_t game_dims)
       throw std::invalid_argument(
          "'dimension' not in {5, 7, 10}. User has to provide custom hole positions.");
 }
-std::vector< Position > _default_obs(std::array< size_t, 2 > game_dims)
+std::vector< Position > default_holes(ranges::span< size_t, 2 > game_dims)
 {
    if(game_dims[0] == game_dims[1] and std::set< size_t >{5, 7, 10}.contains(game_dims[0])) {
-      return _default_obs(game_dims[0]);
+      return default_holes(game_dims[0]);
    } else {
       throw std::invalid_argument(
          "Cannot provide default hole positions for non-default game dimensions.");
    }
 }
 
-std::map< aze::Team, std::vector< Token > > _token_set(size_t game_dim)
+std::map< aze::Team, std::vector< Token > > token_vector(size_t game_dim)
 {
    switch(game_dim) {
       case 5: {
@@ -153,7 +153,7 @@ std::map< aze::Team, std::vector< Token > > _token_set(size_t game_dim)
    }
 }
 
-std::vector< Position > _default_start_positions(size_t game_dim, aze::Team team)
+std::vector< Position > default_start_positions(size_t game_dim, aze::Team team)
 {
    using aze::Team;
    if(std::set{Team::RED, Team::BLUE}.contains(team))
@@ -200,7 +200,7 @@ const std::vector< Position >& _check_alignment(
    const std::map< Position, Token >& setup)
 {
    if(positions.size() != setup.size()
-      or std::any_of(positions.begin(), positions.end(), [&setup = setup](const Position& pos) {
+      or ranges::any_of(positions, [&](const Position& pos) {
             return not setup.contains(pos);
          })) {
       throw std::invalid_argument(
@@ -209,28 +209,28 @@ const std::vector< Position >& _check_alignment(
    return positions;
 }
 
-std::map< aze::Team, std::optional< Config::setup_type > > Config::_init_setups(
-   const std::map< aze::Team, std::optional< Config::setup_type > >& setups_,
-   std::variant< size_t, std::array< size_t, 2 > > game_dims_)
+std::map< aze::Team, std::optional< Config::setup_t > > Config::_init_setups(
+   const std::map< aze::Team, std::optional< Config::setup_t > >& setups_,
+   std::variant< size_t, ranges::span< size_t, 2 > > game_dims_)
 {
-   std::map< aze::Team, std::optional< setup_type > > sets;
+   std::map< aze::Team, std::optional< setup_t > > sets;
    for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
       sets[team] = setups_.at(team).has_value()
                       ? setups_.at(team).value()
                       : std::visit(
                          aze::utils::Overload{
-                            [&](size_t d) { return _default_setup(d, team); },
-                            [&](std::array< size_t, 2 > a) { return _default_setups(a, team); }},
+                            [&](size_t d) { return default_setup(d, team); },
+                            [&](ranges::span< size_t, 2 > a) { return default_setup(a, team); }},
                          game_dims_);
    }
    return sets;
 }
 
-std::map< aze::Team, Config::token_counter > Config::_init_tokencounters(
+std::map< aze::Team, Config::token_counter_t > Config::_init_tokencounters(
    const std::map< aze::Team, std::optional< std::vector< Token > > >& token_sets,
-   const std::map< aze::Team, std::optional< Config::setup_type > >& setups_)
+   const std::map< aze::Team, std::optional< Config::setup_t > >& setups_)
 {
-   std::map< aze::Team, token_counter > counters;
+   std::map< aze::Team, token_counter_t > counters;
    for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
       if(setups_.at(team).has_value()) {
          auto values = setups_.at(team).value() | ranges::views::values;
@@ -250,7 +250,7 @@ std::map< aze::Team, Config::token_counter > Config::_init_tokencounters(
 
 std::map< aze::Team, std::vector< Position > > Config::_init_start_positions(
    const std::map< aze::Team, std::optional< std::vector< Position > > >& start_pos,
-   const std::map< aze::Team, std::optional< Config::setup_type > >& setups_)
+   const std::map< aze::Team, std::optional< Config::setup_t > >& setups_)
 {
    std::map< aze::Team, std::vector< Position > > positions;
    for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
@@ -278,13 +278,13 @@ std::map< aze::Team, std::vector< Position > > Config::_init_start_positions(
 
 std::vector< Position > Config::_init_hole_positions(
    const std::optional< std::vector< Position > >& hole_pos,
-   std::variant< size_t, std::array< size_t, 2 > > game_dims_)
+   std::variant< size_t, ranges::span< size_t, 2 > > game_dims_)
 {
    return hole_pos.has_value() ? hole_pos.value()
                                : std::visit(
                                   aze::utils::Overload{
-                                     [](size_t d) { return _default_obs(d); },
-                                     [](std::array< size_t, 2 > a) { return _default_obs(a); }},
+                                     [](size_t d) { return default_holes(d); },
+                                     [](ranges::span< size_t, 2 > a) { return default_holes(a); }},
                                   game_dims_);
 }
 

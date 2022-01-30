@@ -7,7 +7,7 @@
 #include <set>
 #include <utility>
 #include <variant>
-
+#include <range/v3/all.hpp>
 #include "StrategoDefs.hpp"
 #include "utils.hpp"
 
@@ -19,21 +19,21 @@ inline constexpr auto make_tokens(std::index_sequence< Is... >)
    return std::vector{Token(Is)...};
 }
 
-auto _default_mr() -> std::map< Token, std::function< bool(size_t) > >;
+auto default_move_ranges() -> std::map< Token, std::function< bool(size_t) > >;
 
-auto _default_bm() -> std::map< std::array< Token, 2 >, FightOutcome >;
+auto default_battlematrix() -> std::map< std::array< Token, 2 >, FightOutcome >;
 
 auto _default_setup(size_t game_dims) -> std::map< aze::Team, std::map< Position, Token > >;
 auto _default_setups(std::array< size_t, 2 > game_dims)
    -> std::map< aze::Team, std::map< Position, Token > >;
 
-auto _default_obs(size_t game_dims) -> std::vector< Position >;
+auto default_holes(size_t game_dims) -> std::vector< Position >;
 
-auto _default_obs(std::array< size_t, 2 > game_dims) -> std::vector< Position >;
+auto default_holes(ranges::span< size_t, 2 > game_dims) -> std::vector< Position >;
 
-auto _token_set(size_t game_dim) -> std::map< aze::Team, std::vector< Token > >;
+auto token_vector(size_t game_dim) -> std::map< aze::Team, std::vector< Token > >;
 
-auto _default_start_positions(size_t game_dim, aze::Team team) -> std::vector< Position >;
+auto default_start_positions(size_t game_dim, aze::Team team) -> std::vector< Position >;
 
 auto _check_alignment(
    const std::vector< Position >& positions,
@@ -84,8 +84,10 @@ auto _check_alignment(
 // }
 
 struct Config {
-   using setup_type = std::map< Position, Token >;
-   using token_counter = std::map< Token, unsigned int >;
+   using setup_t = std::map< Position, Token >;
+   using token_counter_t = std::map< Token, unsigned int >;
+   using token_vector_t = std::vector< Token >;
+   using position_vector_t = std::vector< Position >;
 
    /// the team that starts the game with the first turn
    aze::Team starting_team;
@@ -96,9 +98,9 @@ struct Config {
    /// whether a given setup in the config is to be seen as fixed (no resampling on reset)
    std::array< bool, 2 > fixed_setups;
    /// an optional setup for each team
-   std::map< aze::Team, std::optional< setup_type > > setups;
+   std::map< aze::Team, std::optional< setup_t > > setups;
    /// the tokens that each player gets to place on the board
-   std::map< aze::Team, token_counter > token_counters;
+   std::map< aze::Team, token_counter_t > token_counters;
    /// the start positions that each team can use to place tokens
    std::map< aze::Team, std::vector< Position > > start_positions;
    /// the battle matrix determining outcomes of token fights
@@ -109,49 +111,49 @@ struct Config {
    std::map< Token, std::function< bool(size_t) > > move_ranges;
 
   private:
-   static std::map< aze::Team, std::optional< setup_type > > _init_setups(
-      const std::map< aze::Team, std::optional< setup_type > >& setups_,
-      std::variant< size_t, std::array< size_t, 2 > > game_dims_);
+   static std::map< aze::Team, std::optional< setup_t > > _init_setups(
+      const std::map< aze::Team, std::optional< setup_t > >& setups_,
+      std::variant< size_t, ranges::span< size_t, 2 > > game_dims_);
 
-   static std::map< aze::Team, token_counter > _init_tokencounters(
+   static std::map< aze::Team, token_counter_t > _init_tokencounters(
       const std::map< aze::Team, std::optional< std::vector< Token > > >& token_sets,
-      const std::map< aze::Team, std::optional< Config::setup_type > >& setups_);
+      const std::map< aze::Team, std::optional< Config::setup_t > >& setups_);
 
    static std::map< aze::Team, std::vector< Position > > _init_start_positions(
       const std::map< aze::Team, std::optional< std::vector< Position > > >& start_pos,
-      const std::map< aze::Team, std::optional< Config::setup_type > >& setups_);
+      const std::map< aze::Team, std::optional< Config::setup_t > >& setups_);
 
    static std::vector< Position > _init_hole_positions(
       const std::optional< std::vector< Position > >& hole_pos,
-      std::variant< size_t, std::array< size_t, 2 > > game_dims_);
+      std::variant< size_t, ranges::span< size_t, 2 > > game_dims_);
 
+  public:
    template < typename T >
    static constexpr std::map< aze::Team, std::optional< T > > null_arg()
    {
       return {std::pair{aze::Team::BLUE, std::nullopt}, std::pair{aze::Team::RED, std::nullopt}};
    }
 
-  public:
    Config(
       aze::Team starting_team_,
-      std::variant< size_t, std::array< size_t, 2 > > game_dims_ = size_t(5),
+      std::variant< size_t, ranges::span< size_t, 2 > > game_dims_ = size_t(5),
       size_t max_turn_count_ = 500,
       std::array< bool, 2 > fixed_setups_ = {false, false},
-      const std::map< aze::Team, std::optional< setup_type > >& setups_ = null_arg< setup_type >(),
-      const std::map< aze::Team, std::optional< std::vector< Token > > >& token_set_ =
-         null_arg< std::vector< Token > >(),
-      const std::map< aze::Team, std::optional< std::vector< Position > > >& start_positions_ =
-         null_arg< std::vector< Position > >(),
-      std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = _default_bm(),
+      const std::map< aze::Team, std::optional< setup_t > >& setups_ = null_arg< setup_t >(),
       const std::optional< std::vector< Position > >& hole_positions_ = std::nullopt,
-      std::map< Token, std::function< bool(size_t) > > move_ranges_ = _default_mr())
+      const std::map< aze::Team, std::optional< std::vector< Token > > >& token_set_ =
+         null_arg< token_vector_t >(),
+      const std::map< aze::Team, std::optional< std::vector< Position > > >& start_positions_ =
+         null_arg< position_vector_t >(),
+      std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = default_battlematrix(),
+      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges())
        : starting_team(starting_team_),
          game_dims(std::visit(
             aze::utils::Overload{
                [](size_t d) {
                   return std::array{d, d};
                },
-               [](std::array< size_t, 2 > d) { return d; }},
+               [](ranges::span< size_t, 2 > d) { return std::array{d[0], d[1]};; }},
             game_dims_)),
          max_turn_count(max_turn_count_),
          fixed_setups(fixed_setups_),
