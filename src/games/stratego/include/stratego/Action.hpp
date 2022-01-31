@@ -4,7 +4,6 @@
 #include <array>
 #include <utility>
 #include <vector>
-//#include <xtensor/xio.hpp>
 
 #include "StrategoDefs.hpp"
 

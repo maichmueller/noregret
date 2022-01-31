@@ -44,8 +44,6 @@ void Logic::apply_action(State &state, const Action &action)
    auto piece_from = board[from].value();
    auto piece_to_opt = board[to];
 
-   piece_from.flag_has_moved(true);
-
    // enact the move
    if(piece_to_opt.has_value()) {
       auto &piece_to = piece_to_opt.value();
@@ -64,8 +62,8 @@ FightOutcome Logic::handle_fight(
 {
    auto &board = state.board();
    // uncover participant pieces
-   attacker.flag_unhidden(true);
-   defender.flag_unhidden(true);
+   attacker.flag_hidden(true);
+   defender.flag_hidden(true);
    auto outcome = fight(state.config(), attacker, defender);
    switch(outcome) {
       case FightOutcome::kill: {

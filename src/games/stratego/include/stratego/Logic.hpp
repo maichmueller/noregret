@@ -109,14 +109,14 @@ class Logic {
    place_setup(const std::map< Position, Token > &setup, Board &board, aze::Team team)
    {
       for(const auto &[pos, token] : setup) {
-         board[pos] = Piece(pos, token, team);
+         board[pos] = Piece(team, pos, token);
       }
    }
 
    static inline void place_holes(const Config &cfg, Board &board)
    {
       for(const auto &pos : cfg.hole_positions) {
-         board[pos] = Piece(pos, Token::hole, Team::BLUE);
+         board[pos] = Piece(Team::BLUE, pos, Token::hole);
       }
    }
 

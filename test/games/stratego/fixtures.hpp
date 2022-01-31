@@ -10,16 +10,15 @@ using namespace stratego;
 
 class MinimalConfig: public ::testing::Test {
   public:
+   std::map< Position, Token > setup0;
+   std::map< Position, Token > setup1;
    Config cfg;
 
-   MinimalConfig() : cfg(_init_cfg()) {}
+   MinimalConfig() : setup0(),setup1(), cfg(_init_cfg()) {}
    ~MinimalConfig() override = default;
 
-   static Config _init_cfg()
+   Config _init_cfg()
    {
-      std::map< Position, Token > setup0;
-      std::map< Position, Token > setup1;
-
       setup0[{0, 0}] = Token::flag;
       setup0[{0, 1}] = Token::spy;
       setup0[{0, 2}] = Token::scout;
@@ -45,7 +44,7 @@ class MinimalConfig: public ::testing::Test {
          Team::BLUE,
          size_t(5),
          500,
-         {false, false},
+         true,
          std::map{
             std::pair{Team::BLUE, std::make_optional(setup0)},
             std::pair{Team::RED, std::make_optional(setup1)}}};

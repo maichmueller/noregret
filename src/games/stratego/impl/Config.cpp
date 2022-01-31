@@ -200,9 +200,7 @@ const std::vector< Position >& _check_alignment(
    const std::map< Position, Token >& setup)
 {
    if(positions.size() != setup.size()
-      or ranges::any_of(positions, [&](const Position& pos) {
-            return not setup.contains(pos);
-         })) {
+      or ranges::any_of(positions, [&](const Position& pos) { return not setup.contains(pos); })) {
       throw std::invalid_argument(
          "Passed starting positions parameter and setup parameter do not match.");
    }
@@ -211,17 +209,23 @@ const std::vector< Position >& _check_alignment(
 
 std::map< aze::Team, std::optional< Config::setup_t > > Config::_init_setups(
    const std::map< aze::Team, std::optional< Config::setup_t > >& setups_,
+   const std::map< aze::Team, std::optional< std::vector< Token > > >& tokenset_,
+   const std::map< aze::Team, std::optional< std::vector< Position > > >& start_positions_,
    std::variant< size_t, ranges::span< size_t, 2 > > game_dims_)
 {
    std::map< aze::Team, std::optional< setup_t > > sets;
    for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
-      sets[team] = setups_.at(team).has_value()
-                      ? setups_.at(team).value()
-                      : std::visit(
-                         aze::utils::Overload{
-                            [&](size_t d) { return default_setup(d, team); },
-                            [&](ranges::span< size_t, 2 > a) { return default_setup(a, team); }},
-                         game_dims_);
+      if(setups_.at(team).has_value()) {
+         sets[team] = setups_.at(team).value();
+      } else if(start_positions_.at(team).has_value() && tokenset_.at(team).has_value()) {
+         sets[team] = std::nullopt;
+      } else {
+         sets[team] = std::visit(
+            aze::utils::Overload{
+               [&](size_t d) { return default_setup(d, team); },
+               [&](ranges::span< size_t, 2 > a) { return default_setup(a, team); }},
+            game_dims_);
+      }
    }
    return sets;
 }

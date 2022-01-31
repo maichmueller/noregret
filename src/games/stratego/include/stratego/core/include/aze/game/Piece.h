@@ -25,20 +25,19 @@ class Piece {
    using token_type = Token;
 
   protected:
+   Team m_team;
    position_type m_position;
    token_type m_token;
-   Team m_team;
-   bool m_hidden;
-   bool m_has_moved;
+   bool m_hidden{};
 
   public:
-   Piece(position_type pos, token_type type, Team team, bool hidden, bool has_moved)
-       : m_position(pos), m_token(type), m_team(team), m_hidden(hidden), m_has_moved(has_moved)
+   Piece(Team team, position_type pos, token_type type, bool hidden)
+       : m_team(team), m_position(pos), m_token(type), m_hidden(hidden)
    {
    }
 
-   Piece(position_type position, token_type type, Team team)
-       : Piece(position, type, team, true, false)
+   Piece(Team team, position_type position, token_type type)
+       : Piece(team, position, type, /*hidden=*/true)
    {
    }
 
@@ -47,11 +46,9 @@ class Piece {
    Piece& operator=(const Piece&) = default;
    Piece& operator=(Piece&&) noexcept = default;
 
-   // getter and setter methods here only
+   // getter and setter methods
 
-   void flag_has_moved(bool has_moved) { this->m_has_moved = has_moved; }
-
-   void flag_unhidden(bool h) { m_hidden = h; }
+   void flag_hidden(bool h) { m_hidden = h; }
 
    void position(position_type p) { m_position = std::move(p); }
 
@@ -63,14 +60,13 @@ class Piece {
 
    [[nodiscard]] bool flag_hidden() const { return m_hidden; }
 
-   [[nodiscard]] bool flag_has_moved() const { return m_has_moved; }
+   // comparison operators
 
    bool operator==(const Piece& other) const
    {
       return other.position() == m_position && m_token == other.token() && m_team == other.team()
-             && m_hidden == other.flag_hidden() && m_has_moved == other.flag_has_moved();
+             && m_hidden == other.flag_hidden();
    }
-
    bool operator!=(const Piece& other) const { return *this != other; }
 };
 }  // namespace aze

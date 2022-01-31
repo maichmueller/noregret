@@ -49,7 +49,7 @@ int main()
       Team::BLUE,
       size_t(5),
       500,
-      {false, false},
+      true,
       std::map{
          std::pair{Team::BLUE, std::make_optional(setup0)},
          std::pair{Team::RED, std::make_optional(setup1)}}};

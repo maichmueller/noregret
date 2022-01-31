@@ -37,6 +37,8 @@ if (ENABLE_GAMES)
             STRATEGO_TEST_SOURCES
             test_logic.cpp
             test_config.cpp
+            test_state.cpp
+            test_piece.cpp
     )
     list(TRANSFORM STRATEGO_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/games/stratego/")
 
