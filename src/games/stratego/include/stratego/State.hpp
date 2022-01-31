@@ -103,8 +103,8 @@ class State: public aze::State< Board, History, Piece, Action > {
    aze::Status check_terminal() override;
    [[nodiscard]] Team active_team() const override { return Team(turn_count() % 2); }
 
-   [[nodiscard]] std::string string_representation() const override;
-   [[nodiscard]] std::string string_representation(aze::Team team, bool hide_unknowns)
+   [[nodiscard]] std::string to_string() const override;
+   [[nodiscard]] std::string to_string(aze::Team team, bool hide_unknowns)
       const override;
 
    [[nodiscard]] inline auto &config() const { return m_config; }

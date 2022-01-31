@@ -26,11 +26,11 @@ class Game {
    constexpr static size_t n_teams = NPlayers;
 
   private:
-   sptr< state_type > m_state;
+   uptr< state_type > m_state;
    std::array< sptr< Agent< state_type > >, n_teams > m_agents;
 
   public:
-   Game(sptr< state_type > stateptr, std::array< sptr< agent_type >, n_teams > agents);
+   Game(uptr< state_type > stateptr, std::array< sptr< agent_type >, n_teams > agents);
    Game(state_type &&state, std::array< sptr< agent_type >, n_teams > agents);
    virtual ~Game() = default;
 
@@ -40,8 +40,8 @@ class Game {
 
    constexpr auto nr_players() const { return n_teams; }
    auto agents() { return m_agents; }
-   auto agent(Team team) { return m_agents.at(team); }
-   auto state() const { return m_state; }
+   auto agent(Team team) { return m_agents.at(static_cast< unsigned int >(team)); }
+   const auto &state() const { return m_state; }
    auto &state() { return m_state; }
 };
 
@@ -49,13 +49,13 @@ template < class StateType, class LogicType, size_t NPlayers >
 Game< StateType, LogicType, NPlayers >::Game(
    state_type &&state,
    std::array< sptr< Agent< state_type > >, n_teams > agents)
-    : m_state(std::make_shared< state_type >(std::move(state))), m_agents(agents)
+    : m_state(std::make_unique< state_type >(std::move(state))), m_agents(agents)
 {
 }
 
 template < class StateType, class LogicType, size_t NPlayers >
 Game< StateType, LogicType, NPlayers >::Game(
-   sptr< state_type > stateptr,
+   uptr< state_type > stateptr,
    std::array< sptr< Agent< state_type > >, n_teams > agents)
     : m_state(std::move(stateptr)), m_agents(agents)
 {

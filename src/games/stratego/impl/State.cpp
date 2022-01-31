@@ -1,8 +1,9 @@
+#include "stratego/State.hpp"
+
 #include <functional>
 #include <utility>
 
 #include "stratego/Logic.hpp"
-#include "stratego/State.hpp"
 #include "stratego/utils.hpp"
 
 namespace stratego {
@@ -36,12 +37,12 @@ State::State(Config cfg)
    status(Status::ONGOING);
 }
 
-std::string State::string_representation() const
+std::string State::to_string() const
 {
-   return string_representation(aze::Team::BLUE, false);
+   return to_string(aze::Team::BLUE, false);
 }
 
-std::string State::string_representation(aze::Team team, bool hide_unknowns) const
+std::string State::to_string(aze::Team team, bool hide_unknowns) const
 {
    return utils::print_board(board(), team, hide_unknowns);
 }

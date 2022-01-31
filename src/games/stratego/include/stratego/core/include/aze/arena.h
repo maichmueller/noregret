@@ -72,7 +72,7 @@ inline pit(GameType &game, int num_sims, bool show_game, bool save_results)
 
    for(int sim = 1; sim < num_sims; ++sim) {
       game.reset();
-      LOGD2("After Reset", game.state()->string_representation(false, false));
+      LOGD2("After Reset", game.state()->to_string(false, false));
       int game_outcome = game.run_game(show_game);
       if(game_outcome == 1)
          stats0.add_win("flag", game.state()->get_turn_count());
@@ -86,7 +86,7 @@ inline pit(GameType &game, int num_sims, bool show_game, bool save_results)
          stats0.add_draw();
          stats1.add_draw();
       }
-      LOGD2("After game played", game.state()->string_representation(false, false));
+      LOGD2("After game played", game.state()->to_string(false, false));
       if(sim % 10 == 0)
          print_round_results(
             sim, num_sims, *game.get_agent_0(), *game.get_agent_1(), stats0, stats1);

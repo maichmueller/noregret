@@ -81,8 +81,8 @@ class State {
       m_status_checked = true;
       return status;
    }
-   [[nodiscard]] virtual std::string string_representation() const = 0;
-   [[nodiscard]] virtual std::string string_representation(Team team, bool hide_unknowns) const = 0;
+   [[nodiscard]] virtual std::string to_string() const = 0;
+   [[nodiscard]] virtual std::string to_string(Team team, bool hide_unknowns) const = 0;
 };
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >

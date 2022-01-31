@@ -13,7 +13,7 @@ Status Game::run_game(const sptr< aze::utils::Plotter< state_type > >& plotter)
 
       Status outcome = state()->status();
 
-      LOGD(std::string("\n") + state()->string_representation(Team::BLUE, false));
+      LOGD(std::string("\n") + state()->to_string(Team::BLUE, false));
       LOGD2("Status", static_cast< int >(outcome));
 
       if(state()->status() != Status::ONGOING)
@@ -27,7 +27,7 @@ Status Game::run_step()
 {
    LOGD("Running step.")
    Team active_team = state()->active_team();
-   auto action = agents()[static_cast<int>(active_team)]->decide_action(
+   auto action = agent(active_team)->decide_action(
       *state(), state()->logic()->valid_actions(*state(), active_team));
    LOGD2(
       "Possible Moves",
@@ -40,7 +40,7 @@ Status Game::run_step()
 
 void Game::reset()
 {
-   state() = std::make_shared< State >(state()->config());
+   state() = std::make_unique< State >(state()->config());
 }
 
 }  // namespace stratego
