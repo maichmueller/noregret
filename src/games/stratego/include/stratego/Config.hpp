@@ -91,6 +91,8 @@ struct Config {
 
    /// the team that starts the game with the first turn
    aze::Team starting_team;
+   /// whether the starting team is always the same
+   bool fixed_starting_team;
    /// the board dimensions in (x,y)
    std::array< size_t, 2 > game_dims;
    /// the maximum number of turns to play before the game is counted as a draw
@@ -138,6 +140,7 @@ struct Config {
 
    Config(
       aze::Team starting_team_,
+      bool fixed_starting_team_ = true,
       std::variant< size_t, ranges::span< size_t, 2 > > game_dims_ = size_t(5),
       size_t max_turn_count_ = 500,
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
@@ -150,6 +153,7 @@ struct Config {
       std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges())
        : starting_team(starting_team_),
+         fixed_starting_team(fixed_starting_team_),
          game_dims(std::visit(
             aze::utils::Overload{
                [](size_t d) {

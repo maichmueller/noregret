@@ -24,7 +24,7 @@ class Logic {
 
    aze::Status check_terminal(State &state);
 
-   bool is_valid(const State &state, const Action &action);
+   bool is_valid(const State &state, const Action &action, Team team);
 
    template < ranges::contiguous_range Range >
    auto _valid_vectors(Position pos, Range shape, int distance = 1);
@@ -34,16 +34,16 @@ class Logic {
    bool has_valid_actions(const State &state, Team team);
 
    static std::map< Position, Token >
-   draw_setup_uniform(const Config &config, Board &curr_board, Team team, aze::utils::RNG &rng);
+   draw_setup_uniform(const Config &config, Board &curr_board, Team team, aze::utils::random::RNG &rng);
 
    static Board create_empty_board(const Config &config);
 
    template <
-      std::invocable< const Config &, Board &, Team, aze::utils::RNG & > SampleStrategyType >
+      std::invocable< const Config &, Board &, Team, aze::utils::random::RNG & > SampleStrategyType >
    Board draw_board(
       const Config &config,
       Board curr_board,
-      aze::utils::RNG &rng,
+      aze::utils::random::RNG &rng,
       SampleStrategyType setup_sampler = [](...) { return; });
 
    static inline FightOutcome
@@ -116,7 +116,7 @@ class Logic {
    static inline void place_holes(const Config &cfg, Board &board)
    {
       for(const auto &pos : cfg.hole_positions) {
-         board[pos] = Piece(Team::BLUE, pos, Token::hole);
+         board[pos] = Piece(Team::NEUTRAL, pos, Token::hole);
       }
    }
 
@@ -151,11 +151,11 @@ auto Logic::_valid_vectors(Position pos, Range shape, int distance)
 }
 
 
-template < std::invocable< const Config &, Board &, Team, aze::utils::RNG & > SampleStrategyType >
+template < std::invocable< const Config &, Board &, Team, aze::utils::random::RNG & > SampleStrategyType >
 Board Logic::draw_board(
    const Config &config,
    Board curr_board,
-   aze::utils::RNG &rng,
+   aze::utils::random::RNG &rng,
    SampleStrategyType setup_sampler)
 {
    for(size_t i = 0; i < 2; i++) {

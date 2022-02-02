@@ -84,7 +84,7 @@ FightOutcome Logic::handle_fight(
    }
    return outcome;
 }
-bool Logic::is_valid(const State &state, const Action &action)
+bool Logic::is_valid(const State &state, const Action &action, Team team)
 {
    const auto &[pos_before, pos_after] = action;
    const auto &board = state.board();
@@ -99,6 +99,11 @@ bool Logic::is_valid(const State &state, const Action &action)
       return false;
 
    const auto &p_b = p_b_opt.value();
+
+   // can't move other team's pieces
+   if(p_b.team() != team) {
+      return false;
+   }
 
    // check if the target position holds a piece and whose team it belongs to
    if(p_a_opt.has_value()) {
@@ -168,7 +173,7 @@ std::vector< Action > Logic::valid_actions(
             ranges::for_each(
                _valid_vectors(pos, board.shape(), token_move_range), [&](const Position &pos_to) {
                   Action action{pos, pos + pos_to};
-                  if(is_valid(state, action)) {
+                  if(is_valid(state, action, team)) {
                      actions_possible.emplace_back(action);
                   }
                });
@@ -210,7 +215,7 @@ bool Logic::has_valid_actions(const State &state, Team team)
             if(ranges::any_of(
                   _valid_vectors(pos, board.shape(), token_move_range),
                   [&](const Position &vector) -> bool {
-                     return is_valid(state, Action{pos, pos + vector});
+                     return is_valid(state, Action{pos, pos + vector}, team);
                   })) {
                return true;
             }
@@ -225,7 +230,7 @@ std::map< Position, Token > stratego::Logic::draw_setup_uniform(
    const stratego::Config &config,
    stratego::Board &curr_board,
    stratego::Team team,
-   aze::utils::RNG &rng)
+   aze::utils::random::RNG &rng)
 {
    std::map< Position, Token > setup_out;
 

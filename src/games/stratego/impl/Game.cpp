@@ -40,7 +40,12 @@ Status Game::run_step()
 
 void Game::reset()
 {
-   state() = std::make_unique< State >(state()->config());
+   if(state()->config().fixed_starting_team) {
+      state() = std::make_unique< State >(state()->config());
+   } else {
+      Config cfg_copy = state()->config();
+      cfg_copy.starting_team = aze::utils::random::choose(std::array{Team::BLUE, Team::RED}, state()->rng());
+   }
 }
 
 }  // namespace stratego

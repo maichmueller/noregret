@@ -47,6 +47,7 @@ int main()
 
    Config config{
       Team::BLUE,
+      false,
       size_t(5),
       500,
       true,

@@ -15,7 +15,7 @@ bool cmp_equal_rngs(Range1&& rng1, Range2&& rng2)
 }
 
 template < typename Range1, typename Range2, typename Sorter1, typename Sorter2 >
-bool cmp_equal_rngs(Range1&& rng1, Range2&& rng2, Sorter1 sorter1, Sorter2 sorter2)
+bool cmp_equal_rngs(Range1 rng1, Range2 rng2, Sorter1 sorter1, Sorter2 sorter2)
 {
    std::sort(std::execution::par, rng1.begin(), rng1.end(), sorter1);
    std::sort(std::execution::par, rng2.begin(), rng2.end(), sorter2);

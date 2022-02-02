@@ -42,6 +42,7 @@ class MinimalConfig: public ::testing::Test {
 
       Config config{
          Team::BLUE,
+         true,
          size_t(5),
          500,
          true,

@@ -22,14 +22,7 @@ TEST(State, constructor)
    auto setup = std::map{
       std::pair{Team::BLUE, std::optional{setup0}}, std::pair{Team::RED, std::optional{setup1}}};
 
-   Config config{
-      Team::BLUE,
-      std::vector{size_t(2), size_t(2)},
-      500,
-      true,
-      setup,
-      hole_pos,
-   };
+   Config config{Team::BLUE, false, std::vector{size_t(2), size_t(2)}, 500, true, setup, hole_pos};
 
    State state{config};
 

@@ -15,7 +15,7 @@ enum class Status {
    WIN_BLUE = 1,
    WIN_RED = -1,
 };
-enum class Team { BLUE = 0, RED = 1 };
+enum class Team { BLUE = 0, RED = 1, NEUTRAL = 2 };
 
 }  // namespace aze
 
@@ -50,9 +50,10 @@ enum class FightOutcome { death = -1, kill = 1, stalemate = 0 };
 
 inline auto team_name(Team t)
 {
-   constexpr aze::utils::CEMap< Team, std::string_view, 2 > team_name_lookup = {
+   constexpr aze::utils::CEMap< Team, std::string_view, 3 > team_name_lookup = {
       std::pair{Team::BLUE, std::string_view("BLUE")},
       std::pair{Team::RED, std::string_view("RED")},
+      std::pair{Team::NEUTRAL, std::string_view("NEUTRAL")},
    };
    return std::string(team_name_lookup.at(t));
 }

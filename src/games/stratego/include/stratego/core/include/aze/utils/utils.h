@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <range/v3/all.hpp>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -39,7 +40,7 @@ struct VectorPrinter {
 
    friend auto& operator<<(std::ostream& os, const VectorPrinter& printer)
    {
-      os << "[";
+      os << "\n[";
       for(unsigned int i = 0; i < printer.vector.size() - 1; ++i) {
          os << printer.vector[i] << printer.delimiter;
       }
@@ -63,6 +64,8 @@ struct Overload: Ts... {
 template < typename... Ts >
 Overload(Ts...) -> Overload< Ts... >;
 
+namespace random {
+
 using RNG = std::mt19937_64;
 /**
  * @brief Creates and returns a new random number generator from a potential seed.
@@ -81,6 +84,21 @@ inline auto create_rng(RNG rng)
 {
    return rng;
 }
+
+template < typename Container>
+auto choose(const Container& cont, RNG& rng)
+{
+   return cont[std::uniform_int_distribution(0ul, cont.size())(rng)];
+}
+template < typename Container>
+auto choose(const Container& cont)
+{
+   auto dev = std::random_device{};
+   return cont[std::uniform_int_distribution(0ul, cont.size())(dev)];
+}
+
+
+}  // namespace random
 
 inline std::string repeat(std::string str, const std::size_t n)
 {
@@ -111,10 +129,11 @@ inline std::string center(const std::string& str, int width, const char* fillcha
       return str;
    }
 
-   int diff = static_cast<int>(static_cast< unsigned long >(width) - len);
+   int diff = static_cast< int >(static_cast< unsigned long >(width) - len);
    int pad1 = diff / 2;
    int pad2 = diff - pad1;
-   return std::string(static_cast< unsigned long >(pad2), *fillchar) + str + std::string(static_cast< unsigned long >(pad1), *fillchar);
+   return std::string(static_cast< unsigned long >(pad2), *fillchar) + str
+          + std::string(static_cast< unsigned long >(pad1), *fillchar);
 }
 
 inline std::string operator*(std::string str, std::size_t n)
@@ -329,21 +348,20 @@ struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {
 template < class T, class... Ts >
 inline constexpr bool is_same_v = is_same< T, Ts... >::value;
 
-template <typename Key, typename Value, std::size_t Size>
+template < typename Key, typename Value, std::size_t Size >
 struct CEMap {
-   std::array<std::pair<Key, Value>, Size> data;
+   std::array< std::pair< Key, Value >, Size > data;
 
-   [[nodiscard]] constexpr Value at(const Key &key) const {
-      const auto itr =
-         std::find_if(begin(data), end(data),
-                      [&key](const auto &v) { return v.first == key; });
-      if (itr != end(data)) {
+   [[nodiscard]] constexpr Value at(const Key& key) const
+   {
+      const auto itr = std::find_if(
+         begin(data), end(data), [&key](const auto& v) { return v.first == key; });
+      if(itr != end(data)) {
          return itr->second;
       } else {
          throw std::range_error("Not Found");
       }
    }
-
 };
 
 };  // namespace aze::utils
