@@ -35,14 +35,13 @@ aze::Status Logic::check_terminal(State &state)
 void Logic::apply_action(State &state, const Action &action)
 {
    // preliminaries
-   const Position &from = action[0];
-   const Position &to = action[1];
+   const auto &[from, to] = action;
 
    // save the access to the pieces in question
    // (removes redundant searching in board later)
    Board &board = state.board();
-   auto piece_from = board[from].value();
-   auto piece_to_opt = board[to];
+   auto &piece_from = board[from].value();
+   auto& piece_to_opt = board[to];
 
    // enact the move
    if(piece_to_opt.has_value()) {
@@ -55,10 +54,7 @@ void Logic::apply_action(State &state, const Action &action)
       update_board(board, from);
    }
 }
-FightOutcome Logic::handle_fight(
-   State &state,
-   Piece &attacker,
-   Piece &defender)
+FightOutcome Logic::handle_fight(State &state, Piece &attacker, Piece &defender)
 {
    auto &board = state.board();
    // uncover participant pieces
@@ -151,9 +147,7 @@ bool Logic::is_valid(const State &state, const Action &action, Team team)
    }
    return true;
 }
-std::vector< Action > Logic::valid_actions(
-   const State &state,
-   Team team)
+std::vector< Action > Logic::valid_actions(const State &state, Team team)
 {
    LOGD("Checking for valid actions.")
    const auto &board = state.board();
@@ -228,7 +222,6 @@ bool Logic::has_valid_actions(const State &state, Team team)
    return false;
 }
 
-
 std::map< Position, Token > stratego::Logic::draw_setup_uniform(
    const stratego::Config &config,
    stratego::Board &curr_board,
@@ -284,6 +277,5 @@ Board Logic::create_empty_board(const Config &config)
    }
    return b;
 }
-
 
 }  // namespace stratego

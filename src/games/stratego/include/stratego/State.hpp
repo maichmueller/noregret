@@ -90,7 +90,9 @@ class State: public aze::State< Board, History, Piece, Action > {
    {
    }
 
-   explicit State(Config config);
+   explicit State(
+      Config config,
+      std::optional< std::variant< size_t, aze::utils::random::RNG > > seed = std::nullopt);
 
    void to_graveyard(const std::optional< piece_type > &piece_opt)
    {
@@ -104,8 +106,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    [[nodiscard]] Team active_team() const override { return Team(turn_count() % 2); }
 
    [[nodiscard]] std::string to_string() const override;
-   [[nodiscard]] std::string to_string(aze::Team team, bool hide_unknowns)
-      const override;
+   [[nodiscard]] std::string to_string(aze::Team team, bool hide_unknowns) const override;
 
    [[nodiscard]] inline auto &config() const { return m_config; }
    [[nodiscard]] inline auto &logic() const { return m_logic; }

@@ -37,6 +37,7 @@ if (ENABLE_GAMES)
             STRATEGO_TEST_SOURCES
             test_logic.cpp
             test_config.cpp
+            test_game.cpp
             test_state.cpp
             test_piece.cpp
     )

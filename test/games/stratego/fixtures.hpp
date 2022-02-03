@@ -58,7 +58,7 @@ class MinimalState: public MinimalConfig {
   public:
    State state;
 
-   MinimalState() : state(cfg) {}
+   MinimalState() : state(cfg, size_t(0)) {}
    ~MinimalState() override = default;
 };
 

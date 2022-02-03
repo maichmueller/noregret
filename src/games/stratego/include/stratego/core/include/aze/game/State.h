@@ -30,7 +30,7 @@ class State {
 
    history_type m_move_history;
 
-   aze::utils::random::RNG m_rng;
+   utils::random::RNG m_rng;
 
   protected:
    inline bool &status_checked() { return m_status_checked; }
@@ -43,6 +43,10 @@ class State {
       size_t turn_count = 0,
       const history_type &history = {},
       std::optional< std::variant< size_t, utils::random::RNG > > seed = std::nullopt);
+
+   State(
+      board_type board,
+      std::optional< std::variant< size_t, utils::random::RNG > > seed);
 
    virtual ~State() = default;
 
@@ -117,6 +121,21 @@ State< BoardType, HistoryType, PieceType, Action >::State(
       m_status_checked(false),
       m_turn_count(turn_count),
       m_move_history(history),
+      m_rng(
+         seed.has_value()
+            ? std::visit([](auto input) { return utils::random::create_rng(input); }, seed.value())
+            : utils::random::create_rng())
+{
+}
+template < class BoardType, class HistoryType, class PieceType, class ActionType >
+State< BoardType, HistoryType, PieceType, ActionType >::State(
+   board_type board,
+   std::optional< std::variant< size_t, utils::random::RNG > > seed)
+    : m_board(std::move(board)),
+      m_status(Status(0)),
+      m_status_checked(false),
+      m_turn_count(0),
+      m_move_history(),
       m_rng(
          seed.has_value()
             ? std::visit([](auto input) { return utils::random::create_rng(input); }, seed.value())

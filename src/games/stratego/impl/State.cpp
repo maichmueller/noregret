@@ -26,8 +26,8 @@ State *State::clone_impl() const
    }
    return new State(m_config, graveyard(), logic(), board(), turn_count(), hist_copy, rng());
 }
-State::State(Config cfg)
-    : base_type(Logic::create_empty_board(cfg)),
+State::State(Config cfg, std::optional< std::variant< size_t, aze::utils::random::RNG > > seed)
+    : base_type(Logic::create_empty_board(cfg), seed),
       m_config(std::move(cfg)),
       m_graveyard(),
       m_logic(std::make_shared< Logic >())

@@ -1,6 +1,8 @@
 
 #include <gtest/gtest.h>
 
+#include <utility>
+
 #include "fixtures.hpp"
 #include "utils.hpp"
 
@@ -30,34 +32,40 @@ TEST_F(MinimalState, action_is_valid)
    // cant step over pieces
    EXPECT_FALSE(state.logic()->is_valid(state, Action{{3, 1}, {0, 1}}, Team::RED));
 }
-auto sorter = [](auto flattable1, auto flattable2) {
-   std::array< int, 2 > reduces{0, 0};
-   std::array both{flattable1.flatten(), flattable2.flatten()};
-   for(unsigned int i = 0; i <= 2; ++i) {
-      int factor = 1;
-      for(auto val = both[i].rbegin(); val != both[i].rend(); val++) {
-         reduces[i] += *val * factor;
-         factor *= 10;
+
+struct sorter {
+   auto operator()(auto flattable1, auto flattable2)
+   {
+      std::array< int, 2 > reduces{0, 0};
+      std::array both{flattable1.flatten(), flattable2.flatten()};
+      for(unsigned int i = 0; i <= 2; ++i) {
+         int factor = 1;
+         for(auto val = both[i].rbegin(); val != both[i].rend(); val++) {
+            reduces[i] += *val * factor;
+            factor *= 10;
+         }
       }
+      return reduces[0] <= reduces[1];
    }
-   return reduces[0] <= reduces[1];
 };
-template < typename T, typename Sorter = decltype(sorter) >
+
+template < typename T, typename SortF = sorter >
 struct sorted {
    T value;
-   explicit sorted(T val, Sorter sort = Sorter()) : value(val)
+   explicit sorted(T val, SortF sort = SortF()) : value(std::move(val))
    {
       std::sort(value.begin(), value.end(), sort);
    }
 };
-template < typename T, typename Sorter = decltype(sorter) >
+template < typename T, typename SortF = sorter >
 struct eq {
-   sorted< T > sorted_elem;
-   eq(T val, Sorter sort = Sorter()) : sorted_elem(val, sort) {}
+   sorted< T > sorted;
+   explicit eq(T val, SortF sort = SortF()) : sorted(val, sort) {}
    bool operator==(const eq& other) const
    {
-      return cmp_equal_rngs(sorted_elem.value, other.sorted_elem.value);
+      return cmp_equal_rngs(sorted.value, other.sorted.value);
    };
+   auto value() { return sorted.value; }
 };
 
 TEST_F(MinimalState, apply_action)
@@ -115,12 +123,12 @@ TEST_F(MinimalState, valid_action_list)
       {{3, 4}, {2, 4}}};
 
    for(int i = 0; i < 2; ++i) {
-//      LOGD2(
-//         "Valid actions Team: " + team_name(Team(i)),
-//         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
-//      LOGD2(
-//         "Valid actions expected Team: " + team_name(Team(i)),
-//         aze::utils::VectorPrinter(expected[Team(i)]));
+      //      LOGD2(
+      //         "Valid actions Team: " + team_name(Team(i)),
+      //         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
+      //      LOGD2(
+      //         "Valid actions expected Team: " + team_name(Team(i)),
+      //         aze::utils::VectorPrinter(expected[Team(i)]));
 
       EXPECT_EQ(eq(state.logic()->valid_actions(state, Team(i))), eq(expected[Team(i)]));
    }
@@ -128,7 +136,7 @@ TEST_F(MinimalState, valid_action_list)
    // move marshall one field up
    state.apply_action({{1, 1}, {2, 1}});
 
-//   std::cout << state.to_string();
+   //   std::cout << state.to_string();
 
    expected[Team::BLUE] = std::vector< Action >{
       {{2, 1}, {3, 1}},
@@ -146,12 +154,12 @@ TEST_F(MinimalState, valid_action_list)
       {{3, 4}, {2, 4}}};
 
    for(int i = 0; i < 2; ++i) {
-//      LOGD2(
-//         "Valid actions Team: " + team_name(Team(i)),
-//         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
-//      LOGD2(
-//         "Valid actions expected Team: " + team_name(Team(i)),
-//         aze::utils::VectorPrinter(expected[Team(i)]));
+      //      LOGD2(
+      //         "Valid actions Team: " + team_name(Team(i)),
+      //         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
+      //      LOGD2(
+      //         "Valid actions expected Team: " + team_name(Team(i)),
+      //         aze::utils::VectorPrinter(expected[Team(i)]));
 
       EXPECT_EQ(eq(state.logic()->valid_actions(state, Team(i))), eq(expected[Team(i)]));
    }

@@ -54,7 +54,7 @@ class RandomAgent: public Agent< StateType > {
    }
 
   private:
-   std::mt19937 mt;
+   utils::random::RNG mt;
 };
 
 template < class StateType >
