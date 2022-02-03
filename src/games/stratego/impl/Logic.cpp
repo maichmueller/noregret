@@ -19,8 +19,6 @@ aze::Status Logic::check_terminal(State &state)
 
    // Rule 1: If either team has no moves left.
    if(not has_valid_actions(state, Team::BLUE) or not has_valid_actions(state, Team::RED)) {
-      LOGD2("Valid actions BLUE:", aze::utils::VectorPrinter(valid_actions(state, Team::BLUE)));
-      LOGD2("Valid actions RED:", aze::utils::VectorPrinter(valid_actions(state, Team::RED)));
       return state.status(Status::TIE);
    }
 
