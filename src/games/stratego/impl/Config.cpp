@@ -30,9 +30,11 @@ std::map< std::array< Token, 2 >, FightOutcome > default_battlematrix()
       for(auto j : std::array{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 99}) {
          if(i < j) {
             bm[{Token(i), Token(j)}] = FightOutcome::death;
-            bm[{Token(j), Token(i)}] = FightOutcome::kill;
          } else if(i == j) {
-            bm[{Token(i), Token(i)}] = FightOutcome::stalemate;
+            bm[{Token(i), Token(i)}] = FightOutcome::tie;
+         } else {
+            // i > j
+            bm[{Token(i), Token(j)}] = FightOutcome::kill;
          }
       }
       if(std::set{0, 11, 99}.contains(i)) {
@@ -45,6 +47,8 @@ std::map< std::array< Token, 2 >, FightOutcome > default_battlematrix()
          bm[{Token(i), Token::bomb}] = FightOutcome::death;
       }
    }
+   // the spy kills the marshall on attack
+   bm[{Token::spy, Token::marshall}] = FightOutcome::kill;
    return bm;
 }
 

@@ -74,19 +74,28 @@ TEST_F(MinimalState, apply_action)
    // move marshall onto enemy scout -> fight and win
    state.apply_action({{2, 1}, {3, 1}});
 
-         std::cout << state.to_string();
    piece = state.board()[{3, 1}].value();
    EXPECT_THROW((state.board()[{2, 1}].value()), std::bad_optional_access);
    EXPECT_EQ(piece.position(), Position(3, 1));
    EXPECT_EQ(piece.token(), Token::marshall);
 
    // move marshall onto enemy bomb -> fight and die
+   auto state_copy = state.clone();
    state.apply_action({{3, 1}, {3, 2}});
 
    EXPECT_THROW((state.board()[{3, 1}].value()), std::bad_optional_access);
    piece = state.board()[{3, 2}].value();
    EXPECT_EQ(piece.position(), Position(3, 2));
    EXPECT_EQ(piece.token(), Token::bomb);
+   EXPECT_EQ(piece.team(), Team::RED);
+
+   // move spy onto enemy marshall -> fight and win
+   state_copy->apply_action({{4, 1}, {3, 1}});
+
+   EXPECT_THROW((state_copy->board()[{4, 1}].value()), std::bad_optional_access);
+   piece = state_copy->board()[{3, 1}].value();
+   EXPECT_EQ(piece.position(), Position(3, 1));
+   EXPECT_EQ(piece.token(), Token::spy);
    EXPECT_EQ(piece.team(), Team::RED);
 }
 

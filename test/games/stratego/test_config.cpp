@@ -72,25 +72,51 @@ TEST(Config, constructor_with_setup)
          {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}}));
 }
 
-TEST(Config, battlematrix)
+TEST_P(BattlematrixParamTestF, default_battlematrix_outcomes)
 {
-   auto bm = stratego::default_battlematrix();
-   EXPECT_EQ((bm[{Token::marshall, Token::scout}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::scout, Token::marshall}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::bomb, Token::marshall}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::marshall, Token::bomb}]), FightOutcome::death);
-   EXPECT_EQ((bm[{Token::scout, Token::spy}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::major, Token::spy}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::lieutenant, Token::spy}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::spy, Token::marshall}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::marshall, Token::spy}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::colonel, Token::flag}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::general, Token::flag}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::captain, Token::flag}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::colonel, Token::major}]), FightOutcome::kill);
-   EXPECT_EQ((bm[{Token::colonel, Token::general}]), FightOutcome::death);
-   EXPECT_EQ((bm[{Token::colonel, Token::general}]), FightOutcome::death);
+   auto [attacker, defender, outcome] = GetParam();
+   LOGD2(
+      "Observed outcome for [" + token_name(attacker) + ", " + token_name(defender) + "] = ",
+      fightoutcome_name(bm[{attacker, defender}]));
+   LOGD2(
+      "Expected outcome for [" + token_name(attacker) + ", " + token_name(defender) + "] = ",
+      fightoutcome_name(outcome));
+   EXPECT_EQ((bm[{attacker, defender}]), outcome);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+   default_battlematrix_tests,
+   BattlematrixParamTestF,
+   ::testing::Values(
+      std::tuple(Token::marshall, Token::scout, FightOutcome::kill),
+      std::tuple(Token::scout, Token::marshall, FightOutcome::death),
+      std::tuple(Token::bomb, Token::marshall, FightOutcome::kill),
+      std::tuple(Token::marshall, Token::bomb, FightOutcome::death),
+      std::tuple(Token::scout, Token::spy, FightOutcome::kill),
+      std::tuple(Token::major, Token::spy, FightOutcome::kill),
+      std::tuple(Token::marshall, Token::spy, FightOutcome::kill),
+      std::tuple(Token::captain, Token::spy, FightOutcome::kill),
+      std::tuple(Token::spy, Token::marshall, FightOutcome::kill),
+      std::tuple(Token::spy, Token::captain, FightOutcome::death),
+      std::tuple(Token::spy, Token::major, FightOutcome::death),
+      std::tuple(Token::spy, Token::colonel, FightOutcome::death),
+      std::tuple(Token::spy, Token::lieutenant, FightOutcome::death),
+      std::tuple(Token::spy, Token::scout, FightOutcome::death),
+      std::tuple(Token::spy, Token::general, FightOutcome::death),
+      std::tuple(Token::colonel, Token::major, FightOutcome::kill),
+      std::tuple(Token::colonel, Token::captain, FightOutcome::kill),
+      std::tuple(Token::lieutenant, Token::captain, FightOutcome::death),
+         std::tuple(Token::colonel, Token::general, FightOutcome::death),
+      std::tuple(Token::lieutenant, Token::bomb, FightOutcome::death),
+      std::tuple(Token::captain, Token::bomb, FightOutcome::death),
+      std::tuple(Token::spy, Token::bomb, FightOutcome::death),
+      std::tuple(Token::major, Token::bomb, FightOutcome::death),
+      std::tuple(Token::marshall, Token::bomb, FightOutcome::death),
+      std::tuple(Token::scout, Token::bomb, FightOutcome::death),
+      std::tuple(Token::miner, Token::bomb, FightOutcome::kill),
+      std::tuple(Token::general, Token::bomb, FightOutcome::death)
+      ));
+
 
 TEST(Config, constructor_custom_dims_with_setup_small)
 {

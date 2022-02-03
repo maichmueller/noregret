@@ -62,24 +62,27 @@ FightOutcome Logic::handle_fight(
 {
    auto &board = state.board();
    // uncover participant pieces
-   attacker.flag_hidden(true);
-   defender.flag_hidden(true);
+   attacker.flag_hidden(false);
+   defender.flag_hidden(false);
    auto outcome = fight(state.config(), attacker, defender);
    switch(outcome) {
       case FightOutcome::kill: {
          state.to_graveyard(defender);
          update_board(board, attacker.position());
          update_board(board, defender.position(), attacker);
+         break;
       }
       case FightOutcome::death: {
          state.to_graveyard(attacker);
          update_board(board, attacker.position());
+         break;
       }
-      case FightOutcome::stalemate: {
+      case FightOutcome::tie: {
          state.to_graveyard(attacker);
          state.to_graveyard(defender);
          update_board(board, attacker.position());
          update_board(board, defender.position());
+         break;
       }
    }
    return outcome;

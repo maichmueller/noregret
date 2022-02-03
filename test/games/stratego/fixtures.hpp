@@ -14,7 +14,7 @@ class MinimalConfig: public ::testing::Test {
    std::map< Position, Token > setup1;
    Config cfg;
 
-   MinimalConfig() : setup0(),setup1(), cfg(_init_cfg()) {}
+   MinimalConfig() : setup0(), setup1(), cfg(_init_cfg()) {}
    ~MinimalConfig() override = default;
 
    Config _init_cfg()
@@ -52,7 +52,6 @@ class MinimalConfig: public ::testing::Test {
 
       return config;
    }
-
 };
 
 class MinimalState: public MinimalConfig {
@@ -61,7 +60,12 @@ class MinimalState: public MinimalConfig {
 
    MinimalState() : state(cfg) {}
    ~MinimalState() override = default;
+};
 
+class BattlematrixParamTestF:
+    public ::testing::TestWithParam< std::tuple< Token, Token, FightOutcome > > {
+  protected:
+   std::decay_t<decltype(stratego::default_battlematrix())> bm = stratego::default_battlematrix();
 };
 
 #endif  // NOR_FIXTURES_HPP

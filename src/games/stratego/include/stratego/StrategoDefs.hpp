@@ -49,22 +49,32 @@ using Board = xt::xtensor< std::optional< Piece >, 2 >;
 using Team = aze::Team;
 using Status = aze::Status;
 
-enum class FightOutcome { death = -1, kill = 1, stalemate = 0 };
+enum class FightOutcome { death = -1, kill = 1, tie = 0 };
 
 
 inline auto team_name(Team t)
 {
-   constexpr aze::utils::CEMap< Team, std::string_view, 3 > team_name_lookup = {
+   constexpr aze::utils::CEMap< Team, std::string_view, 3 > name_lookup = {
       std::pair{Team::BLUE, std::string_view("BLUE")},
       std::pair{Team::RED, std::string_view("RED")},
       std::pair{Team::NEUTRAL, std::string_view("NEUTRAL")},
    };
-   return std::string(team_name_lookup.at(t));
+   return std::string(name_lookup.at(t));
+}
+
+inline auto fightoutcome_name(FightOutcome t)
+{
+   constexpr aze::utils::CEMap< FightOutcome, std::string_view, 3 > name_lookup = {
+      std::pair{FightOutcome::kill, std::string_view("kill")},
+      std::pair{FightOutcome::death, std::string_view("death")},
+      std::pair{FightOutcome::tie, std::string_view("tie")},
+   };
+   return std::string(name_lookup.at(t));
 }
 
 inline auto token_name(Token t)
 {
-   constexpr aze::utils::CEMap< Token, std::string_view, 13 > token_name_lookup = {
+   constexpr aze::utils::CEMap< Token, std::string_view, 13 > name_lookup = {
       std::pair{Token::flag, std::string_view("Flag")},
       std::pair{Token::spy, std::string_view("spy")},
       std::pair{Token::scout, std::string_view("scout")},
@@ -79,7 +89,7 @@ inline auto token_name(Token t)
       std::pair{Token::bomb, std::string_view("bomb")},
       std::pair{Token::hole, std::string_view("hole")},
    };
-   return std::string(token_name_lookup.at(t));
+   return std::string(name_lookup.at(t));
 }
 
 inline auto& operator<<(std::ostream& os, Token t)
