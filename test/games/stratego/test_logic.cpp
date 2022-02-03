@@ -30,28 +30,33 @@ TEST_F(MinimalState, action_is_valid)
    // cant step over pieces
    EXPECT_FALSE(state.logic()->is_valid(state, Action{{3, 1}, {0, 1}}, Team::RED));
 }
-
-template < typename T >
-struct eq {
+auto sorter = [](auto flattable1, auto flattable2) {
+   std::array< int, 2 > reduces{0, 0};
+   std::array both{flattable1.flatten(), flattable2.flatten()};
+   for(unsigned int i = 0; i <= 2; ++i) {
+      int factor = 1;
+      for(auto val = both[i].rbegin(); val != both[i].rend(); val++) {
+         reduces[i] += *val * factor;
+         factor *= 10;
+      }
+   }
+   return reduces[0] <= reduces[1];
+};
+template < typename T, typename Sorter = decltype(sorter) >
+struct sorted {
    T value;
-   eq(T val) : value(val) {}
-   bool operator==(const eq& actions2) const
+   explicit sorted(T val, Sorter sort = Sorter()) : value(val)
    {
-      auto pos_sorter = [](const Position& pos1, const Position& pos2) {
-         if(pos1[0] == pos2[0]) {
-            return pos1[1] <= pos2[1];
-         } else {
-            return pos1[0] < pos2[0];
-         }
-      };
-      auto sorter = [&](const Action& act1, const Action& act2) {
-         if(act1[0] == act2[0]) {
-            return pos_sorter(act1[1], act2[1]);
-         } else {
-            return pos_sorter(act1[0], act2[0]);
-         }
-      };
-      return cmp_equal_rngs(value, actions2.value, sorter, sorter);
+      std::sort(value.begin(), value.end(), sort);
+   }
+};
+template < typename T, typename Sorter = decltype(sorter) >
+struct eq {
+   sorted< T > sorted_elem;
+   eq(T val, Sorter sort = Sorter()) : sorted_elem(val, sort) {}
+   bool operator==(const eq& other) const
+   {
+      return cmp_equal_rngs(sorted_elem.value, other.sorted_elem.value);
    };
 };
 
@@ -65,69 +70,80 @@ TEST_F(MinimalState, apply_action)
    auto& piece = state.board()[{2, 1}].value();
    EXPECT_EQ(piece.position(), Position(2, 1));
    EXPECT_EQ(piece.token(), Token::marshall);
+
+   // move marshall onto enemy scout -> fight and win
+   state.apply_action({{2, 1}, {3, 1}});
+
+         std::cout << state.to_string();
+   piece = state.board()[{3, 1}].value();
+   EXPECT_THROW((state.board()[{2, 1}].value()), std::bad_optional_access);
+   EXPECT_EQ(piece.position(), Position(3, 1));
+   EXPECT_EQ(piece.token(), Token::marshall);
+
+   // move marshall onto enemy bomb -> fight and die
+   state.apply_action({{3, 1}, {3, 2}});
+
+   EXPECT_THROW((state.board()[{3, 1}].value()), std::bad_optional_access);
+   piece = state.board()[{3, 2}].value();
+   EXPECT_EQ(piece.position(), Position(3, 2));
+   EXPECT_EQ(piece.token(), Token::bomb);
+   EXPECT_EQ(piece.team(), Team::RED);
 }
 
 TEST_F(MinimalState, valid_action_list)
 {
    //   std::cout << state.to_string();
 
-   EXPECT_EQ(
-      eq(state.logic()->valid_actions(state, Team::BLUE)),
-      eq(std::vector< Action >{{{1, 1}, {2, 1}}, {{1, 4}, {2, 4}}}));
-   EXPECT_EQ(
-      eq(state.logic()->valid_actions(state, Team::RED)),
-      eq(std::vector< Action >{
-         {{3, 0}, {1, 0}},
-         {{3, 0}, {2, 0}},
-         {{3, 1}, {1, 1}},
-         {{3, 1}, {2, 1}},
-         {{3, 3}, {1, 3}},
-         {{3, 3}, {2, 3}},
-         {{3, 4}, {2, 4}}}));
+   std::map< Team, std::vector< Action > > expected;
+   expected[Team::BLUE] = std::vector< Action >{{{1, 1}, {2, 1}}, {{1, 4}, {2, 4}}};
+   expected[Team::RED] = std::vector< Action >{
+      {{3, 0}, {1, 0}},
+      {{3, 0}, {2, 0}},
+      {{3, 1}, {1, 1}},
+      {{3, 1}, {2, 1}},
+      {{3, 3}, {1, 3}},
+      {{3, 3}, {2, 3}},
+      {{3, 4}, {2, 4}}};
+
+   for(int i = 0; i < 2; ++i) {
+//      LOGD2(
+//         "Valid actions Team: " + team_name(Team(i)),
+//         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
+//      LOGD2(
+//         "Valid actions expected Team: " + team_name(Team(i)),
+//         aze::utils::VectorPrinter(expected[Team(i)]));
+
+      EXPECT_EQ(eq(state.logic()->valid_actions(state, Team(i))), eq(expected[Team(i)]));
+   }
 
    // move marshall one field up
    state.apply_action({{1, 1}, {2, 1}});
 
-   std::cout << state.to_string();
-   LOGD2(
-      "Valid actions blue",
-      aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team::BLUE)});
-   LOGD2(
-      "Valid actions expected blue",
-      aze::utils::VectorPrinter(std::vector< Action >{
-         {{2, 1}, {3, 1}},
-         {{2, 1}, {1, 1}},
-         {{2, 1}, {2, 0}},
-         {{1, 2}, {1, 1}},
-         {{0, 1}, {1, 1}},
-         {{1, 4}, {2, 4}}}));
-   EXPECT_EQ(
-      eq(state.logic()->valid_actions(state, Team::BLUE)),
-      eq(std::vector< Action >{
-         {{2, 1}, {3, 1}},
-         {{2, 1}, {1, 1}},
-         {{2, 1}, {2, 0}},
-         {{0, 1}, {1, 1}},
-         {{1, 4}, {2, 4}}}));
-   LOGD2(
-      "Valid actions red",
-      aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team::RED)});
-   LOGD2(
-      "Valid actions expected red",
-      aze::utils::VectorPrinter(std::vector< Action >{
-         {{3, 0}, {1, 0}},
-         {{3, 0}, {2, 0}},
-         {{3, 1}, {2, 1}},
-         {{3, 3}, {1, 3}},
-         {{3, 3}, {2, 3}},
-         {{3, 4}, {2, 4}}}));
-   EXPECT_EQ(
-      eq(state.logic()->valid_actions(state, Team::RED)),
-      eq(std::vector< Action >{
-         {{3, 0}, {1, 0}},
-         {{3, 0}, {2, 0}},
-         {{3, 1}, {2, 1}},
-         {{3, 3}, {1, 3}},
-         {{3, 3}, {2, 3}},
-         {{3, 4}, {2, 4}}}));
+//   std::cout << state.to_string();
+
+   expected[Team::BLUE] = std::vector< Action >{
+      {{2, 1}, {3, 1}},
+      {{2, 1}, {1, 1}},
+      {{1, 2}, {1, 1}},
+      {{0, 1}, {1, 1}},
+      {{2, 1}, {2, 0}},
+      {{1, 4}, {2, 4}}};
+   expected[Team::RED] = std::vector< Action >{
+      {{3, 0}, {1, 0}},
+      {{3, 0}, {2, 0}},
+      {{3, 1}, {2, 1}},
+      {{3, 3}, {1, 3}},
+      {{3, 3}, {2, 3}},
+      {{3, 4}, {2, 4}}};
+
+   for(int i = 0; i < 2; ++i) {
+//      LOGD2(
+//         "Valid actions Team: " + team_name(Team(i)),
+//         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
+//      LOGD2(
+//         "Valid actions expected Team: " + team_name(Team(i)),
+//         aze::utils::VectorPrinter(expected[Team(i)]));
+
+      EXPECT_EQ(eq(state.logic()->valid_actions(state, Team(i))), eq(expected[Team(i)]));
+   }
 }

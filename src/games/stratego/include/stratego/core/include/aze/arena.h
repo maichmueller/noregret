@@ -9,12 +9,11 @@
 namespace aze::arena {
 
 struct StatTrack {
-   int wins;
-   int draws;
-   int losses;
-   std::vector< int > turn_counts;
+   int wins{0};
+   int draws{0};
+   int losses{0};
+   std::vector< int > turn_counts{};
 
-   StatTrack() : wins(0), draws(0), losses(0), turn_counts(0) {}
    inline void add_win(int turns = 0)
    {
       wins += 1;
@@ -64,8 +63,11 @@ inline const char *get_typename(T &object)
 }
 
 template < typename GameType >
-std::tuple< StatTrack, StatTrack >
-inline pit(GameType &game, int num_sims, bool show_game, bool save_results)
+std::tuple< StatTrack, StatTrack > inline pit(
+   GameType &game,
+   int num_sims,
+   bool show_game,
+   int print_every_n_sim)
 {
    StatTrack stats0;
    StatTrack stats1;
@@ -87,12 +89,13 @@ inline pit(GameType &game, int num_sims, bool show_game, bool save_results)
          stats1.add_draw();
       }
       LOGD2("After game played", game.state()->to_string(false, false));
-      if(sim % 10 == 0)
+      if(sim % print_every_n_sim == 0) {
          print_round_results(
             sim, num_sims, *game.get_agent_0(), *game.get_agent_1(), stats0, stats1);
+      }
    }
    std::cout << std::endl;
    return std::make_tuple(stats0, stats1);
 }
 
-}  // namespace aze
+}  // namespace aze::arena

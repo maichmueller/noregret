@@ -72,6 +72,26 @@ TEST(Config, constructor_with_setup)
          {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}}));
 }
 
+TEST(Config, battlematrix)
+{
+   auto bm = stratego::default_battlematrix();
+   EXPECT_EQ((bm[{Token::marshall, Token::scout}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::scout, Token::marshall}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::bomb, Token::marshall}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::marshall, Token::bomb}]), FightOutcome::death);
+   EXPECT_EQ((bm[{Token::scout, Token::spy}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::major, Token::spy}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::lieutenant, Token::spy}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::spy, Token::marshall}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::marshall, Token::spy}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::colonel, Token::flag}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::general, Token::flag}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::captain, Token::flag}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::colonel, Token::major}]), FightOutcome::kill);
+   EXPECT_EQ((bm[{Token::colonel, Token::general}]), FightOutcome::death);
+   EXPECT_EQ((bm[{Token::colonel, Token::general}]), FightOutcome::death);
+}
+
 TEST(Config, constructor_custom_dims_with_setup_small)
 {
    std::map< Position, Token > setup0;

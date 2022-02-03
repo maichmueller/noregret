@@ -85,18 +85,17 @@ inline auto create_rng(RNG rng)
    return rng;
 }
 
-template < typename Container>
+template < typename Container >
 auto choose(const Container& cont, RNG& rng)
 {
    return cont[std::uniform_int_distribution(0ul, cont.size())(rng)];
 }
-template < typename Container>
+template < typename Container >
 auto choose(const Container& cont)
 {
    auto dev = std::random_device{};
    return cont[std::uniform_int_distribution(0ul, cont.size())(dev)];
 }
-
 
 }  // namespace random
 
@@ -142,132 +141,6 @@ inline std::string operator*(std::string str, std::size_t n)
 }
 
 template < typename BoardType, typename PieceType >
-std::string
-board_str_rep(const BoardType& board, bool flip_board = false, bool hide_unknowns = false)
-{
-   int H_SIZE_PER_PIECE = 9;
-   int V_SIZE_PER_PIECE = 3;
-   // the space needed to assign row indices to the rows and to add a splitting
-   // bar "|"
-   int row_ind_space = 4;
-
-   int mid = V_SIZE_PER_PIECE / 2;
-
-   int dim = board.get_board_len();
-
-   if(dim != 5 && dim != 7 && dim != 10)
-      throw std::invalid_argument("Board dimension not supported.");
-
-   // piece string lambda function that returns a str of the sort
-   // "-1 \n
-   // 10.1 \n
-   //   1"
-   auto create_piece_str = [&H_SIZE_PER_PIECE, &mid, &flip_board, &hide_unknowns](
-                              const PieceType& piece, int line) {
-      if(piece.is_null())
-         return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
-      std::string reset = "\x1B[0m";
-      std::string color = "\x1B[44m";  // blue by default (for team 1)
-      if(piece.team() == 99)
-         return "\x1B[30;47m" + center("", H_SIZE_PER_PIECE, " ") + "\x1B[0m";
-      else if(piece.team(flip_board) == 0) {
-         color = "\x1B[41m";  // background red, text "white"
-      }
-      if(line == mid - 1) {
-         // hidden info line
-         std::string h = piece.flag_hidden() ? "?" : " ";
-         // return color + center(h, H_SIZE_PER_PIECE, " ") + reset;
-         return color + center(h, H_SIZE_PER_PIECE, " ") + reset;
-      } else if(line == mid) {
-         // type and version info line
-         if(hide_unknowns && piece.flag_hidden() && piece.team(flip_board)) {
-            return color + std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ') + reset;
-         }
-         //                std::cout << "PieceType: type " << piece.token() <<
-         //                "." << piece.get_version() << " at (" <<
-         //                                                                                                          piece.get_position()[0] << ", " << piece.position()[1] <<") \n";
-         return color
-                + center(
-                   std::to_string(piece.get_type()) + '.' + std::to_string(piece.get_version()),
-                   H_SIZE_PER_PIECE,
-                   " ")
-                + reset;
-      } else if(line == mid + 1)
-         // m_team info line
-         // return color + center(std::to_string(piece.team(flip_board)),
-         // H_SIZE_PER_PIECE, " ") + reset;
-         return color + center("", H_SIZE_PER_PIECE, " ") + reset;
-      else
-         // empty line
-         return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
-   };
-
-   std::stringstream board_print;
-   board_print << "\n";
-   // column width for the row index plus vertical dash
-   board_print << std::string(static_cast< unsigned long >(row_ind_space), ' ');
-   // print the column index rows
-   for(int i = 0; i < dim; ++i) {
-      board_print << center(std::to_string(i), H_SIZE_PER_PIECE + 1, " ");
-   }
-   board_print << "\n";
-
-   std::string init_space = std::string(static_cast< unsigned long >(row_ind_space), ' ');
-   std::string h_border = std::string(
-      static_cast< unsigned long >(dim * (H_SIZE_PER_PIECE + 1)), '-');
-
-   board_print << init_space << h_border << "\n";
-   std::string init = board_print.str();
-   sptr< PieceType > curr_piece;
-
-   // row means row of the board. not actual rows of console output.
-   for(int row = 0; row < dim; ++row) {
-      // per piece we have V_SIZE_PER_PIECE many lines to fill consecutively.
-      // Iterate over every column and append the new segment to the right line.
-      std::vector< std::stringstream > line_streams(static_cast< unsigned int >(V_SIZE_PER_PIECE));
-
-      for(int col = 0; col < dim; ++col) {
-         if(flip_board) {
-            curr_piece = board[{dim - 1 - row, dim - 1 - col}];
-         } else
-            curr_piece = board[{row, col}];
-
-         for(int i = 0; i < V_SIZE_PER_PIECE; ++i) {
-            std::stringstream curr_stream;
-
-            if(i == mid - 1 || i == mid + 1) {
-               if(col == 0) {
-                  curr_stream << std::string(static_cast< unsigned long >(row_ind_space), ' ');
-               }
-               curr_stream << "|" << create_piece_str(*curr_piece, i);
-            } else if(i == mid) {
-               if(col == 0) {
-                  if(row < 10)
-                     curr_stream << " " << row;
-                  else
-                     curr_stream << row;
-
-                  curr_stream << std::string(static_cast< unsigned long >(row_ind_space - 2), ' ')
-                              << "|";
-               }
-               curr_stream << create_piece_str(*curr_piece, i);
-               if(col != dim - 1)
-                  curr_stream << "|";
-            }
-            // extend the current line i by the new information
-            line_streams[i] << curr_stream.str();
-         }
-      }
-      for(auto& stream : line_streams) {
-         board_print << stream.str() << "|\n";
-      }
-      board_print << init_space << h_border << "\n";
-   }
-
-   return board_print.str();
-}
-
-template < typename BoardType, typename PieceType >
 inline void print_board(const BoardType& board, bool flip_board = false, bool hide_unknowns = false)
 {
    std::string output = board_str_rep< BoardType, PieceType >(board, flip_board, hide_unknowns);
@@ -284,6 +157,12 @@ inline std::map< T, unsigned int > counter(const std::vector< T >& vals)
    }
 
    return rv;
+}
+
+template < typename T, size_t... Is >
+inline constexpr auto make_enum_vec(std::index_sequence< Is... >)
+{
+   return std::vector{T(Is)...};
 }
 
 template < typename T, typename Allocator, typename Accessor >

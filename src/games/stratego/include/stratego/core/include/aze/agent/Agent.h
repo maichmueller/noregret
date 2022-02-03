@@ -14,17 +14,21 @@ class Agent {
    using state_type = StateType;
    using action_type = typename state_type::action_type;
 
-  protected:
-   Team m_team;
-
-  public:
    explicit Agent(Team team) : m_team(team) {}
-
+   Agent(const Agent &) = default;
+   Agent(Agent &&) noexcept = default;
+   Agent &operator=(const Agent &) = default;
+   Agent &operator=(Agent &&) noexcept = default;
    virtual ~Agent() = default;
 
    virtual action_type decide_action(
       const state_type &state,
       const std::vector< action_type > &poss_moves) = 0;
+
+   [[nodiscard]] auto team() const { return m_team; }
+
+  private:
+   Team m_team;
 };
 
 template < class StateType >
@@ -39,8 +43,9 @@ class RandomAgent: public Agent< StateType > {
    {
    }
 
-   action_type decide_action(const StateType &state, const std::vector< action_type > &poss_moves)
-      override
+   action_type decide_action(
+      const StateType & /*state*/,
+      const std::vector< action_type > &poss_moves) override
    {
       std::array< action_type, 1 > selected_move{action_type{{0, 0}, {0, 0}}};
       std::sample(poss_moves.begin(), poss_moves.end(), selected_move.begin(), 1, mt);

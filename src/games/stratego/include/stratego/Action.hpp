@@ -29,8 +29,12 @@ class Action {
    const Position& operator[](unsigned int index) const { return from_to[index]; }
    Position& operator[](unsigned int index) { return from_to[index]; }
 
-   [[nodiscard]] auto from() const { return (*this)[0]; }
-   [[nodiscard]] auto to() const { return (*this)[1]; }
+   [[nodiscard]] auto inline from() const { return (*this)[0]; }
+   [[nodiscard]] auto inline to() const { return (*this)[1]; }
+   [[nodiscard]] auto inline flatten() const
+   {
+      return std::array{from()[0], from()[1], to()[0], to()[1]};
+   }
 
    iterator begin() { return from_to.begin(); }
    [[nodiscard]] const_iterator begin() const { return from_to.begin(); }

@@ -44,15 +44,15 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
          // piece is a hole -> return a gray colored field
          return "\x1B[30;47m" + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
 #endif
-      }
-      else if(piece.team() == Team::RED) {
+      } else if(piece.team() == Team::RED) {
          color = RED;  // background red, text "white"
       }
       if(line == mid - 1) {
          // hidden info line
-         std::string h = piece.flag_hidden() ? "?" : " ";
-         return color + aze::utils::center(h, H_SIZE_PER_PIECE, " ") + RESET;
-      } else if(line == mid) {
+         std::string hidden = piece.flag_hidden() ? std::string("?") : std::string(" ");
+         return color + aze::utils::center(hidden, H_SIZE_PER_PIECE, " ") + RESET;
+      }
+      if(line == mid) {
          // type and version info line
          if(hide_unknowns && piece.flag_hidden()) {
             return color + std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ') + RESET;
@@ -62,7 +62,8 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
                 + aze::utils::center(
                    std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " ")
                 + RESET;
-      } else if(line == mid + 1) {
+      }
+      if(line == mid + 1) {
 #if defined(_MSC_VER)
          // team info line
          return aze::utils::center(
@@ -71,9 +72,10 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
          // for non msvc we have colored box to work for us
          return color + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
 #endif
-      } else
+      } else {
          // empty line
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
+      }
    };
 
    std::stringstream board_print;
@@ -89,7 +91,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
 
    // row means row of the board. not actual rows of console output.
    // iterate backwards through the rows for correct display
-   for(int row = dim_y - 1; row > -1; --row) {
+   for(int row = static_cast< int >(dim_y - 1); row > -1; --row) {
       // per piece we have V_SIZE_PER_PIECE many lines to fill consecutively.
       // Iterate over every column and append the new segment to the right line.
       std::vector< std::stringstream > line_streams(static_cast< unsigned int >(V_SIZE_PER_PIECE));
@@ -97,8 +99,9 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
       for(int col = 0; col < dim_x; ++col) {
          if(team == aze::Team::RED) {
             curr_piece = board(dim_x - 1 - row, dim_y - 1 - col);
-         } else
+         } else {
             curr_piece = board(row, col);
+         }
 
          for(int i = 0; i < V_SIZE_PER_PIECE; ++i) {
             std::stringstream curr_stream;
@@ -110,17 +113,19 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
                curr_stream << VERT_BAR << create_piece_str(curr_piece, i);
             } else if(i == mid) {
                if(col == 0) {
-                  if(row < 10)
+                  if(row < 10) {
                      curr_stream << " " << row;
-                  else
+                  } else {
                      curr_stream << row;
+}
 
                   curr_stream << std::string(static_cast< unsigned long >(row_ind_space - 2), ' ')
                               << VERT_BAR;
                }
                curr_stream << create_piece_str(curr_piece, i);
-               if(col != dim_x - 1)
+               if(col != dim_x - 1) {
                   curr_stream << VERT_BAR;
+}
             }
             // extend the current line i by the new information
             line_streams[i] << curr_stream.str();

@@ -13,12 +13,6 @@
 
 namespace stratego {
 
-template < size_t... Is >
-inline constexpr auto make_tokens(std::index_sequence< Is... >)
-{
-   return std::vector{Token(Is)...};
-}
-
 auto default_move_ranges() -> std::map< Token, std::function< bool(size_t) > >;
 
 auto default_battlematrix() -> std::map< std::array< Token, 2 >, FightOutcome >;
@@ -39,49 +33,6 @@ auto _check_alignment(
    const std::vector< Position >& positions,
    const std::map< Position, Token >& setup) -> const std::vector< Position >&;
 
-// template < class StateType, class LogicType, class Derived, size_t n_teams >
-// std::vector< typename Game< StateType, LogicType, Derived, n_teams >::sptr_piece_type >
-// Game< StateType, LogicType, Derived, n_teams >::extract_pieces_from_setup(
-//    const std::map< position_type, token_type > &setup,
-//    Team team)
-//{
-//    using val_type = typename std::map< position_type, token_type >::value_type;
-//    std::vector< sptr_piece_type > pc_vec;
-//    pc_vec.reserve(setup.size());
-//    std::transform(
-//       setup.begin(),
-//       setup.end(),
-//       std::back_inserter(pc_vec),
-//       [&](const val_type &pos_token) -> piece_type {
-//          return std::make_shared< piece_type >(pos_token.first, pos_token.second, team);
-//       });
-//    return pc_vec;
-// }
-//
-// template < class StateType, class LogicType, class Derived, size_t n_teams >
-// std::vector< typename Game< StateType, LogicType, Derived, n_teams >::sptr_piece_type >
-// Game< StateType, LogicType, Derived, n_teams >::extract_pieces_from_setup(
-//    const std::map< position_type, sptr_piece_type > &setup,
-//    Team team)
-//{
-//    using val_type = typename std::map< position_type, sptr_piece_type >::value_type;
-//    std::vector< sptr_piece_type > pc_vec;
-//    pc_vec.reserve(setup.size());
-//    std::transform(
-//       setup.begin(),
-//       setup.end(),
-//       std::back_inserter(pc_vec),
-//       [&](const val_type &pos_piecesptr) -> sptr_piece_type {
-//          auto piece_sptr = pos_piecesptr.second;
-//          if(piece_sptr->team() != team)
-//             throw std::logic_error(
-//                "Pieces of team " + std::to_string(static_cast< int >(team))
-//                + " were expected, but received piece of team "
-//                + std::to_string(piece_sptr->team()));
-//          return piece_sptr;
-//       });
-//    return pc_vec;
-// }
 
 struct Config {
    using setup_t = std::map< Position, Token >;
@@ -138,7 +89,7 @@ struct Config {
       return {std::pair{aze::Team::BLUE, std::nullopt}, std::pair{aze::Team::RED, std::nullopt}};
    }
 
-   Config(
+   explicit Config(
       aze::Team starting_team_,
       bool fixed_starting_team_ = true,
       std::variant< size_t, ranges::span< size_t, 2 > > game_dims_ = size_t(5),

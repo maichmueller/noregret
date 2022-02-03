@@ -3,6 +3,8 @@
 
 #include <range/v3/all.hpp>
 
+#include "stratego/StrategoDefs.hpp"
+
 namespace stratego {
 
 std::map< Token, std::function< bool(size_t) > > default_move_ranges()
@@ -48,7 +50,6 @@ std::map< std::array< Token, 2 >, FightOutcome > default_battlematrix()
 
 std::map< Position, Token > default_setup(size_t game_dims, aze::Team team)
 {
-   using Team = aze::Team;
    std::map< Position, Token > setup;
 
    // TODO: Fill
@@ -66,19 +67,28 @@ std::map< Position, Token > default_setup(ranges::span< size_t, 2 > game_dims, a
 
 std::vector< Position > default_holes(size_t game_dims)
 {
-   if(game_dims == 5)
+   if(game_dims == DefinedBoardSizes::small) {
       return {{2, 2}};
-   else if(game_dims == 7)
+   }
+   if(game_dims == DefinedBoardSizes::medium) {
       return {{3, 1}, {3, 5}};
-   else if(game_dims == 10)
+   }
+   if(game_dims == DefinedBoardSizes::large) {
       return {{4, 2}, {5, 2}, {4, 3}, {5, 3}, {4, 6}, {5, 6}, {4, 7}, {5, 7}};
-   else
-      throw std::invalid_argument(
-         "'dimension' not in {5, 7, 10}. User has to provide custom hole positions.");
+   }
+   std::stringstream ss;
+   ss << "'dimension' not in ";
+   ss << aze::utils::VectorPrinter{
+      std::vector{DefinedBoardSizes::small, DefinedBoardSizes::medium, DefinedBoardSizes::large}};
+   ss << ". User has to provide custom hole positions.";
+   throw std::invalid_argument(ss.str());
 }
 std::vector< Position > default_holes(ranges::span< size_t, 2 > game_dims)
 {
-   if(game_dims[0] == game_dims[1] and std::set< size_t >{5, 7, 10}.contains(game_dims[0])) {
+   if(game_dims[0] == game_dims[1]
+      and std::set<
+             size_t >{DefinedBoardSizes::small, DefinedBoardSizes::medium, DefinedBoardSizes::large}
+             .contains(game_dims[0])) {
       return default_holes(game_dims[0]);
    } else {
       throw std::invalid_argument(
@@ -88,21 +98,22 @@ std::vector< Position > default_holes(ranges::span< size_t, 2 > game_dims)
 
 std::map< aze::Team, std::vector< Token > > token_vector(size_t game_dim)
 {
+   using aze::utils::make_enum_vec;
    switch(game_dim) {
-      case 5: {
+      case DefinedBoardSizes::small: {
          using seq = std::index_sequence< 0, 1, 2, 2, 2, 3, 3, 10, 11, 11 >;
          return {
-            std::pair{aze::Team::BLUE, make_tokens(seq())},
-            std::pair{aze::Team::RED, make_tokens(seq())}};
+            std::pair{aze::Team::BLUE, make_enum_vec< Token >(seq())},
+            std::pair{aze::Team::RED, make_enum_vec< Token >(seq())}};
       }
-      case 7: {
+      case DefinedBoardSizes::medium: {
          using seq = std::
             index_sequence< 0, 1, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 10, 11, 11, 11, 11 >;
          return {
-            std::pair{aze::Team::BLUE, make_tokens(seq())},
-            std::pair{aze::Team::RED, make_tokens(seq())}};
+            std::pair{aze::Team::BLUE, make_enum_vec< Token >(seq())},
+            std::pair{aze::Team::RED, make_enum_vec< Token >(seq())}};
       }
-      case 10: {
+      case DefinedBoardSizes::large: {
          using seq = std::index_sequence<
             0,
             1,
@@ -145,8 +156,8 @@ std::map< aze::Team, std::vector< Token > > token_vector(size_t game_dim)
             11,
             11 >;
          return {
-            std::pair{aze::Team::BLUE, make_tokens(seq())},
-            std::pair{aze::Team::RED, make_tokens(seq())}};
+            std::pair{aze::Team::BLUE, make_enum_vec< Token >(seq())},
+            std::pair{aze::Team::RED, make_enum_vec< Token >(seq())}};
       }
       default:
          throw std::invalid_argument("Cannot provide tokenset for non-default game dimensions.");
@@ -190,7 +201,12 @@ std::vector< Position > default_start_positions(size_t game_dim, aze::Team team)
                     {9, 0}, {9, 1}, {9, 2}, {9, 3}, {9, 4}, {9, 5}, {9, 6}, {9, 7}, {9, 8}, {9, 9}};
       }
       default: {
-         throw std::invalid_argument("'shape' not in {5, 7, 10}.");
+         std::stringstream ss;
+         ss << "'shape' not in ";
+         ss << aze::utils::VectorPrinter{std::vector{
+            DefinedBoardSizes::small, DefinedBoardSizes::medium, DefinedBoardSizes::large}};
+         ss << ".";
+         throw std::invalid_argument(ss.str());
       }
    }
 }
