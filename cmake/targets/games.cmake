@@ -26,7 +26,7 @@ set(
         main.cpp
         Game.cpp
         Config.cpp
-        utils.cpp
+        Utils.cpp
         State.cpp
         Logic.cpp
 )

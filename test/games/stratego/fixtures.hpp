@@ -62,10 +62,36 @@ class MinimalState: public MinimalConfig {
    ~MinimalState() override = default;
 };
 
-class BattlematrixParamTestF:
+class BattlematrixParamsF:
     public ::testing::TestWithParam< std::tuple< Token, Token, FightOutcome > > {
   protected:
-   std::decay_t<decltype(stratego::default_battlematrix())> bm = stratego::default_battlematrix();
+   std::decay_t< decltype(stratego::default_battlematrix()) > bm = stratego::default_battlematrix();
+};
+
+class CheckTerminalParamsF:
+    public ::testing::TestWithParam< std::tuple<
+       int,
+       std::array< size_t, 2 >,
+       std::map< Team, std::optional< Config::setup_t > >,
+       Status > > {
+  protected:
+   Team starting_team = Team::BLUE;
+   bool fixed_starting_team = true;
+   size_t max_turn_counts = 1000;
+   bool fixed_setups = true;
+};
+
+class StateConstructorParamsF:
+    public ::testing::TestWithParam< std::tuple<
+       std::array< size_t, 2 >,  // game dims
+       std::vector< Position >,  // holes
+       std::map< Team, std::optional< Config::setup_t > >  // setups
+       > > {
+  protected:
+   Team starting_team = Team::BLUE;
+   bool fixed_starting_team = true;
+   size_t max_turn_counts = 1000;
+   bool fixed_setups = true;
 };
 
 #endif  // NOR_FIXTURES_HPP

@@ -9,7 +9,7 @@
 
 #include "StrategoDefs.hpp"
 #include "aze/aze.h"
-#include "utils.hpp"
+#include "Utils.hpp"
 
 namespace stratego {
 

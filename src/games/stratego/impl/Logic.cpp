@@ -189,8 +189,8 @@ bool Logic::has_valid_actions(const State &state, Team team)
             // the position we are dealing with
             auto pos = piece.position();
 
-            //               LOGD2("check for piece", token_name(piece.token()) + " " +
-            //               team_name(piece.team()));
+            //               LOGD2("check for piece", utils::enum_name(piece.token()) + " " +
+            //               utils::enum_name(piece.team()));
             int token_move_range = 0;
             auto mr_tester = state.config().move_ranges.at(piece.token());
             for(int distance :
@@ -274,6 +274,21 @@ Board Logic::create_empty_board(const Config &config)
       }
    }
    return b;
+}
+
+std::map< Team, std::map< Position, Token > > Logic::extract_setup(const Board &board)
+{
+   std::map< Team, std::map< Position, Token > > setup;
+   for(size_t i = 0; i < board.shape(0); i++) {
+      for(size_t j = 0; j < board.shape(1); j++) {
+         const auto &piece_opt = board[{i, j}];
+         if(piece_opt.has_value()) {
+            const auto& piece = piece_opt.value();
+            setup[piece.team()][{int(i), int(j)}] = piece.token();
+         }
+      }
+   }
+   return setup;
 }
 
 }  // namespace stratego

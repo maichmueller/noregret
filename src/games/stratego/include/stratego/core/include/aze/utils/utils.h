@@ -215,6 +215,9 @@ auto min(first f, second s)
    return f < s ? f : s;
 }
 
+template <typename T>
+concept is_enum = std::is_enum_v<T>;
+
 template < class T, class... Ts >
 struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {
 };

@@ -4,7 +4,7 @@
 #include <utility>
 
 #include "stratego/Logic.hpp"
-#include "stratego/utils.hpp"
+#include "stratego/Utils.hpp"
 
 namespace stratego {
 
@@ -32,8 +32,11 @@ State::State(Config cfg, std::optional< std::variant< size_t, aze::utils::random
       m_graveyard(),
       m_logic(std::make_shared< Logic >())
 {
+//   LOGD2("Ref State to test", to_string())
    Logic::place_holes(config(), board());
+//   LOGD2("Ref State to test", to_string())
    board() = logic()->draw_board(config(), board(), rng(), &Logic::draw_setup_uniform);
+//   LOGD2("Ref State to test", to_string())
    status(Status::ONGOING);
 }
 

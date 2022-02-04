@@ -114,6 +114,8 @@ class Logic {
       }
    }
 
+   static std::map< Team, std::map< Position, Token > > extract_setup(const Board &board);
+
    static inline void place_holes(const Config &cfg, Board &board)
    {
       for(const auto &pos : cfg.hole_positions) {

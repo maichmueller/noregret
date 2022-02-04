@@ -34,7 +34,7 @@ Status Game::run_step()
    LOGD2(
       "Possible Moves",
       aze::utils::VectorPrinter{state()->logic()->valid_actions(*state(), active_team)}); // NOLINT
-   LOGD2("Selected Action by team " + team_name(active_team), action);
+   LOGD2("Selected Action by team " + utils::enum_name(active_team), action);
 
    state()->apply_action(action);
    return state()->status();

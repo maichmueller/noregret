@@ -72,21 +72,21 @@ TEST(Config, constructor_with_setup)
          {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}}));
 }
 
-TEST_P(BattlematrixParamTestF, default_battlematrix_outcomes)
+TEST_P(BattlematrixParamsF, default_battlematrix_outcomes)
 {
    auto [attacker, defender, outcome] = GetParam();
    LOGD2(
-      "Observed outcome for [" + token_name(attacker) + ", " + token_name(defender) + "] = ",
-      fightoutcome_name(bm[{attacker, defender}]));
+      "Observed outcome for [" + utils::enum_name(attacker) + ", " + utils::enum_name(defender) + "] = ",
+      utils::enum_name(bm[{attacker, defender}]));
    LOGD2(
-      "Expected outcome for [" + token_name(attacker) + ", " + token_name(defender) + "] = ",
-      fightoutcome_name(outcome));
+      "Expected outcome for [" + utils::enum_name(attacker) + ", " + utils::enum_name(defender) + "] = ",
+      utils::enum_name(outcome));
    EXPECT_EQ((bm[{attacker, defender}]), outcome);
 }
 
 INSTANTIATE_TEST_SUITE_P(
    default_battlematrix_tests,
-   BattlematrixParamTestF,
+   BattlematrixParamsF,
    ::testing::Values(
       std::tuple(Token::marshall, Token::scout, FightOutcome::kill),
       std::tuple(Token::scout, Token::marshall, FightOutcome::death),

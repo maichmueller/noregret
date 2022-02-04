@@ -1,4 +1,4 @@
-#include "stratego/utils.hpp"
+#include "stratego/Utils.hpp"
 
 namespace stratego::utils {
 
@@ -35,6 +35,9 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
       }
       const auto &piece = piece_opt.value();
+      if(static_cast<unsigned int>(piece.token()) > 99) {
+         double x = 3;
+      }
       std::string color = BLUE;  // blue by default
       if(piece.token() == Token::hole) {
 #if defined(_MSC_VER)
@@ -144,6 +147,57 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
    }
    board_print << "\n";
    return board_print.str();
+}
+template <>
+std::string enum_name(Status e)
+{
+   constexpr aze::utils::CEMap< Status, std::string_view, 4 > name_lookup = {
+      std::pair{Status::TIE, std::string_view("TIE")},
+      std::pair{Status::WIN_RED, std::string_view("WIN_RED")},
+      std::pair{Status::WIN_BLUE, std::string_view("WIN_BLUE")},
+      std::pair{Status::ONGOING, std::string_view("ONGOING")},
+   };
+   return std::string(name_lookup.at(e));
+}
+template <>
+std::string enum_name(Team e)
+{
+   constexpr aze::utils::CEMap< Team, std::string_view, 3 > name_lookup = {
+      std::pair{Team::BLUE, std::string_view("BLUE")},
+      std::pair{Team::RED, std::string_view("RED")},
+      std::pair{Team::NEUTRAL, std::string_view("NEUTRAL")},
+   };
+   return std::string(name_lookup.at(e));
+}
+template <>
+std::string enum_name(FightOutcome e)
+{
+   constexpr aze::utils::CEMap< FightOutcome, std::string_view, 3 > name_lookup = {
+      std::pair{FightOutcome::kill, std::string_view("kill")},
+      std::pair{FightOutcome::death, std::string_view("death")},
+      std::pair{FightOutcome::tie, std::string_view("tie")},
+   };
+   return std::string(name_lookup.at(e));
+}
+template <>
+std::string enum_name(Token e)
+{
+   constexpr aze::utils::CEMap< Token, std::string_view, 13 > name_lookup = {
+      std::pair{Token::flag, std::string_view("Flag")},
+      std::pair{Token::spy, std::string_view("spy")},
+      std::pair{Token::scout, std::string_view("scout")},
+      std::pair{Token::miner, std::string_view("miner")},
+      std::pair{Token::sergeant, std::string_view("sergeant")},
+      std::pair{Token::lieutenant, std::string_view("lieutenant")},
+      std::pair{Token::captain, std::string_view("captain")},
+      std::pair{Token::major, std::string_view("major")},
+      std::pair{Token::colonel, std::string_view("colonel")},
+      std::pair{Token::general, std::string_view("general")},
+      std::pair{Token::marshall, std::string_view("marshall")},
+      std::pair{Token::bomb, std::string_view("bomb")},
+      std::pair{Token::hole, std::string_view("hole")},
+   };
+   return std::string(name_lookup.at(e));
 }
 
 }  // namespace stratego::utils

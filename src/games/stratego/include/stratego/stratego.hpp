@@ -8,6 +8,6 @@
 #include "Logic.hpp"
 #include "State.hpp"
 #include "StrategoDefs.hpp"
-#include "utils.hpp"
+#include "Utils.hpp"
 
 #endif  // NOR_STRATEGO_HPP
