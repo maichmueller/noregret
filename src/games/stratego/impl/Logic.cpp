@@ -203,8 +203,8 @@ bool Logic::has_valid_actions(const State &state, Team team)
 
             //               auto val = ranges::any_of(
             //                  _valid_vectors(pos, board.shape(), token_move_range),
-            //                  [&](const Position &vector) -> bool {
-            //                     return is_valid(state, Action{pos, pos + vector});
+            //                  [&](const Position &value) -> bool {
+            //                     return is_valid(state, Action{pos, pos + value});
             //                  });
             //               LOGD("We're here again");
             if(ranges::any_of(
@@ -289,6 +289,20 @@ std::map< Team, std::map< Position, Token > > Logic::extract_setup(const Board &
       }
    }
    return setup;
+}
+void Logic::place_holes(const Config &cfg, Board &board)
+{
+   for(const auto &pos : cfg.hole_positions) {
+      throw_if_out_of_bounds(board, pos);
+      board[pos] = Piece(Team::NEUTRAL, pos, Token::hole);
+   }
+}
+void Logic::place_setup(const std::map< Position, Token > &setup, Board &board, aze::Team team)
+{
+   for(const auto &[pos, token] : setup) {
+      throw_if_out_of_bounds(board, pos);
+      board[pos] = Piece(team, pos, token);
+   }
 }
 
 }  // namespace stratego

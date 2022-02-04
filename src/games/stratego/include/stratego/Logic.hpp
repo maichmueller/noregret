@@ -70,7 +70,7 @@ class Logic {
    }
 
    template < std::integral IntType >
-   inline bool check_bounds(const Board &board, IntType value)
+   static inline bool check_bounds(const Board &board, IntType value)
    {
       auto shape = board.shape();
       for(const auto &limit : shape) {
@@ -94,7 +94,7 @@ class Logic {
    template < typename Range >
    requires ranges::sized_range< Range > && ranges::bidirectional_range< Range > && std::integral<
       typename Range::value_type >
-   inline bool check_bounds(const Board &board, Range values)
+   static inline bool check_bounds(const Board &board, Range values)
    {
       auto shape = board.shape();
       if(values.size() > shape.size()) {
@@ -106,22 +106,22 @@ class Logic {
       });
    }
 
-   static inline void
-   place_setup(const std::map< Position, Token > &setup, Board &board, aze::Team team)
+   template < typename Range >
+   requires ranges::sized_range< Range > && ranges::bidirectional_range< Range > && std::integral<
+      typename Range::value_type >
+   static inline void throw_if_out_of_bounds(const Board &board, Range values)
    {
-      for(const auto &[pos, token] : setup) {
-         board[pos] = Piece(team, pos, token);
+      if(not check_bounds(board, values)) {
+         throw std::out_of_range(
+            "Position" + std::string(values) + " out of bounds for board of shape ("
+            + std::to_string(board.shape(0)) + ", " + std::to_string(board.shape(1)) + ").");
       }
    }
+
+   static void place_setup(const std::map< Position, Token > &setup, Board &board, aze::Team team);
+   static void place_holes(const Config &cfg, Board &board);
 
    static std::map< Team, std::map< Position, Token > > extract_setup(const Board &board);
-
-   static inline void place_holes(const Config &cfg, Board &board)
-   {
-      for(const auto &pos : cfg.hole_positions) {
-         board[pos] = Piece(Team::NEUTRAL, pos, Token::hole);
-      }
-   }
 };
 
 template < ranges::contiguous_range Range >

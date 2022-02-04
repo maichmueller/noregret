@@ -30,21 +30,48 @@ requires requires(T t)
       } -> std::same_as< std::ostream& >;
 }
 struct VectorPrinter {
-   const std::vector< T >& vector;
-   std::string delimiter;
+   const std::vector< T >& value;
+   std::string_view delimiter;
 
-   VectorPrinter(const std::vector< T >& vec, std::string delim = ", ")
-       : vector(vec), delimiter(std::move(delim))
+   VectorPrinter(const std::vector< T >& vec, const std::string& delim = std::string(", "))
+       : value(vec), delimiter(delim)
    {
    }
 
    friend auto& operator<<(std::ostream& os, const VectorPrinter& printer)
    {
       os << "\n[";
-      for(unsigned int i = 0; i < printer.vector.size() - 1; ++i) {
-         os << printer.vector[i] << printer.delimiter;
+      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
+         os << printer.value[i] << printer.delimiter;
       }
-      os << printer.vector.back() << "]";
+      os << printer.value.back() << "]";
+      return os;
+   }
+};
+
+template < typename T >
+requires requires(T t)
+{
+   {
+      std::cout << t
+      } -> std::same_as< std::ostream& >;
+}
+struct SpanPrinter {
+   std::span< T > value;
+   std::string_view delimiter;
+
+   SpanPrinter(std::span< T > vec, const std::string& delim = std::string(", "))
+       : value(vec), delimiter(delim)
+   {
+   }
+
+   friend auto& operator<<(std::ostream& os, const SpanPrinter& printer)
+   {
+      os << "\n[";
+      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
+         os << printer.value[i] << printer.delimiter;
+      }
+      os << printer.value.back() << "]";
       return os;
    }
 };

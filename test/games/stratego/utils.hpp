@@ -5,6 +5,9 @@
 #include <execution>
 #include <range/v3/all.hpp>
 
+
+#include <stratego/stratego.hpp>
+
 template < typename Range1, typename Range2 >
 bool cmp_equal_rngs(Range1&& rng1, Range2&& rng2)
 {
@@ -35,7 +38,9 @@ bool cmp_equal_rngs_sorted(Range1&& rng1, Range2&& rng2)
 }
 
 struct flattable_sorter {
-   auto operator()(auto flattable1, auto flattable2)
+   template <typename T, typename U>
+   requires requires(T t) { {t.flatten()};} && requires(U u) { {u.flatten()};}
+   auto operator()(T flattable1, U flattable2)
    {
       std::array< int, 2 > reduces{0, 0};
       std::array both{flattable1.flatten(), flattable2.flatten()};
@@ -64,6 +69,11 @@ struct eq_rng {
    explicit eq_rng(T val, SortF sort = SortF()) : sorted(val, sort) {}
    bool operator==(const eq_rng& other) const { return cmp_equal_rngs(value(), other.value()); };
    const auto& value() const { return sorted.value; }
+   friend auto& operator<<(std::ostream& os, const eq_rng& rng)
+   {
+      os << aze::utils::SpanPrinter{std::span{rng.value()}};
+      return os;
+   }
 };
 
 #endif  // NOR_UTILS_HPP

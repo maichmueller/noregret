@@ -44,7 +44,7 @@ class Position {
   public:
    /*
     * Constructor that allows to initialize the position by typing out all N
-    * coordinates.
+    * flatten.
     */
    // C++17 SFINAE solution
    //   template < typename... Types, typename std::enable_if< sizeof...(Types) == N, int >::type =
@@ -123,7 +123,7 @@ class Position {
 
    bool operator>=(const Position &other) const;
 
-   container_type coordinates() const { return m_coordinates; }
+   auto flatten() const { return m_coordinates; }
 
    [[nodiscard]] constexpr size_t size() const { return m_coordinates.size(); }
 
@@ -131,6 +131,12 @@ class Position {
    Position invert(const container_start &starts, const container_end &ends);
 
    [[nodiscard]] std::string to_string() const;
+
+   explicit operator std::string()
+   {
+      return to_string();
+
+   }
 
    friend auto &operator<<(std::ostream &os, const Position &position)
    {

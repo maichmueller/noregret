@@ -112,7 +112,6 @@ struct Config {
                },
                [](ranges::span< size_t, 2 > d) {
                   return std::array{d[0], d[1]};
-                  ;
                }},
             game_dims_)),
          max_turn_count(max_turn_count_),

@@ -25,7 +25,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
    auto [dim_x, dim_y] = board.shape();
    int mid = V_SIZE_PER_PIECE / 2;
 
-   // piece string lambda function that returns a str of the kin
+   // piece string lambda function that returns a str of the token
    // "-1 \n
    // 10.1 \n
    //   1"
@@ -35,9 +35,6 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
       }
       const auto &piece = piece_opt.value();
-      if(static_cast<unsigned int>(piece.token()) > 99) {
-         double x = 3;
-      }
       std::string color = BLUE;  // blue by default
       if(piece.token() == Token::hole) {
 #if defined(_MSC_VER)
@@ -72,7 +69,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
          return aze::utils::center(
             piece.team() == aze::Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " ");
 #else
-         // for non msvc we have colored box to work for us
+         // for non msvc we have a colored box to work for us
          return color + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
 #endif
       } else {
@@ -100,10 +97,15 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
       std::vector< std::stringstream > line_streams(static_cast< unsigned int >(V_SIZE_PER_PIECE));
 
       for(int col = 0; col < dim_x; ++col) {
+         // because of the x dimension (horizontal) implicitly defining the column numbers, we have
+         // to acces the board pieces in the unintuitive way of (col, row). To be clear, the x
+         // coordinate does represent the column, i.e. length in horizontal space, on our board
+         // (like in a mathematical 2-d function graph). Likewise, the row implies the length in
+         // vertical space.
          if(team == aze::Team::RED) {
-            curr_piece = board(dim_x - 1 - row, dim_y - 1 - col);
+            curr_piece = board(dim_x - 1 - col, dim_y - 1 - row);
          } else {
-            curr_piece = board(row, col);
+            curr_piece = board(col, row);
          }
 
          for(int i = 0; i < V_SIZE_PER_PIECE; ++i) {
@@ -120,7 +122,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
                      curr_stream << " " << row;
                   } else {
                      curr_stream << row;
-}
+                  }
 
                   curr_stream << std::string(static_cast< unsigned long >(row_ind_space - 2), ' ')
                               << VERT_BAR;
@@ -128,7 +130,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
                curr_stream << create_piece_str(curr_piece, i);
                if(col != dim_x - 1) {
                   curr_stream << VERT_BAR;
-}
+               }
             }
             // extend the current line i by the new information
             line_streams[i] << curr_stream.str();

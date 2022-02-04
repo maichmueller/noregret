@@ -148,7 +148,7 @@ TEST_P(CheckTerminalParamsF, check_terminal)
    LOGD2("Ref State to test", s.to_string())
    // actual state to test on
    State s_to_test(
-      s.config(), s.graveyard(), s.logic(), s.board(), turn_counter, s.history(), s.rng());
+      s.config(), s.graveyard(), s.logic(), s.board(), size_t(turn_counter), s.history(), s.rng());
 
    LOGD2("State to test", s_to_test.to_string())
    LOGD2("Observed Outcome", utils::enum_name(s.logic()->check_terminal(s)))
