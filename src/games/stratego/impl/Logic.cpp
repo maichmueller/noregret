@@ -15,9 +15,13 @@ aze::Status Logic::check_terminal(State &state)
 
    // committing draw rules here
 
-   // Rule 1: If either team has no moves left.
-   if(not has_valid_actions(state, Team::BLUE) or not has_valid_actions(state, Team::RED)) {
-      return state.status(Status::TIE);
+   // Rule 1: If the active team has no moves left -> loss
+   if(not has_valid_actions(state, state.active_team())) {
+      if(state.active_team() == Team::BLUE) {
+         return state.status(Status::WIN_RED);
+      } else {
+         return state.status(Status::WIN_BLUE);
+      }
    }
 
    // Rule 1: The maximum turn count has been reached
@@ -25,7 +29,7 @@ aze::Status Logic::check_terminal(State &state)
       LOGD2("Turn count on finish: ", state.turn_count());
       return state.status(aze::Status::TIE);
    }
-   return state.status();
+   return state.status(Status::ONGOING);
 }
 
 void Logic::apply_action(State &state, const Action &action)

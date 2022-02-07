@@ -72,6 +72,7 @@ class BattlematrixParamsF:
 class CheckTerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
        unsigned long,
+       Team,
        std::array< size_t, 2 >,
        std::map< Team, std::optional< Config::setup_t > >,
        std::map< Team, std::optional< Config::token_variant_t > >,

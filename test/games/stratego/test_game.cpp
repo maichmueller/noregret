@@ -12,6 +12,7 @@ TEST_F(MinimalState, run_game)
       void plot(const State& state) override { std::cout << state.to_string(Team::BLUE, false); }
    };
 
+   // simply run without crash
    Game game{
       std::move(state),
       std::make_shared< aze::RandomAgent< State > >(Team::BLUE, 0),

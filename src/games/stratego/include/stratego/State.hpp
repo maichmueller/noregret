@@ -101,13 +101,17 @@ class State: public aze::State< Board, History, Piece, Action > {
 
    void to_graveyard(const std::optional< piece_type > &piece_opt)
    {
-      if(not piece_opt.has_value())
+      if(piece_opt.has_value()) {
          m_graveyard[piece_opt.value().team()][piece_opt.value().token()]++;
+      }
    }
 
    void apply_action(const action_type &action) override;
    aze::Status check_terminal() override;
-   [[nodiscard]] Team active_team() const override { return Team(turn_count() % 2); }
+   [[nodiscard]] Team active_team() const override
+   {
+      return Team((turn_count() + static_cast< size_t >(m_config.starting_team)) % 2);
+   }
 
    [[nodiscard]] std::string to_string() const override;
    [[nodiscard]] std::string to_string(aze::Team team, bool hide_unknowns) const override;
