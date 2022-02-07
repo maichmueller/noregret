@@ -19,6 +19,8 @@ template <>
 std::string enum_name(FightOutcome e);
 template <>
 std::string enum_name(Token e);
+template <>
+std::string enum_name(DefinedBoardSizes e);
 
 template < typename T, std::integral IntType >
 std::vector< T > flatten_counter(const std::map< T, IntType > &counter)

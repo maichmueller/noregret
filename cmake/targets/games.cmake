@@ -47,6 +47,7 @@ target_link_libraries(
         project_options
         core
         CONAN_PKG::range-v3
+        CONAN_PKG::namedtype
 )
 
 

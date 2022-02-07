@@ -153,53 +153,64 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
 template <>
 std::string enum_name(Status e)
 {
-   constexpr aze::utils::CEMap< Status, std::string_view, 4 > name_lookup = {
-      std::pair{Status::TIE, std::string_view("TIE")},
-      std::pair{Status::WIN_RED, std::string_view("WIN_RED")},
-      std::pair{Status::WIN_BLUE, std::string_view("WIN_BLUE")},
-      std::pair{Status::ONGOING, std::string_view("ONGOING")},
+   constexpr aze::utils::CEMap< Status, const char *, 4 > name_lookup = {
+      std::pair{Status::TIE, "TIE"},
+      std::pair{Status::WIN_RED, "WIN_RED"},
+      std::pair{Status::WIN_BLUE, "WIN_BLUE"},
+      std::pair{Status::ONGOING, "ONGOING"},
    };
-   return std::string(name_lookup.at(e));
+   return name_lookup.at(e);
 }
 template <>
 std::string enum_name(Team e)
 {
-   constexpr aze::utils::CEMap< Team, std::string_view, 3 > name_lookup = {
-      std::pair{Team::BLUE, std::string_view("BLUE")},
-      std::pair{Team::RED, std::string_view("RED")},
-      std::pair{Team::NEUTRAL, std::string_view("NEUTRAL")},
+   constexpr aze::utils::CEMap< Team, const char *, 3 > name_lookup = {
+      std::pair{Team::BLUE, "BLUE"},
+      std::pair{Team::RED, "RED"},
+      std::pair{Team::NEUTRAL, "NEUTRAL"},
    };
-   return std::string(name_lookup.at(e));
+   return name_lookup.at(e);
 }
 template <>
 std::string enum_name(FightOutcome e)
 {
-   constexpr aze::utils::CEMap< FightOutcome, std::string_view, 3 > name_lookup = {
-      std::pair{FightOutcome::kill, std::string_view("kill")},
-      std::pair{FightOutcome::death, std::string_view("death")},
-      std::pair{FightOutcome::tie, std::string_view("tie")},
+   constexpr aze::utils::CEMap< FightOutcome, const char *, 3 > name_lookup = {
+      std::pair{FightOutcome::kill, "kill"},
+      std::pair{FightOutcome::death, "death"},
+      std::pair{FightOutcome::tie, "tie"},
    };
-   return std::string(name_lookup.at(e));
+   return name_lookup.at(e);
 }
 template <>
 std::string enum_name(Token e)
 {
-   constexpr aze::utils::CEMap< Token, std::string_view, 13 > name_lookup = {
-      std::pair{Token::flag, std::string_view("Flag")},
-      std::pair{Token::spy, std::string_view("spy")},
-      std::pair{Token::scout, std::string_view("scout")},
-      std::pair{Token::miner, std::string_view("miner")},
-      std::pair{Token::sergeant, std::string_view("sergeant")},
-      std::pair{Token::lieutenant, std::string_view("lieutenant")},
-      std::pair{Token::captain, std::string_view("captain")},
-      std::pair{Token::major, std::string_view("major")},
-      std::pair{Token::colonel, std::string_view("colonel")},
-      std::pair{Token::general, std::string_view("general")},
-      std::pair{Token::marshall, std::string_view("marshall")},
-      std::pair{Token::bomb, std::string_view("bomb")},
-      std::pair{Token::hole, std::string_view("hole")},
+   constexpr aze::utils::CEMap< Token, const char *, 13 > name_lookup = {
+      std::pair{Token::flag, "Flag"},
+      std::pair{Token::spy, "spy"},
+      std::pair{Token::scout, "scout"},
+      std::pair{Token::miner, "miner"},
+      std::pair{Token::sergeant, "sergeant"},
+      std::pair{Token::lieutenant, "lieutenant"},
+      std::pair{Token::captain, "captain"},
+      std::pair{Token::major, "major"},
+      std::pair{Token::colonel, "colonel"},
+      std::pair{Token::general, "general"},
+      std::pair{Token::marshall, "marshall"},
+      std::pair{Token::bomb, "bomb"},
+      std::pair{Token::hole, "hole"},
    };
-   return std::string(name_lookup.at(e));
+   return name_lookup.at(e);
+}
+
+template <>
+std::string enum_name(DefinedBoardSizes e)
+{
+   constexpr aze::utils::CEMap< DefinedBoardSizes, const char *, 3 > name_lookup = {
+      std::pair{DefinedBoardSizes::small, "small"},
+      std::pair{DefinedBoardSizes::medium, "medium"},
+      std::pair{DefinedBoardSizes::large, "large"},
+   };
+   return name_lookup.at(e);
 }
 
 }  // namespace stratego::utils

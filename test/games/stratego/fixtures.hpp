@@ -42,13 +42,14 @@ class MinimalConfig: public ::testing::Test {
 
       Config config{
          Team::BLUE,
-         true,
          size_t(5),
-         500,
-         true,
          std::map{
             std::pair{Team::BLUE, std::make_optional(setup0)},
-            std::pair{Team::RED, std::make_optional(setup1)}}};
+            std::pair{Team::RED, std::make_optional(setup1)}},
+         std::nullopt,
+         true,
+         true,
+         500};
 
       return config;
    }
@@ -70,9 +71,10 @@ class BattlematrixParamsF:
 
 class CheckTerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
-       int,
+       unsigned long,
        std::array< size_t, 2 >,
        std::map< Team, std::optional< Config::setup_t > >,
+       std::map< Team, std::optional< Config::token_variant_t > >,
        Status > > {
   protected:
    Team starting_team = Team::BLUE;

@@ -21,7 +21,7 @@ State *State::clone_impl() const
    History hist_copy;
    // copy the contents of each map
    for(const size_t &turn : hist.turns()) {
-      const auto &[team, action, pieces] = hist.get_by_turn(turn);
+      const auto &[team, action, pieces] = hist[History::Turn(turn)];
       hist_copy.commit_action(turn, team, action, pieces);
    }
    return new State(m_config, graveyard(), logic(), board(), turn_count(), hist_copy, rng());

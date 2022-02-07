@@ -1,10 +1,9 @@
-#include "aze/aze.h"
-
 #include <array>
 #include <iostream>
 #include <memory>
 #include <xtensor/xtensor.hpp>
 
+#include "aze/aze.h"
 #include "stratego/Game.hpp"
 #include "stratego/State.hpp"
 
@@ -47,13 +46,15 @@ int main()
 
    Config config{
       Team::BLUE,
-      false,
-      size_t(5),
-      500,
-      true,
+      DefinedBoardSizes::small,
       std::map{
          std::pair{Team::BLUE, std::make_optional(setup0)},
-         std::pair{Team::RED, std::make_optional(setup1)}}};
+         std::pair{Team::RED, std::make_optional(setup1)}},
+      std::nullopt,
+      false,
+      true,
+      5000ul};
+
    auto game = Game(State(config), agent_0, agent_1);
 
    //

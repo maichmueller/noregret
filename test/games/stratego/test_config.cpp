@@ -63,11 +63,11 @@ TEST(Config, constructor_with_setup)
          {Token::bomb, 2}}));
 
    EXPECT_EQ(
-      config.start_positions[Team::BLUE],
+      config.start_fields[Team::BLUE],
       (std::vector< Position >{
          {0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}}));
    EXPECT_EQ(
-      config.start_positions[Team::RED],
+      config.start_fields[Team::RED],
       (std::vector< Position >{
          {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}}));
 }
@@ -158,12 +158,12 @@ TEST(Config, constructor_custom_dims_with_setup_small)
       }
    };
    EXPECT_TRUE(cmp_equal_rngs(
-      config.start_positions[Team::BLUE],
+      config.start_fields[Team::BLUE],
       std::vector< Position >{{0, 0}, {1, 1}},
       pos_comparator,
       pos_comparator));
    EXPECT_TRUE(cmp_equal_rngs(
-      config.start_positions[Team::RED],
+      config.start_fields[Team::RED],
       std::vector< Position >{{1, 0}, {0, 1}},
       pos_comparator,
       pos_comparator));
@@ -217,12 +217,12 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
       }
    };
    EXPECT_TRUE(cmp_equal_rngs(
-      config.start_positions[Team::BLUE],
+      config.start_fields[Team::BLUE],
       std::vector< Position >{{0, 0}, {0, 1}, {0, 2}, {1, 3}, {2, 4}},
       pos_comparator,
       pos_comparator));
    EXPECT_TRUE(cmp_equal_rngs(
-      config.start_positions[Team::RED],
+      config.start_fields[Team::RED],
       std::vector< Position >{{3, 0}, {2, 1}, {1, 2}, {3, 3}, {3, 4}},
       pos_comparator,
       pos_comparator));
@@ -288,7 +288,7 @@ TEST(Config, constructor_custom_dims_no_setup)
       }
    };
    EXPECT_TRUE(
-      cmp_equal_rngs(config.start_positions[Team::BLUE], pos_blue, pos_comparator, pos_comparator));
+      cmp_equal_rngs(config.start_fields[Team::BLUE], pos_blue, pos_comparator, pos_comparator));
    EXPECT_TRUE(
-      cmp_equal_rngs(config.start_positions[Team::RED], pos_red, pos_comparator, pos_comparator));
+      cmp_equal_rngs(config.start_fields[Team::RED], pos_red, pos_comparator, pos_comparator));
 }

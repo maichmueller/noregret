@@ -22,6 +22,17 @@ using wptr = std::weak_ptr< T >;
 
 namespace aze::utils {
 
+/**
+ * Literal class type that wraps a constant expression string.
+ * Can be used as template parameter to differentiate via 'strings'
+ */
+template < size_t N >
+struct StringLiteral {
+   constexpr StringLiteral(const char (&str)[N]) { std::copy_n(str, N, value); }
+
+   char value[N];
+};
+
 template < typename T >
 requires requires(T t)
 {
@@ -242,8 +253,8 @@ auto min(first f, second s)
    return f < s ? f : s;
 }
 
-template <typename T>
-concept is_enum = std::is_enum_v<T>;
+template < typename T >
+concept is_enum = std::is_enum_v< T >;
 
 template < class T, class... Ts >
 struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {

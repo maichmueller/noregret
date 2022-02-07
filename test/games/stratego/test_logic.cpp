@@ -133,19 +133,20 @@ TEST_F(MinimalState, valid_action_list)
 TEST_P(CheckTerminalParamsF, check_terminal)
 {
    auto hole_pos = std::vector< Position >{Position{2, 2}};
-   auto [turn_counter, game_dims, setups, status] = GetParam();
+   auto [turn_counter, game_dims, setups, tokens, status] = GetParam();
 
    // proxy state to get the defaults easily instantiated
    State s(Config(
       starting_team,
-      fixed_starting_team,
       game_dims,
-      max_turn_counts,
-      fixed_setups,
       setups,
-      hole_pos));
+      hole_pos,
+      tokens,
+      Config::nullarg< "fields" >(),
+      fixed_starting_team,
+      fixed_setups,
+      max_turn_counts));
 
-   LOGD2("Ref State to test", s.to_string())
    // actual state to test on
    State s_to_test(
       s.config(), s.graveyard(), s.logic(), s.board(), size_t(turn_counter), s.history(), s.rng());
@@ -162,7 +163,7 @@ INSTANTIATE_TEST_SUITE_P(
    CheckTerminalParamsF,
    ::testing::Values(
       std::tuple{// no movable pieces blue -> win red
-                 50,
+                 50ul,
                  std::array< size_t, 2 >{5, 5},
                  std::map< Team, std::optional< Config::setup_t > >{
                     std::pair{
@@ -175,9 +176,12 @@ INSTANTIATE_TEST_SUITE_P(
                        std::optional(Config::setup_t{
                           std::pair{Position{3, 3}, Token::flag},
                           std::pair{Position{3, 4}, Token::spy}})}},
+                 std::map< Team, std::optional< Config::token_variant_t > >{
+                    std::pair{Team::BLUE, std::optional(default_token_sets(5))},
+                    std::pair{Team::RED, std::optional(default_token_sets(5))}},
                  Status::WIN_BLUE},
       std::tuple{// no movable pieces red -> win blue
-                 50,
+                 50ul,
                  std::array< size_t, 2 >{34, 28},
                  std::map< Team, std::optional< Config::setup_t > >{
                     std::pair{
@@ -190,9 +194,10 @@ INSTANTIATE_TEST_SUITE_P(
                        std::optional(Config::setup_t{
                           std::pair{Position{3, 3}, Token::flag},
                           std::pair{Position{3, 4}, Token::bomb}})}},
+                 Config::nullarg< "tokens" >(),
                  Status::WIN_BLUE},
       std::tuple{// mutual movable pieces elimination -> tie
-                 50,
+                 50ul,
                  std::array< size_t, 2 >{4, 8},
                  std::map< Team, std::optional< Config::setup_t > >{
                     std::pair{
@@ -205,9 +210,10 @@ INSTANTIATE_TEST_SUITE_P(
                        std::optional(Config::setup_t{
                           std::pair{Position{3, 3}, Token::flag},
                           std::pair{Position{3, 2}, Token::bomb}})}},
+                 Config::nullarg< "tokens" >(),
                  Status::TIE},
       std::tuple{// turn counter too high, but otherwise ongoing -> tie
-                 5000000,
+                 5000000ul,
                  std::array< size_t, 2 >{8, 5},
                  std::map< Team, std::optional< Config::setup_t > >{
                     std::pair{
@@ -220,9 +226,10 @@ INSTANTIATE_TEST_SUITE_P(
                        std::optional(Config::setup_t{
                           std::pair{Position{3, 3}, Token::flag},
                           std::pair{Position{3, 4}, Token::spy}})}},
+                 Config::nullarg< "tokens" >(),
                  Status::TIE},
       std::tuple{// flag blue captured -> win red
-                 50,
+                 50ul,
                  std::array< size_t, 2 >{10, 10},
                  std::map< Team, std::optional< Config::setup_t > >{
                     std::pair{
@@ -235,9 +242,12 @@ INSTANTIATE_TEST_SUITE_P(
                        std::optional(Config::setup_t{
                           std::pair{Position{3, 3}, Token::flag},
                           std::pair{Position{3, 4}, Token::spy}})}},
+                 std::map< Team, std::optional< Config::token_variant_t > >{
+                    std::pair{Team::BLUE, std::optional(std::vector{Token::flag})},
+                    std::pair{Team::RED, std::nullopt}},
                  Status::WIN_RED},
       std::tuple{// flag red captured -> win blue
-                 50,
+                 50ul,
                  std::array< size_t, 2 >{7, 7},
                  std::map< Team, std::optional< Config::setup_t > >{
                     std::pair{
@@ -250,4 +260,7 @@ INSTANTIATE_TEST_SUITE_P(
                        std::optional(Config::setup_t{
                           std::pair{Position{3, 3}, Token::marshall},
                           std::pair{Position{3, 4}, Token::spy}})}},
+                 std::map< Team, std::optional< Config::token_variant_t > >{
+                    std::pair{Team::BLUE, std::nullopt},
+                    std::pair{Team::RED, std::optional(std::vector{Token::flag})}},
                  Status::WIN_BLUE}));

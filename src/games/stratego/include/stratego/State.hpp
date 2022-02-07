@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <named_type.hpp>
 #include <unordered_set>
 #include <utility>
 
@@ -17,17 +18,21 @@ class History {
    using Team = aze::Team;
 
   public:
-   [[nodiscard]] inline auto get_by_turn(size_t turn) const
+   // strong types for turns and indices
+   using Turn = fluent::NamedType< size_t, struct TurnTag >;
+   using Index = fluent::NamedType< size_t, struct IndexTag >;
+
+   [[nodiscard]] inline auto operator[](Turn turn) const
       -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
-      return {m_teams.at(turn), m_actions.find(turn)->second, m_pieces.at(turn)};
+      return {m_teams.at(turn.get()), m_actions.find(turn.get())->second, m_pieces.at(turn.get())};
    }
 
-   [[nodiscard]] inline auto get_by_index(size_t index) const
+   [[nodiscard]] inline auto operator[](Index index) const
       -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
    {
-      auto turn = m_turns[index];
-      return get_by_turn(turn);
+      auto turn = m_turns[index.get()];
+      return (*this)[Turn(turn)];
    }
 
    void commit_action(

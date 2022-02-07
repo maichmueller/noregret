@@ -228,20 +228,20 @@ std::map< Position, Token > stratego::Logic::draw_setup_uniform(
 {
    std::map< Position, Token > setup_out;
 
-   auto start_positions = config.start_positions.at(team);
+   auto start_fields = config.start_fields.at(team);
    auto token_counter = config.token_counters.at(team);
    auto uniq_token_view = token_counter | ranges::views::keys;
    std::vector< Token > tokenvec = {uniq_token_view.begin(), uniq_token_view.end()};
 
-   ranges::shuffle(start_positions, rng);
+   ranges::shuffle(start_fields, rng);
    auto int_dist = std::uniform_int_distribution< size_t >(0, tokenvec.size() - 1);
 
-   while(not start_positions.empty()) {
-      auto &pos = start_positions.back();
+   while(not start_fields.empty()) {
+      auto &pos = start_fields.back();
       if(curr_board[pos].has_value()) {
          // if the current board already has a piece at this location, then remove the
          // position from the possible ones.
-         start_positions.pop_back();
+         start_fields.pop_back();
          continue;
       }
       auto choice = int_dist(rng);
@@ -251,7 +251,7 @@ std::map< Position, Token > stratego::Logic::draw_setup_uniform(
       if(count > 0) {
          setup_out[pos] = token;
          count--;
-         start_positions.pop_back();
+         start_fields.pop_back();
       }
       if(count == 0) {
          tokenvec.erase(tokenvec.begin() + static_cast< long >(choice));
