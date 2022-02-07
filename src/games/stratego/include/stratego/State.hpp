@@ -84,7 +84,7 @@ class History {
 class State: public aze::State< Board, History, Piece, Action > {
   public:
    using base_type = aze::State< Board, History, Piece, Action >;
-   using graveyard_type = std::array< std::unordered_set< Piece::token_type >, 2 >;
+   using graveyard_type = std::map< Team, std::map< Piece::token_type, unsigned int > >;
 
    template < typename... Params >
    State(Config config, graveyard_type graveyard, sptr< Logic > logic, Params &&...params)
@@ -102,8 +102,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    void to_graveyard(const std::optional< piece_type > &piece_opt)
    {
       if(not piece_opt.has_value())
-         m_graveyard[static_cast< unsigned int >(piece_opt.value().team())].emplace(
-            piece_opt.value().token());
+         m_graveyard[piece_opt.value().team()][piece_opt.value().token()]++;
    }
 
    void apply_action(const action_type &action) override;
@@ -116,10 +115,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    [[nodiscard]] inline auto &config() const { return m_config; }
    [[nodiscard]] inline auto &logic() const { return m_logic; }
    [[nodiscard]] inline auto graveyard() const { return m_graveyard; }
-   [[nodiscard]] inline auto graveyard(Team team) const
-   {
-      return m_graveyard[static_cast< unsigned long >(team)];
-   }
+   [[nodiscard]] inline auto graveyard(Team team) const { return m_graveyard.at(team); }
 
   private:
    /// the specific configuration of the stratego game belonging to this state

@@ -24,9 +24,9 @@ std::map< Token, std::function< bool(size_t) > > default_move_ranges()
    return mr;
 }
 
-std::map< std::array< Token, 2 >, FightOutcome > default_battlematrix()
+std::map< std::pair< Token, Token >, FightOutcome > default_battlematrix()
 {
-   std::map< std::array< Token, 2 >, FightOutcome > bm;
+   std::map< std::pair< Token, Token >, FightOutcome > bm;
    for(auto i : std::array{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 99}) {
       for(auto j : std::array{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 99}) {
          if(i < j) {
@@ -243,8 +243,9 @@ const std::vector< Position >& _check_alignment(
    const std::vector< Position >& positions,
    const std::map< Position, Token >& setup)
 {
-   if(positions.size() != setup.size()
-      or ranges::any_of(positions, [&](const Position& pos) { return not setup.contains(pos); })) {
+   if(ranges::any_of(setup | ranges::views::keys, [&](const Position& pos) {
+         return ranges::find(positions, pos) == positions.end();
+      })) {
       throw std::invalid_argument(
          "Passed starting positions parameter and setup parameter do not match.");
    }
@@ -267,7 +268,10 @@ std::map< aze::Team, Config::token_counter_t > Config::_init_tokencounters(
             // both setup and tokensets are given, so we take the superset of both as the truth
             auto token_counter = std::visit(token_visitor, token_sets.at(team).value());
             auto token_counter_from_setup = tokens_from_setup(setups_.at(team).value());
-            for(auto token : token_counter | ranges::views::keys) {
+            for(auto token : ranges::views::concat(
+                                token_counter | ranges::views::keys,
+                                token_counter_from_setup | ranges::views::keys)
+                                | ranges::views::unique) {
                counters[team][token] = std::max(
                   token_counter[token], token_counter_from_setup[token]);
             }
@@ -406,7 +410,7 @@ Config::Config(
    bool fixed_starting_team_,
    std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
-   std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_,
+   std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
    std::map< Token, std::function< bool(size_t) > > move_ranges_)
     : starting_team(starting_team_),
       fixed_starting_team(fixed_starting_team_),
@@ -437,9 +441,12 @@ Config::Config(
       hole_positions(_init_hole_positions(hole_positions_, game_dims_)),
       move_ranges(std::move(move_ranges_))
 {
+
    for(int i = 0; i < 2; ++i) {
       if(utils::flatten_counter(token_counters[aze::Team(i)]).size()
          != start_fields[aze::Team(i)].size()) {
+         LOGD2("Token vector size:", utils::flatten_counter(token_counters[aze::Team(i)]).size())
+         LOGD2("Field vector size:", start_fields[aze::Team(i)].size())
          throw std::invalid_argument(
             "Token counters and start position vectors do not match in size");
       }
@@ -454,7 +461,7 @@ Config::Config(
    bool fixed_starting_team_,
    std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
-   std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_,
+   std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
    std::map< Token, std::function< bool(size_t) > > move_ranges_)
     : Config(
        starting_team_,
@@ -481,15 +488,15 @@ Config::Config(
    bool fixed_starting_team_,
    std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
-   std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_,
+   std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
    std::map< Token, std::function< bool(size_t) > > move_ranges_)
     : Config(
        starting_team_,
        game_dims_,
        nullarg< "setups" >(),
        hole_positions_,
-       nullarg< "tokens" >(),
-       nullarg< "fields" >(),
+       token_set_,
+       start_fields_,
        fixed_starting_team_,
        fixed_setups_,
        max_turn_count_,
@@ -504,7 +511,7 @@ Config::Config(
    bool fixed_starting_team_,
    std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
-   std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_,
+   std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
    std::map< Token, std::function< bool(size_t) > > move_ranges_)
     : Config(
        starting_team_,

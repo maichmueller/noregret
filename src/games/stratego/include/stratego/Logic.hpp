@@ -51,10 +51,10 @@ class Logic {
    static inline FightOutcome
    fight(const Config &config, const Piece &attacker, const Piece &defender)
    {
-      return fight(config, std::array{attacker.token(), defender.token()});
+      return fight(config, std::pair{attacker.token(), defender.token()});
    }
 
-   static inline FightOutcome fight(const Config &config, const std::array< Token, 2 > &att_def)
+   static inline FightOutcome fight(const Config &config, const std::pair< Token, Token > &att_def)
    {
       return config.battle_matrix.at(att_def);
    }

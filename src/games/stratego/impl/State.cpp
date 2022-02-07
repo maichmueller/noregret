@@ -34,6 +34,19 @@ State::State(Config cfg, std::optional< std::variant< size_t, aze::utils::random
 {
    Logic::place_holes(config(), board());
    board() = logic()->draw_board(config(), board(), rng(), &Logic::draw_setup_uniform);
+   // fill the dead pieces counter of each team
+   m_graveyard = [&](const Config &config, const Board& brd) {
+      auto counters = config.token_counters;
+      for(const auto&piece_opt : brd) {
+         if(piece_opt.has_value()) {
+            const auto& piece = piece_opt.value();
+            if(piece.token() != Token::hole) {
+               counters[piece.team()][piece.token()]--;
+            }
+         }
+      }
+      return counters;
+   }(config(), board());
    status(Status::ONGOING);
 }
 
@@ -50,5 +63,6 @@ aze::Status State::check_terminal()
 {
    return m_logic->check_terminal(*this);
 }
+
 
 }  // namespace stratego

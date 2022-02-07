@@ -15,7 +15,7 @@ namespace stratego {
 
 auto default_move_ranges() -> std::map< Token, std::function< bool(size_t) > >;
 
-auto default_battlematrix() -> std::map< std::array< Token, 2 >, FightOutcome >;
+auto default_battlematrix() -> std::map< std::pair< Token, Token >, FightOutcome >;
 
 struct Config {
    using setup_t = std::map< Position, Token >;
@@ -42,7 +42,7 @@ struct Config {
    /// the start positions that each team can use to place tokens
    std::map< aze::Team, std::vector< Position > > start_fields;
    /// the battle matrix determining outcomes of token fights
-   std::map< std::array< Token, 2 >, FightOutcome > battle_matrix;
+   std::map< std::pair< Token, Token >, FightOutcome > battle_matrix;
    /// the positions of the holes for the gane
    std::vector< Position > hole_positions;
    /// holds a predicate for each token to check if a given distance is within move range
@@ -79,7 +79,7 @@ struct Config {
       bool fixed_starting_team_ = true,
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
-      std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = default_battlematrix(),
+      std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges());
 
    Config(
@@ -90,7 +90,7 @@ struct Config {
       bool fixed_starting_team_ = true,
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 500,
-      std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = default_battlematrix(),
+      std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges());
 
    Config(
@@ -102,7 +102,7 @@ struct Config {
       bool fixed_starting_team_ = true,
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
-      std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = default_battlematrix(),
+      std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges());
 
    Config(
@@ -115,7 +115,7 @@ struct Config {
       bool fixed_starting_team_ = true,
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
-      std::map< std::array< Token, 2 >, FightOutcome > battle_matrix_ = default_battlematrix(),
+      std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges());
 };
 

@@ -75,6 +75,7 @@ class CheckTerminalParamsF:
        std::array< size_t, 2 >,
        std::map< Team, std::optional< Config::setup_t > >,
        std::map< Team, std::optional< Config::token_variant_t > >,
+       std::map< Team, std::optional< std::vector<Position> > >,
        Status > > {
   protected:
    Team starting_team = Team::BLUE;
