@@ -174,25 +174,25 @@ std::map< aze::Team, std::optional< Config::setup_t > > Config::_init_setups(
 }
 
 template <>
-auto Config::nullarg< aze::utils::StringLiteral{"setups"} >()
+inline auto Config::nullarg< aze::utils::StringLiteral{"setups"} >()
 {
    return std::map< aze::Team, std::optional< setup_t > >{
       std::pair{aze::Team::BLUE, std::nullopt}, std::pair{aze::Team::RED, std::nullopt}};
 }
 template <>
-auto Config::nullarg< aze::utils::StringLiteral{"tokens"} >()
+inline auto Config::nullarg< aze::utils::StringLiteral{"tokens"} >()
 {
    return std::map< aze::Team, std::optional< token_variant_t > >{
       std::pair{aze::Team::BLUE, std::nullopt}, std::pair{aze::Team::RED, std::nullopt}};
 }
 template <>
-auto Config::nullarg< aze::utils::StringLiteral{"fields"} >()
+inline auto Config::nullarg< aze::utils::StringLiteral{"fields"} >()
 {
    return std::map< aze::Team, std::optional< std::vector< Position > > >{
       std::pair{aze::Team::BLUE, std::nullopt}, std::pair{aze::Team::RED, std::nullopt}};
 }
 template <>
-auto Config::nullarg< aze::utils::StringLiteral{"holes"} >()
+inline auto Config::nullarg< aze::utils::StringLiteral{"holes"} >()
 {
    return std::nullopt;
 }

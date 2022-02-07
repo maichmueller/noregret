@@ -22,7 +22,7 @@ TEST(State, constructor)
    auto setup = std::map{
       std::pair{Team::BLUE, std::optional{setup0}}, std::pair{Team::RED, std::optional{setup1}}};
 
-   Config config{Team::BLUE, false, std::vector{size_t(2), size_t(2)}, 500, true, setup, hole_pos};
+   Config config{Team::BLUE, std::vector{size_t(2), size_t(2)}, setup, hole_pos, false, true, 500};
 
    State state{config};
 
@@ -113,7 +113,7 @@ TEST_P(StateConstructorParamsF, constructor_arbitrary_dims)
    auto exp_token_pos_vecs = get_tokenpositions(setups);
 
    State s(Config(
-      starting_team, fixed_starting_team, game_dims, max_turn_counts, fixed_setups, setups, holes));
+      starting_team, game_dims, setups, holes, fixed_starting_team, fixed_setups, max_turn_counts));
 
    //   LOGD2("State", s.to_string())
    auto extracted_setups = Logic::extract_setup(s.board());

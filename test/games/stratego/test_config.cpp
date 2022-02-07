@@ -32,13 +32,13 @@ TEST(Config, constructor_with_setup)
 
    Config config{
       Team::BLUE,
-      true,
       size_t(5),
-      500,
-      true,
       std::map{
-         std::pair{Team::BLUE, std::optional(setup0)},
-         std::pair{Team::RED, std::optional(setup1)}}};
+         std::pair{Team::BLUE, std::optional(setup0)}, std::pair{Team::RED, std::optional(setup1)}},
+      Config::nullarg< "holes" >(),
+      true,
+      true,
+      500};
 
    EXPECT_EQ(config.setups[Team::BLUE].value(), setup0);
    EXPECT_EQ(config.setups[Team::RED].value(), setup1);
@@ -76,10 +76,12 @@ TEST_P(BattlematrixParamsF, default_battlematrix_outcomes)
 {
    auto [attacker, defender, outcome] = GetParam();
    LOGD2(
-      "Observed outcome for [" + utils::enum_name(attacker) + ", " + utils::enum_name(defender) + "] = ",
+      "Observed outcome for [" + utils::enum_name(attacker) + ", " + utils::enum_name(defender)
+         + "] = ",
       utils::enum_name(bm[{attacker, defender}]));
    LOGD2(
-      "Expected outcome for [" + utils::enum_name(attacker) + ", " + utils::enum_name(defender) + "] = ",
+      "Expected outcome for [" + utils::enum_name(attacker) + ", " + utils::enum_name(defender)
+         + "] = ",
       utils::enum_name(outcome));
    EXPECT_EQ((bm[{attacker, defender}]), outcome);
 }
@@ -106,7 +108,7 @@ INSTANTIATE_TEST_SUITE_P(
       std::tuple(Token::colonel, Token::major, FightOutcome::kill),
       std::tuple(Token::colonel, Token::captain, FightOutcome::kill),
       std::tuple(Token::lieutenant, Token::captain, FightOutcome::death),
-         std::tuple(Token::colonel, Token::general, FightOutcome::death),
+      std::tuple(Token::colonel, Token::general, FightOutcome::death),
       std::tuple(Token::lieutenant, Token::bomb, FightOutcome::death),
       std::tuple(Token::captain, Token::bomb, FightOutcome::death),
       std::tuple(Token::spy, Token::bomb, FightOutcome::death),
@@ -114,9 +116,7 @@ INSTANTIATE_TEST_SUITE_P(
       std::tuple(Token::marshall, Token::bomb, FightOutcome::death),
       std::tuple(Token::scout, Token::bomb, FightOutcome::death),
       std::tuple(Token::miner, Token::bomb, FightOutcome::kill),
-      std::tuple(Token::general, Token::bomb, FightOutcome::death)
-      ));
-
+      std::tuple(Token::general, Token::bomb, FightOutcome::death)));
 
 TEST(Config, constructor_custom_dims_with_setup_small)
 {
@@ -132,13 +132,13 @@ TEST(Config, constructor_custom_dims_with_setup_small)
 
    Config config{
       Team::BLUE,
-      false,
       std::vector{size_t(2), size_t(2)},
-      500,
-      true,
       std::map{
          std::pair{Team::BLUE, std::optional{setup0}}, std::pair{Team::RED, std::optional{setup1}}},
-      hole_pos};
+      hole_pos,
+      true,
+      false,
+      500};
 
    EXPECT_EQ(config.setups[Team::BLUE].value(), setup0);
    EXPECT_EQ(config.setups[Team::RED].value(), setup1);
@@ -190,13 +190,14 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
 
    Config config{
       Team::BLUE,
-      false,
       std::vector{size_t(3), size_t(4)},
-      500,
-      true,
       std::map{
          std::pair{Team::BLUE, std::optional(setup0)}, std::pair{Team::RED, std::optional(setup1)}},
-      hole_pos};
+      hole_pos,
+      false,
+      true,
+      500,
+   };
 
    EXPECT_EQ(config.setups[Team::BLUE].value(), setup0);
    EXPECT_EQ(config.setups[Team::RED].value(), setup1);
@@ -258,21 +259,20 @@ TEST(Config, constructor_custom_dims_no_setup)
    tokens_red.emplace_back(Token::lieutenant);
 
    auto tokens = std::map{
-      std::pair{Team::BLUE, std::optional{tokens_blue}},
-      std::pair{Team::RED, std::optional{tokens_red}}};
+      std::pair{Team::BLUE, std::optional<Config::token_variant_t >{tokens_blue}},
+      std::pair{Team::RED, std::optional<Config::token_variant_t >{tokens_red}}};
 
    std::vector< Position > hole_pos{{1, 1}};
 
    Config config{
       Team::BLUE,
-      false,
       std::vector{size_t(3), size_t(4)},
-      500,
-      false,
-      Config::null_arg< Config::setup_t >(),
       hole_pos,
       tokens,
-      start_pos};
+      start_pos,
+      false,
+      false,
+      500};
 
    EXPECT_EQ(
       config.token_counters[Team::BLUE], (std::map< Token, unsigned int >{{Token::miner, 3}}));
