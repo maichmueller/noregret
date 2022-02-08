@@ -51,7 +51,7 @@ struct VectorPrinter {
 
    friend auto& operator<<(std::ostream& os, const VectorPrinter& printer)
    {
-      os << "\n[";
+      os << "[";
       for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
          os << printer.value[i] << printer.delimiter;
       }
@@ -78,7 +78,7 @@ struct SpanPrinter {
 
    friend auto& operator<<(std::ostream& os, const SpanPrinter& printer)
    {
-      os << "\n[";
+      os << "[";
       for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
          os << printer.value[i] << printer.delimiter;
       }

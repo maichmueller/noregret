@@ -23,13 +23,13 @@ class History {
    using Index = fluent::NamedType< size_t, struct IndexTag >;
 
    [[nodiscard]] inline auto operator[](Turn turn) const
-      -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
+      -> std::tuple< Team, Action, std::pair< Piece, std::optional< Piece > > >
    {
       return {m_teams.at(turn.get()), m_actions.find(turn.get())->second, m_pieces.at(turn.get())};
    }
 
    [[nodiscard]] inline auto operator[](Index index) const
-      -> std::tuple< Team, Action, std::array< std::optional< Piece >, 2 > >
+      -> std::tuple< Team, Action, std::pair< Piece, std::optional< Piece > > >
    {
       auto turn = m_turns[index.get()];
       return (*this)[Turn(turn)];
@@ -39,17 +39,27 @@ class History {
       size_t turn,
       Team team,
       const Action &action,
-      const std::array< std::optional< Piece >, 2 > &pieces)
+      const std::pair< Piece, std::optional< Piece > > &pieces)
    {
-      m_actions.insert({turn, action});
-      m_pieces[turn] = pieces;
+      // emplace needed bc 'Action' class not default constructible (requirement for [] operator)
+      m_actions.emplace(turn, action);
+      // emplace needed bc 'Piece' class not default constructible
+      m_pieces.emplace(turn, pieces);
       m_teams[turn] = team;
-      m_turns[turn] = turn;
+      m_turns.emplace_back(turn);
    }
 
    void commit_action(const Board &board, Action action, size_t turn)
    {
-      commit_action(turn, Team(turn % 2), action, {board[action[0]], board[action[1]]});
+      commit_action(turn, Team(turn % 2), action, {board[action[0]].value(), board[action[1]]});
+   }
+
+   auto view_team_history(Team team)
+   {
+      return ranges::views::filter(
+         ranges::views::zip(m_turns, m_actions, m_pieces), [&, team = team](const auto &common_view) {
+            return m_teams[std::get<0>(common_view)] == team;
+         });
    }
 
    auto pop_last()
@@ -78,7 +88,7 @@ class History {
    std::vector< size_t > m_turns;
    std::map< size_t, Action > m_actions;
    std::map< size_t, Team > m_teams;
-   std::map< size_t, std::array< std::optional< Piece >, 2 > > m_pieces;
+   std::map< size_t, std::pair< Piece, std::optional< Piece > > > m_pieces;
 };
 
 class State: public aze::State< Board, History, Piece, Action > {

@@ -35,12 +35,13 @@ std::vector< T > flatten_counter(const std::map< T, IntType > &counter)
 
 std::string print_board(const Board &board, aze::Team team, bool hide_unknowns);
 
+}  // namespace stratego::utils
+
 template < aze::utils::is_enum Enum >
-requires aze::utils::is_any_v< Enum, Token, Status, Team, FightOutcome >
+requires aze::utils::
+   is_any_v< Enum, stratego::Token, stratego::Status, stratego::Team, stratego::FightOutcome >
 inline auto &operator<<(std::ostream &os, Enum e)
 {
-   os << utils::enum_name(e);
+   os << stratego::utils::enum_name(e);
    return os;
 }
-
-}  // namespace stratego::utils

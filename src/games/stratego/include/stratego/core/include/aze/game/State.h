@@ -94,8 +94,8 @@ void State< BoardType, HistoryType, PieceType, Action >::undo_last_rounds(size_t
 {
    for(size_t i = 0; i < n; ++i) {
       auto [turn, team, move, pieces] = m_move_history.pop_last();
-      m_board[move[1]] = std::move(pieces[1]);
-      m_board[move[0]] = std::move(pieces[0]);
+      m_board[move[1]] = std::move(std::get<1>(pieces));
+      m_board[move[0]] = std::move(std::get<0>(pieces));
    }
    m_turn_count -= n;
 }

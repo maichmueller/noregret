@@ -5,7 +5,7 @@ namespace stratego {
 
 aze::Status Logic::check_terminal(State &state)
 {
-   if( state.graveyard(Team::BLUE)[Token::flag] != 0) {
+   if(state.graveyard(Team::BLUE)[Token::flag] != 0) {
       // flag of team 0 has been captured (killed), therefore team 0 lost
       return state.status(aze::Status::WIN_RED);
    } else if(state.graveyard(Team::RED)[Token::flag] != 0) {
@@ -41,7 +41,10 @@ void Logic::apply_action(State &state, const Action &action)
    // (removes redundant searching in board later)
    Board &board = state.board();
    auto &piece_from = board[from].value();
-   auto& piece_to_opt = board[to];
+   auto &piece_to_opt = board[to];
+
+   state.history().commit_action(
+      state.turn_count(), state.active_team(), action, {piece_from, piece_to_opt});
 
    // enact the move
    if(piece_to_opt.has_value()) {
@@ -285,7 +288,7 @@ std::map< Team, std::map< Position, Token > > Logic::extract_setup(const Board &
       for(size_t j = 0; j < board.shape(1); j++) {
          const auto &piece_opt = board[{i, j}];
          if(piece_opt.has_value()) {
-            const auto& piece = piece_opt.value();
+            const auto &piece = piece_opt.value();
             setup[piece.team()][{int(i), int(j)}] = piece.token();
          }
       }

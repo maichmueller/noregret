@@ -22,8 +22,11 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
    // the space needed to assign row indices to the rows and to add a splitting
    // bar "|"
    int row_ind_space = 4;
-   auto [dim_x, dim_y] = board.shape();
    int mid = V_SIZE_PER_PIECE / 2;
+   auto [dim_x, dim_y] = board.shape();
+   const size_t vert_limit = dim_x;
+   const size_t horiz_limit = dim_y;
+
 
    // piece string lambda function that returns a str of the token
    // "-1 \n
@@ -83,7 +86,7 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
 
    std::string init_space = std::string(static_cast< unsigned long >(row_ind_space), ' ');
    std::string h_border = aze::utils::repeat(
-      VERT_BAR, static_cast< unsigned long >(dim_x * (H_SIZE_PER_PIECE + 1) - 1));
+      VERT_BAR, static_cast< unsigned long >(horiz_limit * (H_SIZE_PER_PIECE + 1) - 1));
 
    board_print << init_space << VERT_BAR << h_border << VERT_BAR << "\n";
    std::string init = board_print.str();
@@ -91,21 +94,19 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
 
    // row means row of the board. not actual rows of console output.
    // iterate backwards through the rows for correct display
-   for(int row = static_cast< int >(dim_y - 1); row > -1; --row) {
+   //   for(int row = static_cast< int >(dim_y - 1); row > -1; --row) {
+   for(int row = static_cast< int >(vert_limit - 1); row > -1; --row) {
       // per piece we have V_SIZE_PER_PIECE many lines to fill consecutively.
       // Iterate over every column and append the new segment to the right line.
       std::vector< std::stringstream > line_streams(static_cast< unsigned int >(V_SIZE_PER_PIECE));
 
-      for(int col = 0; col < dim_x; ++col) {
-         // because of the x dimension (horizontal) implicitly defining the column numbers, we have
-         // to acces the board pieces in the unintuitive way of (col, row). To be clear, the x
-         // coordinate does represent the column, i.e. length in horizontal space, on our board
-         // (like in a mathematical 2-d function graph). Likewise, the row implies the length in
-         // vertical space.
+      for(int col = 0; col < horiz_limit; ++col) {
          if(team == aze::Team::RED) {
-            curr_piece = board(dim_x - 1 - col, dim_y - 1 - row);
+            //            curr_piece = board(dim_x - 1 - col, dim_y - 1 - row);
+            curr_piece = board(dim_x - 1 - row, dim_y - 1 - col);
          } else {
-            curr_piece = board(col, row);
+            //            curr_piece = board(col, row);
+            curr_piece = board(row, col);
          }
 
          for(int i = 0; i < V_SIZE_PER_PIECE; ++i) {
@@ -123,12 +124,11 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
                   } else {
                      curr_stream << row;
                   }
-
                   curr_stream << std::string(static_cast< unsigned long >(row_ind_space - 2), ' ')
                               << VERT_BAR;
                }
                curr_stream << create_piece_str(curr_piece, i);
-               if(col != dim_x - 1) {
+               if(col != horiz_limit - 1) {
                   curr_stream << VERT_BAR;
                }
             }
@@ -144,12 +144,13 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
    // column width for the row index plus vertical dash
    board_print << std::string(static_cast< unsigned long >(row_ind_space), ' ');
    // print the column index rows
-   for(int i = 0; i < dim_x; ++i) {
+   for(int i = 0; i < horiz_limit; ++i) {
       board_print << aze::utils::center(std::to_string(i), H_SIZE_PER_PIECE + 1, " ");
    }
    board_print << "\n";
    return board_print.str();
 }
+
 template <>
 std::string enum_name(Status e)
 {

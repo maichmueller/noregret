@@ -64,9 +64,10 @@ class FixedAgent: public Agent< StateType > {
    using action_type = typename base_type::action_type;
 
   public:
-   explicit FixedAgent(Team team, std::vector< action_type > actions)
-       : base_type(team), m_actions(actions)
+   explicit FixedAgent(Team team, std::vector< action_type > actions) : base_type(team), m_actions()
    {
+      m_actions.reserve(actions.size());
+      std::copy(actions.rbegin(), actions.rend(), std::back_inserter(m_actions));
    }
 
    action_type decide_action(
@@ -76,10 +77,12 @@ class FixedAgent: public Agent< StateType > {
       auto action = m_actions.back();
       m_actions.pop_back();
 
-      if(ranges::find_first_of(action, poss_actions) == action.end()) {
-         throw std::logic_error(
-            "Latest action of scripted actor not in agreement with current possible actions to "
-            "choose from.");
+      if(ranges::find(poss_actions, action) == poss_actions.end()) {
+         std::stringstream ss;
+         ss << "Latest action of scripted actor not in agreement with current possible actions to choose from.\n";
+         ss << "Action: " << action << "\n";
+         ss << "Possible actions: " << aze::utils::VectorPrinter{poss_actions} << "\n";
+         throw std::logic_error(ss.str());
       }
       return action;
    }
