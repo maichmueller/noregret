@@ -310,4 +310,9 @@ void Logic::place_setup(const std::map< Position, Token > &setup, Board &board, 
    }
 }
 
+Logic *Logic::clone_impl() const
+{
+   return new Logic();
+}
+
 }  // namespace stratego

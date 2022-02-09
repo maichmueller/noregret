@@ -19,7 +19,7 @@ class Game: public aze::Game< State, Logic, 2 > {
       state_type &&state,
       const sptr< aze::Agent< State > > &ag0,
       const sptr< aze::Agent< State > > &ag1)
-       : base_type(std::make_unique< state_type >(state), {ag0, ag1})
+       : base_type(std::make_unique< state_type >(std::move(state)), {ag0, ag1})
    {
    }
 

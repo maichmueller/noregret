@@ -57,8 +57,9 @@ class History {
    auto view_team_history(Team team)
    {
       return ranges::views::filter(
-         ranges::views::zip(m_turns, m_actions, m_pieces), [&, team = team](const auto &common_view) {
-            return m_teams[std::get<0>(common_view)] == team;
+         ranges::views::zip(m_turns, m_actions, m_pieces),
+         [&, team = team](const auto &common_view) {
+            return m_teams[std::get< 0 >(common_view)] == team;
          });
    }
 
@@ -97,7 +98,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    using graveyard_type = std::map< Team, std::map< Piece::token_type, unsigned int > >;
 
    template < typename... Params >
-   State(Config config, graveyard_type graveyard, sptr< Logic > logic, Params &&...params)
+   State(Config config, graveyard_type graveyard, uptr< Logic > logic, Params &&...params)
        : base_type(std::forward< Params >(params)...),
          m_config(std::move(config)),
          m_graveyard(std::move(graveyard)),
@@ -108,6 +109,10 @@ class State: public aze::State< Board, History, Piece, Action > {
    explicit State(
       Config config,
       std::optional< std::variant< size_t, aze::utils::random::RNG > > seed = std::nullopt);
+
+   State(State &&) noexcept;
+   State &operator=(State &&) noexcept;
+   ~State() override;
 
    void to_graveyard(const std::optional< piece_type > &piece_opt)
    {
@@ -127,7 +132,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    [[nodiscard]] std::string to_string(aze::Team team, bool hide_unknowns) const override;
 
    [[nodiscard]] inline auto &config() const { return m_config; }
-   [[nodiscard]] inline auto &logic() const { return m_logic; }
+   [[nodiscard]] inline auto *logic() const { return &*m_logic; }
    [[nodiscard]] inline auto graveyard() const { return m_graveyard; }
    [[nodiscard]] inline auto graveyard(Team team) const { return m_graveyard.at(team); }
 
@@ -137,9 +142,11 @@ class State: public aze::State< Board, History, Piece, Action > {
    /// the graveyard of dead pieces
    graveyard_type m_graveyard;
    /// the currently used game logic on this state
-   sptr< Logic > m_logic;
+   uptr< Logic > m_logic;
 
    [[nodiscard]] State *clone_impl() const override;
+
+   void _fill_dead_pieces();
 };
 
 }  // namespace stratego

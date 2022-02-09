@@ -12,10 +12,15 @@
 namespace stratego {
 
 class Logic {
+  private:
    using Team = aze::Team;
+
+   [[nodiscard]] virtual Logic *clone_impl() const;
 
   public:
    virtual ~Logic() = default;
+
+   [[nodiscard]] uptr< Logic > clone() const { return uptr< Logic >(clone_impl()); }
 
    static FightOutcome handle_fight(State &state, Piece &attacker, Piece &defender);
 

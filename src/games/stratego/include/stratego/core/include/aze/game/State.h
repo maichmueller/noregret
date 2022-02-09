@@ -48,6 +48,8 @@ class State {
       board_type board,
       std::optional< std::variant< size_t, utils::random::RNG > > seed);
 
+   State(State&&)  noexcept = default;
+   State& operator=(State&&)  noexcept = default;
    virtual ~State() = default;
 
    virtual void apply_action(const action_type &action) = 0;
