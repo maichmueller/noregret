@@ -25,6 +25,7 @@ option(ENABLE_SANITIZER_MEMORY "Enable memory sanitizer" OFF)
 option(ENABLE_SANITIZER_THREAD "Enable thread sanitizer" OFF)
 option(ENABLE_SANITIZER_UNDEFINED_BEHAVIOR "Enable undefined behavior sanitizer" OFF)
 option(ENABLE_TESTING "Enable Test Builds" ON)
+option(ENABLE_GAMES "Enable Game Builds" ON)
 option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" OFF)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
@@ -33,11 +34,17 @@ option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 # Use C++20
 set(PROJ_CXX_STD_FEATURE cxx_std_20)
 set(PROJ_CXX_STANDARD C++20)
+if (MSVC AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.29.30129 AND CMAKE_VERSION VERSION_GREATER 3.20.3)
+    # this change happened in CMake 3.20.4
+    set(PROJ_CXX_STD_FEATURE cxx_std_23)# /std:c++latest - unlocks the non stable cpp20 features. For new 16.11 versions
+else ()
+    set(PROJ_CXX_STD_FEATURE cxx_std_20) # /std:c++latest for msvc and -std=c++20 for everyone else.
+endif ()
 
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)
 set(nor_pymodule pynor)
-set(nor_test tests)
+set(nor_test nor_tests)
 
 set(CONANFILE conanfile.txt)
 set(DEPENDENCY_DIR deps)  # has to be relative to CMAKE_CURRENT_SOURCE_DIR
@@ -45,6 +52,7 @@ set(PROJECT_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(PROJECT_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test")
 set(PROJECT_NOR_DIR "${PROJECT_SRC_DIR}/libnor")
 set(PROJECT_PYNOR_DIR "${PROJECT_SRC_DIR}/nor")
+set(PROJECT_GAMES_DIR "${PROJECT_SRC_DIR}/games")
 set(PROJECT_NOR_SRC_DIR "${PROJECT_NOR_DIR}/impl")
 set(PROJECT_NOR_INCLUDE_DIR "${PROJECT_NOR_DIR}/include")
 set(PROJECT_NOR_BINDING_DIR "${PROJECT_PYNOR_DIR}/binding")
@@ -99,7 +107,6 @@ string(
 )
 target_compile_options(project_options INTERFACE "${_options}")
 
-
 # Set up some extra Conan dependencies based on our needs
 # before loading Conan
 set(CONAN_EXTRA_REQUIRES "")
@@ -152,6 +159,10 @@ include(${_cmake_DIR}/targets/nor.cmake)
 if (ENABLE_BUILD_PYTHON_EXTENSION)
     message(STATUS "Configuring Python Extension ${nor_pymodule}.")
     include(${_cmake_DIR}/targets/pynor.cmake)
+endif ()
+if (ENABLE_GAMES)
+    message(STATUS "Configuring Game Builds.")
+    include(${_cmake_DIR}/targets/games.cmake)
 endif ()
 
 # use, i.e. don't skip the full RPATH for the build tree
@@ -243,7 +254,7 @@ else ()
             PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT Development
     )
 
-    if(ENABLE_BUILD_PYTHON_EXTENSION)
+    if (ENABLE_BUILD_PYTHON_EXTENSION)
         # to use the latest build of the library for a development package install (pip install path/to/project -e),
         # we configure an optional install component of the python extension in-source
         install(
@@ -258,7 +269,7 @@ else ()
                 COMMAND ${CMAKE_COMMAND} --install . --component PyExtension_inplace
                 DEPENDS ${nor_pymodule}
         )
-    endif()
+    endif ()
 
 
     install(

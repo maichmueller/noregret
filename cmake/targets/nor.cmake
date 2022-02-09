@@ -13,6 +13,7 @@ target_link_libraries(
         INTERFACE
         project_options
         CONAN_PKG::cppitertools
+        CONAN_PKG::range-v3
 )
 
 set_target_properties(
