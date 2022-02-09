@@ -5,11 +5,11 @@
 ###########################
 set(
         TEST_SOURCES
-        main_tests.cpp
+        test_cfr.cpp
 )
-list(TRANSFORM TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/")
+list(TRANSFORM TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
 
-add_executable(${nor_test} ${TEST_SOURCES})
+add_executable(${nor_test} ${PROJECT_TEST_DIR}/main_tests.cpp ${TEST_SOURCES})
 
 #set_target_properties(${per_test} PROPERTIES
 #        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.

@@ -3,6 +3,7 @@
 #define NOR_CONCRETE_HPP
 
 #include <concepts>
+#include <range/v3/all.hpp>
 #include <utility>
 #include <vector>
 
@@ -12,7 +13,7 @@
 namespace nor::concepts {
 
 template < typename T >
-concept Action = requires(T obj)
+concept action = requires(T obj)
 {
    {
       obj.id()
@@ -20,31 +21,37 @@ concept Action = requires(T obj)
 };
 
 template < typename T, typename Action >
-concept Infoset = requires(T obj)
+concept infoset = requires(T obj)
 {
    T::v;
 };
 
 template < typename T, typename InSet, typename Act >
-concept Strategy = Action< Act > && Infoset< InSet, Act > &&
-   /// getitem methods by (infoset, action) tuple and infoset standalone
-   requires(T obj, Act action, InSet info_set)
+concept strategy =
+   action< Act > && infoset< InSet, Act > && requires(T obj, Act action, InSet info_set)
 {
+   std::is_move_constructible_v< T >;
+   std::is_move_assignable_v< T >;
+   std::is_copy_constructible_v< T >;
+   std::is_copy_assignable_v< T >;
+
+   /// getitem methods by (infoset, action) tuple and infoset only
    {
       obj[std::pair{info_set, action}]
-      } -> std::same_as< double >;
+      } -> std::convertible_to< double >;
    {
       obj[info_set]
-      } -> std::same_as< std::vector< Act > >;
+      } -> std::convertible_to< ranges::span< Act > >;
+
    /// const getitem methods
 } && requires(T const obj, Act action, InSet info_set)
 {
    {
       obj[std::pair{info_set, action}]
-      } -> std::same_as< double >;
+      } -> std::convertible_to< double >;
    {
       obj[info_set]
-      } -> std::same_as< std::vector< Act > >;
+      } -> std::convertible_to< ranges::span< Act > >;
 };
 
 }  // namespace nor::concepts
