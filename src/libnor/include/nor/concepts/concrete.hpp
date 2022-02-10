@@ -27,7 +27,7 @@ concept infoset = requires(T obj)
 };
 
 template < typename T, typename InSet, typename Act >
-concept strategy =
+concept policy =
    action< Act > && infoset< InSet, Act > && requires(T obj, Act action, InSet info_set)
 {
    std::is_move_constructible_v< T >;

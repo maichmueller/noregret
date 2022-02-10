@@ -110,7 +110,8 @@ class State: public aze::State< Board, History, Piece, Action > {
       Config config,
       std::optional< std::variant< size_t, aze::utils::random::RNG > > seed = std::nullopt);
 
-   // definitions for these needs to be in .cpp due to Logic being an incomplete type here
+   // definitions for these needs to be in .cpp due to Logic being an incomplete type here and
+   // uniq_ptr accessing it in its destructor
    State(State &&) noexcept;
    State &operator=(State &&) noexcept;
    ~State() override;
