@@ -4,18 +4,18 @@ cmake_minimum_required(VERSION 3.16)
 # Stratego
 #################################
 
-add_library(core INTERFACE)
+add_library(stratego_core INTERFACE)
 
-set(CORE_INCLUDE_DIR ${PROJECT_GAMES_DIR}/stratego/include/stratego/core/include)
+set(STRATEGO_CORE_INCLUDE_DIR ${PROJECT_GAMES_DIR}/stratego/include/stratego/core/include)
 
 target_include_directories(
-        core
+        stratego_core
         INTERFACE
-        ${CORE_INCLUDE_DIR}
+        ${STRATEGO_CORE_INCLUDE_DIR}
 )
 
 target_link_libraries(
-        core
+        stratego_core
         INTERFACE
         project_options
         CONAN_PKG::xtensor
@@ -45,7 +45,7 @@ target_link_libraries(
         stratego
         PUBLIC
         project_options
-        core
+        stratego_core
         CONAN_PKG::range-v3
         CONAN_PKG::namedtype
 )
