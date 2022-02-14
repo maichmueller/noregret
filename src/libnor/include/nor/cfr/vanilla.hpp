@@ -28,26 +28,10 @@ namespace nor {
 //};
 
 template <
-   concepts::game Game,
-   typename Valuator,
+   concepts::fosg Game,
    concepts::action Action,
    concepts::info_state Infostate,
    concepts::policy< Infostate, Action > Policy >
-requires concepts::fosg<
-   Action,
-   Infostate,
-   Infostate,
-   Policy,
-//   &Game::action_func,
-   std::function<Action (Infostate)>,
-//   &Game::transition_function,
-   std::function<Action (Infostate, Action)>,
-//   &Game::reward_function,
-   std::function<Action (Infostate, Action)>,
-//   &Game::observation_function,
-   std::function<Action (Infostate)>,
-   Valuator
-   >
 class CFR {
 
 };
