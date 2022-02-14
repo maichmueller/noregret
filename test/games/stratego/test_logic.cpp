@@ -29,14 +29,14 @@ TEST_F(MinimalState, action_is_valid)
    // cant walk too far
    EXPECT_FALSE(state.logic()->is_valid(state, Action{{1, 1}, {3, 1}}, Team::BLUE));
    EXPECT_FALSE(state.logic()->is_valid(state, Action{{1, 4}, {3, 4}}, Team::BLUE));
-   // cant step over pieces
+   // cant transition over pieces
    EXPECT_FALSE(state.logic()->is_valid(state, Action{{3, 1}, {0, 1}}, Team::RED));
 }
 
 TEST_F(MinimalState, apply_action)
 {
    // move marshall one field up
-   state.apply_action({{1, 1}, {2, 1}});
+   state.transition({{1, 1}, {2, 1}});
    // previous field should now be empty
    EXPECT_THROW((state.board()[{1, 1}].value()), std::bad_optional_access);
 
@@ -45,7 +45,7 @@ TEST_F(MinimalState, apply_action)
    EXPECT_EQ(piece.token(), Token::marshall);
 
    // move marshall onto enemy scout -> fight and win
-   state.apply_action({{2, 1}, {3, 1}});
+   state.transition({{2, 1}, {3, 1}});
 
    piece = state.board()[{3, 1}].value();
    EXPECT_THROW((state.board()[{2, 1}].value()), std::bad_optional_access);
@@ -54,7 +54,7 @@ TEST_F(MinimalState, apply_action)
 
    // move marshall onto enemy bomb -> fight and die
    auto state_copy = state.clone();
-   state.apply_action({{3, 1}, {3, 2}});
+   state.transition({{3, 1}, {3, 2}});
 
    EXPECT_THROW((state.board()[{3, 1}].value()), std::bad_optional_access);
    piece = state.board()[{3, 2}].value();
@@ -63,7 +63,7 @@ TEST_F(MinimalState, apply_action)
    EXPECT_EQ(piece.team(), Team::RED);
 
    // move spy onto enemy marshall -> fight and win
-   state_copy->apply_action({{4, 1}, {3, 1}});
+   state_copy->transition({{4, 1}, {3, 1}});
 
    EXPECT_THROW((state_copy->board()[{4, 1}].value()), std::bad_optional_access);
    piece = state_copy->board()[{3, 1}].value();
@@ -99,7 +99,7 @@ TEST_F(MinimalState, valid_action_list)
    }
 
    // move marshall one field up
-   state.apply_action({{1, 1}, {2, 1}});
+   state.transition({{1, 1}, {2, 1}});
 
    //   std::cout << state.to_string();
 

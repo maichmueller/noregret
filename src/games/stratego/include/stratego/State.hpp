@@ -123,7 +123,7 @@ class State: public aze::State< Board, History, Piece, Action > {
       }
    }
 
-   void apply_action(const action_type &action) override;
+   void transition(const action_type &action) override;
    aze::Status check_terminal() override;
    [[nodiscard]] Team active_team() const override
    {

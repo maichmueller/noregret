@@ -52,7 +52,7 @@ class State {
    State& operator=(State&&)  noexcept = default;
    virtual ~State() = default;
 
-   virtual void apply_action(const action_type &action) = 0;
+   virtual void transition(const action_type &action) = 0;
    virtual Status check_terminal() = 0;
    virtual void restore_to_round(size_t round);
 

@@ -75,7 +75,7 @@ std::tuple< StatTrack, StatTrack > inline pit(
    for(int sim = 1; sim < num_sims; ++sim) {
       game.reset();
       LOGD2("After Reset", game.state()->to_string(false, false));
-      int game_outcome = game.run_game(show_game);
+      int game_outcome = game.run(show_game);
       if(game_outcome == 1)
          stats0.add_win("flag", game.state()->get_turn_count());
       else if(game_outcome == 2)

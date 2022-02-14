@@ -22,6 +22,7 @@ target_link_libraries(${nor_test}
         CONAN_PKG::gtest
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
+        stratego
         )
 
 add_test(

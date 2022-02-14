@@ -53,6 +53,6 @@ TEST_F(MinimalState, run_game_fixed_actions)
                      Action{{3, 3}, {3, 4}}, Action{{3, 4}, {2, 4}}, Action{{2, 4}, {1, 4}},
                      Action{{1, 4}, {1, 3}}})};
 
-   //   EXPECT_EQ(game.run_game(std::make_shared< plotter >()), Status::WIN_BLUE);
-   EXPECT_EQ(game.run_game(nullptr), Status::WIN_BLUE);
+   //   EXPECT_EQ(game.run(std::make_shared< plotter >()), Status::WIN_BLUE);
+   EXPECT_EQ(game.run(nullptr), Status::WIN_BLUE);
 }

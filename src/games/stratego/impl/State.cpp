@@ -8,7 +8,7 @@
 
 namespace stratego {
 
-void State::apply_action(const action_type &action)
+void State::transition(const action_type &action)
 {
    status_checked() = false;
    logic()->apply_action(*this, action);

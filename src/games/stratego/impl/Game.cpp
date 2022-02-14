@@ -5,7 +5,7 @@
 
 namespace stratego {
 
-Status Game::run_game(const sptr< aze::utils::Plotter< state_type > >& plotter)
+Status Game::run(const sptr< aze::utils::Plotter< state_type > >& plotter)
 {
    while(true) {
       if(plotter) {
@@ -20,13 +20,13 @@ Status Game::run_game(const sptr< aze::utils::Plotter< state_type > >& plotter)
       if(state()->status() != Status::ONGOING) {
          return state()->status();
       }
-      run_step();
+      transition();
    }
 }
 
-Status Game::run_step()
+Status Game::transition()
 {
-   LOGD(std::string_view("Running step."))
+   LOGD(std::string_view("Running transition."))
    Team active_team = state()->active_team();
    auto action = agent(active_team)
                     ->decide_action(
@@ -36,7 +36,7 @@ Status Game::run_step()
       aze::utils::VectorPrinter{state()->logic()->valid_actions(*state(), active_team)}); // NOLINT
    LOGD2("Selected Action by team " + utils::enum_name(active_team), action);
 
-   state()->apply_action(action);
+   state()->transition(action);
    return state()->status();
 }
 

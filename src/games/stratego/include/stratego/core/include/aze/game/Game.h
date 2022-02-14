@@ -30,12 +30,12 @@ class Game {
    std::array< sptr< Agent< state_type > >, n_teams > m_agents;
 
   public:
-   Game(uptr< state_type > stateptr, std::array< sptr< agent_type >, n_teams > agents);
-   Game(state_type &&state, std::array< sptr< agent_type >, n_teams > agents);
+   Game(uptr< state_type > stateptr, std::vector< sptr< agent_type > > agents);
+   Game(state_type &&state, std::vector< sptr< agent_type > > agents);
    virtual ~Game() = default;
 
-   virtual Status run_game(const sptr< utils::Plotter< state_type > > &plotter) = 0;
-   virtual Status run_step() = 0;
+   virtual Status run(const sptr< utils::Plotter< state_type > > &plotter) = 0;
+   virtual Status transition() = 0;
    virtual void reset() = 0;
 
    constexpr auto nr_players() const { return n_teams; }
@@ -48,7 +48,7 @@ class Game {
 template < class StateType, class LogicType, size_t NPlayers >
 Game< StateType, LogicType, NPlayers >::Game(
    state_type &&state,
-   std::array< sptr< Agent< state_type > >, n_teams > agents)
+   std::vector< sptr< Agent< state_type > > > agents)
     : m_state(std::make_unique< state_type >(std::move(state))), m_agents(agents)
 {
 }
@@ -56,7 +56,7 @@ Game< StateType, LogicType, NPlayers >::Game(
 template < class StateType, class LogicType, size_t NPlayers >
 Game< StateType, LogicType, NPlayers >::Game(
    uptr< state_type > stateptr,
-   std::array< sptr< Agent< state_type > >, n_teams > agents)
+   std::vector< sptr< Agent< state_type > > > agents)
     : m_state(std::move(stateptr)), m_agents(agents)
 {
 }
