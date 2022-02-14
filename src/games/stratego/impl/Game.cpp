@@ -20,22 +20,22 @@ Status Game::run(const sptr< aze::utils::Plotter< state_type > >& plotter)
       if(state()->status() != Status::ONGOING) {
          return state()->status();
       }
-      transition();
+      LOGD("Running transition.")
+      Team active_team = state()->active_team();
+      auto action = agent(active_team)
+                       ->decide_action(
+                          *state(), state()->logic()->valid_actions(*state(), active_team));
+      LOGD2(
+         "Possible Moves",
+         aze::utils::VectorPrinter{state()->logic()->valid_actions(*state(), active_team)}); // NOLINT
+      LOGD2("Selected Action by team " + utils::enum_name(active_team), action);
+
+      transition(action);
    }
 }
 
-Status Game::transition()
+Status Game::transition(const Action& action)
 {
-   LOGD(std::string_view("Running transition."))
-   Team active_team = state()->active_team();
-   auto action = agent(active_team)
-                    ->decide_action(
-                       *state(), state()->logic()->valid_actions(*state(), active_team));
-   LOGD2(
-      "Possible Moves",
-      aze::utils::VectorPrinter{state()->logic()->valid_actions(*state(), active_team)}); // NOLINT
-   LOGD2("Selected Action by team " + utils::enum_name(active_team), action);
-
    state()->transition(action);
    return state()->status();
 }
