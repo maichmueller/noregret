@@ -40,7 +40,7 @@ concept public_state =
 template <
    typename T,
    typename Action = typename T::action_type,
-   typename Observation = typename T::observation_type>
+   typename Observation = typename T::observation_type >
 concept info_state =
    action< Action > && observation< Observation > && is::sized< T > && requires(T t)
 {
@@ -57,8 +57,7 @@ concept world_state = requires(T t)
 template <
    typename T,
    typename Infostate = typename T::info_state_type,
-   typename Action = typename T::action_type,
-   typename Observation = typename T::observation_type >
+   typename Action = typename T::action_type >
 concept policy = info_state< Infostate > && requires(T obj, Infostate istate, Action action)
 {
    std::is_move_constructible_v< T >;
@@ -84,12 +83,12 @@ concept policy = info_state< Infostate > && requires(T obj, Infostate istate, Ac
 };
 
 template <
-   typename T,
-   typename Action = typename T::action_type,
-   typename Infostate = typename T::info_state_type,
-   typename Publicstate = typename T::public_state_type,
-   typename Worldstate = typename T::world_state_type,
-   typename Observation = typename T::observation_type >
+   typename Game,
+   typename Action = typename Game::action_type,
+   typename Infostate = typename Game::info_state_type,
+   typename Publicstate = typename Game::public_state_type,
+   typename Worldstate = typename Game::world_state_type,
+   typename Observation = typename Game::observation_type >
 // clang-format off
 concept fosg =
    action<Action>
@@ -97,11 +96,18 @@ concept fosg =
    && public_state< Publicstate >
    && world_state< Worldstate >
    && observation< Observation >
-   && has::method::actions< T >
-   && has::method::transition< T >
-   && has::method::private_observation< T>
-   && has::method::public_observation<T >
-   && has::method::observation< T >;
+   && has::method::actions< Game >
+   && has::method::transition< Game >
+   && has::method::private_observation< Game>
+   && has::method::public_observation<Game >
+   && has::method::observation< Game >
+   && has::method::reset< Game, Worldstate& >
+   && has::method::info_state< Game, std::shared_ptr<Infostate> >
+   && has::method::public_state< Game, std::shared_ptr<Publicstate> >
+   && has::method::world_state< Game, std::shared_ptr<Worldstate> >
+   && has::method::reward< Game >
+   && has::method::is_terminal< Game, Worldstate& >
+   && std::is_copy_constructible_v< Game >;
 // clang-format on
 
 }  // namespace nor::concepts

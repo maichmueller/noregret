@@ -4,7 +4,22 @@
 
 namespace nor {
 
-enum class Player;
+enum class Player : size_t {
+   one = 0,
+   two,
+   three,
+   four,
+   five,
+   six,
+   seven,
+   eight,
+   nine,
+   ten,
+   eleven,
+   twelve,
+   thirteen,
+   fourteen
+};
 
 }
 

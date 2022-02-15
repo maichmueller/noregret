@@ -6,25 +6,110 @@
 
 namespace nor {
 
-template < typename Map >
+/**
+ * @brief Creates a uniform policy taking in the given state and action type.
+ *
+ * This will return a uniform probability vector over the legal actions as provided by the
+ * LegalActionsFilter. The filter takes in an object of state type and returns the legal actions. In
+ * the case of fixed action size it will simply return dummy 0 values to do nothing.
+ * Each probabability vector can be further accessed by the action index to receive the action
+ * probability.
+ *
+ * @tparam StateType, the state type. This is the key type for 'lookup' (not actually a lookup here)
+ * in the policy.
+ * @tparam extent, the number of legal actions at any given time. If std::dynamic_extent, then the
+ * legal action filter has to be supplied.
+ * @tparam LegalActionFilter, type of callable that provides the legal actions in the case of
+ * dynamic_extent.
+ */
+template <
+   typename StateType,
+   std::size_t extent = std::dynamic_extent,
+   std::invocable< const StateType&, std::vector< double > >
+      LegalActionFilter = decltype(fixed_size_filter< StateType, extent >()) >
+requires concepts::info_state< StateType >
+class UniformPolicy {
+   using state_type = StateType;
+
+   UniformPolicy() requires(extent != std::dynamic_extent) : m_filter(fixed_size_filter) {}
+   explicit UniformPolicy(LegalActionFilter filter) requires(extent == std::dynamic_extent)
+       : m_filter(filter)
+   {
+   }
+
+   auto& operator[](const state_type& state) const
+   {
+      if constexpr(extent == std::dynamic_extent) {
+         // if we have non-fixed-size action vectors coming in, then we need to ask the filter to
+         // provide us with the legal actions.
+         auto legal_actions = m_filter(state);
+         double uniform_p = 1. / static_cast< double >(legal_actions.size());
+         return std::vector< double >(legal_actions.size(), uniform_p);
+      } else {
+         // Otherwise we can compute directly the uniform probability vector
+         constexpr double uniform_p = 1. / static_cast< double >(extent);
+         return std::vector< double >(extent, uniform_p);
+      }
+   }
+   template < typename Action = int >
+   auto& operator[](const std::pair< state_type, Action >& state_action) const
+   {
+      return (*this)[std::get< 0 >(state_action)][0];
+   }
+
+  private:
+   LegalActionFilter m_filter;
+
+   static constexpr auto fixed_size_filter(const state_type&)
+   {
+      return std::vector< int >(extent, 0);
+   }
+};
+
+template < typename Map, typename Action, typename DefaultPolicy >
 requires requires(Map m)
 {
-   std::is_default_constructible_v< Map >;
    Map::key_type;
    Map::mapped_type;
-}
+   { m.begin()} -> std::same_as<typename Map::iterator_type>;
+   { m.end()} -> std::same_as<typename Map::iterator_type>;
+   { m.find(std::declval<typename Map::key_type>())} -> std::same_as<typename Map::iterator_type>;
+   { m.at(std::declval<typename Map::key_type>())} -> std::same_as<typename Map::mapped_type>;
+} && std::is_default_constructible_v< Map > && std::is_default_constructible_v<
+   DefaultPolicy > && concepts::action< Action >
 class TabularPolicy {
-
-   using key_type = typename Map::key_type;
+   using state_type = typename Map::key_type;
    using mapped_type = typename Map::mapped_type;
+   using action_type = Action;
+   using default_policy_type = DefaultPolicy;
 
    TabularPolicy() = default;
 
-   auto& operator[](const key_type& key) { return m_table[key]; }
-   auto& operator[](const key_type& key) const { return m_table.at(key); }
+   auto& operator[](const state_type& state)
+   {
+      auto found_policy = m_table.find(state);
+      if(found_policy == m_table.end()) {
+         auto default_policy_vec = m_default_policy[state];
+         m_table.insert({state, default_policy_vec});
+         return default_policy_vec;
+      }
+   }
+   auto& operator[](const std::pair< state_type, action_type >& state_action)
+   {
+      const auto& [state, action] = state_action;
+      return m_table[state][action];
+   }
+
+   auto& operator[](const state_type& state) const { return m_table.at(state); }
+   auto& operator[](const std::pair< state_type, action_type >& state_action) const
+   {
+      const auto& [state, action] = state_action;
+      return m_table.at(state)[action];
+   }
 
   private:
    Map m_table;
+   default_policy_type m_default_policy;
 };
 
 }  // namespace nor
