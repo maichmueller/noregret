@@ -264,28 +264,6 @@ void CFR< Game, Policy >::regret_matching(
 {
 }
 
-void CFR< Game, Policy >::regret_matching(
-   const PVector& pvec,
-   const std::vector< double >& cumul_reg)
-{
-   double sum_pos_regrets = 0.0;
-
-   for(int aidx = 0; aidx < num_actions(); ++aidx) {
-      if(cumul_reg[aidx] > 0) {
-         sum_positive_regrets += cumulative_regrets[aidx];
-      }
-   }
-
-   for(int aidx = 0; aidx < num_actions(); ++aidx) {
-      if(sum_positive_regrets > 0) {
-         current_policy[aidx] = cumulative_regrets[aidx] > 0
-                                   ? cumulative_regrets[aidx] / sum_positive_regrets
-                                   : 0;
-      } else {
-         current_policy[aidx] = 1.0 / legal_actions.size();
-      }
-   }
-}
 
 ///// helper function for building CFR from a game later maybe?
 // template <typename...Args>
