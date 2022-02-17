@@ -20,13 +20,10 @@ template < typename Iter >
 concept const_iter = std::is_const_v<
    std::remove_reference_t< typename std::iterator_traits< Iter >::reference > >;
 
-
-template <typename T, typename Trait>
-concept trait = requires(T t) {
-   T::Trait;
+template<typename T>
+concept hashable = requires(T a) {
+   { std::hash<T>{}(a) } -> std::convertible_to<std::size_t>;
 };
-
-
 
 }  // namespace nor::concepts::is
 

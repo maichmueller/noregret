@@ -16,8 +16,7 @@ namespace nor::concepts {
 template < typename T >
 concept action = requires(T t)
 {
-   // placeholder for possible refinement later
-   true;
+   is::hashable< T >;
 };
 
 template < typename T >
@@ -41,46 +40,52 @@ template <
    typename T,
    typename Action = typename T::action_type,
    typename Observation = typename T::observation_type >
+// clang-format off
 concept info_state =
-   action< Action > && observation< Observation > && is::sized< T > && requires(T t)
-{
-   true;
-};
+/**/  action< Action >
+   && observation< Observation >
+   && is::sized< T >
+   && is::hashable< T >
+   && std::equality_comparable< T >;
+// clang-format on
 
 template < typename T >
-concept world_state = requires(T t)
-{
-   // placeholder for possible refinement later
-   true;
-};
+concept world_state = std::equality_comparable< T >;
+
+template < typename T, typename Action = typename T::action_type >
+// clang-format off
+concept vector_policy =
+/**/  std::is_move_constructible_v< T >
+   && std::is_move_assignable_v< T >
+   && is::sized<T>
+   && has::method::getitem< T, Action, double >
+   && has::method::const_getitem< T, Action, double >;
+// clang-format on
 
 template <
    typename T,
    typename Infostate = typename T::info_state_type,
-   typename Action = typename T::action_type >
-concept policy = info_state< Infostate > && requires(T obj, Infostate istate, Action action)
-{
-   std::is_move_constructible_v< T >;
-   std::is_move_assignable_v< T >;
-
-   /// getitem methods by (istate, action) tuple and istate only
+   typename Action = typename T::action_type,
+   typename Observation = typename T::observation_type >
+// clang-format off
+concept state_policy =
+/**/  info_state< Infostate, Action, Observation>
+   && std::is_move_constructible_v< T >
+   && std::is_move_assignable_v< T >
+   && has::method::getitem<T, std::pair<Infostate, Action>, double>
+   && has::method::const_getitem<T, std::pair<Infostate, Action>, double>
+   && requires(T obj, Infostate istate)
    {
-      obj[std::pair{istate, action}]
-      } -> std::convertible_to< double >;
+      /// these getitem methods need to specified explicitly since concepts cannot be passed as
+      /// typenames to other concepts (no nested concepts allowed). This would be necessary for
+      /// has::method::getitem at the return type.
+      { obj[istate] } -> vector_policy< Action >;
+   }
+   && requires(T const obj, Infostate istate)
    {
-      obj[istate]
-      } -> std::convertible_to< std::vector< Action > >;
-
-   /// const getitem methods
-} && requires(T const obj, Infostate istate, Action action)
-{
-   {
-      obj[std::pair{istate, action}]
-      } -> std::convertible_to< double >;
-   {
-      obj[istate]
-      } -> std::convertible_to< std::vector< Action > >;
-};
+      { obj[istate] } -> vector_policy< Action >;
+   };
+// clang-format on
 
 template <
    typename Game,
@@ -91,7 +96,11 @@ template <
    typename Observation = typename Game::observation_type >
 // clang-format off
 concept fosg =
-   action<Action>
+/**/  std::is_copy_constructible_v< Game >
+   && std::is_copy_assignable_v< Game >
+   && std::is_move_constructible_v< Game >
+   && std::is_move_assignable_v< Game >
+   && action<Action>
    && info_state< Infostate>
    && public_state< Publicstate >
    && world_state< Worldstate >
@@ -107,7 +116,9 @@ concept fosg =
    && has::method::world_state< Game, std::shared_ptr<Worldstate> >
    && has::method::reward< Game >
    && has::method::is_terminal< Game, Worldstate& >
-   && std::is_copy_constructible_v< Game >;
+   && has::trait::player_count< Game >
+   && has::trait::max_player_count< Game >
+   && has::trait::turn_dynamic< Game >;
 // clang-format on
 
 }  // namespace nor::concepts

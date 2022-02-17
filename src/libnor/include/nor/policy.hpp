@@ -7,7 +7,7 @@
 namespace nor {
 
 /**
- * @brief Creates a uniform policy taking in the given state and action type.
+ * @brief Creates a uniform state_policy taking in the given state and action type.
  *
  * This will return a uniform probability vector over the legal actions as provided by the
  * LegalActionsFilter. The filter takes in an object of state type and returns the legal actions. In
@@ -16,7 +16,7 @@ namespace nor {
  * probability.
  *
  * @tparam StateType, the state type. This is the key type for 'lookup' (not actually a lookup here)
- * in the policy.
+ * in the state_policy.
  * @tparam extent, the number of legal actions at any given time. If std::dynamic_extent, then the
  * legal action filter has to be supplied.
  * @tparam LegalActionFilter, type of callable that provides the legal actions in the case of
