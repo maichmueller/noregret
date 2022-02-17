@@ -2,10 +2,10 @@
 #ifndef NOR_VANILLA_HPP
 #define NOR_VANILLA_HPP
 
+#include <list>
 #include <queue>
 #include <utility>
 #include <vector>
-#include <list>
 
 #include "nor/concepts.hpp"
 #include "nor/policy.hpp"
@@ -167,7 +167,8 @@ const Policy* CFR< Game, Policy >::iterate(int n_iters)
          if(not is_chance_player) {
             // multiply the current reach probabilities of this state by the policy of choosing the
             // action by the active player.
-            node_reach_probs[curr_node.player] *= m_policy[{curr_node.player, action}];
+            node_reach_probs[curr_node.player] *= m_policy[curr_node.player]
+                                                          [{curr_node.info_state, action}];
          };
          // add this new world state into the tree by its active player's information state
          auto* emplaced_node = &(m_game_tree
@@ -263,7 +264,6 @@ void CFR< Game, Policy >::regret_matching(
    std::vector< double > cumul_reg)
 {
 }
-
 
 ///// helper function for building CFR from a game later maybe?
 // template <typename...Args>
