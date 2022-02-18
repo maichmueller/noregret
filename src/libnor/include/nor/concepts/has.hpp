@@ -60,6 +60,20 @@ concept reward = requires(T t, Worldstate wstate)
       } -> std::convertible_to< double >;
 };
 
+template < typename T, typename Worldstate = typename T::world_state_type >
+concept reward_all = requires(T t, Worldstate wstate)
+{
+   {
+      t.reward()
+      } -> std::convertible_to< std::map< Player, double > >;
+}
+&&requires(T const t, Worldstate& wstate)
+{
+   {
+      t.reward(wstate)
+      } -> std::convertible_to< std::map< Player, double > >;
+};
+
 template < typename T >
 concept run = requires(T const t)
 {
@@ -81,7 +95,7 @@ concept players = requires(T const t)
 {
    {
       t.players()
-      } -> std::same_as< std::vector<Player> >;
+      } -> std::same_as< std::vector< Player > >;
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "nor/concepts.hpp"
+#include "nor/game_defs.hpp"
 #include "nor/policy.hpp"
 #include "nor/utils/utils.hpp"
 
@@ -30,18 +31,14 @@ void regret_matching(VectorPolicy& policy_vec, const std::vector< double >& cumu
    auto exec_policy{std::execution::par_unseq};
    if(pos_regret_sum > 0) {
       std::transform(
-         exec_policy,
-         policy_vec.begin(),
-         policy_vec.end(),
-         policy_vec.begin(),
-         [&](auto regret) { return regret / pos_regret_sum; });
+         exec_policy, policy_vec.begin(), policy_vec.end(), policy_vec.begin(), [&](auto regret) {
+            return regret / pos_regret_sum;
+         });
    } else {
       std::transform(
-         exec_policy,
-         policy_vec.begin(),
-         policy_vec.end(),
-         policy_vec.begin(),
-         [&](auto regret) { return 1. / static_cast< double >(policy_vec.size()); });
+         exec_policy, policy_vec.begin(), policy_vec.end(), policy_vec.begin(), [&](auto) {
+            return 1. / static_cast< double >(policy_vec.size());
+         });
    }
 }
 
@@ -50,39 +47,31 @@ struct CFRConfig {
 };
 
 template <
-   CFRConfig cfr_config,
    concepts::action Action,
    concepts::info_state Infostate,
    concepts::info_state Worldstate >
 struct CFRNode {
-   using state_value_type = std::conditional_t<
-      cfr_config.alternating_updates,
-      /*true:  */ double,  // we need only a scalar if a single player's values are updated
-      /*false: */ std::map< Player, double > >;
-
    Worldstate world_state;
    Infostate info_state;
    Player player;
-   state_value_type value{};
-   std::map< Player, double > reach_prob;
-   std::map< Action, double > regret;
-   std::map< Action, CFRNode* > children;
+   // player-based storage
+   std::map< Player, double > value{};
+   std::map< Player, double > reach_probability{};
+   // action-based storage
+   std::map< Action, CFRNode* > children{};
+   std::map< Action, double > regret{};
    CFRNode* parent;
 
    CFRNode(
       const Worldstate& world_state,
       const Infostate& info_state_,
       Player player_,
-      std::map< Player, double > reach_prob_,
-      state_value_type values = {},
+      std::map< Player, double > reach_prob,
       CFRNode* parent = nullptr)
        : world_state(world_state),
          info_state(info_state_),
          player(player_),
-         value(std::move(values)),
-         reach_prob(std::move(reach_prob_)),
-         regret(),
-         children(),
+         reach_probability(std::move(reach_prob)),
          parent(parent),
          m_hash_cache(std::hash< Infostate >{}(info_state))
    {
@@ -112,9 +101,9 @@ struct CFRNode {
 
 namespace std {
 
-template < nor::CFRConfig cfg, typename... Args >
-struct hash< nor::CFRNode< cfg, Args... > > {
-   size_t operator()(const nor::CFRNode< cfg, Args... >& node) const { return node.hash(); }
+template < typename... Args >
+struct hash< nor::CFRNode< Args... > > {
+   size_t operator()(const nor::CFRNode< Args... >& node) const { return node.hash(); }
 };
 }  // namespace std
 
@@ -134,12 +123,13 @@ template <
    typename Variant >
 class CFRBase {
    /// define all aliases to be used in this class from the game type.
+   using game_type = Game;
    using action_type = typename Game::action_type;
    using info_state_type = typename Game::info_state_type;
    using public_state_type = typename Game::public_state_type;
    using world_state_type = typename Game::world_state_type;
    // we configure the correct CFR Node type to store in the tree
-   using cfr_node_type = CFRNode< cfr_config, action_type, info_state_type, world_state_type >;
+   using cfr_node_type = CFRNode< action_type, info_state_type, world_state_type >;
 
    explicit CFRBase(Game&& game, Policy&& policy = Policy())
        : m_game(std::forward< Game >(game)),
@@ -167,6 +157,12 @@ class CFRBase {
       derived_cast()->_policy_update(policy_vec, regrets);
    }
 
+   void update_cf_regret(cfr_node_type& node, Player player);
+   double reach_probability(const cfr_node_type& node, const Player& player) const;
+   double cf_reach_probability(const cfr_node_type& node, const Player& player) const;
+   double cf_reach_probability(const cfr_node_type& node, double reach_prob, const Player& player)
+      const;
+
   private:
    Game m_game;
    std::map< info_state_type, cfr_node_type > m_game_tree;
@@ -175,7 +171,10 @@ class CFRBase {
 
    auto derived_cast() { return static_cast< Variant* >(this); }
 
-   void _collect_state_value(cfr_node_type* node, Player player);
+   void _gather_state_value(cfr_node_type& node, Player player);
+
+   auto state_action_values(cfr_node_type& node, Player player);
+   void fetch_rewards(world_state_type& new_wstate, cfr_node_type& child_node) const;
 };
 
 template <
@@ -226,6 +225,8 @@ const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
       // curr_node's value collection from its child states
       size_t last_action_idx = actions.size() - 1;
 
+      Player curr_player = curr_node->player;
+
       for(size_t action_idx = 0; action_idx < actions.size(); action_idx++) {
          const auto& action = actions[action_idx];
          auto new_wstate = curr_node->world_state;
@@ -235,8 +236,7 @@ const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
 
          // multiply the current reach probabilities of this state by the policy of choosing the
          // action by the active player.
-         node_reach_probs[curr_node->player] *= m_policy[curr_node->player]
-                                                        [{curr_node->info_state, action}];
+         node_reach_probs[curr_player] *= m_policy[curr_player][{curr_node->info_state, action}];
          // add this new world state into the tree under its active player's information state as
          // key
          auto& child_node = m_game_tree
@@ -253,10 +253,11 @@ const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
          if(m_game.is_terminal(new_wstate)) {
             // we have reached a terminal state and can save the reward as the value of this node
             std::map< Player, double > values;
-            child_node->value = m_game.reward(new_wstate);
+            fetch_rewards(new_wstate, *child_node);
          } else {
-            // if the newly reached world state is not a terminal state, then we append to the queue
-            // to further explore its child states as reachable from the possible actions
+            // if the newly reached world state is not a terminal state, then we append to the
+            // queue. This way we further explore its child states as reachable from the currently
+            // possible actions
             tree_queue.emplace(
                &child_node,
                m_game.actions(child_node.world_state, m_game.active_player(child_node.player)),
@@ -268,7 +269,7 @@ const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
          //  loop.
          // the unparallelized version is a simple for loop
          //            for(auto player : m_game.players()) {
-         //               _collect_state_value(curr_node, player);
+         //               _gather_state_value(curr_node, player);
          //            }
          // the parallelized version has to use std transform
          const auto& players = m_game.players();
@@ -277,24 +278,74 @@ const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
             players.begin(),
             players.end(),
             [&curr_node = curr_node, this](Player player) {
-               _collect_state_value(curr_node, player);
+               _gather_state_value(curr_node, player);
             });
       }
 
-      if constexpr(not cfr_config.alternating_updates) {
-         if(player_to_update == curr_node->player) {}
+      if constexpr(cfr_config.alternating_updates) {
+         if(player_to_update == curr_player) {
+            update_cf_regret(*curr_node, curr_player);
+         }
       } else {
-         const auto& players = m_game.players();
-         std::transform(
-            std::execution::par_unseq,
-            players.begin(),
-            players.end(),
-            [&curr_node = curr_node, this](Player player) {
-               regret_matching(m_policy[player][curr_node.infostate], curr_node.regret);
-            });
+         update_cf_regret(*curr_node, curr_player);
       }
    }
    return &m_policy;
+}
+
+
+template <
+   CFRConfig cfr_config,
+   concepts::fosg Game,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   typename Variant >
+void CFRBase< cfr_config, Game, Policy, Variant >::fetch_rewards(
+   world_state_type& new_wstate,
+   cfr_node_type& child_node) const
+{
+   if constexpr(nor::concepts::has::method::reward_all< Game >) {
+      child_node.value = m_game.reward(new_wstate);
+
+   } else {
+      for(auto player : m_game.players()) {
+         child_node.value[player] = m_game.reward(new_wstate, player);
+      }
+   }
+}
+
+
+template <
+   CFRConfig cfr_config,
+   concepts::fosg Game,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   typename Variant >
+void CFRBase< cfr_config, Game, Policy, Variant >::_gather_state_value(
+   CFRBase::cfr_node_type& node,
+   Player player)
+{
+   double state_value = 0;
+   double& curr_node_value = node.value[player];
+   for(const auto& [applied_action, action_value] : state_action_values(node, player)) {
+      // applied action is the action that lead to the child node!
+      // v <- v + pi_{player}(s, a) * v(s'(a))
+      curr_node_value += m_policy[player][{node.info_state, applied_action}] * action_value;
+   }
+}
+
+
+template <
+   CFRConfig cfr_config,
+   concepts::fosg Game,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   typename Variant >
+auto CFRBase< cfr_config, Game, Policy, Variant >::state_action_values(
+   CFRBase::cfr_node_type& node,
+   Player player)
+{
+   return ranges::views::zip(
+      node.children | ranges::views::keys,
+      node.children | ranges::views::values
+         | ranges::views::transform([&](cfr_node_type* node) { return node->value[player]; }));
 }
 
 template <
@@ -302,17 +353,62 @@ template <
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
    typename Variant >
-void CFRBase< cfr_config, Game, Policy, Variant >::_collect_state_value(
-   CFRBase::cfr_node_type* node,
+void CFRBase< cfr_config, Game, Policy, Variant >::update_cf_regret(
+   CFRBase::cfr_node_type& node,
    Player player)
 {
-   double state_value = 0;
-   double& curr_node_value = node->value[player];
-   for(const auto& [applied_action, child_node] : node->children) {
-      // v <- v + pi_{player}(s, a) * v(s'(a))
-      curr_node_value += m_policy[player][{node->info_state, applied_action}]
-                         * child_node->value[player];
+   double cf_reach_prob = reach_probability(node, player);
+   for(const auto& [action, action_value] : state_action_values(node, player)) {
+      node.regret[player] += cf_reach_prob * (action_value - node.value[player]);
    }
+   // TODO: update strategy here as well
+}
+
+
+template <
+   CFRConfig cfr_config,
+   concepts::fosg Game,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   typename Variant >
+double CFRBase< cfr_config, Game, Policy, Variant >::reach_probability(
+   const cfr_node_type& node,
+   const Player& player) const
+{
+   auto reach_prob = std::reduce(
+      node.reach_probability.begin(), node.reach_probability.end(), 1, std::multiplies{});
+   // remove the players contribution to the likelihood
+   auto cf_reach_prob = reach_prob / node.reach_probability[player];
+   return cf_reach_prob;
+}
+
+
+template <
+   CFRConfig cfr_config,
+   concepts::fosg Game,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   typename Variant >
+double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
+   const CFRBase::cfr_node_type& node,
+   const Player& player) const
+{
+   auto reach_prob = reach_probability(node, player);
+   return cf_reach_probability(node, reach_prob, player);
+}
+
+
+template <
+   CFRConfig cfr_config,
+   concepts::fosg Game,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   typename Variant >
+double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
+   const CFRBase::cfr_node_type& node,
+   double reach_prob,
+   const Player& player) const
+{
+   // remove the players contribution to the likelihood
+   auto cf_reach_prob = reach_prob / node.reach_probability[player];
+   return cf_reach_prob;
 }
 
 }  // namespace nor
