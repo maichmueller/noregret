@@ -116,6 +116,7 @@ concept fosg =
    && has::method::world_state< Game, std::shared_ptr<Worldstate> >
    && has::method::reward< Game >
    && has::method::is_terminal< Game, Worldstate& >
+   && has::method::players< Game >
    && has::trait::player_count< Game >
    && has::trait::max_player_count< Game >
    && has::trait::turn_dynamic< Game >;

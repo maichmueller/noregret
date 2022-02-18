@@ -50,13 +50,13 @@ template < typename T, typename Worldstate = typename T::world_state_type >
 concept reward = requires(T t, Worldstate wstate)
 {
    {
-      t.reward()
+      t.reward(std::declval< Player >())
       } -> std::convertible_to< double >;
 }
 &&requires(T const t, Worldstate& wstate)
 {
    {
-      t.reward(wstate)
+      t.reward(wstate, std::declval< Player >())
       } -> std::convertible_to< double >;
 };
 
@@ -74,6 +74,14 @@ concept reset = requires(T const t)
    {
       t.reset()
       } -> std::same_as< ReturnType >;
+};
+
+template < typename T >
+concept players = requires(T const t)
+{
+   {
+      t.players()
+      } -> std::same_as< std::vector<Player> >;
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
@@ -121,12 +129,14 @@ concept public_state = requires(T t)
    {
       t.public_state()
       } -> std::same_as< Publicstate >;
-} && requires(T const t, Worldstate& wstate)
+}
+&&requires(T const t, Worldstate& wstate)
 {
    {
       t.public_state(wstate)
       } -> std::same_as< Publicstate >;
-};;
+};
+;
 
 template <
    typename T,
