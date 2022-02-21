@@ -14,6 +14,15 @@
 namespace nor::concepts {
 
 template < typename T >
+// clang-format off
+concept iterable =
+/**/  has::method::begin< T >
+   && has::method::const_begin< T >
+   && has::method::end< T >
+   && has::method::const_end< T >;
+// clang-format on
+
+template < typename T >
 concept action = requires(T t)
 {
    is::hashable< T >;
@@ -22,8 +31,7 @@ concept action = requires(T t)
 template < typename T >
 concept observation = requires(T t)
 {
-   // placeholder for possible refinement later
-   true;
+   is::hashable< T >;
 };
 
 template <
@@ -54,10 +62,11 @@ concept world_state = std::equality_comparable< T >;
 
 template < typename T, typename Action = typename T::action_type >
 // clang-format off
-concept vector_policy =
+concept maplike_policy =
 /**/  std::is_move_constructible_v< T >
    && std::is_move_assignable_v< T >
    && is::sized<T>
+   && iterable< T>
    && has::method::getitem< T, Action, double >
    && has::method::const_getitem< T, Action, double >;
 // clang-format on
@@ -79,13 +88,24 @@ concept state_policy =
       /// these getitem methods need to specified explicitly since concepts cannot be passed as
       /// typenames to other concepts (no nested concepts allowed). This would be necessary for
       /// has::method::getitem at the return type.
-      { obj[istate] } -> vector_policy< Action >;
+      { obj[istate] } -> maplike_policy< Action >;
    }
    && requires(T const obj, Infostate istate)
    {
-      { obj[istate] } -> vector_policy< Action >;
+      { obj[istate] } -> maplike_policy< Action >;
    };
 // clang-format on
+
+/**
+ * A merely semantic specification of state policy. This concept expects to have all entries
+ * initialized to 0. This cannot be enforce by mere syntactic concepts though.
+ */
+template <
+   typename T,
+   typename Infostate = typename T::info_state_type,
+   typename Action = typename T::action_type,
+   typename Observation = typename T::observation_type >
+concept zeroed_state_policy = state_policy< T, Infostate, Action, Observation >;
 
 template <
    typename Game,

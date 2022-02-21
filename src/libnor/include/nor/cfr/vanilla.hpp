@@ -2,9 +2,10 @@
 #ifndef NOR_VANILLA_HPP
 #define NOR_VANILLA_HPP
 
+#include <cppitertools/enumerate.hpp>
 #include <execution>
 #include <list>
-#include <queue>
+#include <stack>
 #include <utility>
 #include <vector>
 
@@ -15,29 +16,34 @@
 
 namespace nor {
 
-template < concepts::action Action, concepts::vector_policy< Action > VectorPolicy >
-void regret_matching(VectorPolicy& policy_vec, const std::vector< double >& cumul_reg)
+template < concepts::action Action, concepts::maplike_policy< Action > Policy >
+void regret_matching(Policy& policy_map, const std::map< Action, double >& cumul_regret)
 {
    // sum up the positivized regrets and store them in a new vector
-   std::vector< double > pos_regrets;
+   std::map< Action, double > pos_regrets;
    double pos_regret_sum{0.};
-   pos_regrets.reserve(cumul_reg.size());
-   for(const auto& regret : cumul_reg) {
+   for(const auto& [action, regret] : cumul_regret) {
       double pos_regret = std::max(0., regret);
-      pos_regrets.emplace_back(pos_regret);
+      pos_regrets.emplace(action, pos_regret);
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy
    auto exec_policy{std::execution::par_unseq};
    if(pos_regret_sum > 0) {
+      if(cumul_regret.size() != policy_map.size()) {
+         throw std::invalid_argument(
+            "Passed regrets and policy maps do not have the same number of elements");
+      }
       std::transform(
-         exec_policy, policy_vec.begin(), policy_vec.end(), policy_vec.begin(), [&](auto regret) {
-            return regret / pos_regret_sum;
-         });
+         exec_policy,
+         policy_map.begin(),
+         policy_map.end(),
+         policy_map.begin(),
+         [&](const auto& entry) { return cumul_regret[std::get< 0 >(entry)] / pos_regret_sum; });
    } else {
       std::transform(
-         exec_policy, policy_vec.begin(), policy_vec.end(), policy_vec.begin(), [&](auto) {
-            return 1. / static_cast< double >(policy_vec.size());
+         exec_policy, policy_map.begin(), policy_map.end(), policy_map.begin(), [&](const auto&) {
+            return 1. / static_cast< double >(policy_map.size());
          });
    }
 }
@@ -51,15 +57,32 @@ template <
    concepts::info_state Infostate,
    concepts::info_state Worldstate >
 struct CFRNode {
+   /// the overall state of the game at this node
    Worldstate world_state;
+   /// the private information state of the active player at this node
    Infostate info_state;
+   /// the currently active player at the world state
    Player player;
+
    // player-based storage
+
+   /// the value of each player for this node.
+   /// Defaults to 0 and should be updated later during the traversal.
    std::map< Player, double > value{};
+   /// the reach probability of each player for this node.
+   /// Defaults to 0 and should be updated later during the traversal.
    std::map< Player, double > reach_probability{};
+
    // action-based storage
+
+   /// the children that each action maps to in the game tree.
+   /// Should be filled during the traversal.
    std::map< Action, CFRNode* > children{};
+   /// the cumulative regret the active player amassed with each action.
+   /// Defaults to 0 and should be updated later during the traversal.
    std::map< Action, double > regret{};
+
+   /// the parent node from which this node stems
    CFRNode* parent;
 
    CFRNode(
@@ -120,6 +143,8 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
+      AveragePolicy,
    typename Variant >
 class CFRBase {
    /// define all aliases to be used in this class from the game type.
@@ -133,7 +158,7 @@ class CFRBase {
 
    explicit CFRBase(Game&& game, Policy&& policy = Policy())
        : m_game(std::forward< Game >(game)),
-         m_policy(std::forward< Policy >(policy)),
+         m_curr_policy(std::forward< Policy >(policy)),
          m_avg_policy()
    {
       static_assert(
@@ -143,22 +168,22 @@ class CFRBase {
 
    /**
     * @brief Executes n iterations of the CFRBase algorithm in unrolled form (no recursion).
-    * @param n_iters, the number of iterations to perform.
+    * @param n_iterations, the number of iterations to perform.
     * @return the updated state_policy
     */
 
-   const Policy* iterate(int n_iters = 1) requires(cfr_config.alternating_updates);
+   const Policy* iterate(size_t n_iterations = 1) requires(cfr_config.alternating_updates);
 
-   const Policy* iterate([[maybe_unused]] Player player_to_update, int n_iters = 1);
+   const Policy* iterate([[maybe_unused]] Player player_to_update, size_t n_iters = 1);
 
-   template < concepts::vector_policy< action_type > VectorPolicy >
+   template < concepts::maplike_policy< action_type > VectorPolicy >
    void policy_update(VectorPolicy& policy_vec, const std::vector< double >& regrets)
    {
       derived_cast()->_policy_update(policy_vec, regrets);
    }
 
-   void update_cf_regret(cfr_node_type& node, Player player);
-   double reach_probability(const cfr_node_type& node, const Player& player) const;
+   void update_regret_and_policy(cfr_node_type& node, Player player);
+   double reach_probability(const cfr_node_type& node) const;
    double cf_reach_probability(const cfr_node_type& node, const Player& player) const;
    double cf_reach_probability(const cfr_node_type& node, double reach_prob, const Player& player)
       const;
@@ -166,242 +191,277 @@ class CFRBase {
   private:
    Game m_game;
    std::map< info_state_type, cfr_node_type > m_game_tree;
-   std::map< Player, Policy > m_policy;
-   std::map< Player, Policy > m_avg_policy;
+   std::map< Player, Policy > m_curr_policy;
+   /// the average policy table. This table should be such, that it is
+   std::map< Player, AveragePolicy > m_avg_policy;
+   size_t m_iteration = 0;
 
    auto derived_cast() { return static_cast< Variant* >(this); }
 
-   void _gather_state_value(cfr_node_type& node, Player player);
-
-   auto state_action_values(cfr_node_type& node, Player player);
-   void fetch_rewards(world_state_type& new_wstate, cfr_node_type& child_node) const;
+   template < typename ResultType, std::invocable< cfr_node_type*, ResultType > Functor >
+   auto child_collector(cfr_node_type& node, Player player, Functor f);
 };
 
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
+      AveragePolicy,
    typename Variant >
-const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(int n_iters) requires(
-   cfr_config.alternating_updates)
+const Policy* CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::iterate(
+   size_t n_iterations) requires(cfr_config.alternating_updates)
 {
-   return iterate(Player::chance, n_iters);
+   return iterate(Player::chance, n_iterations);
 }
 
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
+      AveragePolicy,
    typename Variant >
-const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
+const Policy* CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::iterate(
    Player player_to_update,
-   int n_iters)
+   size_t n_iters)
 {
-   auto& game_state = m_game.world_state();
-   bool is_terminal = m_game.is_terminal(game_state);
+   if constexpr(cfr_config.alternating_updates) {
+      // we assert here that the chosen player to update is not the chance player as is defined by
+      // default. Seeing the chance player here inidcates that the player forgot to set the plaeyr
+      // parameter with this cfr config.
+      if(player_to_update == Player::chance) {
+         std::stringstream ssout;
+         ssout << "Given combination of '";
+         ssout << Player::chance;
+         ssout << "' and '";
+         ssout << "alternating updates'";
+         ssout << "is incompatible. Did you forget to pass the correct player parameter?";
+         throw std::invalid_argument(ssout.str());
+      }
+   }
+   for(auto iteration : ranges::views::iota(size_t(0), n_iters)) {
+      // the tree needs to be traversed. To do so, every node (starting from the root node aka the
+      // current game state) will emplace its child states - as generated from its possible actions
+      // - into the queue. This queue is a First-In-First-Out (FIFO) stack which will guarantee that
+      // we perform a depth-first-traversal of the game tree. This is necessary since any
+      // state-value of a given node are computed via the probability of each action multiplied by
+      // their successor state-values, i.e. v(s) = \sum_a \pi(s,a) * v(s')
+      std::stack< std::tuple< cfr_node_type*, std::vector< action_type >, bool > > visit_stack;
 
-   // the tree needs to be traversed. To do so, every node (starting from the root node aka the
-   // current game state) will emplace its child states - as generated from its possible actions -
-   // into the queue. This queue is a First-In-First-Out (FIFO) stack which will guarantee that we
-   // perform a depth-first-traversal of the game tree. This is necessary since any state-value of a
-   // given node are computed via the probability of each action multiplied by their successor
-   // state-values, i.e. v(s) = \sum_a \pi(s,a) * v(s')
-   std::queue< std::tuple< cfr_node_type*, std::vector< action_type >, bool > > tree_queue;
+      // emplace the root node in the queue to start the traversal from
+      auto root_node = cfr_node_type(m_game, std::array< double, Game::player_count >(1.));
+      m_game_tree[root_node.info_state] = root_node;
+      // the root node is NOT a trigger for value propagation (=false), since only the children of a
+      // state can trigger value collection of their parent.
+      visit_stack.emplace(root_node, m_game.actions(m_game.active_player()), false);
 
-   // emplace the root node in the queue to start the traversal from
-   auto root_node = cfr_node_type(m_game, std::array< double, Game::player_count >(1.));
-   m_game_tree[root_node.info_state] = root_node;
-   tree_queue.emplace(root_node, m_game.actions(m_game.active_player()), false);
+      while(not visit_stack.empty()) {
+         // get the next tree node from the queue:
+         // curr_node: stands for the popped node from the queue
+         // actions: all the possible actions the active player has in this node
+         // trigger_value_propagation: a boolean indicating if this is the 'rightmost' child node of
+         // the parent and thus should trigger the collection of state values
+         auto& [curr_node, actions, trigger_value_propagation] = visit_stack.top();
+         // the last action index decides which child of curr_node will be the one to trigger
+         // the curr_node's value collection from its child states
+         size_t last_action_idx = actions.size() - 1;
 
-   std::map< info_state_type, std::map< action_type, double > > cf_action_values;
-   while(not tree_queue.empty()) {
-      // get the next tree node from the queue:
-      // curr_node: stands for the popped node from the queue
-      // actions: all the possible actions the active player has in this node
-      // trigger_value_collection: a boolean indicating if this is the 'rightmost' child node of
-      // the parent and thus should trigger the collection of state values
-      const auto& [curr_node, actions, trigger_value_collection] = tree_queue.pop();
-      // the last action index decides over whose child of curr_node will be the one to trigger the
-      // curr_node's value collection from its child states
-      size_t last_action_idx = actions.size() - 1;
+         Player curr_player = curr_node->player;
 
-      Player curr_player = curr_node->player;
+         // we have to reverse the index range, in order to guarantee that the last_action_idx child
+         // node is going to be emplace FIRST and thus popped as the LAST child of the current node
+         // (which will then correctly trigger the value propagation)
+         for(auto&& [action_idx, action] : iter::enumerate(actions) | ranges::views::reverse) {
+            // copy the current nodes world state
+            auto new_wstate = curr_node->world_state;
+            // move the new world state forward by the current action
+            m_game.transition(new_wstate, action);
+            // extract the active player's private state from the new world state. This will serve
+            // e.g. as the key for the new node to emplace
+            auto new_infostate = m_game.private_state(new_wstate, m_game.active_player());
+            // copy the current reach probabilities as well. These will now be updated and then
+            // emplaced in the new node
+            std::map< Player, double > node_reach_probs = curr_node->reach_prob;
+            // multiply the current reach probabilities of this state by the policy of choosing the
+            // action by the active player.
+            node_reach_probs[curr_player] *= m_curr_policy[curr_player]
+                                                          [{curr_node->info_state, action}];
+            // add this new world state into the tree with its active player's info state as key
+            auto& child_node = m_game_tree
+                                  .emplace(
+                                     /*key=*/new_infostate,
+                                     /*value_args...=*/new_wstate,
+                                     new_infostate,
+                                     m_game.active_player(new_wstate),
+                                     node_reach_probs,
+                                     curr_node)
+                                  .first->second;
+            // append the new tree node as a child of the currently visited node.
+            curr_node->children[action] = child_node;
+            if(m_game.is_terminal(new_wstate)) {
+               // we have reached a terminal state and can save the reward as the value of this
+               // node within the node. This value will later in the algorithm be propagated up in
+               // the tree.
+               if constexpr(nor::concepts::has::method::reward_all< Game >) {
+                  child_node.value = m_game.reward(new_wstate);
 
-      for(size_t action_idx = 0; action_idx < actions.size(); action_idx++) {
-         const auto& action = actions[action_idx];
-         auto new_wstate = curr_node->world_state;
-         m_game.transition(new_wstate, action);
-         auto new_infostate = m_game.private_state(new_wstate, m_game.active_player());
-         std::map< Player, double > node_reach_probs = curr_node->reach_prob;
+               } else {
+                  for(auto player : m_game.players()) {
+                     child_node.value[player] = m_game.reward(new_wstate, player);
+                  }
+               }
+            } else {
+               // if the newly reached world state is not a terminal state, then we merely append
+               // the new child node to the queue. This way we further explore its child states as
+               // reachable from the next possible actions.
+               visit_stack.emplace(
+                  &child_node,
+                  m_game.actions(child_node.world_state, m_game.active_player(child_node.player)),
+                  action_idx == last_action_idx  // reaching the last action index means that this
+                                                 // node should trigger value propagation
+               );
+            }
+         }
+         if(trigger_value_propagation) {
+            // the value propagation works by specifying the last action in the list to be the
+            // trigger. Upon trigger, this node's parent calls upon all its children to sent back
+            // the their respective values which will be included in the parent's value by weighting
+            // them by the current policy.
+            // This entire idea relies upon a POST-ORDER DEPTH-FIRST GAME TREE traversal!
+            auto collector = [&](cfr_node_type& node, Player player) {
+               auto action_value_view = child_collector(
+                  node, player, [&](cfr_node_type* child) { return child->value[player]; });
+               // v <- v + pi_{player}(s, a) * v(s'(a))
+               node.value[player] += std::transform_reduce(
+                  action_value_view.begin(),
+                  action_value_view.end(),
+                  0.,
+                  std::plus{},
+                  [&](const auto& action_value_pair) {
+                     // applied action is the action that lead to the child node!
+                     const auto& [applied_action, action_value] = action_value_pair;
+                     // pi_{player}(s, a) * v(s'(a))
+                     return m_curr_policy[player][{node.info_state, applied_action}] * action_value;
+                  });
+            };
+            // TODO: time the parallel execution. It might be too much overhead.
+            // the unparallelized version is a simple for loop over the players.
+            // auto exec_policy = std::execution::seq;
+            // the parallelized version uses std for_each with parallel execution policy
+            auto exec_policy = std::execution::par_unseq;
+            std::for_each(
+               exec_policy,
+               m_game.players().begin(),
+               m_game.players().end(),
+               [node = curr_node->parent, this](Player player) { collector(*node, player); });
+         }
 
-         // multiply the current reach probabilities of this state by the policy of choosing the
-         // action by the active player.
-         node_reach_probs[curr_player] *= m_policy[curr_player][{curr_node->info_state, action}];
-         // add this new world state into the tree under its active player's information state as
-         // key
-         auto& child_node = m_game_tree
-                               .emplace(
-                                  /*key=*/new_infostate,
-                                  /*value_args...=*/new_wstate,
-                                  new_infostate,
-                                  m_game.active_player(new_wstate),
-                                  node_reach_probs,
-                                  curr_node)
-                               .first->second;
-         // append the new tree node as a child of the currently visited node.
-         curr_node->children[action] = child_node;
-         if(m_game.is_terminal(new_wstate)) {
-            // we have reached a terminal state and can save the reward as the value of this node
-            std::map< Player, double > values;
-            fetch_rewards(new_wstate, *child_node);
+         if constexpr(cfr_config.alternating_updates) {
+            // in alternating updates, we only update the regret and strategy if the current player
+            // is the chosen player to update.
+            if(player_to_update == curr_player) {
+               update_regret_and_policy(*curr_node, curr_player);
+            }
          } else {
-            // if the newly reached world state is not a terminal state, then we append to the
-            // queue. This way we further explore its child states as reachable from the currently
-            // possible actions
-            tree_queue.emplace(
-               &child_node,
-               m_game.actions(child_node.world_state, m_game.active_player(child_node.player)),
-               action_idx == last_action_idx);
+            // if we do simultaenous updates, then we always update the regret and strategy values
+            // of the current player.
+            update_regret_and_policy(*curr_node, curr_player);
          }
+         // now the first element in the queue can be removed.
+         visit_stack.pop();
       }
-      if(trigger_value_collection) {
-         // TODO: time this implementation difference! Probably faster to simply have the for
-         //  loop.
-         // the unparallelized version is a simple for loop
-         //            for(auto player : m_game.players()) {
-         //               _gather_state_value(curr_node, player);
-         //            }
-         // the parallelized version has to use std transform
-         const auto& players = m_game.players();
-         std::transform(
-            std::execution::par_unseq,
-            players.begin(),
-            players.end(),
-            [&curr_node = curr_node, this](Player player) {
-               _gather_state_value(curr_node, player);
-            });
-      }
-
-      if constexpr(cfr_config.alternating_updates) {
-         if(player_to_update == curr_player) {
-            update_cf_regret(*curr_node, curr_player);
-         }
-      } else {
-         update_cf_regret(*curr_node, curr_player);
-      }
+      // lastly add a completed iteration to the counter
+      m_iteration++;
    }
-   return &m_policy;
+   return &m_curr_policy;
 }
-
 
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
+      AveragePolicy,
    typename Variant >
-void CFRBase< cfr_config, Game, Policy, Variant >::fetch_rewards(
-   world_state_type& new_wstate,
-   cfr_node_type& child_node) const
-{
-   if constexpr(nor::concepts::has::method::reward_all< Game >) {
-      child_node.value = m_game.reward(new_wstate);
-
-   } else {
-      for(auto player : m_game.players()) {
-         child_node.value[player] = m_game.reward(new_wstate, player);
-      }
-   }
-}
-
-
 template <
-   CFRConfig cfr_config,
-   concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   typename Variant >
-void CFRBase< cfr_config, Game, Policy, Variant >::_gather_state_value(
+   typename ResultType,
+   std::invocable<
+      typename CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::cfr_node_type*,
+      ResultType > Functor >
+auto CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::child_collector(
    CFRBase::cfr_node_type& node,
-   Player player)
-{
-   double state_value = 0;
-   double& curr_node_value = node.value[player];
-   for(const auto& [applied_action, action_value] : state_action_values(node, player)) {
-      // applied action is the action that lead to the child node!
-      // v <- v + pi_{player}(s, a) * v(s'(a))
-      curr_node_value += m_policy[player][{node.info_state, applied_action}] * action_value;
-   }
-}
-
-
-template <
-   CFRConfig cfr_config,
-   concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   typename Variant >
-auto CFRBase< cfr_config, Game, Policy, Variant >::state_action_values(
-   CFRBase::cfr_node_type& node,
-   Player player)
+   Player player,
+   Functor f)
 {
    return ranges::views::zip(
       node.children | ranges::views::keys,
-      node.children | ranges::views::values
-         | ranges::views::transform([&](cfr_node_type* node) { return node->value[player]; }));
+      node.children | ranges::views::values | ranges::views::transform(f));
 }
 
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
+      AveragePolicy,
    typename Variant >
-void CFRBase< cfr_config, Game, Policy, Variant >::update_cf_regret(
+void CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::update_regret_and_policy(
    CFRBase::cfr_node_type& node,
    Player player)
 {
-   double cf_reach_prob = reach_probability(node, player);
-   for(const auto& [action, action_value] : state_action_values(node, player)) {
-      node.regret[player] += cf_reach_prob * (action_value - node.value[player]);
-   }
-   // TODO: update strategy here as well
+   double reach_prob = reach_probability(node);
+   ranges::for_each(
+      child_collector(node, player, [&](cfr_node_type* child) { return child->value[player]; }),
+      [&](const auto& action_value_pair) {
+         const auto& [action, action_value] = action_value_pair;
+         node.regret[player] += cf_reach_probability(node, reach_prob, player)
+                                * (action_value - node.value[player]);
+         m_avg_policy[node.info_state][action] += reach_prob
+                                                  * m_curr_policy[node.info_state][action];
+      });
+   regret_matching(
+      m_curr_policy[node.info_state],
+      child_collector(node, player, [&](cfr_node_type* child) { return child->regret[player]; }));
 }
-
 
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
+      AveragePolicy,
    typename Variant >
-double CFRBase< cfr_config, Game, Policy, Variant >::reach_probability(
-   const cfr_node_type& node,
-   const Player& player) const
+double CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::reach_probability(
+   const cfr_node_type& node) const
 {
-   auto reach_prob = std::reduce(
-      node.reach_probability.begin(), node.reach_probability.end(), 1, std::multiplies{});
-   // remove the players contribution to the likelihood
-   auto cf_reach_prob = reach_prob / node.reach_probability[player];
-   return cf_reach_prob;
+   auto values_view = node.reach_probability | ranges::views::values;
+   return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
 }
-
 
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
+      AveragePolicy,
    typename Variant >
-double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
+double CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::cf_reach_probability(
    const CFRBase::cfr_node_type& node,
    const Player& player) const
 {
-   auto reach_prob = reach_probability(node, player);
+   auto reach_prob = reach_probability(node);
    return cf_reach_probability(node, reach_prob, player);
 }
-
 
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
+   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
+      AveragePolicy,
    typename Variant >
-double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
+double CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::cf_reach_probability(
    const CFRBase::cfr_node_type& node,
    double reach_prob,
    const Player& player) const

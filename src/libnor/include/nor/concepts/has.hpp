@@ -217,6 +217,38 @@ concept const_getitem = requires(T const t, InputT inp)
       } -> std::same_as< OutputT >;
 };
 
+template < typename T, typename U = typename T::iterator >
+concept begin = requires(T t)
+{
+   {
+      t.begin()
+      } -> std::same_as< U >;
+};
+
+template < typename T, typename U = typename T::const_iterator >
+concept const_begin = requires(T const t)
+{
+   {
+      t.begin()
+      } -> std::same_as< U >;
+};
+
+template < typename T, typename U = typename T::iterator >
+concept end = requires(T t)
+{
+   {
+      t.end()
+      } -> std::same_as< U >;
+};
+
+template < typename T, typename U = typename T::const_iterator >
+concept const_end = requires(T const t)
+{
+   {
+      t.end()
+      } -> std::same_as< U >;
+};
+
 }  // namespace method
 
 namespace trait {
