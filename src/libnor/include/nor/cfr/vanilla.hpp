@@ -14,9 +14,9 @@
 #include "nor/policy.hpp"
 #include "nor/utils/utils.hpp"
 
-namespace nor {
+namespace nor::rm {
 
-template < concepts::action Action, concepts::maplike_policy< Action > Policy >
+template < concepts::action Action, concepts::action_policy< Action > Policy >
 void regret_matching(Policy& policy_map, const std::map< Action, double >& cumul_regret)
 {
    // sum up the positivized regrets and store them in a new vector
@@ -125,12 +125,12 @@ struct CFRNode {
 namespace std {
 
 template < typename... Args >
-struct hash< nor::CFRNode< Args... > > {
-   size_t operator()(const nor::CFRNode< Args... >& node) const { return node.hash(); }
+struct hash< nor::rm::CFRNode< Args... > > {
+   size_t operator()(const nor::rm::CFRNode< Args... >& node) const { return node.hash(); }
 };
 }  // namespace std
 
-namespace nor {
+namespace nor::rm {
 
 /**
  * A (Vanilla) Counterfactual Regret Minimization algorithm class following the
@@ -143,17 +143,15 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
-      AveragePolicy,
-   typename Variant >
+   concepts::cfr_variant< Game, Policy > Variant >
 class CFRBase {
    /// define all aliases to be used in this class from the game type.
    using game_type = Game;
    using action_type = typename Game::action_type;
+   using world_state_type = typename Game::world_state_type;
    using info_state_type = typename Game::info_state_type;
    using public_state_type = typename Game::public_state_type;
-   using world_state_type = typename Game::world_state_type;
-   // we configure the correct CFR Node type to store in the tree
+   // the CFR Node type to store in the tree
    using cfr_node_type = CFRNode< action_type, info_state_type, world_state_type >;
 
    explicit CFRBase(Game&& game, Policy&& policy = Policy())
@@ -171,16 +169,8 @@ class CFRBase {
     * @param n_iterations, the number of iterations to perform.
     * @return the updated state_policy
     */
-
    const Policy* iterate(size_t n_iterations = 1) requires(cfr_config.alternating_updates);
-
    const Policy* iterate([[maybe_unused]] Player player_to_update, size_t n_iters = 1);
-
-   template < concepts::maplike_policy< action_type > VectorPolicy >
-   void policy_update(VectorPolicy& policy_vec, const std::vector< double >& regrets)
-   {
-      derived_cast()->_policy_update(policy_vec, regrets);
-   }
 
    void update_regret_and_policy(cfr_node_type& node, Player player);
    double reach_probability(const cfr_node_type& node) const;
@@ -193,7 +183,7 @@ class CFRBase {
    std::map< info_state_type, cfr_node_type > m_game_tree;
    std::map< Player, Policy > m_curr_policy;
    /// the average policy table. This table should be such, that it is
-   std::map< Player, AveragePolicy > m_avg_policy;
+   std::map< Player, Policy > m_avg_policy;
    size_t m_iteration = 0;
 
    auto derived_cast() { return static_cast< Variant* >(this); }
@@ -206,11 +196,9 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
-      AveragePolicy,
-   typename Variant >
-const Policy* CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::iterate(
-   size_t n_iterations) requires(cfr_config.alternating_updates)
+   concepts::cfr_variant< Game, Policy > Variant >
+const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(size_t n_iterations) requires(
+   cfr_config.alternating_updates)
 {
    return iterate(Player::chance, n_iterations);
 }
@@ -219,17 +207,15 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
-      AveragePolicy,
    typename Variant >
-const Policy* CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::iterate(
+const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
    Player player_to_update,
    size_t n_iters)
 {
    if constexpr(cfr_config.alternating_updates) {
       // we assert here that the chosen player to update is not the chance player as is defined by
       // default. Seeing the chance player here inidcates that the player forgot to set the plaeyr
-      // parameter with this cfr config.
+      // parameter with this rm config.
       if(player_to_update == Player::chance) {
          std::stringstream ssout;
          ssout << "Given combination of '";
@@ -381,15 +367,13 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
-      AveragePolicy,
-   typename Variant >
+   concepts::cfr_variant< Game, Policy > Variant >
 template <
    typename ResultType,
    std::invocable<
-      typename CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::cfr_node_type*,
+      typename CFRBase< cfr_config, Game, Policy, Variant >::cfr_node_type*,
       ResultType > Functor >
-auto CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::child_collector(
+auto CFRBase< cfr_config, Game, Policy, Variant >::child_collector(
    CFRBase::cfr_node_type& node,
    Player player,
    Functor f)
@@ -403,10 +387,8 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
-      AveragePolicy,
-   typename Variant >
-void CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::update_regret_and_policy(
+   concepts::cfr_variant< Game, Policy > Variant >
+void CFRBase< cfr_config, Game, Policy, Variant >::update_regret_and_policy(
    CFRBase::cfr_node_type& node,
    Player player)
 {
@@ -429,10 +411,8 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
-      AveragePolicy,
-   typename Variant >
-double CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::reach_probability(
+   concepts::cfr_variant< Game, Policy > Variant >
+double CFRBase< cfr_config, Game, Policy, Variant >::reach_probability(
    const cfr_node_type& node) const
 {
    auto values_view = node.reach_probability | ranges::views::values;
@@ -443,10 +423,8 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
-      AveragePolicy,
-   typename Variant >
-double CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::cf_reach_probability(
+   concepts::cfr_variant< Game, Policy > Variant >
+double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
    const CFRBase::cfr_node_type& node,
    const Player& player) const
 {
@@ -458,10 +436,8 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Game,
    concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::zeroed_state_policy< typename Game::info_state_type, typename Game::action_type >
-      AveragePolicy,
-   typename Variant >
-double CFRBase< cfr_config, Game, Policy, AveragePolicy, Variant >::cf_reach_probability(
+   concepts::cfr_variant< Game, Policy > Variant >
+double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
    const CFRBase::cfr_node_type& node,
    double reach_prob,
    const Player& player) const
