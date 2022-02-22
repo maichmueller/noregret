@@ -120,7 +120,7 @@ struct CFRNode {
    size_t m_hash_cache;
 };
 
-}  // namespace nor
+}  // namespace nor::rm
 
 namespace std {
 
@@ -133,18 +133,17 @@ struct hash< nor::rm::CFRNode< Args... > > {
 namespace nor::rm {
 
 /**
- * A (Vanilla) Counterfactual Regret Minimization algorithm class following the
+ * A (VanillaCFR) Counterfactual Regret Minimization algorithm class following the
  * Factored-Observation Stochastic Games (FOSG) formalism.
- * @tparam Game, the game type to run CFRBase on.
+ * @tparam Game, the game type to run VanillaCFR on.
  * or a neural network type for estimating values.
  *
  */
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::cfr_variant< Game, Policy > Variant >
-class CFRBase {
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy >
+class VanillaCFR {
    /// define all aliases to be used in this class from the game type.
    using game_type = Game;
    using action_type = typename Game::action_type;
@@ -154,18 +153,18 @@ class CFRBase {
    // the CFR Node type to store in the tree
    using cfr_node_type = CFRNode< action_type, info_state_type, world_state_type >;
 
-   explicit CFRBase(Game&& game, Policy&& policy = Policy())
+   explicit VanillaCFR(Game&& game, Policy&& policy = Policy())
        : m_game(std::forward< Game >(game)),
          m_curr_policy(std::forward< Policy >(policy)),
          m_avg_policy()
    {
       static_assert(
          Game::turn_dynamic == TurnDynamic::sequential,
-         "CFRBase can only be performed on a sequential turn-based game.");
+         "VanillaCFR can only be performed on a sequential turn-based game.");
    }
 
    /**
-    * @brief Executes n iterations of the CFRBase algorithm in unrolled form (no recursion).
+    * @brief Executes n iterations of the VanillaCFR algorithm in unrolled form (no recursion).
     * @param n_iterations, the number of iterations to perform.
     * @return the updated state_policy
     */
@@ -186,8 +185,6 @@ class CFRBase {
    std::map< Player, Policy > m_avg_policy;
    size_t m_iteration = 0;
 
-   auto derived_cast() { return static_cast< Variant* >(this); }
-
    template < typename ResultType, std::invocable< cfr_node_type*, ResultType > Functor >
    auto child_collector(cfr_node_type& node, Player player, Functor f);
 };
@@ -195,9 +192,8 @@ class CFRBase {
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::cfr_variant< Game, Policy > Variant >
-const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(size_t n_iterations) requires(
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy >
+const Policy* VanillaCFR< cfr_config, Game, Policy >::iterate(size_t n_iterations) requires(
    cfr_config.alternating_updates)
 {
    return iterate(Player::chance, n_iterations);
@@ -206,9 +202,8 @@ const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(size_t n_ite
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   typename Variant >
-const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy>
+const Policy* VanillaCFR< cfr_config, Game, Policy >::iterate(
    Player player_to_update,
    size_t n_iters)
 {
@@ -366,15 +361,13 @@ const Policy* CFRBase< cfr_config, Game, Policy, Variant >::iterate(
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::cfr_variant< Game, Policy > Variant >
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy >
 template <
    typename ResultType,
-   std::invocable<
-      typename CFRBase< cfr_config, Game, Policy, Variant >::cfr_node_type*,
-      ResultType > Functor >
-auto CFRBase< cfr_config, Game, Policy, Variant >::child_collector(
-   CFRBase::cfr_node_type& node,
+   std::invocable< typename VanillaCFR< cfr_config, Game, Policy >::cfr_node_type*, ResultType >
+      Functor >
+auto VanillaCFR< cfr_config, Game, Policy >::child_collector(
+   VanillaCFR::cfr_node_type& node,
    Player player,
    Functor f)
 {
@@ -386,10 +379,9 @@ auto CFRBase< cfr_config, Game, Policy, Variant >::child_collector(
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::cfr_variant< Game, Policy > Variant >
-void CFRBase< cfr_config, Game, Policy, Variant >::update_regret_and_policy(
-   CFRBase::cfr_node_type& node,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy >
+void VanillaCFR< cfr_config, Game, Policy >::update_regret_and_policy(
+   VanillaCFR::cfr_node_type& node,
    Player player)
 {
    double reach_prob = reach_probability(node);
@@ -410,10 +402,8 @@ void CFRBase< cfr_config, Game, Policy, Variant >::update_regret_and_policy(
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::cfr_variant< Game, Policy > Variant >
-double CFRBase< cfr_config, Game, Policy, Variant >::reach_probability(
-   const cfr_node_type& node) const
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy >
+double VanillaCFR< cfr_config, Game, Policy >::reach_probability(const cfr_node_type& node) const
 {
    auto values_view = node.reach_probability | ranges::views::values;
    return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
@@ -422,10 +412,9 @@ double CFRBase< cfr_config, Game, Policy, Variant >::reach_probability(
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::cfr_variant< Game, Policy > Variant >
-double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
-   const CFRBase::cfr_node_type& node,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy >
+double VanillaCFR< cfr_config, Game, Policy >::cf_reach_probability(
+   const VanillaCFR::cfr_node_type& node,
    const Player& player) const
 {
    auto reach_prob = reach_probability(node);
@@ -435,10 +424,9 @@ double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy,
-   concepts::cfr_variant< Game, Policy > Variant >
-double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
-   const CFRBase::cfr_node_type& node,
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy >
+double VanillaCFR< cfr_config, Game, Policy >::cf_reach_probability(
+   const VanillaCFR::cfr_node_type& node,
    double reach_prob,
    const Player& player) const
 {
@@ -447,6 +435,6 @@ double CFRBase< cfr_config, Game, Policy, Variant >::cf_reach_probability(
    return cf_reach_prob;
 }
 
-}  // namespace nor
+}  // namespace nor::rm
 
 #endif  // NOR_VANILLA_HPP

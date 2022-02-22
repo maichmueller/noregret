@@ -175,18 +175,18 @@ concept cfr_variant =
 } && requires(
       T t,
       typename Policy::action_policy_type& policy,
-      typename T::cfr_node_type& node,
+      const typename T::cfr_node_type& node,
       ReachProbabilityArgs&&...reach_prob_args
 ) {
     /// the factual reach probability of the given node
    { t.reach_probability(
-         std::as_const(node),
+         node,
          std::forward<ReachProbabilityArgs>(reach_prob_args)...
      )
    } -> std::same_as< double >;
     /// the counterfactual reach probability of the given node.
    { t.cf_reach_probability(
-         std::as_const(node),
+         node,
          std::forward<ReachProbabilityArgs>(reach_prob_args)...
       )
    } -> std::same_as< double >;
