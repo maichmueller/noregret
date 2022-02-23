@@ -56,62 +56,69 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type >
-concept actions = requires(T const t, Worldstate worldstate)
+concept actions = requires(T const t, Worldstate worldstate, Player player)
 {
-   // legal actions getter a the given player
+   // legal actions getter for the given player
    {
-      t.actions(worldstate, std::declval< Player >())
-      } -> std::convertible_to< std::vector< typename T::action_type > >;
-   // legal actions getter for each given player
+      t.actions(player)
+      } -> std::convertible_to< std::vector< Action > >;
+};
+
+template <
+   typename T,
+   typename U>
+concept append = requires(T&& t, U u)
+{
+   // append object u to t
    {
-      t.actions(worldstate, /*player_list=*/std::declval< std::vector< Player > >())
-      } -> std::convertible_to< std::map< Player, std::vector< Action > > >;
+      t.append(u)
+      } -> std::same_as< void >;
 };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type >
-concept transition = requires(T&& t, const Action& action)
-{
-   // apply the action on the currently stored world state inplace
-   {
-      t.transition(action)
-      } -> std::convertible_to< std::optional< Worldstate > >;
-}
-&&requires(T&& t, Worldstate& worldstate, const Action& action)
+concept transition = requires(T&& t, Worldstate& worldstate, Action action)
 {
    // apply the action on the given world state inplace.
    {
-      t.transition(worldstate, action)
+      t.transition(action, worldstate)
+      } -> std::same_as< void >;
+};
+
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Infostate = typename T::info_state_type,
+   typename Publicstate = typename T::public_state_type,
+   typename Action = typename T::action_type >
+concept transition_jointly = requires(
+   T&& t,
+   Action action,
+   Worldstate& worldstate,
+   std::map< Player, Infostate>& infostates,
+   Publicstate& pubstate)
+{
+   // apply the action on the given world state inplace.
+   {
+      t.transition(action, worldstate, infostates, pubstate)
       } -> std::same_as< void >;
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept reward = requires(T&& t, Player player)
+concept reward = requires(T&& t, Worldstate wstate, Player player)
 {
    {
-      t.reward(player)
-      } -> std::convertible_to< double >;
-}
-&&requires(T&& t, Worldstate&& wstate, Player player)
-{
-   {
-      t.reward(wstate, player)
+      t.reward(player, wstate)
       } -> std::convertible_to< double >;
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept reward_all = requires(T&& t)
+concept reward_multi = requires(T&& t, Worldstate& wstate, const std::vector< Player >& players)
 {
    {
-      t.reward()
-      } -> std::convertible_to< std::map< Player, double > >;
-}
-&&requires(T&& t, Worldstate& wstate)
-{
-   {
-      t.reward(wstate)
+      t.reward(players, wstate)
       } -> std::convertible_to< std::map< Player, double > >;
 };
 
@@ -140,13 +147,7 @@ concept players = requires(T&& t)
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept is_terminal = requires(T&& t)
-{
-   {
-      t.is_terminal()
-      } -> std::same_as< bool >;
-}
-&&requires(T&& t, Worldstate& wstate)
+concept is_terminal = requires(T&& t, Worldstate& wstate)
 {
    {
       t.is_terminal(wstate)
@@ -173,7 +174,7 @@ template < typename T, typename Publicstate = typename T::public_state_type >
 concept public_state = requires(T&& t)
 {
    {
-      t.public_state()
+      t.public_state_container()
       } -> std::same_as< nor::const_as_t< T, Publicstate >& >;
 };
 
@@ -181,7 +182,7 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Privatestate = typename T::private_state_type >
-concept info_state = requires(T&& t, Worldstate&& wstate, Player player)
+concept info_state = requires(T&& t, Worldstate wstate, Player player)
 {
    {
       t.info_state(wstate, player)
@@ -189,29 +190,23 @@ concept info_state = requires(T&& t, Worldstate&& wstate, Player player)
 };
 
 template < typename T, typename Observation = typename T::observation_type >
-concept private_observation = requires(T&& t, const std::vector< Player >& player_list)
-{
-   // get only private obervations
-   {
-      t.private_observation(player_list)
-      } -> std::same_as< std::map< Player, Observation > >;
-}
-&&requires(T&& t, Player player)
+concept private_observation = requires(T&& t, Player player)
 {
    {
       t.private_observation(player)
       } -> std::convertible_to< Observation >;
 };
-
 template < typename T, typename Observation = typename T::observation_type >
-concept public_observation = requires(T&& t, const std::vector< Player >& player_list)
+concept private_observation_multi = requires(T&& t, const std::vector< Player >& player_list)
 {
    // get only private obervations
    {
-      t.public_observation(player_list)
+      t.private_observation(player_list)
       } -> std::same_as< std::map< Player, Observation > >;
-}
-&&requires(T&& t, Player player)
+};
+
+template < typename T, typename Observation = typename T::observation_type >
+concept public_observation = requires(T&& t, Player player)
 {
    {
       t.public_observation(player)
@@ -219,18 +214,30 @@ concept public_observation = requires(T&& t, const std::vector< Player >& player
 };
 
 template < typename T, typename Observation = typename T::observation_type >
-concept observation = requires(T&& t, const std::vector< Player >& player_list)
+concept public_observation_multi = requires(T&& t, const std::vector< Player >& player_list)
+{
+   // get only private obervations for the vector of players. Output is a paired vector of
+   // observations, i.e. output[i] is paired to player_list[i].
+   {
+      t.public_observation(player_list)
+      } -> std::same_as< std::vector< Observation > >;
+};
+
+template < typename T, typename Observation = typename T::observation_type >
+concept observation = requires(T&& t, Player player)
+{
+   {
+      t.observation(player)
+      } -> std::convertible_to< Observation >;
+};
+
+template < typename T, typename Observation = typename T::observation_type >
+concept observation_multi = requires(T&& t, const std::vector< Player >& player_list)
 {
    // get full observation: private and public
    {
       t.observation(player_list)
       } -> std::same_as< std::map< Player, Observation > >;
-}
-&&requires(T&& t, Player player)
-{
-   {
-      t.observation(player)
-      } -> std::convertible_to< Observation >;
 };
 
 template < typename T, typename InputT, typename OutputT >
@@ -261,10 +268,10 @@ concept end = requires(T&& t)
 };
 
 template < typename T, typename MapLikePolicy, typename Action >
-concept policy_update = requires(T t, MapLikePolicy policy)
+concept policy_update = requires(T t, MapLikePolicy policy, std::map< Action, double > regrets)
 {
    {
-      t.policy_update(policy, std::declval< std::map< Action, double > >())
+      t.policy_update(policy, regrets)
       } -> std::same_as< void >;
 };
 

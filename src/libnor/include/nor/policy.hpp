@@ -25,7 +25,7 @@ namespace nor {
 template <
    typename StateType,
    std::size_t extent = std::dynamic_extent,
-   std::invocable< const StateType&, std::vector< double > >
+   std::invocable< const StateType& >
       LegalActionFilter = decltype(fixed_size_filter< StateType, extent >()) >
 requires concepts::info_state< StateType >
 class UniformPolicy {
@@ -66,24 +66,36 @@ class UniformPolicy {
    }
 };
 
-template < typename Map, typename Action, typename DefaultPolicy >
+template < typename Map, typename DefaultPolicy >
 requires requires(Map m)
 {
    Map::key_type;
    Map::mapped_type;
-   { m.begin()} -> std::same_as<typename Map::iterator_type>;
-   { m.end()} -> std::same_as<typename Map::iterator_type>;
-   { m.find(std::declval<typename Map::key_type>())} -> std::same_as<typename Map::iterator_type>;
-   { m.at(std::declval<typename Map::key_type>())} -> std::same_as<typename Map::mapped_type>;
-} && std::is_default_constructible_v< Map > && std::is_default_constructible_v<
-   DefaultPolicy > && concepts::action< Action >
+   {
+      m.begin()
+      } -> std::same_as< typename Map::iterator_type >;
+   {
+      m.end()
+      } -> std::same_as< typename Map::iterator_type >;
+   {
+      m.find(std::declval< typename Map::key_type >())
+      } -> std::same_as< typename Map::iterator >;
+   {
+      m.at(std::declval< typename Map::key_type >())
+      } -> std::same_as< typename Map::mapped_type >;
+} && std::is_default_constructible_v< DefaultPolicy >
 class TabularPolicy {
    using state_type = typename Map::key_type;
    using mapped_type = typename Map::mapped_type;
-   using action_type = Action;
    using default_policy_type = DefaultPolicy;
 
-   TabularPolicy() = default;
+   TabularPolicy() requires std::is_default_constructible_v< Map >
+   = default;
+   explicit TabularPolicy(Map&& map, DefaultPolicy&& def_policy = DefaultPolicy())
+       : m_table(std::forward< Map >(map)),
+         m_default_policy(std::forward< DefaultPolicy >(def_policy))
+   {
+   }
 
    auto& operator[](const state_type& state)
    {
@@ -93,17 +105,22 @@ class TabularPolicy {
          m_table.insert({state, default_policy_vec});
          return default_policy_vec;
       }
+      return found_policy->second;
    }
-   auto& operator[](const std::pair< state_type, action_type >& state_action)
+
+   template < concepts::action Action >
+   auto& operator[](const std::pair< state_type, Action >& state_action)
    {
-      const auto& [state, action] = state_action;
+      auto&& [state, action] = state_action;
       return m_table[state][action];
    }
 
    auto& operator[](const state_type& state) const { return m_table.at(state); }
-   auto& operator[](const std::pair< state_type, action_type >& state_action) const
+
+   template < concepts::action Action >
+   auto& operator[](const std::pair< state_type, Action >& state_action) const
    {
-      const auto& [state, action] = state_action;
+      auto&& [state, action] = state_action;
       return m_table.at(state)[action];
    }
 

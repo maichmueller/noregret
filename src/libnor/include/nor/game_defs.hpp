@@ -36,15 +36,15 @@ enum class Player {
 
 enum class TurnDynamic {
    sequential = 0,  // sequential actions (only one player acts in a turn)
-   simultaneous     // simultaneous actions (every player acts in a turn)
+   simultaneous  // simultaneous actions (every player acts in a turn)
 };
 
 enum class Stochasticity {
    deterministic = 0,  // the environment is deterministic
-   sample,   // the environment is sampling a random outcome
-   choice    // the environment can provide a vector of random outcomes to choose from
+   sample,  // the environment is sampling a random outcome
+   choice  // the environment can provide a vector of random outcomes to choose from
 };
 
-}
+}  // namespace nor
 
 #endif  // NOR_GAME_DEFS_HPP

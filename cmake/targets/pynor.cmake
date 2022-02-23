@@ -18,7 +18,7 @@ set_target_properties(${nor_pymodule} PROPERTIES
 target_link_libraries(
         ${nor_pymodule}
         PUBLIC
-        ${nor_lib}
+        ${nor_lib}_wrappers
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
 )

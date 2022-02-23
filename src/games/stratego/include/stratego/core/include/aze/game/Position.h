@@ -363,7 +363,7 @@ template < typename ValueType, size_t N >
 struct hash< aze::Position< ValueType, N > > {
    constexpr size_t operator()(const aze::Position< ValueType, N > &pos) const
    {
-      // ( x*p1 xor y*p2 xor z*p3) mod n is supposedly a better spatial hash
+      // ( x*p1 xor y*p2 xor z*p3) mod n is supposedly a better spatial _hash
       // function
       long int curr = pos[0] * primes::primes_list[0];
       for(unsigned int  i = 1; i < N; ++i) {

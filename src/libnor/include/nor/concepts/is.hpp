@@ -46,6 +46,13 @@ concept iterator = requires(T t)
    std::iterator_traits< T >::value_type;
    std::iterator_traits< T >::iterator_category;
 };
+
+template <typename T>
+concept empty = std::is_empty_v<T>;
+
+template <typename T>
+concept not_empty = not std::is_empty_v<T>;
+
 }  // namespace nor::concepts::is
 
 #endif  // NOR_IS_HPP

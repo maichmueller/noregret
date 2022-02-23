@@ -23,26 +23,23 @@ concept iterable =
 // clang-format on
 
 template < typename T >
-concept action = requires(T t)
-{
-   is::hashable< T >;
-};
+concept action = is::hashable< T >;
 
 template < typename T >
-concept observation = requires(T t)
-{
-   is::hashable< T >;
-};
+concept observation = is::hashable< T >;
 
 template <
    typename T,
    typename Action = typename T::action_type,
    typename Observation = typename T::observation_type >
+// clang-format off
 concept public_state =
-   action< Action > && observation< Observation > && is::sized< T > && requires(T t)
-{
-   true;
-};
+/**/  action< Action >
+   && observation< Observation >
+   && is::sized< T >
+   && has::method::append< T, Action >
+   && has::method::append< T, Observation >;
+// clang-format on
 
 template <
    typename T,
@@ -116,18 +113,17 @@ concept fosg =
    && world_state< Worldstate >
    && observation< Observation >
    && has::method::actions< Game >
-   && has::method::transition< Game >
-   && has::method::private_observation< Game>
-   && has::method::public_observation<Game >
+   && (has::method::transition< Game > || has::method::transition_jointly< Game >)
+   && has::method::private_observation< Game >
+   && has::method::public_observation< Game >
    && has::method::observation< Game >
    && has::method::reset< Game, Worldstate& >
    && has::method::info_state< Game, std::shared_ptr<Infostate> >
    && has::method::public_state< Game, std::shared_ptr<Publicstate> >
    && has::method::world_state< Game, std::shared_ptr<Worldstate> >
-   && has::method::reward< Game >
+   && has::method::reward< const Game >
    && has::method::is_terminal< Game, Worldstate& >
    && has::method::players< Game >
-   && has::trait::player_count< Game >
    && has::trait::max_player_count< Game >
    && has::trait::turn_dynamic< Game >;
 // clang-format on
@@ -141,7 +137,7 @@ template <
    typename Publicstate = typename Game::public_state_type,
    typename Worldstate = typename Game::world_state_type,
    typename Observation = typename Game::observation_type,
-   typename... PolicyUpdateArgs ,
+   typename... PolicyUpdateArgs,
    typename... ReachProbabilityArgs >
 // clang-format off
 concept cfr_variant =

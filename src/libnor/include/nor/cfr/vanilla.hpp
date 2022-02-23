@@ -50,15 +50,44 @@ void regret_matching(Policy& policy_map, const std::map< Action, double >& cumul
 
 struct CFRConfig {
    bool alternating_updates;
+   bool store_public_states;
 };
 
-template <
-   concepts::action Action,
-   concepts::info_state Infostate,
-   concepts::info_state Worldstate >
+/**
+ * @brief the node type to represent game states in the game tree built by CFR.
+ *
+ * There is no concept checking for this class as any of the template types are supposed to be
+ * checked within the CFR class for concept fulfillment and thus allow some flexibility in data
+ * storage (e.g. not store the public states, by setting them as empty class - the minimal storage
+ * cost)
+ * @tparam Action
+ * @tparam Infostate
+ * @tparam Publicstate
+ * @tparam Worldstate
+ */
+
+// template <typename Action, typename Worldstate, typename Publicstate, typename Infostate>
+//    requires std::is_empty_v<Publicstate>
+//    class CFRNode<Action, Worldstate, Publicstate, Infostate>
+
+template < typename Action, typename Infostate, typename Publicstate, typename Worldstate >
 struct CFRNode {
+   struct empty_public_state_type {
+      [[no_unique_address]] struct {
+      } public_state;
+   };
+   struct public_state_type {
+      Publicstate public_state;
+   };
+
    /// the overall state of the game at this node
    Worldstate world_state;
+   /// the public information state of at this node
+   std::conditional_t<
+      concepts::is::empty< Publicstate >,
+      empty_public_state_type,
+      public_state_type >
+      public_state_container;
    /// the private information state of the active player at this node
    Infostate info_state;
    /// the currently active player at the world state
@@ -86,12 +115,14 @@ struct CFRNode {
    CFRNode* parent;
 
    CFRNode(
-      const Worldstate& world_state,
+      const Worldstate& world_state_,
+      const Publicstate& public_state_,
       const Infostate& info_state_,
       Player player_,
       std::map< Player, double > reach_prob,
       CFRNode* parent = nullptr)
-       : world_state(world_state),
+       : world_state(world_state_),
+         public_state_container(public_state_),
          info_state(info_state_),
          player(player_),
          reach_probability(std::move(reach_prob)),
@@ -104,6 +135,7 @@ struct CFRNode {
    CFRNode(const Game& g, const std::map< Player, double >& reach_prob_)
        : CFRNode(
           g.world_state(),
+          g.public_state_container(world_state),
           g.info_state(world_state, g.player()),
           g.active_player(g.world_state()),
           reach_prob_)
@@ -133,10 +165,9 @@ struct hash< nor::rm::CFRNode< Args... > > {
 namespace nor::rm {
 
 /**
- * A (VanillaCFR) Counterfactual Regret Minimization algorithm class following the
+ * A (Vanilla) Counterfactual Regret Minimization algorithm class following the
  * Factored-Observation Stochastic Games (FOSG) formalism.
  * @tparam Game, the game type to run VanillaCFR on.
- * or a neural network type for estimating values.
  *
  */
 template <
@@ -151,7 +182,8 @@ class VanillaCFR {
    using info_state_type = typename Game::info_state_type;
    using public_state_type = typename Game::public_state_type;
    // the CFR Node type to store in the tree
-   using cfr_node_type = CFRNode< action_type, info_state_type, world_state_type >;
+   using cfr_node_type =
+      CFRNode< action_type, world_state_type, public_state_type, info_state_type >;
 
    explicit VanillaCFR(Game&& game, Policy&& policy = Policy())
        : m_game(std::forward< Game >(game)),
@@ -202,7 +234,7 @@ const Policy* VanillaCFR< cfr_config, Game, Policy >::iterate(size_t n_iteration
 template <
    CFRConfig cfr_config,
    concepts::fosg Game,
-   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy>
+   concepts::state_policy< typename Game::info_state_type, typename Game::action_type > Policy >
 const Policy* VanillaCFR< cfr_config, Game, Policy >::iterate(
    Player player_to_update,
    size_t n_iters)
@@ -235,7 +267,7 @@ const Policy* VanillaCFR< cfr_config, Game, Policy >::iterate(
       m_game_tree[root_node.info_state] = root_node;
       // the root node is NOT a trigger for value propagation (=false), since only the children of a
       // state can trigger value collection of their parent.
-      visit_stack.emplace(root_node, m_game.actions(m_game.active_player()), false);
+      visit_stack.emplace(root_node, m_game.actions(Player::emily), false);
 
       while(not visit_stack.empty()) {
          // get the next tree node from the queue:
@@ -284,12 +316,12 @@ const Policy* VanillaCFR< cfr_config, Game, Policy >::iterate(
                // we have reached a terminal state and can save the reward as the value of this
                // node within the node. This value will later in the algorithm be propagated up in
                // the tree.
-               if constexpr(nor::concepts::has::method::reward_all< Game >) {
-                  child_node.value = m_game.reward(new_wstate);
+               if constexpr(nor::concepts::has::method::reward_multi< Game >) {
+                  child_node.value = m_game.reward(m_game.players(), new_wstate);
 
                } else {
                   for(auto player : m_game.players()) {
-                     child_node.value[player] = m_game.reward(new_wstate, player);
+                     child_node.value[player] = m_game.reward(player, new_wstate);
                   }
                }
             } else {
@@ -298,7 +330,7 @@ const Policy* VanillaCFR< cfr_config, Game, Policy >::iterate(
                // reachable from the next possible actions.
                visit_stack.emplace(
                   &child_node,
-                  m_game.actions(child_node.world_state, m_game.active_player(child_node.player)),
+                  m_game.actions(Player::emily),
                   action_idx == last_action_idx  // reaching the last action index means that this
                                                  // node should trigger value propagation
                );

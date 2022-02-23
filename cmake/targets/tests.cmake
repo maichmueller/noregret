@@ -18,6 +18,7 @@ add_executable(${nor_test} ${PROJECT_TEST_DIR}/main_tests.cpp ${TEST_SOURCES})
 target_link_libraries(${nor_test}
         PRIVATE
         ${nor_lib}
+        ${nor_lib}_wrappers
         project_warnings
         CONAN_PKG::gtest
         pybind11::module

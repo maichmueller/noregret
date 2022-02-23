@@ -26,14 +26,13 @@ class Game {
 
    aze::Status run(const sptr< aze::utils::Plotter< State > > &plotter);
    aze::Status transition(const Action &action);
-   double reward() { return static_cast< double >(m_state->status()); }
    void reset();
 
    [[nodiscard]] static constexpr auto nr_players() { return n_teams; }
    auto agents() { return m_agents; }
    auto agent(Team team) { return m_agents.at(static_cast< unsigned int >(team)); }
-   [[nodiscard]] auto state() const { return &m_state; }
-   auto &state() { return m_state; }
+   [[nodiscard]] auto &state() const { return *m_state; }
+   auto &state() { return *m_state; }
 
   private:
    uptr< State > m_state;

@@ -1,5 +1,8 @@
 
-add_library(${nor_lib} ${nor-lib-type})
+add_library(
+        ${nor_lib}
+        ${nor-lib-type}
+)
 
 target_include_directories(
         ${nor_lib}
@@ -21,3 +24,29 @@ set_target_properties(
         PROPERTIES
         CXX_VISIBILITY_PRESET hidden
 )
+
+set(
+        WRAPPER_SOURCES
+        stratego_wrapper.cpp
+)
+list(TRANSFORM WRAPPER_SOURCES PREPEND "${PROJECT_NOR_DIR}/impl/")
+
+if (ENABLE_GAMES)
+    add_library(
+            ${nor_lib}_wrappers
+            STATIC
+    )
+
+    target_sources(
+            ${nor_lib}_wrappers
+            PRIVATE
+            ${WRAPPER_SOURCES}
+    )
+
+    target_link_libraries(
+            ${nor_lib}_wrappers
+            PUBLIC
+            ${nor_lib}
+            stratego
+    )
+endif ()
