@@ -23,9 +23,11 @@ class Game {
        : m_state(std::move(state)), m_agents{ag0, ag1}
    {
    }
+   Game(Game&&) noexcept = default;
+   Game& operator=(Game&&) noexcept = default;
+   ~Game() = default;
 
    aze::Status run(const sptr< aze::utils::Plotter< State > > &plotter);
-   aze::Status transition(const Action &action);
    void reset();
 
    [[nodiscard]] static constexpr auto nr_players() { return n_teams; }

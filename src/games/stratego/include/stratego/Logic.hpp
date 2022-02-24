@@ -37,6 +37,8 @@ class Logic {
 
    bool has_valid_actions(const State &state, Team team);
 
+   void reset(State& state);
+
    static std::map< Position, Token > draw_setup_uniform(
       const Config &config,
       Board &curr_board,

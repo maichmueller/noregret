@@ -27,7 +27,7 @@ set_target_properties(
 
 set(
         WRAPPER_SOURCES
-        stratego_wrapper.cpp
+        stratego_env.cpp
 )
 list(TRANSFORM WRAPPER_SOURCES PREPEND "${PROJECT_NOR_DIR}/impl/")
 

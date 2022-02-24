@@ -50,8 +50,8 @@ void regret_matching(Policy& policy_map, const std::map< Action, double >& cumul
 }
 
 struct CFRConfig {
-   bool alternating_updates;
-   bool store_public_states;
+   bool alternating_updates = true;
+   bool store_public_states = false;
 };
 
 /**
@@ -75,7 +75,7 @@ class VanillaCFR {
    using cfr_node_type = CFRNode<
       action_type,
       world_state_type,
-      std::conditional_t< cfr_config.store_public_states, public_state_type, decltype([]() {}) >,
+      std::conditional_t< cfr_config.store_public_states, public_state_type, NEW_EMPTY_TYPE >,
       info_state_type >;
 
    explicit VanillaCFR(Game&& game, Policy&& policy = Policy())
@@ -103,10 +103,13 @@ class VanillaCFR {
       const;
 
   private:
+   /// the game object to maneuver the states with
    Game m_game;
+   /// the game tree mapping information states to the associated game nodes.
    std::map< info_state_type, cfr_node_type > m_game_tree;
+   /// the current policy $\sigma^t$ that each player is following in this iteration.
    std::map< Player, Policy > m_curr_policy;
-   /// the average policy table. This table should be such, that it is
+   /// the average policy table.
    std::map< Player, Policy > m_avg_policy;
    size_t m_iteration = 0;
 
@@ -316,7 +319,7 @@ void VanillaCFR< cfr_config, Game, Policy >::update_regret_and_policy(
       [&](const auto& action_value_pair) {
          const auto& [action, action_value] = action_value_pair;
          node.regret(player) += cf_reach_probability(node, reach_prob, player)
-                                  * (action_value - node.value(player));
+                                * (action_value - node.value(player));
          m_avg_policy[node.info_state()][action] += reach_prob
                                                     * m_curr_policy[node.info_state()][action];
       });

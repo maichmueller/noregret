@@ -1,6 +1,6 @@
 
-#ifndef NOR_STRATEGO_GAME_HPP
-#define NOR_STRATEGO_GAME_HPP
+#ifndef NOR_STRATEGO_ENV_HPP
+#define NOR_STRATEGO_ENV_HPP
 
 #include <range/v3/all.hpp>
 #include <string>
@@ -78,7 +78,7 @@ struct hash< nor::games::StrategoInfostate > {
 
 namespace nor::games {
 
-class NORStrategoGame {
+class NORStrategoEnv {
    using Team = stratego::Team;
    using world_state_type = stratego::State;
    using info_state_type = StrategoInfostate;
@@ -87,30 +87,19 @@ class NORStrategoGame {
    static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
 
   public:
+   explicit NORStrategoEnv(stratego::State&& state) : m_state(std::move(state)) {}
+
    std::vector< stratego::Action > actions(Player player);
    static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
-   auto reset()
-   {
-      m_game.reset();
-      m_info_state.emplace(Player::alex, StrategoInfostate{});
-      m_info_state.emplace(Player::bob, StrategoInfostate{});
-      m_public_state = StrategoPublicstate{};
-   }
+   auto reset();
    bool is_terminal(world_state_type& wstate);
    double reward(Player player);
    static double reward(Player player, world_state_type& wstate);
 
-   inline void transition(const stratego::Action& action)
-   {
-      transition(action, m_game.state());
-   }
-   void transition(
-      const stratego::Action& action,
-      world_state_type& worldstate);
+   inline void transition(const stratego::Action& action) { transition(action, m_state); }
+   void transition(const stratego::Action& action, world_state_type& worldstate);
 
-   [[nodiscard]] auto& world_state() const { return m_game.state(); }
-   [[nodiscard]] auto& public_state() const { return m_public_state; }
-   [[nodiscard]] auto& info_state(Player player) const { return m_info_state; }
+   [[nodiscard]] auto& world_state() const { return m_state; }
 
    static inline auto to_team(const Player& player)
    {
@@ -126,13 +115,11 @@ class NORStrategoGame {
    }
 
   private:
-   stratego::Game m_game;
-   std::map< Player, StrategoInfostate > m_info_state;
-   StrategoPublicstate m_public_state;
+   stratego::State m_state;
 
    static double _status_to_reward(stratego::Status status, Player player);
 };
 
 }  // namespace nor::games
 
-#endif  // NOR_STRATEGO_GAME_HPP
+#endif  // NOR_STRATEGO_ENV_HPP

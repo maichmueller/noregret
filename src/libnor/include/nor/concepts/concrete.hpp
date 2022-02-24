@@ -95,37 +95,36 @@ concept state_policy =
 // clang-format on
 
 template <
-   typename Game,
-   typename Action = typename Game::action_type,
-   typename Infostate = typename Game::info_state_type,
-   typename Publicstate = typename Game::public_state_type,
-   typename Worldstate = typename Game::world_state_type,
-   typename Observation = typename Game::observation_type >
+   typename Env,
+   typename Action = typename Env::action_type,
+   typename Infostate = typename Env::info_state_type,
+   typename Publicstate = typename Env::public_state_type,
+   typename Worldstate = typename Env::world_state_type,
+   typename Observation = typename Env::observation_type >
 // clang-format off
 concept fosg =
-/**/  std::is_copy_constructible_v< Game >
-   && std::is_copy_assignable_v< Game >
-   && std::is_move_constructible_v< Game >
-   && std::is_move_assignable_v< Game >
-   && action<Action>
-   && info_state< Infostate>
+/**/  std::is_copy_constructible_v< Env >
+   && std::is_copy_assignable_v< Env >
+   && std::is_move_constructible_v< Env >
+   && std::is_move_assignable_v< Env >
+   && action< Action >
+   && info_state< Infostate >
    && public_state< Publicstate >
    && world_state< Worldstate >
    && observation< Observation >
-   && has::method::actions< Game >
-   && (has::method::transition< Game > || has::method::transition_jointly< Game >)
-   && has::method::private_observation< Game >
-   && has::method::public_observation< Game >
-   && has::method::observation< Game >
-   && has::method::reset< Game, Worldstate& >
-   && has::method::info_state< Game, std::shared_ptr<Infostate> >
-   && has::method::public_state< Game, std::shared_ptr<Publicstate> >
-   && has::method::world_state< Game, std::shared_ptr<Worldstate> >
-   && has::method::reward< const Game >
-   && has::method::is_terminal< Game, Worldstate& >
-   && has::method::players< Game >
-   && has::trait::max_player_count< Game >
-   && has::trait::turn_dynamic< Game >;
+   && has::method::actions< Env >
+   && has::method::transition< Env >
+   && has::method::private_observation< Env >
+   && has::method::public_observation< Env >
+   && has::method::observation< Env >
+   && has::method::reset< Env, Worldstate& >
+   && has::method::world_state< Env, Worldstate& >
+   && has::method::world_state< const Env, uptr< Worldstate > >
+   && has::method::reward< const Env >
+   && has::method::is_terminal< Env, Worldstate& >
+   && has::method::players< Env >
+   && has::trait::max_player_count< Env >
+   && has::trait::turn_dynamic< Env >;
 // clang-format on
 
 template <
