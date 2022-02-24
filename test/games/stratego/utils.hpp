@@ -68,7 +68,7 @@ struct eq_rng {
    sorted< T > sorted;
    explicit eq_rng(T val, SortF sort = SortF()) : sorted(val, sort) {}
    bool operator==(const eq_rng& other) const { return cmp_equal_rngs(value(), other.value()); };
-   const auto& value() const { return sorted.value; }
+   const auto& value() const { return sorted.m_value; }
    friend auto& operator<<(std::ostream& os, const eq_rng& rng)
    {
       os << aze::utils::SpanPrinter{std::span{rng.value()}};

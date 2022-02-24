@@ -175,7 +175,7 @@ concept cfr_variant =
       ReachProbabilityArgs&&...reach_prob_args
 ) {
     /// the factual reach probability of the given node
-   { t.reach_probability(
+   { t.m_reach_prob(
          node,
          std::forward<ReachProbabilityArgs>(reach_prob_args)...
      )

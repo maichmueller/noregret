@@ -38,17 +38,17 @@ TEST_F(MinimalState, apply_action)
    // move marshall one field up
    state.transition({{1, 1}, {2, 1}});
    // previous field should now be empty
-   EXPECT_THROW((state.board()[{1, 1}].value()), std::bad_optional_access);
+   EXPECT_THROW((state.board()[{1, 1}].m_value()), std::bad_optional_access);
 
-   auto& piece = state.board()[{2, 1}].value();
+   auto& piece = state.board()[{2, 1}].m_value();
    EXPECT_EQ(piece.position(), Position(2, 1));
    EXPECT_EQ(piece.token(), Token::marshall);
 
    // move marshall onto enemy scout -> fight and win
    state.transition({{2, 1}, {3, 1}});
 
-   piece = state.board()[{3, 1}].value();
-   EXPECT_THROW((state.board()[{2, 1}].value()), std::bad_optional_access);
+   piece = state.board()[{3, 1}].m_value();
+   EXPECT_THROW((state.board()[{2, 1}].m_value()), std::bad_optional_access);
    EXPECT_EQ(piece.position(), Position(3, 1));
    EXPECT_EQ(piece.token(), Token::marshall);
 
@@ -56,8 +56,8 @@ TEST_F(MinimalState, apply_action)
    auto state_copy = state.clone();
    state.transition({{3, 1}, {3, 2}});
 
-   EXPECT_THROW((state.board()[{3, 1}].value()), std::bad_optional_access);
-   piece = state.board()[{3, 2}].value();
+   EXPECT_THROW((state.board()[{3, 1}].m_value()), std::bad_optional_access);
+   piece = state.board()[{3, 2}].m_value();
    EXPECT_EQ(piece.position(), Position(3, 2));
    EXPECT_EQ(piece.token(), Token::bomb);
    EXPECT_EQ(piece.team(), Team::RED);
@@ -65,8 +65,8 @@ TEST_F(MinimalState, apply_action)
    // move spy onto enemy marshall -> fight and win
    state_copy->transition({{4, 1}, {3, 1}});
 
-   EXPECT_THROW((state_copy->board()[{4, 1}].value()), std::bad_optional_access);
-   piece = state_copy->board()[{3, 1}].value();
+   EXPECT_THROW((state_copy->board()[{4, 1}].m_value()), std::bad_optional_access);
+   piece = state_copy->board()[{3, 1}].m_value();
    EXPECT_EQ(piece.position(), Position(3, 1));
    EXPECT_EQ(piece.token(), Token::spy);
    EXPECT_EQ(piece.team(), Team::RED);

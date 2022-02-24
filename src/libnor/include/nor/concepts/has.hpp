@@ -166,7 +166,7 @@ template < typename T, typename Worldstate = typename T::world_state_type >
 concept world_state = requires(T&& t)
 {
    {
-      t.world_state()
+      t.m_world_state()
       } -> std::same_as< nor::const_as_t< T, Worldstate >& >;
 };
 
@@ -185,7 +185,7 @@ template <
 concept info_state = requires(T&& t, Worldstate wstate, Player player)
 {
    {
-      t.info_state(wstate, player)
+      t.m_info_state(wstate, player)
       } -> std::same_as< Privatestate >;
 };
 
