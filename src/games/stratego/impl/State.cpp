@@ -44,7 +44,7 @@ void State::_fill_dead_pieces()
    auto counters = config().token_counters;
    for(const auto &piece_opt : board()) {
       if(piece_opt.has_value()) {
-         const auto &piece = piece_opt.m_value();
+         const auto &piece = piece_opt.value();
          if(piece.token() != Token::hole) {
             counters[piece.team()][piece.token()]--;
          }

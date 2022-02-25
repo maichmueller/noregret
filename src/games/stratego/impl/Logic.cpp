@@ -40,7 +40,7 @@ void Logic::apply_action(State &state, const Action &action)
    // save the access to the pieces in question
    // (removes redundant searching in board later)
    Board &board = state.board();
-   auto &piece_from = board[from].m_value();
+   auto &piece_from = board[from].value();
    auto &piece_to_opt = board[to];
 
    state.history().commit_action(
@@ -48,7 +48,7 @@ void Logic::apply_action(State &state, const Action &action)
 
    // enact the move
    if(piece_to_opt.has_value()) {
-      auto &piece_to = piece_to_opt.m_value();
+      auto &piece_to = piece_to_opt.value();
       // engage in fight, since piece_to is not a null piece
       handle_fight(state, piece_from, piece_to);
    } else {
@@ -100,7 +100,7 @@ bool Logic::is_valid(const State &state, const Action &action, Team team)
    if(not p_b_opt.has_value())
       return false;
 
-   const auto &p_b = p_b_opt.m_value();
+   const auto &p_b = p_b_opt.value();
 
    // can't move other team's pieces
    if(p_b.team() != team) {
@@ -109,7 +109,7 @@ bool Logic::is_valid(const State &state, const Action &action, Team team)
 
    // check if the target position holds a piece and whose team it belongs to
    if(p_a_opt.has_value()) {
-      const auto &p_a = p_a_opt.m_value();
+      const auto &p_a = p_a_opt.value();
       if(p_a.team() == p_b.team())
          return false;  // cant fight
       // pieces of
@@ -157,7 +157,7 @@ std::vector< Action > Logic::valid_actions(const State &state, Team team)
    std::vector< Action > actions_possible;
    for(const auto &elem : board) {
       if(elem.has_value()) {
-         const auto &piece = elem.m_value();
+         const auto &piece = elem.value();
          if(piece.team() == team) {
             // the position we are dealing with
             auto pos = piece.position();
@@ -188,7 +188,7 @@ bool Logic::has_valid_actions(const State &state, Team team)
    const auto &board = state.board();
    for(const auto &piece_opt : board) {
       if(piece_opt.has_value()) {
-         const auto &piece = piece_opt.m_value();
+         const auto &piece = piece_opt.value();
          if(Token token = piece.token();
             piece.team() == team && not std::set{Token::flag, Token::bomb}.contains(token)) {
             // the position we are dealing with
@@ -288,7 +288,7 @@ std::map< Team, std::map< Position, Token > > Logic::extract_setup(const Board &
       for(size_t j = 0; j < board.shape(1); j++) {
          const auto &piece_opt = board[{i, j}];
          if(piece_opt.has_value()) {
-            const auto &piece = piece_opt.m_value();
+            const auto &piece = piece_opt.value();
             setup[piece.team()][{int(i), int(j)}] = piece.token();
          }
       }

@@ -33,7 +33,7 @@ TEST(State, constructor)
       //      std::cout << utils::enum_name(state.board()[pos].value().team()) << ", "
       //                << state.board()[pos].value().position() << ", "
       //                << state.board()[pos].value().token() << "\n";
-      EXPECT_EQ((state.board()[pos].m_value()), Piece(Team::BLUE, pos, token));
+      EXPECT_EQ((state.board()[pos].value()), Piece(Team::BLUE, pos, token));
    }
    for(auto [pos, token] : setup1) {
       //      std::cout << "Given piece from setup:\n";
@@ -42,7 +42,7 @@ TEST(State, constructor)
       //      std::cout << utils::enum_name(state.board()[pos].value().team()) << ", "
       //                << state.board()[pos].value().position() << ", "
       //                << state.board()[pos].value().token() << "\n";
-      EXPECT_EQ((state.board()[pos].m_value()), Piece(Team::RED, pos, token));
+      EXPECT_EQ((state.board()[pos].value()), Piece(Team::RED, pos, token));
    }
 }
 
@@ -95,7 +95,7 @@ std::vector< Position > get_hole_pos(const Board& board)
       for(size_t j = 0; j < board.shape(1); j++) {
          const auto& piece_opt = board[{i, j}];
          if(piece_opt.has_value()) {
-            const auto& piece = piece_opt.m_value();
+            const auto& piece = piece_opt.value();
             if(piece.team() == Team::NEUTRAL && piece.token() == Token::hole) {
                out.emplace_back(int(i), int(j));
             }
