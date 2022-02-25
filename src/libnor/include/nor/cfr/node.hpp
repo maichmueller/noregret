@@ -24,6 +24,21 @@ namespace nor::rm {
  */
 
 namespace detail {
+
+///**
+// * The empty public state type will still need to fulfill the concept of a public state type!
+// * @tparam Action
+// * @tparam Observation
+// */
+//template < concepts::action Action, concepts::observation Observation >
+//struct empty_public_state {
+//   using action_type = Action;
+//   using observation_type = Observation;
+//
+//   [[nodiscard]] size_t size() const { return 0; }
+//   void append(const std::pair <Action, Observation>&) {}
+//};
+
 template < typename Publicstate, typename = void >
 struct CondPubstate {
    /// the public information state at this node
@@ -44,34 +59,30 @@ struct CondPubstate< Publicstate, std::enable_if_t< concepts::is::empty< Publics
 
 }  // namespace detail
 
-template < typename Action, typename Worldstate, typename Publicstate, typename Infostate >
+template < typename Action, typename Infostate, typename Publicstate >
 struct CFRNode: public detail::CondPubstate< Publicstate > {
-   using cond_public_state = detail::CondPubstate< Publicstate >;
+   using info_state_type = Infostate;
+   using public_state_type = Publicstate;
+   using cond_public_state_base = detail::CondPubstate< Publicstate >;
 
    CFRNode(
-      Worldstate&& world_state,
+      std::map< Player, Infostate > info_states,
       Publicstate&& public_state,
-      Infostate&& info_state,
       Player player,
-      std::map< Player, double >&& reach_prob,
+      std::map< Player, double > reach_prob,
       CFRNode* parent = nullptr)
-       : m_world_state(std::move(world_state)),
-         cond_public_state(std::move(public_state)),
-         m_info_state(std::move(info_state)),
+       : cond_public_state_base(std::move(public_state)),
+         m_infostates(std::move(info_states)),
          m_player(player),
          m_reach_prob(std::move(reach_prob)),
-         m_parent(parent),
-         m_hash_cache(std::hash< Infostate >{}(m_info_state))
+         m_parent(parent)
    {
    }
 
-   auto hash() const { return m_hash_cache; }
-   auto operator==(const CFRNode& other) const { return m_world_state == other.m_world_state; }
-
-   auto& world_state() { return m_world_state; }
-   auto& public_state() { return cond_public_state::public_state; }
-   auto& info_state() { return m_info_state; }
+   auto& public_state() { return cond_public_state_base::public_state; }
    auto player() { return m_player; }
+   auto& info_states(Player player) { return m_infostates[player]; }
+   auto& info_states() { return m_infostates; }
    auto& value(Player player) { return m_value[player]; }
    auto& value() { return m_value; }
    auto& reach_probability(Player player) { return m_reach_prob[player]; }
@@ -81,10 +92,10 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    auto& regret(const Action& action) { return m_regret[action]; }
    auto& regret() { return m_regret; }
    auto parent() { return m_parent; }
-   [[nodiscard]] auto& world_state() const { return m_world_state; }
-   [[nodiscard]] auto& public_state() const { return cond_public_state::public_state; }
-   [[nodiscard]] auto& info_state() const { return m_info_state; }
+   [[nodiscard]] auto& public_state() const { return cond_public_state_base::public_state; }
    [[nodiscard]] auto player() const { return m_player; }
+   [[nodiscard]] auto& info_states(Player player) const { return m_infostates[player]; }
+   [[nodiscard]] auto& info_states() const { return m_infostates; }
    [[nodiscard]] auto& value(Player player) const { return m_value.at(player); }
    [[nodiscard]] auto& value() const { return m_value; }
    [[nodiscard]] auto& reach_probability(Player player) const { return m_reach_prob.at(player); }
@@ -96,15 +107,13 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    [[nodiscard]] auto parent() const { return m_parent; }
 
   private:
-   /// the overall state of the game at this node
-   Worldstate m_world_state;
-   /// the private information state of the active player at this node
-   Infostate m_info_state;
    /// the currently active player at the world state
    Player m_player;
 
    // player-based storage
 
+   /// the information states of each player at this node
+   std::map< Player, Infostate > m_infostates;
    /// the value of each player for this node.
    /// Defaults to 0 and should be updated later during the traversal.
    std::map< Player, double > m_value{};
@@ -123,8 +132,6 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
 
    /// the parent node from which this node stems
    CFRNode* m_parent;
-   /// the cached hash of the stored information state
-   size_t m_hash_cache;
 };
 
 }  // namespace nor::rm

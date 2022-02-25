@@ -56,11 +56,11 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type >
-concept actions = requires(T const t, Worldstate worldstate, Player player)
+concept actions = requires(T const t, Worldstate&& worldstate, Player player)
 {
    // legal actions getter for the given player
    {
-      t.actions(player, worldstate)
+      t.actions(player, std::forward< Worldstate >(worldstate))
       } -> std::convertible_to< std::vector< Action > >;
 };
 
@@ -77,11 +77,11 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type >
-concept transition = requires(T&& t, Worldstate& worldstate, Action action)
+concept transition = requires(T&& t, Worldstate&& worldstate, Action action)
 {
    // apply the action on the given world state inplace.
    {
-      t.transition(action, worldstate)
+      t.transition(action, std::forward< Worldstate >(worldstate))
       } -> std::same_as< void >;
 };
 
@@ -117,7 +117,7 @@ concept reward_multi = requires(T&& t, Worldstate& wstate, const std::vector< Pl
 {
    {
       t.reward(players, wstate)
-      } -> std::convertible_to< std::map< Player, double > >;
+      } -> std::convertible_to< std::vector< double > >;
 };
 
 template < typename T >
@@ -186,7 +186,7 @@ template <
 concept info_state = requires(T&& t, Worldstate wstate, Player player)
 {
    {
-      t.info_state(wstate, player)
+      t.info_states(wstate, player)
       } -> std::same_as< Infostate >;
 };
 
@@ -207,45 +207,61 @@ template <
 concept private_observation_multi =
    requires(T&& t, const std::vector< Player >& player_list, Worldstate wstate)
 {
-   // get only private obervations
+   // get only private obervations.
+   // Output is a paired vector of observations, i.e. output[i] is paired to player_list[i].
    {
       t.private_observation(player_list, wstate)
-      } -> std::same_as< std::map< Player, Observation > >;
-};
-
-template < typename T, typename Observation = typename T::observation_type >
-concept public_observation = requires(T&& t, Player player)
-{
-   {
-      t.public_observation(player)
-      } -> std::convertible_to< Observation >;
-};
-
-template < typename T, typename Observation = typename T::observation_type >
-concept public_observation_multi = requires(T&& t, const std::vector< Player >& player_list)
-{
-   // get only private obervations for the vector of players. Output is a paired vector of
-   // observations, i.e. output[i] is paired to player_list[i].
-   {
-      t.public_observation(player_list)
       } -> std::same_as< std::vector< Observation > >;
 };
 
-template < typename T, typename Observation = typename T::observation_type >
-concept observation = requires(T&& t, Player player)
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Observation = typename T::observation_type >
+concept public_observation = requires(T&& t, Player player, Worldstate wstate)
 {
    {
-      t.observation(player)
+      t.public_observation(player, wstate)
       } -> std::convertible_to< Observation >;
 };
 
-template < typename T, typename Observation = typename T::observation_type >
-concept observation_multi = requires(T&& t, const std::vector< Player >& player_list)
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Observation = typename T::observation_type >
+concept public_observation_multi =
+   requires(T&& t, const std::vector< Player >& player_list, Worldstate wstate)
 {
-   // get full observation: private and public
+   // get only private obervations for the vector of players.
+   // Output is a paired vector of observations, i.e. output[i] is paired to player_list[i].
    {
-      t.observation(player_list)
-      } -> std::same_as< std::map< Player, Observation > >;
+      t.public_observation(player_list, wstate)
+      } -> std::same_as< std::vector< Observation > >;
+};
+
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Observation = typename T::observation_type >
+concept observation = requires(T&& t, Player player, Worldstate wstate)
+{
+   {
+      t.observation(player, wstate)
+      } -> std::convertible_to< Observation >;
+};
+
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Observation = typename T::observation_type >
+concept observation_multi =
+   requires(T&& t, const std::vector< Player >& player_list, Worldstate wstate)
+{
+   // get full observation: private and public.
+   // Output is a paired vector of observations, i.e. output[i] is paired to player_list[i].
+   {
+      t.observation(player_list, wstate)
+      } -> std::same_as< std::vector< Observation > >;
 };
 
 template < typename T, template < typename > class Ptr, typename ElemT >

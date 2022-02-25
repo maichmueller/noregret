@@ -11,6 +11,7 @@ include(GNUInstallDirs)
 
 option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be installed on the system" OFF)
 option(ENABLE_BUILD_PYTHON_EXTENSION "Enable building the python extension." ON)
+option(ENABLE_BUILD_SANDBOX "Enable building of the sandbox testbed (Only for development purposes)." ON)
 option(ENABLE_BUILD_WITH_TIME_TRACE "Enable -ftime-trace to generate time tracing .json files on clang" OFF)
 option(ENABLE_CACHE "Enable cache if available" ON)
 option(ENABLE_CLANG_TIDY "Enable static analysis with clang-tidy" OFF)
@@ -163,6 +164,10 @@ endif ()
 if (ENABLE_GAMES)
     message(STATUS "Configuring Game Builds.")
     include(${_cmake_DIR}/targets/games.cmake)
+endif ()
+if (ENABLE_BUILD_SANDBOX)
+    message(STATUS "Configuring Sandbox Build.")
+    include(${_cmake_DIR}/targets/sandbox.cmake)
 endif ()
 
 # use, i.e. don't skip the full RPATH for the build tree

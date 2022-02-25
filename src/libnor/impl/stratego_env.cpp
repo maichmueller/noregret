@@ -31,7 +31,8 @@ bool NORStrategoEnv::is_terminal(world_state_type& wstate)
 {
    return wstate.status() != stratego::Status::ONGOING;
 }
-std::vector< stratego::Action > NORStrategoEnv::actions(Player player, world_state_type& wstate)
+std::vector< stratego::Action > NORStrategoEnv::actions(Player player,
+   const world_state_type& wstate)
 {
    return m_logic->valid_actions(wstate, to_team(player));
 }
@@ -43,6 +44,30 @@ void NORStrategoEnv::transition(const stratego::Action& action, world_state_type
 auto NORStrategoEnv::reset(world_state_type& wstate)
 {
    m_logic->reset(wstate);
+}
+NORStrategoEnv::observation_type NORStrategoEnv::private_observation(
+   Player player,
+   const NORStrategoEnv::world_state_type& wstate)
+{
+   // TODO: implement string representation of state
+}
+NORStrategoEnv::observation_type NORStrategoEnv::private_observation(
+   Player player,
+   const NORStrategoEnv::action_type& action)
+{
+   // TODO: implement string representation of action
+}
+NORStrategoEnv::observation_type NORStrategoEnv::public_observation(
+   Player player,
+   const NORStrategoEnv::world_state_type& wstate)
+{
+   // TODO: implement string representation of state
+}
+NORStrategoEnv::observation_type NORStrategoEnv::public_observation(
+   Player player,
+   const NORStrategoEnv::action_type& action)
+{
+   // TODO: implement string representation of action
 }
 
 }  // namespace nor::games

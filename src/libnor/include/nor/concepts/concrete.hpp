@@ -37,7 +37,7 @@ concept public_state =
 /**/  action< Action >
    && observation< Observation >
    && is::sized< T >
-   && has::method::append< T, std::pair< Action, Observation> >;
+   && has::method::append< T, std::pair< /*action_=*/Observation, /*state_=*/Observation> >;
 // clang-format on
 
 template <
@@ -50,7 +50,8 @@ concept info_state =
    && observation< Observation >
    && is::sized< T >
    && is::hashable< T >
-   && std::equality_comparable< T >;
+   && std::equality_comparable< T >
+   && has::method::append< T, std::pair< /*action_=*/Observation, /*state_=*/Observation> >;
 // clang-format on
 
 template < typename T >
@@ -111,11 +112,14 @@ concept fosg =
    && public_state< Publicstate >
    && world_state< Worldstate >
    && observation< Observation >
-   && has::method::actions< Env >
-   && has::method::transition< Env >
-   && has::method::private_observation< Env >
-   && has::method::public_observation< Env >
-   && has::method::observation< Env >
+   && has::method::actions< Env, const Worldstate& >
+   && has::method::transition< Env, Worldstate& >
+   && has::method::private_observation< Env, Worldstate, Observation >
+   && has::method::public_observation< Env, Worldstate, Observation >
+   && has::method::observation< Env, Worldstate, Observation >
+   && has::method::private_observation< Env, Action, Observation >
+   && has::method::public_observation< Env, Action, Observation >
+   && has::method::observation< Env, Action, Observation >
    && has::method::reset< Env, Worldstate& >
    && (
             // if the given worldstate type is a pointer (e.g. unique, shared)

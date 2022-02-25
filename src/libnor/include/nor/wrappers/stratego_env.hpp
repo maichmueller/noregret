@@ -15,7 +15,6 @@ using stratego_observation = std::string;
 
 class StrategoInfostate {
   public:
-   using action_type = stratego::Action;
    using observation_type = stratego_observation;
 
    StrategoInfostate() = default;
@@ -44,7 +43,7 @@ class StrategoInfostate {
    inline bool operator!=(const StrategoInfostate& other) const { return not (*this == other); }
 
   private:
-   std::vector< std::pair< stratego::Action, std::string > > m_history;
+   std::vector< std::pair< observation_type, observation_type> > m_history;
    size_t m_hash_cache{0};
 
    size_t _hash()
@@ -57,7 +56,7 @@ class StrategoInfostate {
          ss << "obs_" << pos << ":" << observation;
          pos++;
       }
-      size_t hash = std::hash< stratego_observation >{}(ss.str());
+      size_t hash = std::hash< observation_type >{}(ss.str());
       m_hash_cache = hash;
       return hash;
    }
@@ -81,16 +80,20 @@ namespace nor::games {
 
 class NORStrategoEnv {
    using Team = stratego::Team;
+   // nor fosg typedefs
    using world_state_type = stratego::State;
    using info_state_type = StrategoInfostate;
    using public_state_type = StrategoPublicstate;
+   using action_type = stratego::Action;
+   using observation_type = stratego_observation;
+   // nor fosg traits
    static constexpr size_t max_player_count = 2;
    static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
 
   public:
    explicit NORStrategoEnv(uptr< stratego::Logic >&& logic) : m_logic(std::move(logic)) {}
 
-   std::vector< stratego::Action > actions(Player player, world_state_type& wstate);
+   std::vector< stratego::Action > actions(Player player, const world_state_type& wstate);
    static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
    auto reset(world_state_type& wstate);
    bool is_terminal(world_state_type& wstate);
@@ -98,10 +101,15 @@ class NORStrategoEnv {
 
    void transition(const stratego::Action& action, world_state_type& worldstate);
 
+   observation_type private_observation(Player player, const world_state_type& wstate);
+   observation_type private_observation(Player player, const action_type& action);
+   observation_type public_observation(Player player, const world_state_type& wstate);
+   observation_type public_observation(Player player, const action_type& action);
+
    static inline auto to_team(const Player& player)
    {
       {
-         return stratego::Team(static_cast< size_t >(player));
+         return Team(static_cast< size_t >(player));
       }
    }
    static inline auto to_player(const Team& team)

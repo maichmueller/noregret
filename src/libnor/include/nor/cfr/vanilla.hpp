@@ -3,10 +3,12 @@
 #define NOR_VANILLA_HPP
 
 #include <cppitertools/enumerate.hpp>
+#include <cppitertools/reversed.hpp>
 #include <execution>
 #include <list>
-#include <stack>
 #include <map>
+#include <range/v3/all.hpp>
+#include <stack>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -73,13 +75,13 @@ class VanillaCFR {
    using world_state_type = typename Env::world_state_type;
    using info_state_type = typename Env::info_state_type;
    using public_state_type = typename Env::public_state_type;
+   using observation_type = typename Env::observation_type;
    // the CFR Node type to store in the tree
    using cfr_node_type = CFRNode<
       action_type,
-      world_state_type,
       std::conditional_t< cfr_config.store_public_states, public_state_type, NEW_EMPTY_TYPE >,
       info_state_type >;
-   using player_tree_type = std::unordered_map< info_state_type, sptr<cfr_node_type> >;
+   using game_tree_type = std::unordered_map< info_state_type, sptr< cfr_node_type > >;
 
    explicit VanillaCFR(Env&& game, Policy&& policy = Policy())
        : m_env(std::forward< Env >(game)),
@@ -93,6 +95,11 @@ class VanillaCFR {
 
    /**
     * @brief Executes n iterations of the VanillaCFR algorithm in unrolled form (no recursion).
+    *
+    * The decision for doing alternating updates or simultaneous updates happens at compile time via
+    * the cfr config. This optimizes some unncessary repeated if-branching away at the cost of
+    * higher maintenance. The user can also decide whether to store the public state at each node
+    *
     * @param n_iterations, the number of iterations to perform.
     * @return the updated state_policy
     */
@@ -118,14 +125,15 @@ class VanillaCFR {
       const;
 
   private:
-   /// the environment object to maneuver the states with
+   /// the environment object to maneuver the states with.
    Env m_env;
    /// the game tree mapping information states to the associated game nodes.
-   std::unordered_map< info_state_type, cfr_node_type > m_game_tree;
-   /// the current policy $\sigma^t$ that each player is following in this iteration.
+   std::map< Player, game_tree_type > m_game_trees;
+   /// the current policy $\pi^t$ that each player is following in this iteration.
    std::map< Player, Policy > m_curr_policy;
    /// the average policy table.
    std::map< Player, Policy > m_avg_policy;
+   /// the number of iterations we have run so far.
    size_t m_iteration = 0;
 
    template < typename ResultType, std::invocable< cfr_node_type*, ResultType > Functor >
@@ -159,17 +167,27 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
    for(auto iteration : ranges::views::iota(size_t(0), n_iters)) {
       // the tree needs to be traversed. To do so, every node (starting from the root node aka the
       // current game state) will emplace its child states - as generated from its possible actions
-      // - into the queue. This queue is a First-In-First-Out (FIFO) stack which will guarantee that
-      // we perform a depth-first-traversal of the game tree. This is necessary since any
-      // state-value of a given node are computed via the probability of each action multiplied by
-      // their successor state-values, i.e. v(s) = \sum_a \pi(s,a) * v(s')
-      std::stack< std::tuple< cfr_node_type*, std::vector< action_type >, bool > > visit_stack;
+      // - into the queue. This queue is Last-In-First-Out (LIFO), hence referred to as 'stack',
+      // which will guarantee that we perform a depth-first-traversal of the game tree (FIFO would
+      // lead to breadth-first). This is necessary since any state-value of a given node is
+      // computed via the probability of each action multiplied by their successor state-values,
+      // i.e. v(s) = \sum_a \pi(s,a) * v(s').
+      // The stack uses raw pointers to nodes, since nodes are first emplaced in the tree(s) and
+      // then put on the stack for later visitation. Their lifetime management is thus handled by
+      // shared pointers stored in the trees.
+      std::stack< std::tuple< world_state_type, cfr_node_type*, std::vector< action_type >, bool > >
+         visit_stack;
 
       Player curr_player = m_env->active_player();
-      auto root_node = cfr_node_type{
-         initial_wstate,
-         public_state_type{},
-         info_state_type{},
+      auto root_node = std::make_shared< cfr_node_type >(
+         []< concepts::iterable T >(T&& players) {
+            std::map< Player, info_state_type > is_map;
+            for(auto player : players) {
+               is_map.emplace(player, info_state_type{});
+            }
+            return is_map;
+         }(m_env.players()),
+         typename cfr_node_type::public_state_type{},
          curr_player,
          []< concepts::iterable T >(T&& players) {
             std::map< Player, double > rp;
@@ -177,12 +195,15 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
                rp.emplace(player, 1.);
             }
             return rp;
-         }(m_env.players())};
+         }(m_env.players()));
       // emplace the root node in the queue to start the traversal from
-      m_game_tree.emplace(root_node.info_state(), root_node);
+      for(const auto& info_state : root_node.info_states()) {
+         m_game_trees.emplace(info_state, root_node.get());
+      }
       // the root node is NOT a trigger for value propagation (=false), since only the children of a
       // state can trigger value collection of their parent.
-      visit_stack.emplace(root_node, m_env.actions(curr_player, m_env.active), false);
+      visit_stack.emplace(
+         initial_wstate, root_node, m_env.actions(curr_player, initial_wstate), false);
 
       while(not visit_stack.empty()) {
          // get the next tree node from the queue:
@@ -190,54 +211,72 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
          // actions: all the possible actions the active player has in this node
          // trigger_value_propagation: a boolean indicating if this is the 'rightmost' child node of
          // the parent and thus should trigger the collection of state values
-         auto& [curr_node, actions, trigger_value_propagation] = visit_stack.top();
+         auto& [curr_wstate, curr_node, actions, trigger_value_propagation] = visit_stack.top();
          // the last action index decides which child of curr_node will be the one to trigger
          // the curr_node's value collection from its child states
          size_t last_action_idx = actions.size() - 1;
 
-         Player curr_player = curr_node->player();
+         curr_player = curr_node->player();
 
          // we have to reverse the index range, in order to guarantee that the last_action_idx child
-         // node is going to be emplace FIRST and thus popped as the LAST child of the current node
-         // (which will then correctly trigger the value propagation)
-         for(auto&& [action_idx, action] : iter::enumerate(actions) | ranges::views::reverse) {
+         // node is going to be emplaced FIRST and thus popped as the LAST child of the current node
+         // (and as such trigger the value propagation)
+         for(auto&& [action_idx, action] : iter::enumerate(iter::reversed(actions))) {
+            // the index starts enumerating at 0, but we are stepping through the actions in
+            // reverse, so we need to adapt the index acoordingly
+            action_idx = last_action_idx - action_idx;
             // copy the current nodes world state
-            auto new_wstate = utils::clone_any_way(curr_node->world_state());
+            auto next_wstate = utils::clone_any_way(curr_wstate);
             // move the new world state forward by the current action
-            m_env.transition(new_wstate, action);
-            // extract the private observation of the player who performed the action from the new
-            // world state. This will serve e.g. as the key for the new node to emplace
-            auto new_infostate = utils::clone_any_way(curr_node->info_state());
-            new_infostate.append(m_env.private_observation(curr_player, new_wstate));
-            // copy the current reach probabilities as well. These will now be updated and then
-            // emplaced in the new node
-            std::map< Player, double > node_reach_probs = curr_node->reach_probability();
+            m_env.transition(next_wstate, action);
+            // copy the current information states of all players. Each state will be updated with
+            // the new private observation the respective player receives from the environment.
+            auto next_infostates = utils::clone_any_way(curr_node->info_states());
+            // copy the current reach probabilities as well. These will now be updated by the active
+            // player's likelihood of playing towards this node.
+            std::map< Player, double > node_reach_probs = utils::clone_any_way(
+               curr_node->reach_probability());
+            // append each players action observation and world state observation to the current
+            // stream of information states.
+            for(auto player : m_env.players()) {
+               next_infostates[player].append(
+                  {m_env.private_observation(player, action),
+                   m_env.private_observation(player, next_wstate)});
+            }
             // multiply the current reach probabilities of this state by the policy of choosing the
             // action by the active player.
-            node_reach_probs[curr_player] *= m_curr_policy[curr_player]
-                                                          [{curr_node->info_state(), action}];
-            // add this new world state into the tree with its active player's info state as key
-            auto& child_node = m_game_tree
-                                  .emplace(
-                                     /*key=*/new_infostate,
-                                     /*value_args...=*/new_wstate,
-                                     new_infostate,
-                                     m_env.active_player(new_wstate),
-                                     node_reach_probs,
-                                     curr_node)
-                                  .first->second;
-            // append the new tree node as a child of the currently visited node.
-            curr_node->children(action) = child_node;
-            if(m_env.is_terminal(child_node.world_state())) {
+            node_reach_probs[curr_player] *= m_curr_policy[curr_player][{
+               curr_node->info_states(curr_player), action}];
+            // the child node has shared ownership by each player's game tree
+            auto child_node_sptr = std::make_shared< cfr_node_type >(
+               next_infostates, m_env.active_player(next_wstate), node_reach_probs, curr_node);
+            // add this new world state into each player's tree with their respective info state as
+            // key
+            for(auto player : m_env.players()) {
+               m_game_trees[player].emplace(next_infostates[player], child_node_sptr);
+            }
+            // append the new tree node as a child of the currently visited node. We are using a raw
+            // pointer here to avoid the unnecessary sptr counter increase cost
+            curr_node->children(action) = child_node_sptr.get();
+            if(m_env.is_terminal(next_wstate)) {
                // we have reached a terminal state and can save the reward as the value of this
                // node within the node. This value will later in the algorithm be propagated up in
                // the tree.
                if constexpr(nor::concepts::has::method::reward_multi< Env >) {
-                  child_node.value() = m_env.reward(m_env.players(), child_node.world_state());
-
+                  // if the environment has a method for returning all rewards for given players at
+                  // once, then we will assume this is a more performant alternative and use it
+                  // instead (e.g. when it is costly to compute the reward of each player
+                  // individually).
+                  auto& value_map = child_node_sptr->value();
+                  auto rewards = m_env.reward(m_env.players(), next_wstate);
+                  ranges::views::for_each(
+                     ranges::views::zip(m_env.player(), rewards), [&](const auto& p_r_pair) {
+                        value_map.emplace(std::get< 0 >(p_r_pair), std::get< 1 >(p_r_pair));
+                     });
                } else {
+                  // otherwise we just loop over the per player reward method
                   for(auto player : m_env.players()) {
-                     child_node.value(player) = m_env.reward(player, child_node.world_state());
+                     child_node_sptr->value(player) = m_env.reward(player, next_wstate);
                   }
                }
             } else {
@@ -245,7 +284,7 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
                // the new child node to the queue. This way we further explore its child states as
                // reachable from the next possible actions.
                visit_stack.emplace(
-                  &child_node,
+                  child_node_sptr.get(),
                   m_env.actions(curr_player),
                   action_idx == last_action_idx  // reaching the last action index means that this
                                                  // node should trigger value propagation
@@ -271,7 +310,7 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
                      // applied action is the action that lead to the child node!
                      const auto& [applied_action, action_value] = action_value_pair;
                      // pi_{player}(s, a) * v(s'(a))
-                     return m_curr_policy[player][{node.info_state(), applied_action}]
+                     return m_curr_policy[player][{node.info_state(player), applied_action}]
                             * action_value;
                   });
             };
