@@ -11,13 +11,16 @@
 
 namespace nor::games::stratego {
 
-class StrategoInfostate {
+using namespace ::stratego;
+
+class Infostate {
   public:
    using observation_type = std::string;
 
-   StrategoInfostate() = default;
+   Infostate() = default;
 
    [[nodiscard]] auto& history() const { return m_history; }
+   [[nodiscard]] size_t size() const { return m_history.size(); }
 
    template < typename... Args >
    auto append(Args&&... args)
@@ -29,7 +32,7 @@ class StrategoInfostate {
 
    [[nodiscard]] size_t hash() const { return m_hash_cache; }
 
-   bool operator==(const StrategoInfostate& other) const
+   bool operator==(const Infostate& other) const
    {
       auto zip_view = ranges::views::zip(m_history, other.history());
       return std::all_of(zip_view.begin(), zip_view.end(), [](const auto& tuple) {
@@ -38,7 +41,7 @@ class StrategoInfostate {
                 && this_hist_elem.second == other_hist_elem.second;
       });
    }
-   inline bool operator!=(const StrategoInfostate& other) const { return not (*this == other); }
+   inline bool operator!=(const Infostate& other) const { return not (*this == other); }
 
   private:
    std::vector< std::pair< observation_type, observation_type > > m_history;
@@ -60,14 +63,14 @@ class StrategoInfostate {
    }
 };
 
-using StrategoPublicstate = StrategoInfostate;
+using StrategoPublicstate = Infostate;
 
 }  // namespace nor::games::stratego
 
 namespace std {
 template <>
-struct hash< nor::games::stratego::StrategoInfostate > {
-   size_t operator()(const nor::games::stratego::StrategoInfostate& state) const noexcept
+struct hash< nor::games::stratego::Infostate > {
+   size_t operator()(const nor::games::stratego::Infostate& state) const noexcept
    {
       return state.hash();
    }
@@ -77,13 +80,12 @@ struct hash< nor::games::stratego::StrategoInfostate > {
 namespace nor::games::stratego {
 
 class Environment {
-   using Team = ::stratego::Team;
    // nor fosg typedefs
-   using world_state_type = ::stratego::State;
-   using info_state_type = StrategoInfostate;
+   using world_state_type = State;
+   using info_state_type = Infostate;
    using public_state_type = StrategoPublicstate;
-   using action_type = ::stratego::Action;
-   using observation_type = StrategoInfostate::observation_type;
+   using action_type = Action;
+   using observation_type = Infostate::observation_type;
    // nor fosg traits
    static constexpr size_t max_player_count = 2;
    static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
@@ -101,7 +103,6 @@ class Environment {
    observation_type private_observation(Player player, const action_type& action);
    observation_type public_observation(Player player, const world_state_type& wstate);
    observation_type public_observation(Player player, const action_type& action);
-
    static inline auto to_team(const Player& player)
    {
       {

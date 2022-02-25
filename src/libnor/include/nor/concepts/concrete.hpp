@@ -22,6 +22,22 @@ concept iterable =
    && has::method::end< const T >;
 // clang-format on
 
+template <
+   typename Map,
+   typename KeyType = typename Map::key_type,
+   typename MappedType = typename Map::mapped_type >
+concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
+{
+   Map::key_type;
+   Map::mapped_type;
+   {
+      m.find(key)
+      } -> std::same_as< typename Map::iterator >;
+   {
+      m.at(key)
+      } -> std::same_as< typename Map::mapped_type >;
+};
+
 template < typename T >
 concept action = is::hashable< T >;
 
@@ -42,12 +58,10 @@ concept public_state =
 
 template <
    typename T,
-   typename Action = typename T::action_type,
    typename Observation = typename T::observation_type >
 // clang-format off
 concept info_state =
-/**/  action< Action >
-   && observation< Observation >
+/**/  observation< Observation >
    && is::sized< T >
    && is::hashable< T >
    && std::equality_comparable< T >
@@ -75,7 +89,7 @@ template <
    typename Observation = typename T::observation_type >
 // clang-format off
 concept state_policy =
-/**/  info_state< Infostate, Action, Observation>
+/**/  info_state< Infostate, Observation>
    && std::is_move_constructible_v< T >
    && std::is_move_assignable_v< T >
    && has::trait::action_policy_type< T>

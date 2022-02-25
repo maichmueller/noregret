@@ -72,7 +72,7 @@ concept append = requires(T&& t, U u)
    // append object u to t
    {
       t.append(u)
-      } -> std::same_as< void >;
+      } -> std::same_as< U& >;
 };
 
 template <

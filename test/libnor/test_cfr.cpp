@@ -8,17 +8,16 @@ using namespace nor;
 
 TEST_F(MinimalState, vanilla_cfr_basic_usage)
 {
-   struct plotter: aze::utils::Plotter< State > {
-      void plot(const State& state) override { std::cout << state.to_string(Team::BLUE, false); }
-   };
-
-   // run the game with a fixed execution list of actions from the two agents. These sequences
-   // should lead to a captre of the red flag by a blue scout and thus end the game with a blue win.
-   Game game{
-      std::move(state),
-      std::make_shared< aze::RandomAgent< State > >(Team::BLUE),
-      std::make_shared< aze::RandomAgent< State > >(Team::RED)};
-
-   //   rm::VanillaCFR cfr(rm::CFRConfig{}, game, TabularPolicy<std::map<>);
-   //   cfr.iterate();
+   auto env = std::make_shared< games::stratego::Environment >(
+      std::make_unique< stratego::Logic >());
+   rm::VanillaCFR cfr(
+      rm::CFRConfig{.alternating_updates = false, .store_public_states = false},
+      env,
+      TabularPolicy<
+         std::unordered_map< games::stratego::Infostate, std::vector< double > >,
+         UniformPolicy< games::stratego::Infostate, std::dynamic_extent > >{
+         [env = env](Player player, const games::stratego::Infostate& state) {
+            return env->actions(player, state);
+         }});
+   cfr.iterate();
 }
