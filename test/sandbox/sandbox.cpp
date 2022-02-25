@@ -8,15 +8,23 @@
 #include <iostream>
 #include <range/v3/all.hpp>
 #include <string>
+#include <utility>
+
+#include "nor/nor.hpp"
+
+struct S {
+   S(std::string k) : str(std::move(k)) {}
+   S(S&& s) noexcept { std::cout << " Moved! "; };
+   S(const S& s) { std::cout << " Copied! "; };
+
+   std::string str;
+};
 
 int main(int argc, char** argv)
 {
-   std::vector< std::string > actions{"first", "second", "third", "fourth", "fifth"};
-   auto size = actions.size();
-   for(auto&& [action_idx, action] : iter::enumerate(iter::reversed(actions)))
-      {
-         action_idx = size - 1 - action_idx;
-         std::cout << "idx " << std::quoted(std::to_string(action_idx)) << ", "
-                   << "action " << action << "\n";
-      }
+   S s{""};
+   std::cout << std::is_move_assignable_v< S > << std::endl;
+   S s2{nor::utils::move_if< std::is_move_constructible >(s)};
+   std::cout << s.str;
+
 }

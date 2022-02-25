@@ -7,13 +7,6 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 
-template < typename T >
-using uptr = std::unique_ptr< T >;
-template < typename T >
-using sptr = std::shared_ptr< T >;
-template < typename T >
-using wptr = std::weak_ptr< T >;
-
 namespace nor {
 
 #ifndef NEW_EMPTY_TYPE
@@ -26,6 +19,26 @@ namespace nor::utils {
 
 template < class >
 inline constexpr bool always_false_v = false;
+
+template < bool condition, typename T >
+inline std::conditional_t< condition, T &&, T & > move_if(T &obj)
+{
+   if constexpr(condition) {
+      return std::move(obj);
+   } else {
+      return obj;
+   }
+}
+
+template < template < typename > class UnaryPredicate, typename T >
+inline std::conditional_t< UnaryPredicate< T >::value, T &&, T & > move_if(T &obj)
+{
+   if constexpr(UnaryPredicate< T >::value) {
+      return std::move(obj);
+   } else {
+      return obj;
+   }
+}
 
 template < typename T >
 auto clone_any_way(const T &obj)

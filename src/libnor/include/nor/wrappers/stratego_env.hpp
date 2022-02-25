@@ -9,13 +9,11 @@
 #include "nor/game_defs.hpp"
 #include "stratego/Game.hpp"
 
-namespace nor::games {
-
-using stratego_observation = std::string;
+namespace nor::games::stratego {
 
 class StrategoInfostate {
   public:
-   using observation_type = stratego_observation;
+   using observation_type = std::string;
 
    StrategoInfostate() = default;
 
@@ -43,7 +41,7 @@ class StrategoInfostate {
    inline bool operator!=(const StrategoInfostate& other) const { return not (*this == other); }
 
   private:
-   std::vector< std::pair< observation_type, observation_type> > m_history;
+   std::vector< std::pair< observation_type, observation_type > > m_history;
    size_t m_hash_cache{0};
 
    size_t _hash()
@@ -64,43 +62,41 @@ class StrategoInfostate {
 
 using StrategoPublicstate = StrategoInfostate;
 
-}  // namespace nor::games
+}  // namespace nor::games::stratego
 
 namespace std {
 template <>
-struct hash< nor::games::StrategoInfostate > {
-   size_t operator()(const nor::games::StrategoInfostate& state) const noexcept
+struct hash< nor::games::stratego::StrategoInfostate > {
+   size_t operator()(const nor::games::stratego::StrategoInfostate& state) const noexcept
    {
       return state.hash();
    }
 };
 }  // namespace std
 
-namespace nor::games {
+namespace nor::games::stratego {
 
-class NORStrategoEnv {
-   using Team = stratego::Team;
+class Environment {
+   using Team = ::stratego::Team;
    // nor fosg typedefs
-   using world_state_type = stratego::State;
+   using world_state_type = ::stratego::State;
    using info_state_type = StrategoInfostate;
    using public_state_type = StrategoPublicstate;
-   using action_type = stratego::Action;
-   using observation_type = stratego_observation;
+   using action_type = ::stratego::Action;
+   using observation_type = StrategoInfostate::observation_type;
    // nor fosg traits
    static constexpr size_t max_player_count = 2;
    static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
 
   public:
-   explicit NORStrategoEnv(uptr< stratego::Logic >&& logic) : m_logic(std::move(logic)) {}
+   explicit Environment(uptr< ::stratego::Logic >&& logic);
 
-   std::vector< stratego::Action > actions(Player player, const world_state_type& wstate);
+   std::vector< action_type > actions(Player player, const world_state_type& wstate);
    static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
    auto reset(world_state_type& wstate);
-   bool is_terminal(world_state_type& wstate);
+   static bool is_terminal(world_state_type& wstate);
    static double reward(Player player, world_state_type& wstate);
-
-   void transition(const stratego::Action& action, world_state_type& worldstate);
-
+   void transition(const action_type& action, world_state_type& worldstate);
    observation_type private_observation(Player player, const world_state_type& wstate);
    observation_type private_observation(Player player, const action_type& action);
    observation_type public_observation(Player player, const world_state_type& wstate);
@@ -120,10 +116,11 @@ class NORStrategoEnv {
    }
 
   private:
-   uptr< stratego::Logic > m_logic;
-   static double _status_to_reward(stratego::Status status, Player player);
+   uptr< ::stratego::Logic > m_logic;
+
+   static double _status_to_reward(::stratego::Status status, Player player);
 };
 
-}  // namespace nor::games
+}  // namespace nor::games::stratego
 
 #endif  // NOR_STRATEGO_ENV_HPP

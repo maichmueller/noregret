@@ -17,6 +17,7 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/policy.hpp"
+#include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 
 namespace nor::rm {
@@ -136,8 +137,14 @@ class VanillaCFR {
    /// the number of iterations we have run so far.
    size_t m_iteration = 0;
 
+
    template < typename ResultType, std::invocable< cfr_node_type*, ResultType > Functor >
-   auto child_collector(cfr_node_type& node, Player player, Functor f);
+   auto child_collector(VanillaCFR::cfr_node_type& node, Functor f)
+   {
+      return ranges::views::zip(
+         node.children() | ranges::views::keys,
+         node.children() | ranges::views::values | ranges::views::transform(f));
+   }
 };
 
 template <
@@ -165,6 +172,7 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
    }
 
    for(auto iteration : ranges::views::iota(size_t(0), n_iters)) {
+      LOGD2("Iteration number: ", iteration);
       // the tree needs to be traversed. To do so, every node (starting from the root node aka the
       // current game state) will emplace its child states - as generated from its possible actions
       // - into the queue. This queue is Last-In-First-Out (LIFO), hence referred to as 'stack',
@@ -283,9 +291,11 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
                // if the newly reached world state is not a terminal state, then we merely append
                // the new child node to the queue. This way we further explore its child states as
                // reachable from the next possible actions.
+               auto next_actions = m_env.actions(curr_player, next_wstate);
                visit_stack.emplace(
+                  move_if< std::is_move_constructible_v< world_state_type > >(next_wstate),
                   child_node_sptr.get(),
-                  m_env.actions(curr_player),
+                  next_actions,
                   action_idx == last_action_idx  // reaching the last action index means that this
                                                  // node should trigger value propagation
                );
@@ -331,7 +341,7 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
          if constexpr(cfr_config.alternating_updates) {
             // in alternating updates, we only update the regret and strategy if the current player
             // is the chosen player to update.
-            if(player_to_update == curr_player) {
+            if(curr_player == player_to_update) {
                update_regret_and_policy(*curr_node, curr_player);
             }
          } else {
@@ -339,7 +349,7 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
             // of the current player.
             update_regret_and_policy(*curr_node, curr_player);
          }
-         // now the first element in the queue can be removed.
+         // now the first element in the stack can be removed.
          visit_stack.pop();
       }
       // lastly add a completed iteration to the counter
@@ -352,31 +362,13 @@ template <
    CFRConfig cfr_config,
    concepts::fosg Env,
    concepts::state_policy< typename Env::info_state_type, typename Env::action_type > Policy >
-template <
-   typename ResultType,
-   std::invocable< typename VanillaCFR< cfr_config, Env, Policy >::cfr_node_type*, ResultType >
-      Functor >
-auto VanillaCFR< cfr_config, Env, Policy >::child_collector(
-   VanillaCFR::cfr_node_type& node,
-   Player player,
-   Functor f)
-{
-   return ranges::views::zip(
-      node.children() | ranges::views::keys,
-      node.children() | ranges::views::values | ranges::views::transform(f));
-}
-
-template <
-   CFRConfig cfr_config,
-   concepts::fosg Env,
-   concepts::state_policy< typename Env::info_state_type, typename Env::action_type > Policy >
 void VanillaCFR< cfr_config, Env, Policy >::update_regret_and_policy(
    VanillaCFR::cfr_node_type& node,
    Player player)
 {
    double reach_prob = reach_probability(node);
    ranges::for_each(
-      child_collector(node, player, [&](cfr_node_type* child) { return child->value(player); }),
+      child_collector(node, [&](cfr_node_type* child) { return child->value(player); }),
       [&](const auto& action_value_pair) {
          const auto& [action, action_value] = action_value_pair;
          node.regret(player) += cf_reach_probability(node, reach_prob, player)
@@ -386,7 +378,7 @@ void VanillaCFR< cfr_config, Env, Policy >::update_regret_and_policy(
       });
    regret_matching(
       m_curr_policy[node.info_state()],
-      child_collector(node, player, [&](cfr_node_type* child) { return child->regret(player); }));
+      child_collector(node, [&](cfr_node_type* child) { return child->regret(player); }));
 }
 
 template <

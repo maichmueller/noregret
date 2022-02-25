@@ -5,8 +5,9 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/policy.hpp"
-#include "nor/utils/utils.hpp"
+#include "nor/type_defs.hpp"
 #include "nor/utils/type_traits.hpp"
+#include "nor/utils/utils.hpp"
 #include "nor/wrappers/stratego_env.hpp"
 
 #endif  // NOR_NOR_HPP

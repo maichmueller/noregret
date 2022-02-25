@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "nor/game_defs.hpp"
+#include "nor/type_defs.hpp"
+#include "nor/utils/type_traits.hpp"
 #include "nor/utils/type_traits.hpp"
 
 namespace nor::concepts::has {
