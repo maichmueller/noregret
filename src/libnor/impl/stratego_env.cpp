@@ -1,7 +1,7 @@
 
 #include "nor/wrappers/stratego_env.hpp"
 
-#include "stratego/Logic.hpp"
+#include "stratego/stratego.hpp"
 
 namespace nor::games {
 
@@ -27,26 +27,22 @@ double NORStrategoEnv::reward(Player player, world_state_type& wstate)
 {
    return _status_to_reward(wstate.logic()->check_terminal(wstate), player);
 }
-bool NORStrategoEnv::is_terminal(NORStrategoEnv::world_state_type& wstate)
+bool NORStrategoEnv::is_terminal(world_state_type& wstate)
 {
-   return m_state.status() != stratego::Status::ONGOING;
+   return wstate.status() != stratego::Status::ONGOING;
 }
-double NORStrategoEnv::reward(Player player)
+std::vector< stratego::Action > NORStrategoEnv::actions(Player player, world_state_type& wstate)
 {
-   return _status_to_reward(m_state.status(), player);
-}
-std::vector< stratego::Action > NORStrategoEnv::actions(Player player)
-{
-   return m_state.logic()->valid_actions(m_state, to_team(player));
+   return m_logic->valid_actions(wstate, to_team(player));
 }
 
 void NORStrategoEnv::transition(const stratego::Action& action, world_state_type& worldstate)
 {
-   m_state.logic()->apply_action(worldstate, action);
+   m_logic->apply_action(worldstate, action);
 }
-auto NORStrategoEnv::reset()
+auto NORStrategoEnv::reset(world_state_type& wstate)
 {
-   m_state.logic()->reset(m_state);
+   m_logic->reset(wstate);
 }
 
 }  // namespace nor::games

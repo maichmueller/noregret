@@ -60,13 +60,11 @@ concept actions = requires(T const t, Worldstate worldstate, Player player)
 {
    // legal actions getter for the given player
    {
-      t.actions(player)
+      t.actions(player, worldstate)
       } -> std::convertible_to< std::vector< Action > >;
 };
 
-template <
-   typename T,
-   typename U>
+template < typename T, typename U >
 concept append = requires(T&& t, U u)
 {
    // append object u to t
@@ -97,7 +95,7 @@ concept transition_jointly = requires(
    T&& t,
    Action action,
    Worldstate& worldstate,
-   std::map< Player, Infostate>& infostates,
+   std::map< Player, Infostate >& infostates,
    Publicstate& pubstate)
 {
    // apply the action on the given world state inplace.
@@ -155,53 +153,63 @@ concept is_terminal = requires(T&& t, Worldstate& wstate)
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept active_player = requires(T&& t)
+concept active_player = requires(T&& t, Worldstate wstate)
 {
    {
-      t.active_player()
+      t.active_player(wstate)
       } -> std::same_as< Player >;
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept world_state = requires(T&& t)
+concept initial_world_state = requires(T&& t)
 {
    {
-      t.m_world_state()
-      } -> std::same_as< nor::const_as_t< T, Worldstate >& >;
+      t.initial_world_state()
+      } -> std::same_as< Worldstate >;
 };
 
-template < typename T, typename Publicstate = typename T::public_state_type >
-concept public_state = requires(T&& t)
+template <
+   typename T,
+   typename Publicstate = typename T::public_state_type,
+   typename Worldstate = typename T::world_state_type >
+concept public_state = requires(T&& t, const Worldstate& wstate)
 {
    {
-      t.public_state_container()
-      } -> std::same_as< nor::const_as_t< T, Publicstate >& >;
+      t.public_state(wstate)
+      } -> std::same_as< Publicstate >;
 };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
-   typename Privatestate = typename T::private_state_type >
+   typename Infostate = typename T::info_state_type >
 concept info_state = requires(T&& t, Worldstate wstate, Player player)
 {
    {
-      t.m_info_state(wstate, player)
-      } -> std::same_as< Privatestate >;
+      t.info_state(wstate, player)
+      } -> std::same_as< Infostate >;
 };
 
-template < typename T, typename Observation = typename T::observation_type >
-concept private_observation = requires(T&& t, Player player)
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Observation = typename T::observation_type >
+concept private_observation = requires(T&& t, Player player, Worldstate wstate)
 {
    {
-      t.private_observation(player)
+      t.private_observation(player, wstate)
       } -> std::convertible_to< Observation >;
 };
-template < typename T, typename Observation = typename T::observation_type >
-concept private_observation_multi = requires(T&& t, const std::vector< Player >& player_list)
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Observation = typename T::observation_type >
+concept private_observation_multi =
+   requires(T&& t, const std::vector< Player >& player_list, Worldstate wstate)
 {
    // get only private obervations
    {
-      t.private_observation(player_list)
+      t.private_observation(player_list, wstate)
       } -> std::same_as< std::map< Player, Observation > >;
 };
 
@@ -238,6 +246,38 @@ concept observation_multi = requires(T&& t, const std::vector< Player >& player_
    {
       t.observation(player_list)
       } -> std::same_as< std::map< Player, Observation > >;
+};
+
+template < typename T, template < typename > class Ptr, typename ElemT >
+concept clone_other = std::is_pointer_v< Ptr< ElemT > > && requires(T&& t, Ptr< ElemT > ptr)
+{
+   {
+      t->clone(ptr)
+      } -> std::convertible_to< Ptr< ElemT > >;
+};
+
+template < typename T, typename Output = T >
+concept clone_self = requires(T const t)
+{
+   {
+      t.clone()
+      } -> std::convertible_to< Output >;
+};
+
+template < class Ptr >
+concept clone_ptr = std::is_pointer_v< Ptr > && requires(Ptr const ptr)
+{
+   {
+      ptr->clone()
+      } -> std::convertible_to< uptr< typename Ptr::element_type > >;
+};
+
+template < typename T, typename U = T >
+concept copy = requires(T const t)
+{
+   {
+      t.copy()
+      } -> std::same_as< U >;
 };
 
 template < typename T, typename InputT, typename OutputT >

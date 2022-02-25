@@ -17,12 +17,31 @@ using wptr = std::weak_ptr< T >;
 namespace nor {
 
 #ifndef NEW_EMPTY_TYPE
-   #define NEW_EMPTY_TYPE decltype([](){})
+   #define NEW_EMPTY_TYPE decltype([]() {})
 #endif
 
-}
+}  // namespace nor
 
 namespace nor::utils {
+
+template < class >
+inline constexpr bool always_false_v = false;
+
+template < typename T >
+auto clone_any_way(const T &obj)
+{
+   if constexpr(std::is_pointer_v< T > && concepts::has::method::clone_ptr< T >) {
+      return obj->clone();
+   } else if constexpr(concepts::has::method::clone_self< T >) {
+      return obj.clone();
+   } else if constexpr(concepts::has::method::copy< T >) {
+      return obj.copy();
+   } else if constexpr(std::is_copy_constructible_v< T >) {
+      return T(obj);
+   } else {
+      static_assert(always_false_v< T >, "No cloning/copying method available in given type.");
+   }
+}
 
 template < typename Iter >
 class ConstView {
@@ -116,7 +135,6 @@ inline auto &operator<<(std::ostream &os, Enum e)
 
 }  // namespace nor::utils
 
-
 template < nor::concepts::is::enum_ Enum, typename T >
 requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
 inline std::string operator+(const T &other, Enum e)
@@ -137,6 +155,5 @@ inline auto &operator<<(std::stringstream &os, Enum e)
    os << nor::utils::enum_name(e);
    return os;
 }
-
 
 #endif  // NOR_UTILS_HPP

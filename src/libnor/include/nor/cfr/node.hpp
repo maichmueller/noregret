@@ -49,34 +49,20 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    using cond_public_state = detail::CondPubstate< Publicstate >;
 
    CFRNode(
-      const Worldstate& world_state_,
-      const Publicstate& public_state_,
-      const Infostate& info_state_,
-      Player player_,
-      std::map< Player, double > reach_prob,
+      Worldstate&& world_state,
+      Publicstate&& public_state,
+      Infostate&& info_state,
+      Player player,
+      std::map< Player, double >&& reach_prob,
       CFRNode* parent = nullptr)
-       : m_world_state(world_state_),
-         cond_public_state(public_state_),
-         m_info_state(info_state_),
-         m_player(player_),
+       : m_world_state(std::move(world_state)),
+         cond_public_state(std::move(public_state)),
+         m_info_state(std::move(info_state)),
+         m_player(player),
          m_reach_prob(std::move(reach_prob)),
          m_parent(parent),
          m_hash_cache(std::hash< Infostate >{}(m_info_state))
    {
-   }
-
-   template < concepts::fosg Game >
-   CFRNode(const Game& g, const std::map< Player, double >& reach_prob_)
-       : CFRNode(
-          g.m_world_state(),
-          g.public_state(g.m_world_state()),
-          g.m_info_state(g.m_world_state(), g.m_player()),
-          g.active_player(g.m_world_state()),
-          reach_prob_)
-   {
-      static_assert(
-         std::is_same_v< Action, typename Game::action_type >,
-         "Provided action type and game action type are not the same.");
    }
 
    auto hash() const { return m_hash_cache; }
@@ -85,7 +71,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    auto& world_state() { return m_world_state; }
    auto& public_state() { return cond_public_state::public_state; }
    auto& info_state() { return m_info_state; }
-   auto player() { return player; }
+   auto player() { return m_player; }
    auto& value(Player player) { return m_value[player]; }
    auto& value() { return m_value; }
    auto& reach_probability(Player player) { return m_reach_prob[player]; }
@@ -98,7 +84,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    [[nodiscard]] auto& world_state() const { return m_world_state; }
    [[nodiscard]] auto& public_state() const { return cond_public_state::public_state; }
    [[nodiscard]] auto& info_state() const { return m_info_state; }
-   [[nodiscard]] auto player() const { return player; }
+   [[nodiscard]] auto player() const { return m_player; }
    [[nodiscard]] auto& value(Player player) const { return m_value.at(player); }
    [[nodiscard]] auto& value() const { return m_value; }
    [[nodiscard]] auto& reach_probability(Player player) const { return m_reach_prob.at(player); }

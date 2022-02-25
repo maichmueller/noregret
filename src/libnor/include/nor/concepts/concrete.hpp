@@ -37,8 +37,7 @@ concept public_state =
 /**/  action< Action >
    && observation< Observation >
    && is::sized< T >
-   && has::method::append< T, Action >
-   && has::method::append< T, Observation >;
+   && has::method::append< T, std::pair< Action, Observation> >;
 // clang-format on
 
 template <
@@ -118,10 +117,17 @@ concept fosg =
    && has::method::public_observation< Env >
    && has::method::observation< Env >
    && has::method::reset< Env, Worldstate& >
-   && has::method::world_state< Env, Worldstate& >
-   && has::method::world_state< const Env, uptr< Worldstate > >
+   && (
+            // if the given worldstate type is a pointer (e.g. unique, shared)
+            has::method::clone_ptr< Worldstate >
+         or (
+                  has::method::copy< const Env, Worldstate >
+               or std::is_copy_constructible_v< Worldstate >
+            )
+      )
    && has::method::reward< const Env >
    && has::method::is_terminal< Env, Worldstate& >
+   && has::method::active_player< Env >
    && has::method::players< Env >
    && has::trait::max_player_count< Env >
    && has::trait::turn_dynamic< Env >;

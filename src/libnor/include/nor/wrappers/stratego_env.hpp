@@ -23,7 +23,7 @@ class StrategoInfostate {
    [[nodiscard]] auto& history() const { return m_history; }
 
    template < typename... Args >
-   auto emplace_back(Args&&... args)
+   auto append(Args&&... args)
    {
       auto ret_val = m_history.emplace_back(std::forward< Args >(args)...);
       _hash();
@@ -41,6 +41,7 @@ class StrategoInfostate {
                 && this_hist_elem.second == other_hist_elem.second;
       });
    }
+   inline bool operator!=(const StrategoInfostate& other) const { return not (*this == other); }
 
   private:
    std::vector< std::pair< stratego::Action, std::string > > m_history;
@@ -51,9 +52,9 @@ class StrategoInfostate {
       std::stringstream ss;
       size_t pos = 0;
       for(const auto& [action, observation] : m_history) {
-         ss << "action" << pos << ": " << action;
-         ss << " - ";
-         ss << "observation" << pos << ": " << observation;
+         ss << "a_" << pos << ":" << action;
+         ss << "-";
+         ss << "obs_" << pos << ":" << observation;
          pos++;
       }
       size_t hash = std::hash< stratego_observation >{}(ss.str());
@@ -87,19 +88,15 @@ class NORStrategoEnv {
    static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
 
   public:
-   explicit NORStrategoEnv(stratego::State&& state) : m_state(std::move(state)) {}
+   explicit NORStrategoEnv(uptr< stratego::Logic >&& logic) : m_logic(std::move(logic)) {}
 
-   std::vector< stratego::Action > actions(Player player);
+   std::vector< stratego::Action > actions(Player player, world_state_type& wstate);
    static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
-   auto reset();
+   auto reset(world_state_type& wstate);
    bool is_terminal(world_state_type& wstate);
-   double reward(Player player);
    static double reward(Player player, world_state_type& wstate);
 
-   inline void transition(const stratego::Action& action) { transition(action, m_state); }
    void transition(const stratego::Action& action, world_state_type& worldstate);
-
-   [[nodiscard]] auto& world_state() const { return m_state; }
 
    static inline auto to_team(const Player& player)
    {
@@ -115,8 +112,7 @@ class NORStrategoEnv {
    }
 
   private:
-   stratego::State m_state;
-
+   uptr< stratego::Logic > m_logic;
    static double _status_to_reward(stratego::Status status, Player player);
 };
 
