@@ -18,6 +18,7 @@
 #include "nor/game_defs.hpp"
 #include "nor/policy.hpp"
 #include "nor/type_defs.hpp"
+#include "nor/utils/logging_macros.h"
 #include "nor/utils/utils.hpp"
 
 namespace nor::rm {
@@ -136,7 +137,6 @@ class VanillaCFR {
    std::map< Player, Policy > m_avg_policy;
    /// the number of iterations we have run so far.
    size_t m_iteration = 0;
-
 
    template < typename ResultType, std::invocable< cfr_node_type*, ResultType > Functor >
    auto child_collector(VanillaCFR::cfr_node_type& node, Functor f)
@@ -333,7 +333,7 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
                exec_policy,
                m_env.players().begin(),
                m_env.players().end(),
-               [node = curr_node->parent(), this](Player player) {
+               [&, node = curr_node->parent(), this](Player player) {
                   value_collector(*node, player);
                });
          }

@@ -36,10 +36,11 @@ template <
       LegalActionGetterType = decltype(&fixed_size_filter< Infostate, extent >) >
 requires concepts::info_state< Infostate >
 class UniformPolicy {
+  public:
    using info_state_type = Infostate;
 
    UniformPolicy() requires(extent != std::dynamic_extent)
-       : m_la_getter(&fixed_size_filter< State, extent >)
+       : m_la_getter(&fixed_size_filter< Infostate, extent >)
    {
    }
    explicit UniformPolicy(LegalActionGetterType la_getter) requires(extent == std::dynamic_extent)
@@ -72,21 +73,27 @@ class UniformPolicy {
 };
 
 template <
-   typename Map,
-   typename DefaultPolicy,
-   typename KeyType = typename Map::key_type,
-   typename MappedType = typename Map::mapped_type >
-requires concepts::map< Map, KeyType, MappedType > && concepts::state_policy< DefaultPolicy >
-class TabularPolicy {
-   using state_type = typename Map::key_type;
-   using mapped_type = typename Map::mapped_type;
-   using default_policy_type = DefaultPolicy;
+   typename TableType,
+   typename DefaultPolicyType,
+   typename KeyType = typename TableType::key_type,
+   typename MappedType = typename TableType::mapped_type >
+// clang-format off
+requires(
+   concepts::map< TableType, KeyType, MappedType >
+   && concepts::state_policy< DefaultPolicyType >
+   && concepts::action_policy< MappedType >
+)
+   // clang-format on
+   class TabularPolicy {
+   using state_type = typename TableType::key_type;
+   using mapped_type = typename TableType::mapped_type;
+   using default_policy_type = DefaultPolicyType;
 
-   TabularPolicy() requires std::is_default_constructible_v< Map >
+   TabularPolicy() requires std::is_default_constructible_v< TableType >
    = default;
-   explicit TabularPolicy(Map&& map, DefaultPolicy&& def_policy = DefaultPolicy())
-       : m_table(std::forward< Map >(map)),
-         m_default_policy(std::forward< DefaultPolicy >(def_policy))
+   explicit TabularPolicy(TableType&& table, DefaultPolicyType&& def_policy = DefaultPolicyType())
+       : m_table(std::forward< TableType >(table)),
+         m_default_policy(std::forward< DefaultPolicyType >(def_policy))
    {
    }
 
@@ -118,7 +125,7 @@ class TabularPolicy {
    }
 
   private:
-   Map m_table;
+   TableType m_table;
    default_policy_type m_default_policy;
 };
 

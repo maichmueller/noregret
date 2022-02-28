@@ -9,7 +9,6 @@
 #include "nor/game_defs.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/type_traits.hpp"
-#include "nor/utils/type_traits.hpp"
 
 namespace nor::concepts::has {
 namespace method {
@@ -66,13 +65,13 @@ concept actions = requires(T const t, Worldstate&& worldstate, Player player)
       } -> std::convertible_to< std::vector< Action > >;
 };
 
-template < typename T, typename U >
-concept append = requires(T&& t, U u)
+template < typename T, typename ReturnType, typename... Args >
+concept append = requires(T&& t, Args&&... args)
 {
    // append object u to t
    {
-      t.append(u)
-      } -> std::same_as< U& >;
+      t.append(std::forward< Args >(args)...)
+      } -> std::same_as< ReturnType& >;
 };
 
 template <
@@ -298,7 +297,7 @@ concept copy = requires(T const t)
       } -> std::same_as< U >;
 };
 
-template < typename T, typename InputT, typename OutputT >
+template < typename T, typename OutputT, typename InputT >
 concept getitem = requires(T&& t, InputT inp)
 {
    /// getitem method for input type returning an output type
@@ -306,6 +305,31 @@ concept getitem = requires(T&& t, InputT inp)
       t[inp]
       } -> std::same_as< OutputT >;
 };
+
+//template < typename T, typename OutputT, typename...InputTs >
+//concept getitem_overloaded = requires(T&& t, InputTs&&... inp)
+//{
+//   /// getitem method for input type returning an output type
+//   {
+//      t[inp]
+//      } -> std::same_as< OutputT >;
+//};
+
+//template < typename T, typename OutputT, typename... InputTs >
+//concept getitem = requires(T&& t, InputTs&&... inp)
+//{
+//   /// getitem method for input type returning an output type
+//   {
+//      t[inp]
+//      } -> std::same_as< OutputT >;
+//};
+//
+//template < typename T, typename OutputT, typename... InputT1, typename... InputTs >
+//concept getitem_for_each_arg = requires(T&& t, InputT1 inp, InputTs&&... rest_inp)
+//{
+//   /// getitem method for input type returning an output type
+//   invocable_with_each_v
+//};
 
 template < typename T, typename U = typename T::iterator >
 concept begin = requires(T t)

@@ -92,6 +92,8 @@ target_compile_features(project_options
 if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang" AND ENABLE_BUILD_WITH_TIME_TRACE)
     add_compile_definitions(project_options INTERFACE -ftime-trace)
 endif ()
+# string APPEND is needed for options in order to concatenate these strings AS IS,
+# i.e. avoid the semicolon between every code line
 string(
         APPEND _options
         "$<$<CXX_COMPILER_ID:MSVC>:"
@@ -106,7 +108,17 @@ string(
         "$<$<CONFIG:RELEASE>:-O3>"
         ">"
 )
-target_compile_options(project_options INTERFACE "${_options}")
+set(
+        _extra_options
+        "-ftemplate-backtrace-limit=0"
+        "$<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=5>"
+)
+target_compile_options(
+        project_options
+        INTERFACE
+        "${_options}"
+        "${_extra_options}"
+)
 
 # Set up some extra Conan dependencies based on our needs
 # before loading Conan

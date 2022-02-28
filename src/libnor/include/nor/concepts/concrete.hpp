@@ -28,14 +28,17 @@ template <
    typename MappedType = typename Map::mapped_type >
 concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
 {
-   Map::key_type;
-   Map::mapped_type;
+   typename Map::key_type;
+   typename Map::mapped_type;
    {
       m.find(key)
       } -> std::same_as< typename Map::iterator >;
    {
       m.at(key)
-      } -> std::same_as< typename Map::mapped_type >;
+      } -> std::same_as< MappedType& >;
+   {
+      std::as_const(m).at(key)
+      } -> std::same_as< const MappedType& >;
 };
 
 template < typename T >
@@ -56,16 +59,19 @@ concept public_state =
    && has::method::append< T, std::pair< /*action_=*/Observation, /*state_=*/Observation> >;
 // clang-format on
 
-template <
-   typename T,
-   typename Observation = typename T::observation_type >
+template < typename T, typename Observation = typename T::observation_type >
 // clang-format off
 concept info_state =
 /**/  observation< Observation >
    && is::sized< T >
    && is::hashable< T >
    && std::equality_comparable< T >
-   && has::method::append< T, std::pair< /*action_=*/Observation, /*state_=*/Observation> >;
+   && has::method::append<
+         T,
+         std::pair< /*action_=*/Observation, /*state_=*/Observation>&,
+         std::pair< /*action_=*/Observation, /*state_=*/Observation>
+      >;
+//   && has::method::getitem< T, size_t,  >;
 // clang-format on
 
 template < typename T >
@@ -85,14 +91,13 @@ concept action_policy =
 template <
    typename T,
    typename Infostate = typename T::info_state_type,
-   typename Action = typename T::action_type,
-   typename Observation = typename T::observation_type >
+   typename Action = typename T::action_type >
 // clang-format off
 concept state_policy =
-/**/  info_state< Infostate, Observation>
+/**/  info_state< Infostate >
    && std::is_move_constructible_v< T >
    && std::is_move_assignable_v< T >
-   && has::trait::action_policy_type< T>
+   && has::trait::action_policy_type< T >
    && has::method::getitem<T, std::pair<Infostate, Action>, double>
    && has::method::getitem<const T, std::pair<Infostate, Action>, double>
    && requires(T obj, Infostate istate)
