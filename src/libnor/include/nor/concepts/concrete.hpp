@@ -66,6 +66,7 @@ concept info_state =
    && is::sized< T >
    && is::hashable< T >
    && std::equality_comparable< T >
+   && has::method::player< const T >
    && has::method::append<
          T,
          std::pair< /*action_=*/Observation, /*state_=*/Observation>&,
@@ -80,12 +81,10 @@ concept world_state = std::equality_comparable< T >;
 template < typename T, typename Action = typename T::action_type >
 // clang-format off
 concept action_policy =
-/**/  std::is_move_constructible_v< T >
-   && std::is_move_assignable_v< T >
-   && is::sized< T >
+      is::sized< T >
    && iterable< T >
-   && has::method::getitem< T, Action, double >
-   && has::method::getitem< const T, Action, double >;
+   && has::method::getitem< T, double&, Action >
+   && has::method::getitem< const T, double, Action >;
 // clang-format on
 
 template <
@@ -95,11 +94,32 @@ template <
 // clang-format off
 concept state_policy =
 /**/  info_state< Infostate >
-   && std::is_move_constructible_v< T >
-   && std::is_move_assignable_v< T >
    && has::trait::action_policy_type< T >
-   && has::method::getitem<T, std::pair<Infostate, Action>, double>
-   && has::method::getitem<const T, std::pair<Infostate, Action>, double>
+   && has::method::getitem< T, double&, std::pair<Infostate, Action > >
+   && has::method::getitem< const T, const double&, std::pair<Infostate, Action > >
+   && requires(T obj, Infostate istate)
+   {
+      /// these getitem methods need to specified explicitly since concepts cannot be passed as
+      /// typenames to other concepts (no nested concepts allowed). This would be necessary for
+      /// has::method::getitem at the return type.
+      { obj[istate] } -> action_policy< Action >;
+   }
+   && requires(T const obj, Infostate istate)
+   {
+      { obj[istate] } -> action_policy< Action >;
+   };
+// clang-format on
+
+template <
+   typename T,
+   typename Infostate = typename T::info_state_type,
+   typename Action = typename T::action_type >
+// clang-format off
+concept default_state_policy =
+/**/  info_state< Infostate >
+   && has::trait::action_policy_type< T >
+   && has::method::getitem< T, double, std::pair<Infostate, Action > >
+   && has::method::getitem< const T, double, std::pair<Infostate, Action > >
    && requires(T obj, Infostate istate)
    {
       /// these getitem methods need to specified explicitly since concepts cannot be passed as

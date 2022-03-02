@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "nor/nor.hpp"
+#include "stratego/Logic.hpp"
 
 /**
  * @brief type_trait to check if functior F can be invoked with each arg
@@ -55,16 +56,6 @@ inline constexpr bool invocable_with_each_v = invocable_with_each< F, Ret, Args.
 template < typename T, typename Ret, typename... Args >
 concept invoc = invocable_with_each_v< T, Ret, Args... >;
 
-std::string btos(bool b)
-{
-   if(b) {
-      return "true";
-
-   } else {
-      return "false";
-   }
-}
-
 class T {
   public:
    void operator()(int);
@@ -89,6 +80,27 @@ concept map = requires(Map m, KeyType key)
       } -> std::same_as< MappedType& >;
 };
 
+template < typename T, typename OutputT, typename InputT >
+concept getitem = requires(T&& t, InputT inp)
+{
+   /// getitem method for input type returning an output type
+   {
+      t[inp]
+      } -> std::same_as< OutputT >;
+};
+
+class Lambda {
+  public:
+   inline /*constexpr */ void operator()() const {}
+
+  private:
+   std::shared_ptr< nor::games::stratego::Environment > env;
+
+  public:
+   inline Lambda& operator=(const Lambda&) = delete;
+   Lambda(const std::shared_ptr< nor::games::stratego::Environment >& _env) : env{_env} {}
+};
+
 int main(int argc, char** argv)
 {
    //   std::cout << btos(
@@ -107,7 +119,18 @@ int main(int argc, char** argv)
    //   std::cout << btos(invoc< decltype(&f), void, int >) << std::endl;
    //   std::cout << btos(invoc< decltype(&f), void, long >) << std::endl;
    //   std::cout << S_m_v<int, double, int> << std::endl;
-//   std::cout << btos(nor::concepts::map< std::map< int, T > >);
-   std::cout << btos(map< std::map< int, T > >);
-//   std::map<int,T>{}.at();
+   //   std::cout << btos(nor::concepts::map< std::map< int, T > >);
+
+   using namespace nor::games::stratego;
+   auto env = std::make_shared< Environment >(std::make_unique< Logic >());
+
+   using ActionPolicy = std::unordered_map< Action, double >;
+
+   nor::UniformPolicy def_policy{
+      [env = env](const InfoState& istate) { return env->actions(istate); },
+      nor::Hint< InfoState, Action, ActionPolicy >{}};
+   std::cout << nor::utils::btos(std::is_move_assignable_v< decltype([env = env]() {}) >)
+             << std::endl;  //
+   std::cout << nor::utils::btos(std::is_move_assignable_v< Lambda >);  //
+   //   std::map<int,T>{}.at();
 }

@@ -147,6 +147,12 @@ class VanillaCFR {
    }
 };
 
+template < CFRConfig cfg, typename... Args >
+VanillaCFR< cfg, Args... > make_cfr(Args&&... args)
+{
+   return {std::forward< Args >(args)...};
+}
+
 template <
    CFRConfig cfr_config,
    concepts::fosg Env,

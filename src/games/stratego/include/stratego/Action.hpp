@@ -22,6 +22,7 @@ class Action {
 
   private:
    action_container from_to;
+   Team m_team;
 
   public:
    Action(const Position& pos_from, const Position& pos_to) : from_to{pos_from, pos_to} {}
@@ -112,6 +113,20 @@ struct tuple_element< 0, ::stratego::Action > {
 template <>
 struct tuple_element< 1, ::stratego::Action > {
    using type = ::stratego::Position;
+};
+
+template <>
+struct hash< stratego::Action > {
+   size_t operator()(const stratego::Action& action) const
+   {
+      std::stringstream ss;
+      for(const auto& pos : action) {
+         for(const auto& value : pos) {
+            ss << value << ",";
+         }
+      }
+      return std::hash<std::string>{}(ss.str());
+   }
 };
 
 }  // namespace std

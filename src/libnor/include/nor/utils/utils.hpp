@@ -13,9 +13,29 @@ namespace nor {
    #define NEW_EMPTY_TYPE decltype([]() {})
 #endif
 
+/**
+ * A type hint to help identify the remaining template types in a constructor without specifying
+ * them twice.
+ * @tparam T
+ */
+template < typename... Ts >
+struct Hint {
+};
+
 }  // namespace nor
 
 namespace nor::utils {
+
+
+constexpr const char* btos(bool b)
+{
+   if(b) {
+      return "true";
+
+   } else {
+      return "false";
+   }
+}
 
 template < class >
 inline constexpr bool always_false_v = false;

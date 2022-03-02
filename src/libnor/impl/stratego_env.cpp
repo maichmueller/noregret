@@ -33,43 +33,43 @@ bool Environment::is_terminal(world_state_type& wstate)
 }
 std::vector< Environment::action_type > Environment::actions(
    Player player,
-   const world_state_type& wstate)
+   const world_state_type& wstate) const
 {
    return m_logic->valid_actions(wstate, to_team(player));
 }
 
-void Environment::transition(const action_type & action, world_state_type& worldstate)
+void Environment::transition(const action_type& action, world_state_type& worldstate) const
 {
    m_logic->apply_action(worldstate, action);
 }
-auto Environment::reset(world_state_type& wstate)
+auto Environment::reset(world_state_type& wstate) const
 {
    m_logic->reset(wstate);
 }
 Environment::observation_type Environment::private_observation(
    Player player,
-   const Environment::world_state_type& wstate)
+   const Environment::world_state_type& wstate) const
 {
    // TODO: implement string representation of state
 }
 Environment::observation_type Environment::private_observation(
    Player player,
-   const Environment::action_type& action)
+   const Environment::action_type& action) const
 {
    // TODO: implement string representation of action
 }
 Environment::observation_type Environment::public_observation(
    Player player,
-   const Environment::world_state_type& wstate)
+   const Environment::world_state_type& wstate) const
 {
    // TODO: implement string representation of state
 }
 Environment::observation_type Environment::public_observation(
    Player player,
-   const Environment::action_type& action)
+   const Environment::action_type& action) const
 {
    // TODO: implement string representation of action
 }
 Environment::Environment(uptr< ::stratego::Logic >&& logic) : m_logic(std::move(logic)) {}
 
-}  // namespace nor::games
+}  // namespace nor::games::stratego

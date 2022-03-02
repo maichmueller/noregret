@@ -2,6 +2,8 @@
 #ifndef NOR_TYPE_TRAITS_HPP
 #define NOR_TYPE_TRAITS_HPP
 
+#include <concepts>
+
 namespace nor {
 
 template < typename T, typename U >
@@ -62,6 +64,22 @@ struct invocable_with_each< F, Ret, Arg > {
 
 template < typename F, typename Ret, typename... Args >
 inline constexpr bool invocable_with_each_v = invocable_with_each< F, Ret, Args... >::value;
+
+
+template <typename T, typename HeadType, typename...TailTypes>
+struct first_convertible_to {
+   inline static constexpr bool value = std::convertible_to<T, HeadType>;
+   using type = std::conditional_t<value, HeadType, typename first_convertible_to<T, TailTypes...>::type>;
+};
+
+template <typename T, typename HeadType>
+struct first_convertible_to<T, HeadType> {
+   inline static constexpr bool value = std::convertible_to<T, HeadType>;
+   using type = std::conditional_t<value, HeadType, void>;
+};
+
+template <typename T, typename...Ts>
+using first_convertible_to_t = typename first_convertible_to<T, Ts...>::type;
 
 }  // namespace nor
 #endif  // NOR_TYPE_TRAITS_HPP

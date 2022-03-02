@@ -145,6 +145,14 @@ concept players = requires(T&& t)
       } -> std::same_as< std::vector< Player > >;
 };
 
+template < typename T >
+concept player = requires(T&& t)
+{
+   {
+      t.player()
+      } -> std::same_as< Player >;
+};
+
 template < typename T, typename Worldstate = typename T::world_state_type >
 concept is_terminal = requires(T&& t, Worldstate& wstate)
 {
@@ -306,6 +314,15 @@ concept getitem = requires(T&& t, InputT inp)
       } -> std::same_as< OutputT >;
 };
 
+template < typename T, typename OutputT, typename InputT >
+concept at = requires(T&& t, InputT inp)
+{
+   /// getitem method for input type returning an output type
+   {
+      t.at(inp)
+      } -> std::same_as< OutputT >;
+};
+
 //template < typename T, typename OutputT, typename...InputTs >
 //concept getitem_overloaded = requires(T&& t, InputTs&&... inp)
 //{
@@ -382,7 +399,7 @@ concept turn_dynamic = requires(T t)
 template < typename T >
 concept action_policy_type = requires(T t)
 {
-   T::action_policy_type;
+   typename T::action_policy_type;
 };
 
 }  // namespace trait

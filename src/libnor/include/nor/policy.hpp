@@ -7,10 +7,75 @@
 
 namespace nor {
 
+/**
+ * @brief Adaptor class for using std::unordered_map as a valid type of an action policy.
+ *
+ *
+ * @tparam Action
+ * @tparam Pred
+ * @tparam Alloc
+ */
+template <
+   concepts::action Action,
+   typename Pred = std::equal_to< Action >,
+   typename Alloc = std::allocator< std::pair< const Action, double > >,
+   std::invocable default_value_generator = decltype([]() { return 0.; }) >
+class HashMapActionPolicy {
+  public:
+   using action_type = Action;
+   using map_type = std::unordered_map< Action, double, Pred, Alloc >;
+
+   using iterator = typename map_type::iterator;
+   using const_iterator = typename map_type::const_iterator;
+
+   HashMapActionPolicy() = default;
+   HashMapActionPolicy(std::span< Action > actions, double value) : m_map()
+   {
+      ranges::views::for_each(actions, [&](const auto& action) { emplace(action, value); });
+   }
+   HashMapActionPolicy(size_t actions, default_value_generator) : m_map() {}
+
+   template < typename... Args >
+   inline auto emplace(Args&&... args)
+   {
+      return m_map.emplace(std::forward< Args >(args)...);
+   }
+
+   inline auto begin() { return m_map.begin(); }
+   inline auto begin() const { return m_map.begin(); }
+   inline auto end() { return m_map.end(); }
+   inline auto end() const { return m_map.end(); }
+
+   inline auto find(const action_type& action) { return m_map.find(action); }
+   inline auto find(const action_type& action) const { return m_map.find(action); }
+
+   inline auto& operator[](const action_type& action)
+   {
+      if(auto found = find(action); found != end()) {
+         return found->second;
+      } else {
+         return emplace(action, default_value_generator{}()).first->second;
+      }
+   }
+   inline auto operator[](const action_type& action) const
+   {
+      if(auto found = find(action); found != end()) {
+         return found->second;
+      } else {
+         return default_value_generator{}();
+      }
+   }
+
+   [[nodiscard]] size_t size() const { return m_map.size(); }
+
+  private:
+   map_type m_map;
+};
+
 template < typename Worldstate, std::size_t extent >
-constexpr auto fixed_size_filter([[maybe_unused]] Player player, const Worldstate&)
+constexpr size_t placeholder_filter([[maybe_unused]] Player player, const Worldstate&)
 {
-   return std::vector< int >(extent, 0);
+   return extent;
 }
 
 /**
@@ -31,41 +96,57 @@ constexpr auto fixed_size_filter([[maybe_unused]] Player player, const Worldstat
  */
 template <
    typename Infostate,
+   typename Action,
+   typename ActionPolicy = HashMapActionPolicy< Action >,
    std::size_t extent = std::dynamic_extent,
-   std::invocable< Player, const Infostate& >
-      LegalActionGetterType = decltype(&fixed_size_filter< Infostate, extent >) >
-requires concepts::info_state< Infostate >
+   std::invocable< const Infostate& >
+      LegalActionGetterType = decltype(&placeholder_filter< Infostate, extent >) >
+requires concepts::info_state< Infostate > && concepts::action_policy< ActionPolicy, Action >
 class UniformPolicy {
   public:
    using info_state_type = Infostate;
+   using action_type = Action;
+   using action_policy_type = ActionPolicy;
 
    UniformPolicy() requires(extent != std::dynamic_extent)
-       : m_la_getter(&fixed_size_filter< Infostate, extent >)
+       : m_la_getter(&placeholder_filter< Infostate, extent >)
    {
    }
-   explicit UniformPolicy(LegalActionGetterType la_getter) requires(extent == std::dynamic_extent)
+   explicit UniformPolicy(LegalActionGetterType la_getter, Hint< Infostate, Action >) requires(
+      extent == std::dynamic_extent)
+       : m_la_getter(la_getter)
+   {
+   }
+   explicit UniformPolicy(LegalActionGetterType la_getter, Hint< Infostate, Action, ActionPolicy >) requires(
+      extent == std::dynamic_extent && std::is_default_constructible_v< ActionPolicy >)
        : m_la_getter(la_getter)
    {
    }
 
-   auto& operator[](const info_state_type& info_state) const
+   auto operator[](const info_state_type& info_state) const
    {
       if constexpr(extent == std::dynamic_extent) {
          // if we have non-fixed-size action vectors coming in, then we need to ask the filter to
          // provide us with the legal actions.
          auto legal_actions = m_la_getter(info_state);
          double uniform_p = 1. / static_cast< double >(legal_actions.size());
-         return std::vector< double >(legal_actions.size(), uniform_p);
+         return action_policy_type(std::span(legal_actions), uniform_p);
       } else {
          // Otherwise we can compute directly the uniform probability vector
          constexpr double uniform_p = 1. / static_cast< double >(extent);
-         return std::vector< double >(extent, uniform_p);
+         return action_policy_type(extent, uniform_p);
       }
    }
-   template < typename Action = NEW_EMPTY_TYPE >
-   auto& operator[](const std::pair< info_state_type, Action >& state_action) const
+   auto operator[](const std::pair< info_state_type, Action >& state_action) const
    {
-      return (*this)[std::get< 0 >(state_action)][0];
+      if constexpr(extent == std::dynamic_extent) {
+         // if we have non-fixed-size action vectors coming in, then we need to ask the filter to
+         // provide us with the legal actions.
+         return 1. / static_cast< double >(m_la_getter(std::get< 0 >(state_action)).size());
+      } else {
+         // Otherwise we can compute directly the uniform probability vector
+         return 1. / static_cast< double >(extent);
+      }
    }
 
   private:
@@ -73,31 +154,55 @@ class UniformPolicy {
 };
 
 template <
-   typename TableType,
-   typename DefaultPolicyType,
-   typename KeyType = typename TableType::key_type,
-   typename MappedType = typename TableType::mapped_type >
+   typename DefaultPolicy,
+   typename Infostate = typename DefaultPolicy::info_state_type,
+   typename Action = typename DefaultPolicy::action_type,
+   typename ActionPolicy = typename DefaultPolicy::action_policy_type,
+   typename Table = std::unordered_map< Infostate, ActionPolicy > >
 // clang-format off
-requires(
-   concepts::map< TableType, KeyType, MappedType >
-   && concepts::state_policy< DefaultPolicyType >
-   && concepts::action_policy< MappedType >
-)
-   // clang-format on
-   class TabularPolicy {
-   using state_type = typename TableType::key_type;
-   using mapped_type = typename TableType::mapped_type;
-   using default_policy_type = DefaultPolicyType;
+requires
+   concepts::map< Table, Infostate, ActionPolicy >
+   && concepts::default_state_policy< DefaultPolicy >
+   && concepts::action_policy< ActionPolicy >
+// clang-format on
+class TabularPolicy {
+  public:
+   using info_state_type = Infostate;
+   using action_policy_type = ActionPolicy;
+   using default_policy_type = DefaultPolicy;
 
-   TabularPolicy() requires std::is_default_constructible_v< TableType >
+   TabularPolicy() requires
+      std::is_default_constructible_v< Table > && std::is_default_constructible_v< DefaultPolicy >
    = default;
-   explicit TabularPolicy(TableType&& table, DefaultPolicyType&& def_policy = DefaultPolicyType())
-       : m_table(std::forward< TableType >(table)),
-         m_default_policy(std::forward< DefaultPolicyType >(def_policy))
+
+   explicit TabularPolicy(Hint< Infostate, Action, ActionPolicy >) requires
+      std::is_default_constructible_v< Table > && std::is_default_constructible_v< DefaultPolicy >:
+       m_table(),
+       m_default_policy()
    {
    }
 
-   auto& operator[](const state_type& state)
+   explicit TabularPolicy(
+      DefaultPolicy def_policy = DefaultPolicy()) requires std::is_default_constructible_v< Table >:
+       m_table(),
+       m_default_policy(std::forward< DefaultPolicy >(def_policy))
+   {
+   }
+   explicit TabularPolicy(
+      Table&& table,
+      DefaultPolicy&& def_policy = DefaultPolicy(),
+      Hint< Infostate, Action, ActionPolicy > = {})
+       : m_table(std::forward< Table >(table)),
+         m_default_policy(std::forward< DefaultPolicy >(def_policy))
+   {
+   }
+
+   explicit TabularPolicy(DefaultPolicy def_policy, Hint< Infostate, Action, ActionPolicy >)
+       : m_table(), m_default_policy(std::move(def_policy))
+   {
+   }
+
+   auto& operator[](const info_state_type& state)
    {
       auto found_policy = m_table.find(state);
       if(found_policy == m_table.end()) {
@@ -108,24 +213,22 @@ requires(
       return found_policy->second;
    }
 
-   template < concepts::action Action >
-   auto& operator[](const std::pair< state_type, Action >& state_action)
+   auto& operator[](const std::pair< info_state_type, Action >& state_action)
    {
       auto&& [state, action] = state_action;
       return m_table[state][action];
    }
 
-   auto& operator[](const state_type& state) const { return m_table.at(state); }
+   const auto& operator[](const info_state_type& state) const { return m_table.at(state); }
 
-   template < concepts::action Action >
-   auto& operator[](const std::pair< state_type, Action >& state_action) const
+   const auto& operator[](const std::pair< info_state_type, Action >& state_action) const
    {
       auto&& [state, action] = state_action;
       return m_table.at(state)[action];
    }
 
   private:
-   TableType m_table;
+   Table m_table;
    default_policy_type m_default_policy;
 };
 

@@ -6,6 +6,7 @@
 set(
         TEST_SOURCES
         test_cfr.cpp
+        test_fosg_concept.cpp
 )
 list(TRANSFORM TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
 

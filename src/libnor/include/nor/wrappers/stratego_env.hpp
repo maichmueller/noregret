@@ -32,6 +32,7 @@ class InfoState {
    }
 
    [[nodiscard]] size_t hash() const { return m_hash_cache; }
+   [[nodiscard]] Player player() const { return m_player; }
 
    bool operator==(const InfoState& other) const
    {
@@ -46,6 +47,7 @@ class InfoState {
 
   private:
    std::vector< std::pair< observation_type, observation_type > > m_history;
+   Player m_player;
    size_t m_hash_cache{0};
 
    size_t _hash()
@@ -92,19 +94,19 @@ class Environment {
    static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
 
   public:
-   explicit Environment(uptr< ::stratego::Logic >&& logic);
+   explicit Environment(uptr< Logic >&& logic);
 
-   std::vector< action_type > actions(Player player, const world_state_type& wstate);
-   std::vector< action_type > actions(Player player, const info_state_type& istate);
-   static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
-   auto reset(world_state_type& wstate);
+   std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
+   std::vector< action_type > actions(const info_state_type& istate) const;
+   static inline std::vector< Player > players() const { return {Player::alex, Player::bob}; }
+   auto reset(world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
    static double reward(Player player, world_state_type& wstate);
-   void transition(const action_type& action, world_state_type& worldstate);
-   observation_type private_observation(Player player, const world_state_type& wstate);
-   observation_type private_observation(Player player, const action_type& action);
-   observation_type public_observation(Player player, const world_state_type& wstate);
-   observation_type public_observation(Player player, const action_type& action);
+   void transition(const action_type& action, world_state_type& worldstate) const;
+   observation_type private_observation(Player player, const world_state_type& wstate) const;
+   observation_type private_observation(Player player, const action_type& action) const;
+   observation_type public_observation(Player player, const world_state_type& wstate) const;
+   observation_type public_observation(Player player, const action_type& action) const;
    static inline auto to_team(const Player& player)
    {
       {
@@ -119,9 +121,9 @@ class Environment {
    }
 
   private:
-   uptr< ::stratego::Logic > m_logic;
+   uptr< Logic > m_logic;
 
-   static double _status_to_reward(::stratego::Status status, Player player);
+   static double _status_to_reward(Status status, Player player);
 };
 
 }  // namespace nor::games::stratego
