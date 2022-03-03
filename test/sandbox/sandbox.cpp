@@ -121,16 +121,6 @@ int main(int argc, char** argv)
    //   std::cout << S_m_v<int, double, int> << std::endl;
    //   std::cout << btos(nor::concepts::map< std::map< int, T > >);
 
-   using namespace nor::games::stratego;
-   auto env = std::make_shared< Environment >(std::make_unique< Logic >());
-
-   using ActionPolicy = std::unordered_map< Action, double >;
-
-   nor::UniformPolicy def_policy{
-      [env = env](const InfoState& istate) { return env->actions(istate); },
-      nor::Hint< InfoState, Action, ActionPolicy >{}};
-   std::cout << nor::utils::btos(std::is_move_assignable_v< decltype([env = env]() {}) >)
-             << std::endl;  //
-   std::cout << nor::utils::btos(std::is_move_assignable_v< Lambda >);  //
+   std::cout << nor::utils::btos(nor::concepts::action< stratego::Action >);
    //   std::map<int,T>{}.at();
 }

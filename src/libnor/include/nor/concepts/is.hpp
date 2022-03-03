@@ -21,10 +21,10 @@ concept const_iter = std::is_const_v<
    std::remove_reference_t< typename std::iterator_traits< Iter >::reference > >;
 
 template < typename T >
-concept hashable = requires(T a)
+concept hashable = requires(T t)
 {
    {
-      std::hash< T >{}(a)
+      std::hash< T >{}(t)
       } -> std::convertible_to< std::size_t >;
 };
 
@@ -47,11 +47,23 @@ concept iterator = requires(T t)
    std::iterator_traits< T >::iterator_category;
 };
 
-template <typename T>
-concept empty = std::is_empty_v<T>;
+template < typename T >
+concept empty = std::is_empty_v< T >;
 
-template <typename T>
-concept not_empty = not std::is_empty_v<T>;
+template < typename T >
+concept not_empty = not std::is_empty_v< T >;
+
+template < typename T >
+// clang-format off
+concept copyable_someway =
+   (
+      std::is_pointer_v< T >
+      and concepts::has::method::clone_ptr< T >
+   )
+   or concepts::has::method::clone_self< T >
+   or concepts::has::method::copy< T >
+   or std::is_copy_constructible_v< T >;
+// clang-format on
 
 }  // namespace nor::concepts::is
 

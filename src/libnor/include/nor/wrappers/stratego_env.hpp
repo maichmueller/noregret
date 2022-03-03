@@ -98,7 +98,7 @@ class Environment {
 
    std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
    std::vector< action_type > actions(const info_state_type& istate) const;
-   static inline std::vector< Player > players() const { return {Player::alex, Player::bob}; }
+   static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
    auto reset(world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
    static double reward(Player player, world_state_type& wstate);

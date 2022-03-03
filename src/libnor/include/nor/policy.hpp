@@ -17,21 +17,24 @@ namespace nor {
  */
 template <
    concepts::action Action,
-   typename Pred = std::equal_to< Action >,
-   typename Alloc = std::allocator< std::pair< const Action, double > >,
+   class Hash = std::hash< Action >,
+   class KeyEqual = std::equal_to< Action >,
+   class Alloc = std::allocator< std::pair< const Action, double > >,
    std::invocable default_value_generator = decltype([]() { return 0.; }) >
 class HashMapActionPolicy {
   public:
    using action_type = Action;
-   using map_type = std::unordered_map< Action, double, Pred, Alloc >;
+   using map_type = std::unordered_map< Action, double, Hash, KeyEqual, Alloc >;
 
    using iterator = typename map_type::iterator;
    using const_iterator = typename map_type::const_iterator;
 
    HashMapActionPolicy() = default;
-   HashMapActionPolicy(std::span< Action > actions, double value) : m_map()
+   HashMapActionPolicy(std::span< action_type > actions, double value) : m_map()
    {
-      ranges::views::for_each(actions, [&](const auto& action) { emplace(action, value); });
+      for(const auto& action : actions) {
+         emplace(action, value);
+      }
    }
    HashMapActionPolicy(size_t actions, default_value_generator) : m_map() {}
 
@@ -114,12 +117,12 @@ class UniformPolicy {
    }
    explicit UniformPolicy(LegalActionGetterType la_getter, Hint< Infostate, Action >) requires(
       extent == std::dynamic_extent)
-       : m_la_getter(la_getter)
+       : m_la_getter(std::move(la_getter))
    {
    }
    explicit UniformPolicy(LegalActionGetterType la_getter, Hint< Infostate, Action, ActionPolicy >) requires(
       extent == std::dynamic_extent && std::is_default_constructible_v< ActionPolicy >)
-       : m_la_getter(la_getter)
+       : m_la_getter(std::move(la_getter))
    {
    }
 

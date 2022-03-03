@@ -81,5 +81,6 @@ struct first_convertible_to<T, HeadType> {
 template <typename T, typename...Ts>
 using first_convertible_to_t = typename first_convertible_to<T, Ts...>::type;
 
+
 }  // namespace nor
 #endif  // NOR_TYPE_TRAITS_HPP

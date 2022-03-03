@@ -11,6 +11,41 @@
 #include "is.hpp"
 #include "nor/game_defs.hpp"
 
+namespace nor::rm {
+
+template < typename Candidate >
+// clang-format off
+struct fosg_traits {
+   using action_type = std::conditional_t <
+      concepts::has::trait::action_type< Candidate >,
+      typename Candidate::action_type,
+      void
+   >;
+   using observation_type = std::conditional_t <
+      concepts::has::trait::observation_type< Candidate >,
+      typename Candidate::observation_type,
+      void
+   >;
+   using info_state_type = std::conditional_t <
+      concepts::has::trait::info_state_type< Candidate >,
+      typename Candidate::info_state_type,
+      void
+   >;
+   using public_state_type = std::conditional_t <
+      concepts::has::trait::public_state_type< Candidate >,
+      typename Candidate::public_state_type,
+      void
+   >;
+   using world_state_type = std::conditional_t <
+      concepts::has::trait::world_state_type< Candidate >,
+      typename Candidate::world_state_type,
+      void
+   >;
+};
+// clang-format on
+
+}  // namespace nor::rm
+
 namespace nor::concepts {
 
 template < typename T >
@@ -133,6 +168,28 @@ concept default_state_policy =
    };
 // clang-format on
 
+template < typename T, typename U >
+// clang-format off
+concept fosg_trait_match = requires(T t, U u)
+{
+   std::is_same_v <
+      typename nor::rm::fosg_traits<T>::action_type,
+      typename nor::rm::fosg_traits<U>::action_type>;
+   std::is_same_v <
+      typename nor::rm::fosg_traits<T>::observation_type,
+      typename nor::rm::fosg_traits<U>::observation_type>;
+   std::is_same_v <
+      typename nor::rm::fosg_traits<T>::info_state_type,
+      typename nor::rm::fosg_traits<U>::info_state_type>;
+   std::is_same_v <
+      typename nor::rm::fosg_traits<T>::public_state_type,
+      typename nor::rm::fosg_traits<U>::public_state_type>;
+   std::is_same_v <
+      typename nor::rm::fosg_traits<T>::world_state_type,
+      typename nor::rm::fosg_traits<U>::world_state_type>;
+};
+// clang-format on
+
 template <
    typename Env,
    typename Action = typename Env::action_type,
@@ -142,15 +199,12 @@ template <
    typename Observation = typename Env::observation_type >
 // clang-format off
 concept fosg =
-/**/  std::is_copy_constructible_v< Env >
-   && std::is_copy_assignable_v< Env >
-   && std::is_move_constructible_v< Env >
-   && std::is_move_assignable_v< Env >
-   && action< Action >
+/**/  action< Action >
    && info_state< Infostate >
    && public_state< Publicstate >
    && world_state< Worldstate >
    && observation< Observation >
+   && is::copyable_someway< Worldstate >
    && has::method::actions< Env, const Worldstate& >
    && has::method::transition< Env, Worldstate& >
    && has::method::private_observation< Env, Worldstate, Observation >
@@ -160,14 +214,6 @@ concept fosg =
    && has::method::public_observation< Env, Action, Observation >
    && has::method::observation< Env, Action, Observation >
    && has::method::reset< Env, Worldstate& >
-   && (
-            // if the given worldstate type is a pointer (e.g. unique, shared)
-            has::method::clone_ptr< Worldstate >
-         or (
-                  has::method::copy< const Env, Worldstate >
-               or std::is_copy_constructible_v< Worldstate >
-            )
-      )
    && has::method::reward< const Env >
    && has::method::is_terminal< Env, Worldstate& >
    && has::method::active_player< Env >

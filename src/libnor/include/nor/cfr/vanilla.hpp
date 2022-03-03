@@ -69,7 +69,9 @@ struct CFRConfig {
 template <
    CFRConfig cfr_config,
    concepts::fosg Env,
-   concepts::state_policy< typename Env::info_state_type, typename Env::action_type > Policy >
+   typename FOSGTraitType,
+   concepts::state_policy Policy >
+requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
 class VanillaCFR {
    /// define all aliases to be used in this class from the game type.
    using env_type = Env;
@@ -147,17 +149,20 @@ class VanillaCFR {
    }
 };
 
-template < CFRConfig cfg, typename... Args >
-VanillaCFR< cfg, Args... > make_cfr(Args&&... args)
+template < CFRConfig cfg, typename Env, typename Policy, typename FOSGTraitType = fosg_traits< Env > >
+VanillaCFR< cfg, Env, FOSGTraitType, Policy >
+make_cfr(Env&& env, Policy&& policy, FOSGTraitType = {})
 {
-   return {std::forward< Args >(args)...};
+   return {std::forward< Env >(env), std::forward< Policy >(policy)};
 }
 
 template <
    CFRConfig cfr_config,
    concepts::fosg Env,
-   concepts::state_policy< typename Env::info_state_type, typename Env::action_type > Policy >
-const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
+   typename FOSGTraitType,
+   concepts::state_policy Policy >
+requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
+const Policy* VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::iterate(
    world_state_type&& initial_wstate,
    Player player_to_update,
    size_t n_iters)
@@ -367,8 +372,10 @@ const Policy* VanillaCFR< cfr_config, Env, Policy >::iterate(
 template <
    CFRConfig cfr_config,
    concepts::fosg Env,
-   concepts::state_policy< typename Env::info_state_type, typename Env::action_type > Policy >
-void VanillaCFR< cfr_config, Env, Policy >::update_regret_and_policy(
+   typename FOSGTraitType,
+   concepts::state_policy Policy >
+requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
+void VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::update_regret_and_policy(
    VanillaCFR::cfr_node_type& node,
    Player player)
 {
@@ -390,8 +397,11 @@ void VanillaCFR< cfr_config, Env, Policy >::update_regret_and_policy(
 template <
    CFRConfig cfr_config,
    concepts::fosg Env,
-   concepts::state_policy< typename Env::info_state_type, typename Env::action_type > Policy >
-double VanillaCFR< cfr_config, Env, Policy >::reach_probability(const cfr_node_type& node) const
+   typename FOSGTraitType,
+   concepts::state_policy Policy >
+requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
+double VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::reach_probability(
+   const cfr_node_type& node) const
 {
    auto values_view = node.reach_probability() | ranges::views::values;
    return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
@@ -400,8 +410,10 @@ double VanillaCFR< cfr_config, Env, Policy >::reach_probability(const cfr_node_t
 template <
    CFRConfig cfr_config,
    concepts::fosg Env,
-   concepts::state_policy< typename Env::info_state_type, typename Env::action_type > Policy >
-double VanillaCFR< cfr_config, Env, Policy >::cf_reach_probability(
+   typename FOSGTraitType,
+   concepts::state_policy Policy >
+requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
+double VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::cf_reach_probability(
    const VanillaCFR::cfr_node_type& node,
    const Player& player) const
 {
@@ -412,8 +424,10 @@ double VanillaCFR< cfr_config, Env, Policy >::cf_reach_probability(
 template <
    CFRConfig cfr_config,
    concepts::fosg Env,
-   concepts::state_policy< typename Env::info_state_type, typename Env::action_type > Policy >
-double VanillaCFR< cfr_config, Env, Policy >::cf_reach_probability(
+   typename FOSGTraitType,
+   concepts::state_policy Policy >
+requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
+double VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::cf_reach_probability(
    const VanillaCFR::cfr_node_type& node,
    double reach_prob,
    const Player& player) const
