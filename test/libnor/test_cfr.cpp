@@ -12,18 +12,15 @@ TEST_F(MinimalState, vanilla_cfr_usage_stratego)
 
    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
    Environment env{std::make_unique< Logic >()};
-   UniformPolicy u{
-      [env = std::move(Environment{std::make_unique< Logic >()})](const InfoState& istate) {
-         return env.actions(istate);
-      },
-      Hint< InfoState, Action, HashMapActionPolicy< Action > >{}};
+   UniformPolicy u{[env = std::move(Environment{std::make_unique< Logic >()})](
+                      const InfoState& istate) { return env.actions(istate); }};
+
+   auto tabular_policy = TabularPolicy{
+      std::unordered_map< InfoState, HashMapActionPolicy >{}, std::move(u)};
+
    constexpr rm::CFRConfig cfr_config{.alternating_updates = false, .store_public_states = false};
-   rm::VanillaCFR cfr_runner = rm::make_cfr< cfr_config >(
-      env,
-      TabularPolicy{UniformPolicy{
-         [env = std::move(Environment{std::make_unique< Logic >()})](const InfoState& istate) {
-            return env.actions(istate);
-         },
-         Hint< InfoState, Action, HashMapActionPolicy< Action > >{}}});
-   cfr_runner.iterate();
+
+   auto cfr_runner = rm::cfr_factory::make_vanilla< cfr_config >(
+      std::move(env), std::move(tabular_policy));
+   //   cfr_runner.iterate();
 }

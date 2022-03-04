@@ -156,34 +156,21 @@ class UniformPolicy {
    LegalActionGetterType m_la_getter;
 };
 
-template <
-   typename DefaultPolicy,
-   typename Infostate = typename DefaultPolicy::info_state_type,
-   typename Action = typename DefaultPolicy::action_type,
-   typename ActionPolicy = typename DefaultPolicy::action_policy_type,
-   typename Table = std::unordered_map< Infostate, ActionPolicy > >
+template < typename DefaultPolicy, typename Table >
 // clang-format off
 requires
-   concepts::map< Table, Infostate, ActionPolicy >
+   concepts::map< Table >
    && concepts::default_state_policy< DefaultPolicy >
-   && concepts::action_policy< ActionPolicy >
+   && concepts::action_policy< typename DefaultPolicy::action_policy_type >
 // clang-format on
 class TabularPolicy {
   public:
-   using info_state_type = Infostate;
-   using action_policy_type = ActionPolicy;
    using default_policy_type = DefaultPolicy;
+   using action_policy_type = typename DefaultPolicy::action_policy_type;
 
    TabularPolicy() requires
       std::is_default_constructible_v< Table > && std::is_default_constructible_v< DefaultPolicy >
    = default;
-
-   explicit TabularPolicy(Hint< Infostate, Action, ActionPolicy >) requires
-      std::is_default_constructible_v< Table > && std::is_default_constructible_v< DefaultPolicy >:
-       m_table(),
-       m_default_policy()
-   {
-   }
 
    explicit TabularPolicy(
       DefaultPolicy def_policy = DefaultPolicy()) requires std::is_default_constructible_v< Table >:
@@ -191,44 +178,28 @@ class TabularPolicy {
        m_default_policy(std::forward< DefaultPolicy >(def_policy))
    {
    }
-   explicit TabularPolicy(
-      Table&& table,
-      DefaultPolicy&& def_policy = DefaultPolicy(),
-      Hint< Infostate, Action, ActionPolicy > = {})
+   explicit TabularPolicy(Table&& table, DefaultPolicy&& def_policy = DefaultPolicy())
        : m_table(std::forward< Table >(table)),
          m_default_policy(std::forward< DefaultPolicy >(def_policy))
    {
    }
-
-   explicit TabularPolicy(DefaultPolicy def_policy, Hint< Infostate, Action, ActionPolicy >)
+   explicit TabularPolicy(DefaultPolicy def_policy)
        : m_table(), m_default_policy(std::move(def_policy))
    {
    }
 
-   auto& operator[](const info_state_type& state)
+   template <typename Infostate>
+   auto& operator[](const Infostate& state)
    {
       auto found_policy = m_table.find(state);
       if(found_policy == m_table.end()) {
-         auto default_policy_vec = m_default_policy[state];
-         m_table.insert({state, default_policy_vec});
-         return default_policy_vec;
+         return m_table.emplace(state, m_default_policy[state]).first->second;
       }
       return found_policy->second;
    }
 
-   auto& operator[](const std::pair< info_state_type, Action >& state_action)
-   {
-      auto&& [state, action] = state_action;
-      return m_table[state][action];
-   }
-
-   const auto& operator[](const info_state_type& state) const { return m_table.at(state); }
-
-   const auto& operator[](const std::pair< info_state_type, Action >& state_action) const
-   {
-      auto&& [state, action] = state_action;
-      return m_table.at(state)[action];
-   }
+   template <typename Infostate>
+   const auto& operator[](const Infostate& state) const { return m_table.at(state); }
 
   private:
    Table m_table;

@@ -9,42 +9,86 @@
 
 #include "has.hpp"
 #include "is.hpp"
+#include "nor/fosg_traits.hpp"
 #include "nor/game_defs.hpp"
 
-namespace nor::rm {
+namespace nor {
 
-template < typename Candidate >
-// clang-format off
-struct fosg_traits {
-   using action_type = std::conditional_t <
-      concepts::has::trait::action_type< Candidate >,
-      typename Candidate::action_type,
-      void
-   >;
-   using observation_type = std::conditional_t <
-      concepts::has::trait::observation_type< Candidate >,
-      typename Candidate::observation_type,
-      void
-   >;
-   using info_state_type = std::conditional_t <
-      concepts::has::trait::info_state_type< Candidate >,
-      typename Candidate::info_state_type,
-      void
-   >;
-   using public_state_type = std::conditional_t <
-      concepts::has::trait::public_state_type< Candidate >,
-      typename Candidate::public_state_type,
-      void
-   >;
-   using world_state_type = std::conditional_t <
-      concepts::has::trait::world_state_type< Candidate >,
-      typename Candidate::world_state_type,
-      void
-   >;
+template < typename T >
+struct action_type_trait {
+   using type = void;
 };
-// clang-format on
 
-}  // namespace nor::rm
+template < typename T >
+requires(concepts::has::trait::action_type< T >) struct action_type_trait< T > {
+   using type = typename T::action_type;
+};
+
+template < typename T >
+using action_type_trait_t = typename action_type_trait< T >::type;
+
+template < typename T >
+struct observation_type_trait {
+   using type = void;
+};
+
+template < typename T >
+requires(concepts::has::trait::observation_type< T >) struct observation_type_trait< T > {
+   using type = typename T::observation_type;
+};
+
+template < typename T >
+using observation_type_trait_t = typename observation_type_trait< T >::type;
+
+template < typename T >
+struct info_state_type_trait {
+   using type = void;
+};
+
+template < typename T >
+requires(concepts::has::trait::info_state_type< T >) struct info_state_type_trait< T > {
+   using type = typename T::info_state_type;
+};
+
+template < typename T >
+using info_state_type_trait_t = typename info_state_type_trait< T >::type;
+
+template < typename T >
+struct public_state_type_trait {
+   using type = void;
+};
+
+template < typename T >
+requires(concepts::has::trait::public_state_type< T >) struct public_state_type_trait< T > {
+   using type = typename T::public_state_type;
+};
+
+template < typename T >
+using public_state_type_trait_t = typename public_state_type_trait< T >::type;
+
+template < typename T >
+struct world_state_type_trait {
+   using type = void;
+};
+
+template < typename T >
+requires(concepts::has::trait::world_state_type< T >) struct world_state_type_trait< T > {
+   using type = typename T::world_state_type;
+};
+
+template < typename T >
+using world_state_type_trait_t = typename world_state_type_trait< T >::type;
+
+template < typename T >
+struct fosg_auto_traits {
+   using action_type = action_type_trait_t< T >;
+   using observation_type = observation_type_trait_t< T >;
+   using info_state_type = info_state_type_trait_t< T >;
+   using public_state_type = public_state_type_trait_t< T >;
+   using world_state_type = world_state_type_trait_t< T >;
+};
+
+}  // namespace nor
 
 namespace nor::concepts {
 
@@ -82,38 +126,36 @@ concept action = is::hashable< T >;
 template < typename T >
 concept observation = is::hashable< T >;
 
-template <
-   typename T,
-   typename Action = typename T::action_type,
-   typename Observation = typename T::observation_type >
+template < typename T, typename Observation = typename fosg_auto_traits<T>::observation_type >
 // clang-format off
 concept public_state =
-/**/  action< Action >
-   && observation< Observation >
-   && is::sized< T >
-   && has::method::append< T, std::pair< /*action_=*/Observation, /*state_=*/Observation> >;
-// clang-format on
-
-template < typename T, typename Observation = typename T::observation_type >
-// clang-format off
-concept info_state =
 /**/  observation< Observation >
    && is::sized< T >
    && is::hashable< T >
    && std::equality_comparable< T >
-   && has::method::player< const T >
    && has::method::append<
          T,
          std::pair< /*action_=*/Observation, /*state_=*/Observation>&,
          std::pair< /*action_=*/Observation, /*state_=*/Observation>
+      >
+   && has::method::getitem<
+         T,
+         std::pair< /*action_=*/Observation, /*state_=*/Observation>&,
+         size_t
       >;
-//   && has::method::getitem< T, size_t,  >;
+// clang-format on
+
+template < typename T, typename Observation = typename fosg_traits<T>::observation_type >
+// clang-format off
+concept info_state =
+/**/  public_state< T, Observation >
+   && has::method::player< const T >;
 // clang-format on
 
 template < typename T >
-concept world_state = std::equality_comparable< T >;
+concept world_state = true;
 
-template < typename T, typename Action = typename T::action_type >
+template < typename T, typename Action = typename fosg_traits<T>::action_type >
 // clang-format off
 concept action_policy =
       is::sized< T >
@@ -124,48 +166,28 @@ concept action_policy =
 
 template <
    typename T,
-   typename Infostate = typename T::info_state_type,
-   typename Action = typename T::action_type >
+   typename FOSGTraits = nor::fosg_traits< T >,
+   typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
 concept state_policy =
-/**/  info_state< Infostate >
+/**/  info_state< typename FOSGTraits::info_state_type, typename FOSGTraits::observation_type >
+   && action_policy< ActionPolicy >
    && has::trait::action_policy_type< T >
-   && has::method::getitem< T, double&, std::pair<Infostate, Action > >
-   && has::method::getitem< const T, const double&, std::pair<Infostate, Action > >
-   && requires(T obj, Infostate istate)
-   {
-      /// these getitem methods need to specified explicitly since concepts cannot be passed as
-      /// typenames to other concepts (no nested concepts allowed). This would be necessary for
-      /// has::method::getitem at the return type.
-      { obj[istate] } -> action_policy< Action >;
-   }
-   && requires(T const obj, Infostate istate)
-   {
-      { obj[istate] } -> action_policy< Action >;
-   };
+   && has::method::getitem< T, ActionPolicy&, typename FOSGTraits::info_state_type>
+   && has::method::getitem< T const, const ActionPolicy&, typename FOSGTraits::info_state_type>;
 // clang-format on
 
 template <
    typename T,
-   typename Infostate = typename T::info_state_type,
-   typename Action = typename T::action_type >
+   typename FOSGTraits = nor::fosg_traits< T >,
+   typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
 concept default_state_policy =
-/**/  info_state< Infostate >
+/**/  info_state< typename FOSGTraits::info_state_type, typename FOSGTraits::observation_type >
+   && action_policy< ActionPolicy >
    && has::trait::action_policy_type< T >
-   && has::method::getitem< T, double, std::pair<Infostate, Action > >
-   && has::method::getitem< const T, double, std::pair<Infostate, Action > >
-   && requires(T obj, Infostate istate)
-   {
-      /// these getitem methods need to specified explicitly since concepts cannot be passed as
-      /// typenames to other concepts (no nested concepts allowed). This would be necessary for
-      /// has::method::getitem at the return type.
-      { obj[istate] } -> action_policy< Action >;
-   }
-   && requires(T const obj, Infostate istate)
-   {
-      { obj[istate] } -> action_policy< Action >;
-   };
+   && has::method::getitem< T, ActionPolicy, typename FOSGTraits::info_state_type>
+   && has::method::getitem< T const, ActionPolicy, typename FOSGTraits::info_state_type>;
 // clang-format on
 
 template < typename T, typename U >
@@ -173,30 +195,31 @@ template < typename T, typename U >
 concept fosg_trait_match = requires(T t, U u)
 {
    std::is_same_v <
-      typename nor::rm::fosg_traits<T>::action_type,
-      typename nor::rm::fosg_traits<U>::action_type>;
+      typename nor::fosg_traits<T>::action_type,
+      typename nor::fosg_traits<U>::action_type>;
    std::is_same_v <
-      typename nor::rm::fosg_traits<T>::observation_type,
-      typename nor::rm::fosg_traits<U>::observation_type>;
+      typename nor::fosg_traits<T>::observation_type,
+      typename nor::fosg_traits<U>::observation_type>;
    std::is_same_v <
-      typename nor::rm::fosg_traits<T>::info_state_type,
-      typename nor::rm::fosg_traits<U>::info_state_type>;
+      typename nor::fosg_traits<T>::info_state_type,
+      typename nor::fosg_traits<U>::info_state_type>;
    std::is_same_v <
-      typename nor::rm::fosg_traits<T>::public_state_type,
-      typename nor::rm::fosg_traits<U>::public_state_type>;
+      typename nor::fosg_traits<T>::public_state_type,
+      typename nor::fosg_traits<U>::public_state_type>;
    std::is_same_v <
-      typename nor::rm::fosg_traits<T>::world_state_type,
-      typename nor::rm::fosg_traits<U>::world_state_type>;
+      typename nor::fosg_traits<T>::world_state_type,
+      typename nor::fosg_traits<U>::world_state_type>;
 };
 // clang-format on
 
 template <
    typename Env,
-   typename Action = typename Env::action_type,
-   typename Infostate = typename Env::info_state_type,
-   typename Publicstate = typename Env::public_state_type,
-   typename Worldstate = typename Env::world_state_type,
-   typename Observation = typename Env::observation_type >
+   typename FOSGTraitsType = nor::fosg_traits< Env >,
+   typename Action = typename FOSGTraitsType::action_type,
+   typename Infostate = typename FOSGTraitsType::info_state_type,
+   typename Publicstate = typename FOSGTraitsType::public_state_type,
+   typename Worldstate = typename FOSGTraitsType::world_state_type,
+   typename Observation = typename FOSGTraitsType::observation_type >
 // clang-format off
 concept fosg =
 /**/  action< Action >
@@ -209,10 +232,8 @@ concept fosg =
    && has::method::transition< Env, Worldstate& >
    && has::method::private_observation< Env, Worldstate, Observation >
    && has::method::public_observation< Env, Worldstate, Observation >
-   && has::method::observation< Env, Worldstate, Observation >
    && has::method::private_observation< Env, Action, Observation >
    && has::method::public_observation< Env, Action, Observation >
-   && has::method::observation< Env, Action, Observation >
    && has::method::reset< Env, Worldstate& >
    && has::method::reward< const Env >
    && has::method::is_terminal< Env, Worldstate& >

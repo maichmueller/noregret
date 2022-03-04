@@ -129,11 +129,11 @@ concept run = requires(T&& t)
       } -> std::same_as< void >;
 };
 
-template < typename T, typename ReturnType = void >
-concept reset = requires(T&& t)
+template < typename T, typename Worldstate = typename T::world_state_type, typename ReturnType = void >
+concept reset = requires(T&& t, Worldstate& wstate)
 {
    {
-      t.reset()
+      t.reset(wstate)
       } -> std::same_as< ReturnType >;
 };
 
@@ -285,16 +285,16 @@ template < typename T, typename Output = T >
 concept clone_self = requires(T const t)
 {
    {
-      t.clone()
-      } -> std::convertible_to< Output >;
+      std::dynamic_pointer_cast< T >(std::shared_ptr{t.clone()})
+      } -> std::convertible_to< sptr< Output > >;
 };
 
-template < class Ptr >
+template < typename Ptr, typename Output = typename Ptr::element_type >
 concept clone_ptr = std::is_pointer_v< Ptr > && requires(Ptr const ptr)
 {
    {
-      ptr->clone()
-      } -> std::convertible_to< uptr< typename Ptr::element_type > >;
+      std::dynamic_pointer_cast< Output >(std::shared_ptr{ptr->clone()})
+      } -> std::convertible_to< sptr< Output > >;
 };
 
 template < typename T, typename U = T >
@@ -323,30 +323,30 @@ concept at = requires(T&& t, InputT inp)
       } -> std::same_as< OutputT >;
 };
 
-//template < typename T, typename OutputT, typename...InputTs >
-//concept getitem_overloaded = requires(T&& t, InputTs&&... inp)
+// template < typename T, typename OutputT, typename...InputTs >
+// concept getitem_overloaded = requires(T&& t, InputTs&&... inp)
 //{
-//   /// getitem method for input type returning an output type
-//   {
-//      t[inp]
-//      } -> std::same_as< OutputT >;
-//};
+//    /// getitem method for input type returning an output type
+//    {
+//       t[inp]
+//       } -> std::same_as< OutputT >;
+// };
 
-//template < typename T, typename OutputT, typename... InputTs >
-//concept getitem = requires(T&& t, InputTs&&... inp)
+// template < typename T, typename OutputT, typename... InputTs >
+// concept getitem = requires(T&& t, InputTs&&... inp)
 //{
-//   /// getitem method for input type returning an output type
-//   {
-//      t[inp]
-//      } -> std::same_as< OutputT >;
-//};
+//    /// getitem method for input type returning an output type
+//    {
+//       t[inp]
+//       } -> std::same_as< OutputT >;
+// };
 //
-//template < typename T, typename OutputT, typename... InputT1, typename... InputTs >
-//concept getitem_for_each_arg = requires(T&& t, InputT1 inp, InputTs&&... rest_inp)
+// template < typename T, typename OutputT, typename... InputT1, typename... InputTs >
+// concept getitem_for_each_arg = requires(T&& t, InputT1 inp, InputTs&&... rest_inp)
 //{
-//   /// getitem method for input type returning an output type
-//   invocable_with_each_v
-//};
+//    /// getitem method for input type returning an output type
+//    invocable_with_each_v
+// };
 
 template < typename T, typename U = typename T::iterator >
 concept begin = requires(T t)
@@ -393,7 +393,7 @@ concept player_count = requires(T t)
 template < typename T >
 concept turn_dynamic = requires(T t)
 {
-   std::same_as< typename T::turn_dynamic, TurnDynamic >;
+   std::same_as< decltype(T::turn_dynamic), TurnDynamic >;
 };
 
 template < typename T >

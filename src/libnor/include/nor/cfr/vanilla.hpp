@@ -66,26 +66,31 @@ struct CFRConfig {
  * @tparam Env, the environment type to run VanillaCFR on.
  *
  */
-template <
-   CFRConfig cfr_config,
-   concepts::fosg Env,
-   typename FOSGTraitType,
-   concepts::state_policy Policy >
-requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
+template < CFRConfig cfr_config, typename Env, typename FOSGTraits, typename Policy >
+// clang-format off
+requires
+   concepts::fosg< Env, FOSGTraits >
+   && concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraits >
+   && concepts::state_policy< Policy, FOSGTraits >
+// clang-format on
 class VanillaCFR {
+   friend class cfr_factory;
    /// define all aliases to be used in this class from the game type.
    using env_type = Env;
-   using action_type = typename Env::action_type;
-   using world_state_type = typename Env::world_state_type;
-   using info_state_type = typename Env::info_state_type;
-   using public_state_type = typename Env::public_state_type;
-   using observation_type = typename Env::observation_type;
+   using action_type = typename FOSGTraits::action_type;
+   using world_state_type = typename FOSGTraits::world_state_type;
+   using info_state_type = typename FOSGTraits::info_state_type;
+   using public_state_type = typename FOSGTraits::public_state_type;
+   using observation_type = typename FOSGTraits::observation_type;
    // the CFR Node type to store in the tree
    using cfr_node_type = CFRNode<
       action_type,
       std::conditional_t< cfr_config.store_public_states, public_state_type, NEW_EMPTY_TYPE >,
       info_state_type >;
    using game_tree_type = std::unordered_map< info_state_type, sptr< cfr_node_type > >;
+
+  private:
+   /// the constructors are private so that only the Factory class can construct the class
 
    explicit VanillaCFR(Env&& game, Policy&& policy = Policy())
        : m_env(std::forward< Env >(game)),
@@ -96,6 +101,9 @@ class VanillaCFR {
          Env::turn_dynamic == TurnDynamic::sequential,
          "VanillaCFR can only be performed on a sequential turn-based game.");
    }
+
+  public:
+   /// API
 
    /**
     * @brief Executes n iterations of the VanillaCFR algorithm in unrolled form (no recursion).
@@ -147,22 +155,16 @@ class VanillaCFR {
          node.children() | ranges::views::keys,
          node.children() | ranges::views::values | ranges::views::transform(f));
    }
-};
+};  // namespace nor::rm
 
-template < CFRConfig cfg, typename Env, typename Policy, typename FOSGTraitType = fosg_traits< Env > >
-VanillaCFR< cfg, Env, FOSGTraitType, Policy >
-make_cfr(Env&& env, Policy&& policy, FOSGTraitType = {})
-{
-   return {std::forward< Env >(env), std::forward< Policy >(policy)};
-}
-
-template <
-   CFRConfig cfr_config,
-   concepts::fosg Env,
-   typename FOSGTraitType,
-   concepts::state_policy Policy >
-requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
-const Policy* VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::iterate(
+template < CFRConfig cfr_config, typename Env, typename FOSGTraits, typename Policy >
+// clang-format off
+requires
+   concepts::fosg< Env, FOSGTraits >
+   && concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraits >
+   && concepts::state_policy< Policy, FOSGTraits >
+// clang-format on
+const Policy* VanillaCFR< cfr_config, Env, FOSGTraits, Policy >::iterate(
    world_state_type&& initial_wstate,
    Player player_to_update,
    size_t n_iters)
@@ -369,13 +371,14 @@ const Policy* VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::iterate(
    return &m_curr_policy;
 }
 
-template <
-   CFRConfig cfr_config,
-   concepts::fosg Env,
-   typename FOSGTraitType,
-   concepts::state_policy Policy >
-requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
-void VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::update_regret_and_policy(
+template < CFRConfig cfr_config, typename Env, typename FOSGTraits, typename Policy >
+// clang-format off
+requires
+   concepts::fosg< Env, FOSGTraits >
+   && concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraits >
+   && concepts::state_policy< Policy, FOSGTraits >
+// clang-format on
+void VanillaCFR< cfr_config, Env, FOSGTraits, Policy >::update_regret_and_policy(
    VanillaCFR::cfr_node_type& node,
    Player player)
 {
@@ -394,26 +397,28 @@ void VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::update_regret_and_pol
       child_collector(node, [&](cfr_node_type* child) { return child->regret(player); }));
 }
 
-template <
-   CFRConfig cfr_config,
-   concepts::fosg Env,
-   typename FOSGTraitType,
-   concepts::state_policy Policy >
-requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
-double VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::reach_probability(
+template < CFRConfig cfr_config, typename Env, typename FOSGTraits, typename Policy >
+// clang-format off
+requires
+   concepts::fosg< Env, FOSGTraits >
+   && concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraits >
+   && concepts::state_policy< Policy, FOSGTraits >
+// clang-format on
+double VanillaCFR< cfr_config, Env, FOSGTraits, Policy >::reach_probability(
    const cfr_node_type& node) const
 {
    auto values_view = node.reach_probability() | ranges::views::values;
    return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
 }
 
-template <
-   CFRConfig cfr_config,
-   concepts::fosg Env,
-   typename FOSGTraitType,
-   concepts::state_policy Policy >
-requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
-double VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::cf_reach_probability(
+template < CFRConfig cfr_config, typename Env, typename FOSGTraits, typename Policy >
+// clang-format off
+requires
+   concepts::fosg< Env, FOSGTraits >
+   && concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraits >
+   && concepts::state_policy< Policy, FOSGTraits >
+// clang-format on
+double VanillaCFR< cfr_config, Env, FOSGTraits, Policy >::cf_reach_probability(
    const VanillaCFR::cfr_node_type& node,
    const Player& player) const
 {
@@ -421,13 +426,14 @@ double VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::cf_reach_probabilit
    return cf_reach_probability(node, reach_prob, player);
 }
 
-template <
-   CFRConfig cfr_config,
-   concepts::fosg Env,
-   typename FOSGTraitType,
-   concepts::state_policy Policy >
-requires concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraitType >
-double VanillaCFR< cfr_config, Env, FOSGTraitType, Policy >::cf_reach_probability(
+template < CFRConfig cfr_config, typename Env, typename FOSGTraits, typename Policy >
+// clang-format off
+requires
+   concepts::fosg< Env, FOSGTraits >
+   && concepts::fosg_trait_match< fosg_traits< Policy >, FOSGTraits >
+   && concepts::state_policy< Policy, FOSGTraits >
+// clang-format on
+double VanillaCFR< cfr_config, Env, FOSGTraits, Policy >::cf_reach_probability(
    const VanillaCFR::cfr_node_type& node,
    double reach_prob,
    const Player& player) const

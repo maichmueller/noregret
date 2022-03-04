@@ -42,7 +42,7 @@ void Environment::transition(const action_type& action, world_state_type& worlds
 {
    m_logic->apply_action(worldstate, action);
 }
-auto Environment::reset(world_state_type& wstate) const
+void Environment::reset(world_state_type& wstate) const
 {
    m_logic->reset(wstate);
 }
@@ -70,6 +70,12 @@ Environment::observation_type Environment::public_observation(
 {
    // TODO: implement string representation of action
 }
+
 Environment::Environment(uptr< ::stratego::Logic >&& logic) : m_logic(std::move(logic)) {}
+
+Player Environment::active_player(const Environment::world_state_type& wstate) const
+{
+   return to_player(wstate.active_team());
+}
 
 }  // namespace nor::games::stratego

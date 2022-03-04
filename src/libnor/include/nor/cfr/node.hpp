@@ -136,12 +136,12 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
 
 }  // namespace nor::rm
 
-namespace std {
-
-template < typename... Args >
-struct hash< nor::rm::CFRNode< Args... > > {
-   size_t operator()(const nor::rm::CFRNode< Args... >& node) const { return node.hash(); }
-};
-}  // namespace std
+//namespace std {
+//
+//template < typename... Args >
+//struct hash< nor::rm::CFRNode< Args... > > {
+//   size_t operator()(const nor::rm::CFRNode< Args... >& node) const noexcept { return node.hash(); }
+//};
+//}  // namespace std
 
 #endif  // NOR_NODE_HPP
