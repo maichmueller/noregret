@@ -2,22 +2,31 @@
 #ifndef NOR_POLICY_HPP
 #define NOR_POLICY_HPP
 
+#include <concepts>
+
 #include "nor/concepts.hpp"
 #include "nor/utils/utils.hpp"
 
 namespace nor {
 
-/**
- * @brief Adaptor class for using std::unordered_map as a valid type of an action policy.
- *
- *
- * @tparam Action
- * @tparam Pred
- * @tparam Alloc
- */
+template < typename T >
+T _zero()
+{
+   return T(0);
+}
+
+///**
+// * @brief Adaptor class for using std::unordered_map as a valid type of an action policy.
+// *
+// *
+// * @tparam Action
+// * @tparam Pred
+// * @tparam Alloc
+// */
 template <
    concepts::action Action,
-   std::invocable default_value_generator = decltype([]() { return 0.; })>
+   //           std::invocable default_value_generator = decltype([]() { return 0.; })
+   std::invocable default_value_generator = decltype(&_zero<double>) >
 class HashMapActionPolicy {
   public:
    using action_type = Action;
@@ -27,13 +36,20 @@ class HashMapActionPolicy {
    using const_iterator = typename map_type::const_iterator;
 
    HashMapActionPolicy() = default;
-   HashMapActionPolicy(std::span< action_type > actions, double value) : m_map()
+   HashMapActionPolicy(
+      std::span< action_type > actions,
+      double value,
+      default_value_generator dvg = &_zero< double >)
+       : m_map(), m_def_value_gen(dvg)
    {
       for(const auto& action : actions) {
          emplace(action, value);
       }
    }
-   HashMapActionPolicy(size_t actions, default_value_generator) : m_map() {}
+   HashMapActionPolicy(size_t actions, default_value_generator dvg = &_zero< double >)
+       : m_map(), m_def_value_gen(dvg)
+   {
+   }
 
    template < typename... Args >
    inline auto emplace(Args&&... args)
@@ -70,7 +86,7 @@ class HashMapActionPolicy {
 
   private:
    map_type m_map;
-   default_value_generator m_def_value_gen{};
+   default_value_generator m_def_value_gen;
 };
 
 template < typename Worldstate, std::size_t extent >
@@ -111,8 +127,7 @@ class UniformPolicy {
        : m_la_getter(&placeholder_filter< info_state_type, extent >)
    {
    }
-   explicit UniformPolicy(
-      LegalActionGetterType la_getter) requires(extent == std::dynamic_extent)
+   explicit UniformPolicy(LegalActionGetterType la_getter) requires(extent == std::dynamic_extent)
        : m_la_getter(std::move(la_getter))
    {
    }
