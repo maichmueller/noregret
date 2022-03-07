@@ -20,6 +20,7 @@ struct factory {
       return map;
    }
 
+  public:
    template <
       CFRConfig cfg,
       typename Env,
@@ -58,6 +59,20 @@ struct factory {
             std::forward< AveragePolicy >(avg_policy),
             std::forward< DefaultPolicy >(def_policy)};
       }
+   }
+
+   template <
+      CFRConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename DefaultPolicy,
+      typename AveragePolicy = Policy >
+   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
+   make_vanilla(Env&& env, const Policy& policy, DefaultPolicy&& def_policy = DefaultPolicy())
+   {
+      return make_vanilla< cfg, as_map, Policy, DefaultPolicy, Policy >(
+         std::forward< Env >(env), policy, policy, std::forward< DefaultPolicy >(def_policy));
    }
 
    template < typename Infostate, typename ActionPolicy, typename Table >

@@ -18,7 +18,7 @@ TEST_F(MinimalState, vanilla_cfr_usage_stratego)
 
    constexpr rm::CFRConfig cfr_config{.alternating_updates = false, .store_public_states = false};
 
-   auto cfr_runner = rm::factory::make_vanilla< cfr_config >(
+   auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env), std::move(tabular_policy), std::move(uniform_policy));
    //   cfr_runner.iterate();
 }
