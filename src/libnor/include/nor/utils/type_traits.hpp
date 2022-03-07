@@ -203,6 +203,7 @@ using first_convertible_to_t = typename first_convertible_to< T, Ts... >::type;
 
 template < template < typename > class condition, typename First, typename... Rest >
 struct all_predicate {
+  private:
    static constexpr bool eval()
    {
       if(sizeof...(Rest) > 0) {
@@ -211,6 +212,7 @@ struct all_predicate {
          return condition< First >::value;
       }
    }
+  public:
    static constexpr bool value = eval();
 };
 template < template < typename > class condition, typename... Types >
@@ -218,6 +220,7 @@ inline constexpr bool all_predicate_v = all_predicate< condition, Types... >::va
 
 template < template < typename > class condition, typename First, typename... Rest >
 struct any_predicate {
+  private:
    static constexpr bool eval()
    {
       if(sizeof...(Rest) > 0) {
@@ -229,10 +232,11 @@ struct any_predicate {
          return condition< First >::value;
       }
    }
+  public:
    static constexpr bool value = eval();
 };
 template < template < typename > class condition, typename... Types >
-inline constexpr bool any_predicate_ = any_predicate< condition, Types... >::value;
+inline constexpr bool any_predicate_v = any_predicate< condition, Types... >::value;
 
 
 }  // namespace nor
