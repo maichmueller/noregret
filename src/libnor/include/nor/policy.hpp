@@ -10,7 +10,7 @@
 namespace nor {
 
 template < typename T >
-T _zero()
+inline T _zero()
 {
    return T(0);
 }
@@ -20,14 +20,13 @@ T _zero()
 // *
 // *
 // * @tparam Action
-// * @tparam Pred
-// * @tparam Alloc
 // */
 template <
    concepts::action Action,
    //           std::invocable default_value_generator = decltype([]() { return 0.; })
-   std::invocable default_value_generator = decltype(&_zero<double>) >
-class HashMapActionPolicy {
+   typename default_value_generator = decltype(&_zero< double >) >
+requires std::is_invocable_r_v< double, default_value_generator >
+class HashmapActionPolicy {
   public:
    using action_type = Action;
    using map_type = std::unordered_map< Action, double >;
@@ -35,20 +34,20 @@ class HashMapActionPolicy {
    using iterator = typename map_type::iterator;
    using const_iterator = typename map_type::const_iterator;
 
-   HashMapActionPolicy() = default;
-   HashMapActionPolicy(
-      std::span< action_type > actions,
-      double value,
-      default_value_generator dvg = &_zero< double >)
+   HashmapActionPolicy() = default;
+   HashmapActionPolicy(std::span< action_type > actions, double value, auto dvg = &_zero< double >)
        : m_map(), m_def_value_gen(dvg)
    {
       for(const auto& action : actions) {
          emplace(action, value);
       }
    }
-   HashMapActionPolicy(size_t actions, default_value_generator dvg = &_zero< double >)
+   HashmapActionPolicy(size_t n_actions, auto dvg = &_zero< double >)
        : m_map(), m_def_value_gen(dvg)
    {
+      for(auto a : ranges::views::iota(size_t(0), n_actions)) {
+         emplace(a, m_def_value_gen());
+      }
    }
 
    template < typename... Args >
@@ -89,8 +88,8 @@ class HashMapActionPolicy {
    default_value_generator m_def_value_gen;
 };
 
-template < typename Worldstate, std::size_t extent >
-constexpr size_t placeholder_filter([[maybe_unused]] Player player, const Worldstate&)
+template < typename State, std::size_t extent >
+constexpr size_t placeholder_filter([[maybe_unused]] Player player, const State&)
 {
    return extent;
 }
@@ -111,33 +110,24 @@ constexpr size_t placeholder_filter([[maybe_unused]] Player player, const Worlds
  * @tparam LegalActionFunctor, type of callable that provides the legal actions in the case of
  * dynamic_extent.
  */
-template <
-   typename Infostate,
-   typename ActionPolicy,
-   std::size_t extent = std::dynamic_extent,
-   std::invocable< const Infostate& >
-      LegalActionGetterType = decltype(&placeholder_filter< Infostate, extent >) >
+template < typename Infostate, typename ActionPolicy, std::size_t extent = std::dynamic_extent >
 requires concepts::info_state< Infostate > && concepts::action_policy< ActionPolicy >
 class UniformPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
 
-   UniformPolicy() requires(extent != std::dynamic_extent)
-       : m_la_getter(&placeholder_filter< info_state_type, extent >)
-   {
-   }
-   explicit UniformPolicy(LegalActionGetterType la_getter) requires(extent == std::dynamic_extent)
-       : m_la_getter(std::move(la_getter))
-   {
-   }
+   UniformPolicy() = default;
 
-   auto operator[](const info_state_type& info_state) const
+   template < std::invocable< const Infostate& > LegalActionGetterType >
+   auto operator[](
+      const std::pair< info_state_type&, LegalActionGetterType > infostate_lagetter) const
    {
       if constexpr(extent == std::dynamic_extent) {
+         const auto& [info_state, lagetter] = infostate_lagetter;
          // if we have non-fixed-size action vectors coming in, then we need to ask the filter to
          // provide us with the legal actions.
-         auto legal_actions = m_la_getter(info_state);
+         auto legal_actions = lagetter(info_state);
          double uniform_p = 1. / static_cast< double >(legal_actions.size());
          return action_policy_type(std::span(legal_actions), uniform_p);
       } else {
@@ -146,8 +136,8 @@ class UniformPolicy {
          return action_policy_type(extent, uniform_p);
       }
    }
-   template < typename Any >
-   auto operator[](const std::pair< info_state_type, Any >& state_action) const
+   template < typename AnyActionType >
+   auto operator[](const std::pair< info_state_type, AnyActionType >& state_action) const
    {
       if constexpr(extent == std::dynamic_extent) {
          // if we have non-fixed-size action vectors coming in, then we need to ask the filter to
@@ -158,9 +148,6 @@ class UniformPolicy {
          return 1. / static_cast< double >(extent);
       }
    }
-
-  private:
-   LegalActionGetterType m_la_getter;
 };
 
 template <
@@ -180,7 +167,7 @@ class TabularPolicy {
 
    TabularPolicy() requires std::is_default_constructible_v< table_type >
    = default;
-   explicit TabularPolicy(table_type&& table) : m_table(std::forward< table_type >(table)) {}
+   TabularPolicy(table_type&& table) : m_table(std::forward< table_type >(table)) {}
 
    inline auto& operator[](const info_state_type& state) { return m_table[state]; }
    inline const auto& operator[](const info_state_type& state) const { return m_table.at(state); }

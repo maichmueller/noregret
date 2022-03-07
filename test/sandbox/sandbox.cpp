@@ -37,21 +37,21 @@ class std::_Hashtable<
                nor::UniformPolicy<
                   nor::games::stratego::InfoState,
                   stratego::Action,
-                  nor::HashMapActionPolicy< stratego::Action >,
+                  nor::HashmapActionPolicy< stratego::Action >,
                   18446744073709551615,
                   MinimalState_vanilla_cfr_usage_stratego_Test::TestBody()::< lambda(
                      const nor::games::stratego::InfoState&) > >,
                nor::games::stratego::InfoState,
                stratego::Action,
-               nor::HashMapActionPolicy< stratego::Action >,
+               nor::HashmapActionPolicy< stratego::Action >,
                std::unordered_map<
                   nor::games::stratego::InfoState,
-                  nor::HashMapActionPolicy< stratego::Action >,
+                  nor::HashmapActionPolicy< stratego::Action >,
                   std::hash< nor::games::stratego::InfoState >,
                   std::equal_to< nor::games::stratego::InfoState >,
                   std::allocator< std::pair<
                      const nor::games::stratego::InfoState,
-                     nor::HashMapActionPolicy< stratego::Action > > > > > >::< lambda() >,
+                     nor::HashmapActionPolicy< stratego::Action > > > > > >::< lambda() >,
          nor::games::stratego::InfoState > > >,
    std::allocator< std::pair<
       const nor::games::stratego::InfoState,
@@ -65,21 +65,21 @@ class std::_Hashtable<
                nor::UniformPolicy<
                   nor::games::stratego::InfoState,
                   stratego::Action,
-                  nor::HashMapActionPolicy< stratego::Action >,
+                  nor::HashmapActionPolicy< stratego::Action >,
                   18446744073709551615,
                   MinimalState_vanilla_cfr_usage_stratego_Test::TestBody()::< lambda(
                      const nor::games::stratego::InfoState&) > >,
                nor::games::stratego::InfoState,
                stratego::Action,
-               nor::HashMapActionPolicy< stratego::Action >,
+               nor::HashmapActionPolicy< stratego::Action >,
                std::unordered_map<
                   nor::games::stratego::InfoState,
-                  nor::HashMapActionPolicy< stratego::Action >,
+                  nor::HashmapActionPolicy< stratego::Action >,
                   std::hash< nor::games::stratego::InfoState >,
                   std::equal_to< nor::games::stratego::InfoState >,
                   std::allocator< std::pair<
                      const nor::games::stratego::InfoState,
-                     nor::HashMapActionPolicy< stratego::Action > > > > > >::< lambda() >,
+                     nor::HashmapActionPolicy< stratego::Action > > > > > >::< lambda() >,
          nor::games::stratego::InfoState > > > >,
    std::__detail::_Select1st,
    std::equal_to< nor::games::stratego::InfoState >,

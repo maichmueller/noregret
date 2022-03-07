@@ -67,24 +67,33 @@ struct CFRConfig {
  * @tparam Env, the environment/game type to run VanillaCFR on.
  *
  */
-template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy = Policy >
 // clang-format off
-requires(
-   concepts::fosg< Env >
-   && fosg_traits_partial_match< Policy, Env >::value
+ requires
+    concepts::fosg< Env >
+    && fosg_traits_partial_match< Policy, Env >::value
+    && concepts::state_policy<
+          Policy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
    && concepts::state_policy<
-         Policy,
+         AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-   && concepts::default_state_policy<
-         DefaultPolicy,
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::observation_type
-      >
-)
+    && concepts::default_state_policy<
+          DefaultPolicy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
+class VanillaCFR {
    // clang-format on
-   class VanillaCFR {
   public:
    /// aliases for the template types
    using env_type = Env;
@@ -97,20 +106,99 @@ requires(
    using public_state_type = typename fosg_auto_traits< Env >::public_state_type;
    using observation_type = typename fosg_auto_traits< Env >::observation_type;
    // the CFR Node type to store in the tree
+#if(COMPILER_NAME == gcc)
+   // gcc has a bug here in which using the lambda macro for declaring a unique new empty type
+   // will cause static assertion fails of the allocator within std::map and unordered_map. See
+   // https://stackoverflow.com/questions/71382976
+   struct empty {
+   };
+   using cfr_node_type = CFRNode<
+      action_type,
+      std::conditional_t< cfr_config.store_public_states, public_state_type, empty >,
+      info_state_type >;
+#else
    using cfr_node_type = CFRNode<
       action_type,
       std::conditional_t< cfr_config.store_public_states, public_state_type, NEW_EMPTY_TYPE >,
       info_state_type >;
+#endif
    using game_tree_type = std::unordered_map< info_state_type, sptr< cfr_node_type > >;
 
-   explicit VanillaCFR(
+   VanillaCFR(
       Env&& game,
-      Policy&& policy = Policy(),
-      DefaultPolicy&& default_policy = DefaultPolicy())
+      Policy policy = Policy(),
+      DefaultPolicy default_policy = DefaultPolicy(),
+      AveragePolicy avg_policy = AveragePolicy())
+      // clang-format off
+      requires
+         all_predicate_v<
+            std::is_default_constructible,
+            Policy,
+            AveragePolicy>
+         && all_predicate_v<
+            std::is_copy_constructible,
+            Policy,
+            AveragePolicy >
+       // clang-format on
+       :
+       m_env(std::forward< Env >(game)),
+       m_curr_policy(std::forward< Policy >(policy)),
+       m_default_policy(std::forward< DefaultPolicy >(default_policy)),
+       m_avg_policy(std::forward< AveragePolicy >(avg_policy))
+   {
+      static_assert(
+         Env::turn_dynamic == TurnDynamic::sequential,
+         "VanillaCFR can only be performed on a sequential turn-based game.");
+
+      for(auto player : game.players()) {
+         m_curr_policy[player] = policy;
+         m_avg_policy[player] = avg_policy;
+      }
+   }
+   VanillaCFR(
+      Env&& game,
+      Policy policy,
+      AveragePolicy avg_policy,
+      DefaultPolicy default_policy = DefaultPolicy())
+      // clang-format off
+   requires
+      all_predicate_v<
+         std::is_copy_constructible,
+         Policy,
+         AveragePolicy >
+       // clang-format on
+       :
+       VanillaCFR(
+          std::forward< Env >(game),
+          std::forward< Policy >(policy),
+          std::forward< AveragePolicy >(avg_policy),
+          std::forward< DefaultPolicy >(default_policy))
+   {
+   }
+
+   VanillaCFR(
+      Env&& game,
+      const std::map< Player, Policy >& policy,
+      DefaultPolicy default_policy = DefaultPolicy())
        : m_env(std::forward< Env >(game)),
-         m_curr_policy(std::forward< Policy >(policy)),
-         m_default_policy(std::forward< DefaultPolicy >(default_policy)),
-         m_avg_policy()
+         m_curr_policy(policy),
+         m_default_policy(std::move(default_policy)),
+         m_avg_policy(policy)
+   {
+      static_assert(
+         Env::turn_dynamic == TurnDynamic::sequential,
+         "VanillaCFR can only be performed on a sequential turn-based game.");
+   }
+
+   VanillaCFR(
+      Env&& game,
+      std::map< Player, Policy > policy,
+      std::map< Player, AveragePolicy > avg_policy,
+      DefaultPolicy default_policy = DefaultPolicy())
+       : m_env(std::forward< Env >(game)),
+         m_curr_policy(std::move(policy)),
+         m_default_policy(std::move(default_policy)),
+         m_avg_policy(std::move(avg_policy))
    {
       static_assert(
          Env::turn_dynamic == TurnDynamic::sequential,
@@ -145,12 +233,14 @@ requires(
       [[maybe_unused]] Player player_to_update,
       size_t n_iters = 1);
 
-   auto& fetch_action_policy(Player player, const info_state_type& infostate)
+   auto& fetch_state_policy(Player player, const info_state_type& infostate)
    {
       auto& player_policy = m_curr_policy[player];
       auto found_action_policy = player_policy.find(infostate);
       if(found_action_policy == player_policy.end()) {
-         return player_policy.emplace(infostate, m_default_policy[infostate]).first->second;
+         auto legal_actions = m_env.actions(infostate);
+         return player_policy.emplace(infostate, m_default_policy[{infostate, legal_actions}])
+            .first->second;
       }
       return found_action_policy->second;
    }
@@ -170,7 +260,7 @@ requires(
    /// the current policy $\pi^t$ that each player is following in this iteration (t).
    std::map< Player, Policy > m_curr_policy;
    /// the average policy table.
-   std::map< Player, Policy > m_avg_policy;
+   std::map< Player, AveragePolicy > m_avg_policy;
    /// the fallback policy to use when the encountered infostate has not been obseved before
    default_policy_type m_default_policy;
 
@@ -184,11 +274,11 @@ requires(
          node.children() | ranges::views::keys,
          node.children() | ranges::views::values | ranges::views::transform(f));
    }
-};  // namespace nor::rm
+};
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
 // clang-format off
-requires(
+requires
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && concepts::state_policy<
@@ -201,11 +291,11 @@ requires(
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-)
-const Policy* VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::iterate(
-   world_state_type&& initial_wstate,
-   Player player_to_update,
-   size_t n_iters)
+     // clang-format on
+     const Policy* VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::iterate(
+        world_state_type&& initial_wstate,
+        Player player_to_update,
+        size_t n_iters)
 {
    if constexpr(cfr_config.alternating_updates) {
       // we assert here that the chosen player to update is not the chance player as is defined by
@@ -411,7 +501,7 @@ const Policy* VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::iterate(
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
 // clang-format off
-requires(
+requires
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && concepts::state_policy<
@@ -424,10 +514,10 @@ requires(
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-)
-void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::update_regret_and_policy(
-   VanillaCFR::cfr_node_type& node,
-   Player player)
+     // clang-format on
+     void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::update_regret_and_policy(
+        VanillaCFR::cfr_node_type& node,
+        Player player)
 {
    double reach_prob = reach_probability(node);
    ranges::for_each(
@@ -446,7 +536,7 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::update_regret_and_pol
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
 // clang-format off
-requires(
+requires
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && concepts::state_policy<
@@ -459,8 +549,9 @@ requires(
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-)
-double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::reach_probability(const cfr_node_type& node) const
+     // clang-format on
+     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::reach_probability(
+        const cfr_node_type& node) const
 {
    auto values_view = node.reach_probability() | ranges::views::values;
    return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
@@ -468,7 +559,7 @@ double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::reach_probability(c
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
 // clang-format off
-requires(
+requires
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && concepts::state_policy<
@@ -481,10 +572,10 @@ requires(
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-)
-double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::cf_reach_probability(
-   const VanillaCFR::cfr_node_type& node,
-   const Player& player) const
+     // clang-format on
+     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::cf_reach_probability(
+        const VanillaCFR::cfr_node_type& node,
+        const Player& player) const
 {
    auto reach_prob = reach_probability(node);
    return cf_reach_probability(node, reach_prob, player);
@@ -492,7 +583,7 @@ double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::cf_reach_probabilit
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
 // clang-format off
-requires(
+requires
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && concepts::state_policy<
@@ -505,11 +596,11 @@ requires(
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-)
-double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::cf_reach_probability(
-   const VanillaCFR::cfr_node_type& node,
-   double reach_prob,
-   const Player& player) const
+     // clang-format on
+     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::cf_reach_probability(
+        const VanillaCFR::cfr_node_type& node,
+        double reach_prob,
+        const Player& player) const
 {
    // remove the players contribution to the likelihood
    auto cf_reach_prob = reach_prob / node.reach_probability(player);

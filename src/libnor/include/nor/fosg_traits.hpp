@@ -2,9 +2,43 @@
 #ifndef NOR_FOSG_TRAITS_HPP
 #define NOR_FOSG_TRAITS_HPP
 
-#include "nor/concepts/has.hpp"
+//#include "nor/concepts/has.hpp"
 
 namespace nor {
+
+namespace concepts::has::trait {
+
+template < typename T >
+concept action_type = requires(T t)
+{
+   typename T::action_type;
+};
+
+template < typename T >
+concept observation_type = requires(T t)
+{
+   typename T::observation_type;
+};
+
+template < typename T >
+concept info_state_type = requires(T t)
+{
+   typename T::info_state_type;
+};
+
+template < typename T >
+concept public_state_type = requires(T t)
+{
+   typename T::public_state_type;
+};
+
+template < typename T >
+concept world_state_type = requires(T t)
+{
+   typename T::world_state_type;
+};
+
+}  // namespace concepts::trait
 
 template < typename Env >
 struct fosg_traits;

@@ -6,91 +6,91 @@
 
 namespace nor {
 //
-//template < typename T, typename U >
-//struct add_const_if {
+// template < typename T, typename U >
+// struct add_const_if {
 //   using type = U;
 //};
-//template < typename T, typename U >
-//requires(not std::is_pointer_v< T >) struct add_const_if< T *const, U > {
+// template < typename T, typename U >
+// requires(not std::is_pointer_v< T >) struct add_const_if< T *const, U > {
 //   using type = U;
 //};
-//template < typename T, typename U >
-//requires(std::is_same_v< T, std::remove_cvref_t< T > >) struct add_const_if< T const, U > {
+// template < typename T, typename U >
+// requires(std::is_same_v< T, std::remove_cvref_t< T > >) struct add_const_if< T const, U > {
 //   using type = const U;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const *const, U > {
+// template < typename T, typename U >
+// struct add_const_if< T const *const, U > {
 //   using type = const U;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const *, U > {
+// template < typename T, typename U >
+// struct add_const_if< T const *, U > {
 //   using type = U const;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const *, U & > {
+// template < typename T, typename U >
+// struct add_const_if< T const *, U & > {
 //   using type = U const &;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const *, U && > {
+// template < typename T, typename U >
+// struct add_const_if< T const *, U && > {
 //   using type = U const &&;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const *, U * > {
+// template < typename T, typename U >
+// struct add_const_if< T const *, U * > {
 //   using type = U const *;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const &, U > {
+// template < typename T, typename U >
+// struct add_const_if< T const &, U > {
 //   using type = U const;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const &, U & > {
+// template < typename T, typename U >
+// struct add_const_if< T const &, U & > {
 //   using type = U const &;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const &, U && > {
+// template < typename T, typename U >
+// struct add_const_if< T const &, U && > {
 //   using type = U const &&;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const &, U * > {
+// template < typename T, typename U >
+// struct add_const_if< T const &, U * > {
 //   using type = U const *;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const &&, U > {
+// template < typename T, typename U >
+// struct add_const_if< T const &&, U > {
 //   using type = U const;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const &&, U & > {
+// template < typename T, typename U >
+// struct add_const_if< T const &&, U & > {
 //   using type = U const &;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const &&, U && > {
+// template < typename T, typename U >
+// struct add_const_if< T const &&, U && > {
 //   using type = U const &&;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const &&, U * > {
+// template < typename T, typename U >
+// struct add_const_if< T const &&, U * > {
 //   using type = U const *;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const[], U > {
+// template < typename T, typename U >
+// struct add_const_if< T const[], U > {
 //   using type = U const;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const[], U & > {
+// template < typename T, typename U >
+// struct add_const_if< T const[], U & > {
 //   using type = U const &;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const[], U && > {
+// template < typename T, typename U >
+// struct add_const_if< T const[], U && > {
 //   using type = U const &&;
 //};
-//template < typename T, typename U >
-//struct add_const_if< T const[], U * > {
+// template < typename T, typename U >
+// struct add_const_if< T const[], U * > {
 //   using type = U const *;
 //};
-//template < typename T, typename U >
-//using add_const_if_t = typename add_const_if< T, U >::type;
+// template < typename T, typename U >
+// using add_const_if_t = typename add_const_if< T, U >::type;
 //
-//template < typename T, typename U >
-//struct add_reference_if {
+// template < typename T, typename U >
+// struct add_reference_if {
 //   using type = std::conditional_t<
 //      std::is_lvalue_reference_v< std::remove_const_t< T > >,
 //      std::add_lvalue_reference_t< U >,
@@ -100,30 +100,30 @@ namespace nor {
 //         U > >;
 //};
 //
-//template < typename T, typename U >
-//using add_reference_if_t = typename add_reference_if< T, U >::type;
+// template < typename T, typename U >
+// using add_reference_if_t = typename add_reference_if< T, U >::type;
 //
-//template < typename T, typename U >
-//struct remove_const_if {
+// template < typename T, typename U >
+// struct remove_const_if {
 //   using type = std::conditional_t<
 //      not std::is_const_v< std::remove_reference_t< T > >,
 //      std::remove_const_t< U >,
 //      U >;
 //};
 //
-//template < typename T, typename U >
-//using remove_const_if_t = typename remove_const_if< T, U >::type;
+// template < typename T, typename U >
+// using remove_const_if_t = typename remove_const_if< T, U >::type;
 //
-//template < typename T, typename U >
-//struct remove_reference_if {
+// template < typename T, typename U >
+// struct remove_reference_if {
 //   using type = std::conditional_t<
 //      not std::is_reference_v< std::remove_const_t< T > >,
 //      std::remove_reference_t< U >,
 //      U >;
 //};
 //
-//template < typename T, typename U >
-//using remove_reference_if_t = typename remove_reference_if< T, U >::type;
+// template < typename T, typename U >
+// using remove_reference_if_t = typename remove_reference_if< T, U >::type;
 
 template < typename T, typename U >
 struct const_as {
@@ -199,6 +199,41 @@ struct first_convertible_to< T, HeadType > {
 
 template < typename T, typename... Ts >
 using first_convertible_to_t = typename first_convertible_to< T, Ts... >::type;
+
+
+template < template < typename > class condition, typename First, typename... Rest >
+struct all_predicate {
+   static constexpr bool eval()
+   {
+      if(sizeof...(Rest) > 0) {
+         return condition< First >::value && all_predicate< condition, Rest... >::value;
+      } else {
+         return condition< First >::value;
+      }
+   }
+   static constexpr bool value = eval();
+};
+template < template < typename > class condition, typename... Types >
+inline constexpr bool all_predicate_v = all_predicate< condition, Types... >::value;
+
+template < template < typename > class condition, typename First, typename... Rest >
+struct any_predicate {
+   static constexpr bool eval()
+   {
+      if(sizeof...(Rest) > 0) {
+         if(condition< First >::value) {
+            return true;
+         }
+         return all_predicate< condition, Rest... >::value;
+      } else {
+         return condition< First >::value;
+      }
+   }
+   static constexpr bool value = eval();
+};
+template < template < typename > class condition, typename... Types >
+inline constexpr bool any_predicate_ = any_predicate< condition, Types... >::value;
+
 
 }  // namespace nor
 #endif  // NOR_TYPE_TRAITS_HPP

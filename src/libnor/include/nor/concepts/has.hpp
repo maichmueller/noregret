@@ -401,36 +401,36 @@ concept action_policy_type = requires(T t)
 {
    typename T::action_policy_type;
 };
-
-template < typename T >
-concept action_type = requires(T t)
-{
-   typename T::action_type;
-};
-
-template < typename T >
-concept observation_type = requires(T t)
-{
-   typename T::observation_type;
-};
-
-template < typename T >
-concept info_state_type = requires(T t)
-{
-   typename T::info_state_type;
-};
-
-template < typename T >
-concept public_state_type = requires(T t)
-{
-   typename T::public_state_type;
-};
-
-template < typename T >
-concept world_state_type = requires(T t)
-{
-   typename T::world_state_type;
-};
+//
+//template < typename T >
+//concept action_type = requires(T t)
+//{
+//   typename T::action_type;
+//};
+//
+//template < typename T >
+//concept observation_type = requires(T t)
+//{
+//   typename T::observation_type;
+//};
+//
+//template < typename T >
+//concept info_state_type = requires(T t)
+//{
+//   typename T::info_state_type;
+//};
+//
+//template < typename T >
+//concept public_state_type = requires(T t)
+//{
+//   typename T::public_state_type;
+//};
+//
+//template < typename T >
+//concept world_state_type = requires(T t)
+//{
+//   typename T::world_state_type;
+//};
 
 }  // namespace trait
 

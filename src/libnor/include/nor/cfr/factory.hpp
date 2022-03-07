@@ -7,11 +7,26 @@
 namespace nor::rm {
 
 struct factory {
-   template < CFRConfig cfg, typename Env, typename Policy, typename DefaultPolicy >
-   static VanillaCFR< cfg, Env, Policy, DefaultPolicy > make_vanilla(
-      Env&& env,
-      Policy&& policy,
-      DefaultPolicy&& def_policy)
+
+  private:
+   template <typename ValueType>
+   static std::map< Player, ValueType> to_map(std::vector<Player> players, const ValueType& value) {
+      std::map< Player, ValueType> map;
+      for(auto player : players) {
+         map[player] = value;
+      }
+      return map;
+   }
+
+
+   template <
+      CFRConfig cfg,
+      typename Env,
+      typename Policy,
+      typename DefaultPolicy,
+      typename AveragePolicy = Policy >
+   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
+   make_vanilla(Env&& env, Policy&& policy, DefaultPolicy&& def_policy)
    {
       return {
          std::forward< Env >(env),
@@ -19,36 +34,49 @@ struct factory {
          std::forward< DefaultPolicy >(def_policy)};
    }
 
-   template < typename Infostate, typename ActionPolicy, typename Table >
-   static TabularPolicy< Infostate, ActionPolicy, Table > make_tabular_policy(Table&& table)
-   {
-      return {std::forward< Table >(table)};
-   }
-
-   template < typename Table >
-   static TabularPolicy< typename Table::key_type, typename Table::mapped_type, Table >
-   make_tabular_policy(Table&& table)
-   {
-      return {std::forward< Table >(table)};
-   }
-
    template <
-      typename Infostate,
-      typename ActionPolicy,
-      size_t extent,
-      typename LegalActionsGetter >
-   static UniformPolicy< Infostate, ActionPolicy, extent, LegalActionsGetter > make_uniform_policy(
-      LegalActionsGetter&& lag)
-   {
-      return {std::forward< LegalActionsGetter >(lag)};
-   }
+      CFRConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename DefaultPolicy,
+      typename AveragePolicy = Policy >
+   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
+   make_vanilla(Env&& env, Policy&& policy, DefaultPolicy&& def_policy);
 
-   template < typename Infostate, typename ActionPolicy, typename LegalActionsGetter >
-   static UniformPolicy< Infostate, ActionPolicy, std::dynamic_extent, LegalActionsGetter >
-   make_uniform_policy(LegalActionsGetter&& lag)
-   {
-      return {std::forward< LegalActionsGetter >(lag)};
-   }
+template <
+   CFRConfig cfg,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy = Policy >
+static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
+make_vanilla<cfg, true, Policy, DefaultPolicy, AveragePolicy>(Env&& env, Policy&& policy, DefaultPolicy&& def_policy)
+{
+   return {
+      std::forward< Env >(env),
+      to_map(env.players(), std::forward< Policy >(policy)),
+      std::forward< DefaultPolicy >(def_policy)});
+}
+
+template < typename Infostate, typename ActionPolicy, typename Table >
+static TabularPolicy< Infostate, ActionPolicy, Table > make_tabular_policy(Table&& table)
+{
+   return {std::forward< Table >(table)};
+}
+
+template < typename Table >
+static TabularPolicy< typename Table::key_type, typename Table::mapped_type, Table >
+make_tabular_policy(Table&& table)
+{
+   return {std::forward< Table >(table)};
+}
+
+template < typename Infostate, typename ActionPolicy, size_t extent = std::dynamic_extent >
+static UniformPolicy< Infostate, ActionPolicy, extent > make_uniform_policy()
+{
+   return {};
+}
 };
 
 }  // namespace nor::rm

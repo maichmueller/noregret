@@ -30,8 +30,8 @@ namespace detail {
 // * @tparam Action
 // * @tparam Observation
 // */
-//template < concepts::action Action, concepts::observation Observation >
-//struct empty_public_state {
+// template < concepts::action Action, concepts::observation Observation >
+// struct empty_public_state {
 //   using action_type = Action;
 //   using observation_type = Observation;
 //
@@ -54,6 +54,8 @@ struct CondPubstate {
 template < typename Publicstate >
 struct CondPubstate< Publicstate, std::enable_if_t< concepts::is::empty< Publicstate > > > {
    /// the public information state at this node
+   /// In order to avoid any storage overhead we don't let the empty type have unique storage. This
+   /// way there won't be individual storage of empty structs, but rather a single address for all
    [[no_unique_address]] Publicstate public_state;
 };
 
@@ -136,12 +138,13 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
 
 }  // namespace nor::rm
 
-//namespace std {
+// namespace std {
 //
-//template < typename... Args >
-//struct hash< nor::rm::CFRNode< Args... > > {
-//   size_t operator()(const nor::rm::CFRNode< Args... >& node) const noexcept { return node.hash(); }
-//};
-//}  // namespace std
+// template < typename... Args >
+// struct hash< nor::rm::CFRNode< Args... > > {
+//    size_t operator()(const nor::rm::CFRNode< Args... >& node) const noexcept { return
+//    node.hash(); }
+// };
+// }  // namespace std
 
 #endif  // NOR_NODE_HPP

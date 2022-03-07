@@ -6,10 +6,16 @@
 
 #include <stratego/stratego.hpp>
 
-using namespace stratego;
 
 class MinimalConfig: public ::testing::Test {
   public:
+   using Token = stratego::Token;
+   using Team = stratego::Team;
+   using Position = stratego::Position;
+   using Config = stratego::Config;
+   using State = stratego::State;
+
+
    std::map< Position, Token > setup0;
    std::map< Position, Token > setup1;
    Config cfg;
@@ -64,7 +70,7 @@ class MinimalState: public MinimalConfig {
 };
 
 class BattlematrixParamsF:
-    public ::testing::TestWithParam< std::tuple< Token, Token, FightOutcome > > {
+    public ::testing::TestWithParam< std::tuple< stratego::Token, stratego::Token, stratego::FightOutcome > > {
   protected:
    std::decay_t< decltype(stratego::default_battlematrix()) > bm = stratego::default_battlematrix();
 };
@@ -72,14 +78,14 @@ class BattlematrixParamsF:
 class CheckTerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
        unsigned long,
-       Team,
+       stratego::Team,
        std::array< size_t, 2 >,
-       std::map< Team, std::optional< Config::setup_t > >,
-       std::map< Team, std::optional< Config::token_variant_t > >,
-       std::map< Team, std::optional< std::vector<Position> > >,
-       Status > > {
+       std::map< stratego::Team, std::optional< stratego::Config::setup_t > >,
+       std::map< stratego::Team, std::optional< stratego::Config::token_variant_t > >,
+       std::map< stratego::Team, std::optional< std::vector<stratego::Position> > >,
+       stratego::Status > > {
   protected:
-   Team starting_team = Team::BLUE;
+   stratego::Team starting_team = stratego::Team::BLUE;
    bool fixed_starting_team = true;
    size_t max_turn_counts = 1000;
    bool fixed_setups = true;
@@ -88,11 +94,11 @@ class CheckTerminalParamsF:
 class StateConstructorParamsF:
     public ::testing::TestWithParam< std::tuple<
        std::array< size_t, 2 >,  // game dims
-       std::vector< Position >,  // holes
-       std::map< Team, std::optional< Config::setup_t > >  // setups
+       std::vector< stratego::Position >,  // holes
+       std::map< stratego::Team, std::optional< stratego::Config::setup_t > >  // setups
        > > {
   protected:
-   Team starting_team = Team::BLUE;
+   stratego::Team starting_team = stratego::Team::BLUE;
    bool fixed_starting_team = true;
    size_t max_turn_counts = 1000;
    bool fixed_setups = true;
