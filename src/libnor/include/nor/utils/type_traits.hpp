@@ -206,10 +206,10 @@ struct all_predicate {
   private:
    static constexpr bool eval()
    {
-      if(sizeof...(Rest) > 0) {
-         return condition< First >::value && all_predicate< condition, Rest... >::value;
-      } else {
+      if constexpr(sizeof...(Rest) == 0) {
          return condition< First >::value;
+      } else {
+         return condition< First >::value && all_predicate< condition, Rest... >::value;
       }
    }
   public:
@@ -224,7 +224,7 @@ struct any_predicate {
    static constexpr bool eval()
    {
       if(sizeof...(Rest) > 0) {
-         if(condition< First >::value) {
+         if constexpr(condition< First >::value) {
             return true;
          }
          return all_predicate< condition, Rest... >::value;

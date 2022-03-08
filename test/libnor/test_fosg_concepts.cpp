@@ -1,63 +1,98 @@
 #include <gtest/gtest.h>
 
+#include "dummy_classes.hpp"
 #include "nor/nor.hpp"
-
-class DummEnv {
-   // nor fosg typedefs
-   using world_state_type = struct {
-      int i;
-   };
-   using info_state_type = std::vector< std::string >;
-   using public_state_type = std::vector< std::string >;
-   using action_type = int;
-   using observation_type = std::string;
-   // nor fosg traits
-   static constexpr size_t max_player_count = 10;
-   static constexpr nor::TurnDynamic turn_dynamic = nor::TurnDynamic::simultaneous;
-
-   std::vector< action_type > actions(nor::Player player, const world_state_type& wstate);
-   std::vector< action_type > actions(const info_state_type& istate);
-   std::vector< nor::Player > players();
-   auto reset(world_state_type& wstate);
-   bool is_terminal(world_state_type& wstate);
-   double reward(nor::Player player, world_state_type& wstate);
-   void transition(const action_type& action, world_state_type& worldstate);
-   observation_type private_observation(nor::Player player, const world_state_type& wstate);
-   observation_type private_observation(nor::Player player, const action_type& action);
-   observation_type public_observation(nor::Player player, const world_state_type& wstate);
-   observation_type public_observation(nor::Player player, const action_type& action);
-};
-
-class DummConstEnv {
-   // nor fosg typedefs
-   using world_state_type = struct {
-      int i;
-   };
-   using info_state_type = std::vector< std::string >;
-   using public_state_type = std::vector< std::string >;
-   using action_type = int;
-   using observation_type = std::string;
-   // nor fosg traits
-   static constexpr size_t max_player_count = 10;
-   static constexpr nor::TurnDynamic turn_dynamic = nor::TurnDynamic::simultaneous;
-
-   std::vector< action_type > actions(nor::Player player, const world_state_type& wstate) const;
-   std::vector< action_type > actions(const info_state_type& istate) const;
-   std::vector< nor::Player > players() const;
-   auto reset(world_state_type& wstate) const;
-   bool is_terminal(world_state_type& wstate) const;
-   double reward(nor::Player player, world_state_type& wstate) const;
-   void transition(const action_type& action, world_state_type& worldstate) const;
-   observation_type private_observation(nor::Player player, const world_state_type& wstate) const;
-   observation_type private_observation(nor::Player player, const action_type& action) const;
-   observation_type public_observation(nor::Player player, const world_state_type& wstate) const;
-   observation_type public_observation(nor::Player player, const action_type& action) const;
-};
 
 TEST(concrete, iterable)
 {
-   EXPECT_TRUE((nor::concepts::iterable<std::vector<int>>));
-   EXPECT_TRUE((nor::concepts::iterable<std::vector<double>>));
-   EXPECT_TRUE((nor::concepts::iterable<std::map<int, int>>));
-   EXPECT_TRUE((nor::concepts::iterable<std::unordered_map<int, int>>));
+   EXPECT_TRUE((nor::concepts::iterable< std::vector< int > >) );
+   EXPECT_TRUE((nor::concepts::iterable< std::vector< double > >) );
+   EXPECT_TRUE((nor::concepts::iterable< std::map< int, int > >) );
+   EXPECT_TRUE((nor::concepts::iterable< std::unordered_map< int, int > >) );
+   EXPECT_TRUE((nor::concepts::iterable< std::string >) );
+   // custom types
+   EXPECT_TRUE((nor::concepts::iterable< nor::HashmapActionPolicy< int > >) );
+}
+
+TEST(concrete, sized)
+{
+   EXPECT_TRUE((nor::concepts::is::sized< std::vector< int > >) );
+   EXPECT_TRUE((nor::concepts::is::sized< std::vector< double > >) );
+   EXPECT_TRUE((nor::concepts::is::sized< std::map< int, int > >) );
+   EXPECT_TRUE((nor::concepts::is::sized< std::unordered_map< int, int > >) );
+   EXPECT_TRUE((nor::concepts::is::sized< std::string >) );
+   // custom types
+   EXPECT_TRUE((nor::concepts::is::sized< nor::HashmapActionPolicy< int > >) );
+}
+
+TEST(concrete, action_policy)
+{
+   EXPECT_TRUE((nor::concepts::action_policy< nor::HashmapActionPolicy< int > >) );
+   EXPECT_TRUE(
+      (nor::concepts::action_policy< nor::HashmapActionPolicy< nor::games::stratego::Action > >) );
+}
+
+template < typename Policy, typename Infostate, typename Observation >
+requires nor::concepts::state_policy< Policy, Infostate, Observation >
+void concept_state_policy_check();
+
+TEST(concrete, state_policy)
+{
+   //   concept_state_policy_check<
+   //      nor::TabularPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
+   //      dummy::Infostate,
+   //      typename nor::fosg_auto_traits< dummy::Infostate >::observation_type >();
+
+   EXPECT_TRUE((nor::concepts::state_policy<
+                nor::TabularPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
+                dummy::Infostate,
+                typename nor::fosg_auto_traits< dummy::Infostate >::observation_type >) );
+}
+
+TEST(concrete, default_state_policy)
+{
+   EXPECT_TRUE((nor::concepts::default_state_policy<
+                nor::UniformPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
+                dummy::Infostate,
+                typename nor::fosg_auto_traits< dummy::Infostate >::observation_type >) );
+}
+
+template < typename Env >
+requires nor::concepts::fosg< Env >
+void concept_fosg_check();
+
+TEST(concrete, fosg_dummy)
+{
+   //   concept_fosg_check< dummy::Env >();
+
+   EXPECT_TRUE((nor::concepts::fosg< dummy::Env >) );
+}
+
+TEST(concrete, fosg_stratego)
+{
+   //   concept_fosg_check< nor::games::stratego::Environment >();
+
+   EXPECT_TRUE((nor::concepts::fosg< nor::games::stratego::Environment >) );
+}
+
+TEST(concrete, vanilla_requirements)
+{
+   //   concept_fosg_check< nor::games::stratego::Environment >();
+   using policy = decltype(nor::rm::factory::make_tabular_policy(
+      std::unordered_map<
+         nor::games::stratego::InfoState,
+         nor::HashmapActionPolicy< nor::games::stratego::Action > >{}));
+   constexpr bool
+      reqs = nor::concepts::fosg<
+                nor::games::stratego::
+                   Environment > && nor::fosg_traits_partial_match< policy, nor::games::stratego::Environment >::value
+             && nor::concepts::
+                state_policy<
+                   policy,
+                   typename nor::fosg_auto_traits<
+                      nor::games::stratego::Environment >::info_state_type,
+                   typename nor::fosg_auto_traits< nor::games::stratego::Environment >::
+                      observation_type > && nor::concepts::state_policy< policy, typename nor::fosg_auto_traits< nor::games::stratego::Environment >::info_state_type, typename nor::fosg_auto_traits< nor::games::stratego::Environment >::observation_type > && nor::concepts::default_state_policy< nor::UniformPolicy< nor::games::stratego::InfoState, nor::HashmapActionPolicy< nor::games::stratego::Action > >, typename nor::fosg_auto_traits< nor::games::stratego::Environment >::info_state_type, typename nor::fosg_auto_traits< nor::games::stratego::Environment >::observation_type >;
+
+   EXPECT_TRUE(reqs);
 }

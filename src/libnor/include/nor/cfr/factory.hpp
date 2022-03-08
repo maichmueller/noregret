@@ -21,20 +21,20 @@ struct factory {
    }
 
   public:
-   template <
-      CFRConfig cfg,
-      typename Env,
-      typename Policy,
-      typename DefaultPolicy,
-      typename AveragePolicy = Policy >
-   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
-   make_vanilla(Env&& env, Policy&& policy, DefaultPolicy&& def_policy)
-   {
-      return {
-         std::forward< Env >(env),
-         std::forward< Policy >(policy),
-         std::forward< DefaultPolicy >(def_policy)};
-   }
+//   template <
+//      CFRConfig cfg,
+//      typename Env,
+//      typename Policy,
+//      typename DefaultPolicy,
+//      typename AveragePolicy = Policy >
+//   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
+//   make_vanilla(Env&& env, Policy&& policy, DefaultPolicy&& def_policy)
+//   {
+//      return {
+//         std::forward< Env >(env),
+//         std::forward< Policy >(policy),
+//         std::forward< DefaultPolicy >(def_policy)};
+//   }
 
    template <
       CFRConfig cfg,
@@ -42,7 +42,7 @@ struct factory {
       typename Env,
       typename Policy,
       typename DefaultPolicy,
-      typename AveragePolicy = Policy >
+      typename AveragePolicy>
    static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
    make_vanilla(Env&& env, Policy&& policy, AveragePolicy&& avg_policy, DefaultPolicy&& def_policy)
    {

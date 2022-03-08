@@ -1,38 +1,4 @@
 
-
-###########################
-# NOR Tests
-###########################
-set(
-        NOR_TEST_SOURCES
-        test_cfr.cpp
-        test_fosg_concepts.cpp
-        test_fosg_traits.cpp
-)
-list(TRANSFORM NOR_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
-
-add_executable(${nor_test} ${PROJECT_TEST_DIR}/main_tests.cpp ${NOR_TEST_SOURCES})
-
-#set_target_properties(${nor_test} PROPERTIES
-#        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
-#        )
-
-target_link_libraries(${nor_test}
-        PRIVATE
-        ${nor_lib}
-        ${nor_lib}_wrappers
-        project_warnings
-        CONAN_PKG::gtest
-        pybind11::module
-        $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
-        stratego
-        )
-
-add_test(
-        NAME Test_${PROJECT_NAME}
-        COMMAND ${nor_test}
-)
-
 ###########################
 # NOR Concepts
 ###########################
@@ -93,6 +59,42 @@ target_link_libraries(${nor_test}_type_traits
 add_test(
         NAME Test_${PROJECT_NAME}_type_traits
         COMMAND ${nor_test}_type_traits
+)
+
+###########################
+# NOR Tests
+###########################
+set(
+        NOR_TEST_SOURCES
+        test_cfr.cpp
+)
+list(TRANSFORM NOR_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
+
+add_executable(
+        ${nor_test}
+        ${PROJECT_TEST_DIR}/main_tests.cpp
+        ${NOR_TEST_SOURCES}
+        ${NOR_TYPE_TRAITS_TEST_SOURCES}
+        ${NOR_CONCEPTS_TEST_SOURCES})
+
+#set_target_properties(${nor_test} PROPERTIES
+#        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
+#        )
+
+target_link_libraries(${nor_test}
+        PRIVATE
+        ${nor_lib}
+        ${nor_lib}_wrappers
+        project_warnings
+        CONAN_PKG::gtest
+        pybind11::module
+        $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
+        stratego
+        )
+
+add_test(
+        NAME Test_${PROJECT_NAME}
+        COMMAND ${nor_test}
 )
 
 if (ENABLE_GAMES)

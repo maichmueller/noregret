@@ -124,9 +124,8 @@ class VanillaCFR {
 #endif
    using game_tree_type = std::unordered_map< info_state_type, sptr< cfr_node_type > >;
 
-   template <typename GivenEnv>
    VanillaCFR(
-      GivenEnv&& game,
+      Env&& game,
       Policy policy = Policy(),
       DefaultPolicy default_policy = DefaultPolicy(),
       AveragePolicy avg_policy = AveragePolicy())
@@ -136,16 +135,15 @@ class VanillaCFR {
             std::is_default_constructible,
             Policy,
             AveragePolicy>
-         && all_predicate_v<
+         and all_predicate_v<
             std::is_copy_constructible,
             Policy,
             AveragePolicy >
+
        // clang-format on
-       :
-       m_env(std::forward< GivenEnv >(game)),
-       m_curr_policy(std::move(policy)),
-       m_default_policy(std::move(default_policy)),
-       m_avg_policy(std::move(avg_policy))
+       : m_env(std::move(game)),
+      m_curr_policy(), m_avg_policy(),
+      m_default_policy(std::move(default_policy))
    {
       if(m_env.turn_dynamic() != TurnDynamic::sequential) {
          throw std::invalid_argument(
@@ -157,9 +155,9 @@ class VanillaCFR {
          m_avg_policy[player] = avg_policy;
       }
    }
-   template <typename GivenEnv>
+
    VanillaCFR(
-      GivenEnv&& game,
+      Env&& game,
       Policy policy,
       AveragePolicy avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
@@ -172,37 +170,37 @@ class VanillaCFR {
        // clang-format on
        :
        VanillaCFR(
-          std::forward< GivenEnv >(game),
+          std::move(game),
           std::move(policy),
           std::move(avg_policy),
           std::move(default_policy))
    {
    }
-   template <typename GivenEnv>
+
    VanillaCFR(
-      GivenEnv&& game,
+      Env&& game,
       const std::map< Player, Policy >& policy,
       DefaultPolicy default_policy = DefaultPolicy())
-       : m_env(std::forward< GivenEnv >(game)),
+       : m_env(std::move(game)),
          m_curr_policy(policy),
-         m_default_policy(std::move(default_policy)),
-         m_avg_policy(policy)
+         m_avg_policy(policy),
+         m_default_policy(std::move(default_policy))
    {
       if(m_env.turn_dynamic() != TurnDynamic::sequential) {
          throw std::invalid_argument(
             "VanillaCFR can only be performed on a sequential turn-based game.");
       }
    }
-   template <typename GivenEnv>
+
    VanillaCFR(
-      GivenEnv&& game,
+      Env&& game,
       std::map< Player, Policy > policy,
       std::map< Player, AveragePolicy > avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
-       : m_env(std::forward< GivenEnv >(game)),
+       : m_env(std::move(game)),
          m_curr_policy(std::move(policy)),
-         m_default_policy(std::move(default_policy)),
-         m_avg_policy(std::move(avg_policy))
+         m_avg_policy(std::move(avg_policy)),
+         m_default_policy(std::move(default_policy))
    {
       if(m_env.turn_dynamic() != TurnDynamic::sequential) {
          throw std::invalid_argument(

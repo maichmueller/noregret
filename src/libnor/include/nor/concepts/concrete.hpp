@@ -163,6 +163,7 @@ concept fosg =
    && has::method::active_player< Env >
    && has::method::players< Env >
    && has::method::max_player_count< Env >
+   && has::method::player_count< Env >
    && has::method::turn_dynamic< Env >;
 // clang-format on
 //

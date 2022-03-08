@@ -18,7 +18,12 @@ TEST_F(MinimalState, vanilla_cfr_usage_stratego)
 
    constexpr rm::CFRConfig cfr_config{.alternating_updates = false, .store_public_states = false};
 
-   auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
-      std::move(env), tabular_policy, std::move(uniform_policy));
+      auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
+         std::move(env), tabular_policy, std::move(uniform_policy));
+//   auto cfr_runner = rm::VanillaCFR<
+//      cfr_config,
+//      nor::games::stratego::Environment,
+//      decltype(tabular_policy),
+//      decltype(uniform_policy) >{std::move(env), tabular_policy, std::move(uniform_policy)};
    //   cfr_runner.iterate();
 }
