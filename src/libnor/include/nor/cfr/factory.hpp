@@ -66,12 +66,11 @@ struct factory {
       bool as_map,
       typename Env,
       typename Policy,
-      typename DefaultPolicy,
-      typename AveragePolicy = Policy >
-   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
+      typename DefaultPolicy >
+   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, Policy >
    make_vanilla(Env&& env, const Policy& policy, DefaultPolicy&& def_policy = DefaultPolicy())
    {
-      return make_vanilla< cfg, as_map, Policy, DefaultPolicy, Policy >(
+      return make_vanilla< cfg, as_map >(
          std::forward< Env >(env), policy, policy, std::forward< DefaultPolicy >(def_policy));
    }
 

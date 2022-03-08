@@ -129,7 +129,10 @@ concept run = requires(T&& t)
       } -> std::same_as< void >;
 };
 
-template < typename T, typename Worldstate = typename T::world_state_type, typename ReturnType = void >
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename ReturnType = void >
 concept reset = requires(T&& t, Worldstate& wstate)
 {
    {
@@ -374,27 +377,33 @@ concept policy_update = requires(T t, MapLikePolicy policy, std::map< Action, do
       } -> std::same_as< void >;
 };
 
-}  // namespace method
-
-namespace trait {
-
 template < typename T >
 concept max_player_count = requires(T t)
 {
-   T::max_player_count;
+   {
+      t.max_player_count()
+      } -> std::same_as< size_t >;
 };
 
 template < typename T >
 concept player_count = requires(T t)
 {
-   T::player_count;
+   {
+      t.player_count()
+      } -> std::same_as< size_t >;
 };
 
 template < typename T >
 concept turn_dynamic = requires(T t)
 {
-   std::same_as< decltype(T::turn_dynamic), TurnDynamic >;
+   {
+      t.turn_dynamic()
+      } -> std::same_as< TurnDynamic >;
 };
+
+}  // namespace method
+
+namespace trait {
 
 template < typename T >
 concept action_policy_type = requires(T t)
@@ -402,32 +411,32 @@ concept action_policy_type = requires(T t)
    typename T::action_policy_type;
 };
 //
-//template < typename T >
-//concept action_type = requires(T t)
+// template < typename T >
+// concept action_type = requires(T t)
 //{
 //   typename T::action_type;
 //};
 //
-//template < typename T >
-//concept observation_type = requires(T t)
+// template < typename T >
+// concept observation_type = requires(T t)
 //{
 //   typename T::observation_type;
 //};
 //
-//template < typename T >
-//concept info_state_type = requires(T t)
+// template < typename T >
+// concept info_state_type = requires(T t)
 //{
 //   typename T::info_state_type;
 //};
 //
-//template < typename T >
-//concept public_state_type = requires(T t)
+// template < typename T >
+// concept public_state_type = requires(T t)
 //{
 //   typename T::public_state_type;
 //};
 //
-//template < typename T >
-//concept world_state_type = requires(T t)
+// template < typename T >
+// concept world_state_type = requires(T t)
 //{
 //   typename T::world_state_type;
 //};

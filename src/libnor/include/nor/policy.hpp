@@ -35,14 +35,17 @@ class HashmapActionPolicy {
    using const_iterator = typename map_type::const_iterator;
 
    HashmapActionPolicy() = default;
-   HashmapActionPolicy(std::span< action_type > actions, double value, auto dvg = &_zero< double >)
+   HashmapActionPolicy(
+      ranges::span< const action_type > actions,
+      double value,
+      default_value_generator dvg = &_zero< double >)
        : m_map(), m_def_value_gen(dvg)
    {
       for(const auto& action : actions) {
          emplace(action, value);
       }
    }
-   HashmapActionPolicy(size_t n_actions, auto dvg = &_zero< double >)
+   HashmapActionPolicy(size_t n_actions, default_value_generator dvg = &_zero< double >)
        : m_map(), m_def_value_gen(dvg)
    {
       for(auto a : ranges::views::iota(size_t(0), n_actions)) {
@@ -57,12 +60,14 @@ class HashmapActionPolicy {
    }
 
    inline auto begin() { return m_map.begin(); }
-   inline auto begin() const { return m_map.begin(); }
+   [[nodiscard]] inline auto begin() const { return m_map.begin(); }
    inline auto end() { return m_map.end(); }
-   inline auto end() const { return m_map.end(); }
+   [[nodiscard]] inline auto end() const { return m_map.end(); }
 
    inline auto find(const action_type& action) { return m_map.find(action); }
-   inline auto find(const action_type& action) const { return m_map.find(action); }
+   [[nodiscard]] inline auto find(const action_type& action) const { return m_map.find(action); }
+
+   [[nodiscard]] inline auto size() const noexcept { return m_map.size(); }
 
    inline auto& operator[](const action_type& action)
    {
@@ -72,7 +77,7 @@ class HashmapActionPolicy {
          return emplace(action, m_def_value_gen()).first->second;
       }
    }
-   inline auto operator[](const action_type& action) const
+   [[nodiscard]] inline auto operator[](const action_type& action) const
    {
       if(auto found = find(action); found != end()) {
          return found->second;
@@ -80,8 +85,6 @@ class HashmapActionPolicy {
          return m_def_value_gen();
       }
    }
-
-   [[nodiscard]] size_t size() const { return m_map.size(); }
 
   private:
    map_type m_map;
@@ -119,33 +122,19 @@ class UniformPolicy {
 
    UniformPolicy() = default;
 
-   template < std::invocable< const Infostate& > LegalActionGetterType >
-   auto operator[](
-      const std::pair< info_state_type&, LegalActionGetterType > infostate_lagetter) const
+   auto operator[](const std::pair<
+                   info_state_type,
+                   std::vector< typename fosg_auto_traits< action_policy_type >::action_type > >&
+                      infostate_legalactions) const
    {
       if constexpr(extent == std::dynamic_extent) {
-         const auto& [info_state, lagetter] = infostate_lagetter;
-         // if we have non-fixed-size action vectors coming in, then we need to ask the filter to
-         // provide us with the legal actions.
-         auto legal_actions = lagetter(info_state);
+         const auto& [info_state, legal_actions] = infostate_legalactions;
          double uniform_p = 1. / static_cast< double >(legal_actions.size());
-         return action_policy_type(std::span(legal_actions), uniform_p);
+         return action_policy_type(ranges::span(legal_actions), uniform_p);
       } else {
          // Otherwise we can compute directly the uniform probability vector
          constexpr double uniform_p = 1. / static_cast< double >(extent);
          return action_policy_type(extent, uniform_p);
-      }
-   }
-   template < typename AnyActionType >
-   auto operator[](const std::pair< info_state_type, AnyActionType >& state_action) const
-   {
-      if constexpr(extent == std::dynamic_extent) {
-         // if we have non-fixed-size action vectors coming in, then we need to ask the filter to
-         // provide us with the legal actions.
-         return 1. / static_cast< double >(m_la_getter(std::get< 0 >(state_action)).size());
-      } else {
-         // Otherwise we can compute directly the uniform probability vector
-         return 1. / static_cast< double >(extent);
       }
    }
 };

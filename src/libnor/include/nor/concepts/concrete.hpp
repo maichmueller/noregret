@@ -121,12 +121,18 @@ concept default_state_policy =
    && has::method::getitem<
          T,
          ActionPolicy,
-         Infostate
+         const std::pair<
+            Infostate,
+            std::vector<typename fosg_auto_traits<ActionPolicy>::action_type>
+         >&
       >
    && has::method::getitem<
          T const,
          ActionPolicy,
-         Infostate
+         const std::pair<
+            Infostate,
+            std::vector<typename fosg_auto_traits<ActionPolicy>::action_type>
+         >&
       >;
 // clang-format on
 
@@ -156,8 +162,8 @@ concept fosg =
    && has::method::is_terminal< Env, Worldstate& >
    && has::method::active_player< Env >
    && has::method::players< Env >
-   && has::trait::max_player_count< Env >
-   && has::trait::turn_dynamic< Env >;
+   && has::method::max_player_count< Env >
+   && has::method::turn_dynamic< Env >;
 // clang-format on
 //
 // template <

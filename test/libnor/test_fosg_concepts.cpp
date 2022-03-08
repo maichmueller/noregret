@@ -54,7 +54,10 @@ class DummConstEnv {
    observation_type public_observation(nor::Player player, const action_type& action) const;
 };
 
-TEST(DummyEnvironment, fosg_concept_agreement)
+TEST(concrete, iterable)
 {
-
+   EXPECT_TRUE((nor::concepts::iterable<std::vector<int>>));
+   EXPECT_TRUE((nor::concepts::iterable<std::vector<double>>));
+   EXPECT_TRUE((nor::concepts::iterable<std::map<int, int>>));
+   EXPECT_TRUE((nor::concepts::iterable<std::unordered_map<int, int>>));
 }

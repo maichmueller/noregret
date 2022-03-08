@@ -124,8 +124,9 @@ class VanillaCFR {
 #endif
    using game_tree_type = std::unordered_map< info_state_type, sptr< cfr_node_type > >;
 
+   template <typename GivenEnv>
    VanillaCFR(
-      Env&& game,
+      GivenEnv&& game,
       Policy policy = Policy(),
       DefaultPolicy default_policy = DefaultPolicy(),
       AveragePolicy avg_policy = AveragePolicy())
@@ -141,22 +142,24 @@ class VanillaCFR {
             AveragePolicy >
        // clang-format on
        :
-       m_env(std::forward< Env >(game)),
-       m_curr_policy(std::forward< Policy >(policy)),
-       m_default_policy(std::forward< DefaultPolicy >(default_policy)),
-       m_avg_policy(std::forward< AveragePolicy >(avg_policy))
+       m_env(std::forward< GivenEnv >(game)),
+       m_curr_policy(std::move(policy)),
+       m_default_policy(std::move(default_policy)),
+       m_avg_policy(std::move(avg_policy))
    {
-      static_assert(
-         Env::turn_dynamic == TurnDynamic::sequential,
-         "VanillaCFR can only be performed on a sequential turn-based game.");
+      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
+         throw std::invalid_argument(
+            "VanillaCFR can only be performed on a sequential turn-based game.");
+      }
 
       for(auto player : game.players()) {
          m_curr_policy[player] = policy;
          m_avg_policy[player] = avg_policy;
       }
    }
+   template <typename GivenEnv>
    VanillaCFR(
-      Env&& game,
+      GivenEnv&& game,
       Policy policy,
       AveragePolicy avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
@@ -169,40 +172,42 @@ class VanillaCFR {
        // clang-format on
        :
        VanillaCFR(
-          std::forward< Env >(game),
-          std::forward< Policy >(policy),
-          std::forward< AveragePolicy >(avg_policy),
-          std::forward< DefaultPolicy >(default_policy))
+          std::forward< GivenEnv >(game),
+          std::move(policy),
+          std::move(avg_policy),
+          std::move(default_policy))
    {
    }
-
+   template <typename GivenEnv>
    VanillaCFR(
-      Env&& game,
+      GivenEnv&& game,
       const std::map< Player, Policy >& policy,
       DefaultPolicy default_policy = DefaultPolicy())
-       : m_env(std::forward< Env >(game)),
+       : m_env(std::forward< GivenEnv >(game)),
          m_curr_policy(policy),
          m_default_policy(std::move(default_policy)),
          m_avg_policy(policy)
    {
-      static_assert(
-         Env::turn_dynamic == TurnDynamic::sequential,
-         "VanillaCFR can only be performed on a sequential turn-based game.");
+      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
+         throw std::invalid_argument(
+            "VanillaCFR can only be performed on a sequential turn-based game.");
+      }
    }
-
+   template <typename GivenEnv>
    VanillaCFR(
-      Env&& game,
+      GivenEnv&& game,
       std::map< Player, Policy > policy,
       std::map< Player, AveragePolicy > avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
-       : m_env(std::forward< Env >(game)),
+       : m_env(std::forward< GivenEnv >(game)),
          m_curr_policy(std::move(policy)),
          m_default_policy(std::move(default_policy)),
          m_avg_policy(std::move(avg_policy))
    {
-      static_assert(
-         Env::turn_dynamic == TurnDynamic::sequential,
-         "VanillaCFR can only be performed on a sequential turn-based game.");
+      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
+         throw std::invalid_argument(
+            "VanillaCFR can only be performed on a sequential turn-based game.");
+      }
    }
 
   public:
@@ -276,23 +281,32 @@ class VanillaCFR {
    }
 };
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
 // clang-format off
-requires
-   concepts::fosg< Env >
-   && fosg_traits_partial_match< Policy, Env >::value
+ requires
+    concepts::fosg< Env >
+    && fosg_traits_partial_match< Policy, Env >::value
+    && concepts::state_policy<
+          Policy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
    && concepts::state_policy<
-         Policy,
+         AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-   && concepts::default_state_policy<
-         DefaultPolicy,
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::observation_type
-      >
-     // clang-format on
-     const Policy* VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::iterate(
+    && concepts::default_state_policy<
+          DefaultPolicy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
+     const Policy* VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::iterate(
         world_state_type&& initial_wstate,
         Player player_to_update,
         size_t n_iters)
@@ -499,23 +513,32 @@ requires
    return &m_curr_policy;
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
 // clang-format off
-requires
-   concepts::fosg< Env >
-   && fosg_traits_partial_match< Policy, Env >::value
+ requires
+    concepts::fosg< Env >
+    && fosg_traits_partial_match< Policy, Env >::value
+    && concepts::state_policy<
+          Policy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
    && concepts::state_policy<
-         Policy,
+         AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-   && concepts::default_state_policy<
-         DefaultPolicy,
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::observation_type
-      >
-     // clang-format on
-     void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::update_regret_and_policy(
+    && concepts::default_state_policy<
+          DefaultPolicy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
+     void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::update_regret_and_policy(
         VanillaCFR::cfr_node_type& node,
         Player player)
 {
@@ -534,46 +557,64 @@ requires
       child_collector(node, [&](cfr_node_type* child) { return child->regret(player); }));
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
 // clang-format off
-requires
-   concepts::fosg< Env >
-   && fosg_traits_partial_match< Policy, Env >::value
+ requires
+    concepts::fosg< Env >
+    && fosg_traits_partial_match< Policy, Env >::value
+    && concepts::state_policy<
+          Policy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
    && concepts::state_policy<
-         Policy,
+         AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-   && concepts::default_state_policy<
-         DefaultPolicy,
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::observation_type
-      >
-     // clang-format on
-     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::reach_probability(
+    && concepts::default_state_policy<
+          DefaultPolicy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
+     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::reach_probability(
         const cfr_node_type& node) const
 {
    auto values_view = node.reach_probability() | ranges::views::values;
    return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
 // clang-format off
-requires
-   concepts::fosg< Env >
-   && fosg_traits_partial_match< Policy, Env >::value
+ requires
+    concepts::fosg< Env >
+    && fosg_traits_partial_match< Policy, Env >::value
+    && concepts::state_policy<
+          Policy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
    && concepts::state_policy<
-         Policy,
+         AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-   && concepts::default_state_policy<
-         DefaultPolicy,
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::observation_type
-      >
-     // clang-format on
-     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::cf_reach_probability(
+    && concepts::default_state_policy<
+          DefaultPolicy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
+     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::cf_reach_probability(
         const VanillaCFR::cfr_node_type& node,
         const Player& player) const
 {
@@ -581,23 +622,32 @@ requires
    return cf_reach_probability(node, reach_prob, player);
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename DefaultPolicy >
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
 // clang-format off
-requires
-   concepts::fosg< Env >
-   && fosg_traits_partial_match< Policy, Env >::value
+ requires
+    concepts::fosg< Env >
+    && fosg_traits_partial_match< Policy, Env >::value
+    && concepts::state_policy<
+          Policy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
    && concepts::state_policy<
-         Policy,
+         AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::observation_type
       >
-   && concepts::default_state_policy<
-         DefaultPolicy,
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::observation_type
-      >
-     // clang-format on
-     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy >::cf_reach_probability(
+    && concepts::default_state_policy<
+          DefaultPolicy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
+     double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::cf_reach_probability(
         const VanillaCFR::cfr_node_type& node,
         double reach_prob,
         const Player& player) const

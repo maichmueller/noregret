@@ -6,14 +6,14 @@
 set(
         NOR_TEST_SOURCES
         test_cfr.cpp
-        test_fosg_concept.cpp
+        test_fosg_concepts.cpp
         test_fosg_traits.cpp
 )
 list(TRANSFORM NOR_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
 
 add_executable(${nor_test} ${PROJECT_TEST_DIR}/main_tests.cpp ${NOR_TEST_SOURCES})
 
-#set_target_properties(${per_test} PROPERTIES
+#set_target_properties(${nor_test} PROPERTIES
 #        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
 #        )
 
@@ -34,6 +34,39 @@ add_test(
 )
 
 ###########################
+# NOR Concepts
+###########################
+set(
+        NOR_CONCEPTS_TEST_SOURCES
+        test_fosg_concepts.cpp
+)
+list(TRANSFORM NOR_CONCEPTS_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
+
+add_executable(
+        ${nor_test}_concepts
+        ${PROJECT_TEST_DIR}/main_tests.cpp
+        ${NOR_CONCEPTS_TEST_SOURCES}
+)
+
+#set_target_properties(${nor_test}_concepts PROPERTIES
+#        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
+#        )
+
+target_link_libraries(
+        ${nor_test}_concepts
+        PRIVATE
+        ${nor_lib}
+        ${nor_lib}_wrappers
+        project_warnings
+        CONAN_PKG::gtest
+        )
+
+add_test(
+        NAME Test_${PROJECT_NAME}_concepts
+        COMMAND ${nor_test}_type_traits
+)
+
+###########################
 # NOR Type Traits Tests
 ###########################
 set(
@@ -45,7 +78,7 @@ list(TRANSFORM NOR_TYPE_TRAITS_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/
 
 add_executable(${nor_test}_type_traits ${PROJECT_TEST_DIR}/main_tests.cpp ${NOR_TYPE_TRAITS_TEST_SOURCES})
 
-#set_target_properties(${per_test} PROPERTIES
+#set_target_properties(${nor_test}_type_traitsPROPERTIES
 #        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
 #        )
 
