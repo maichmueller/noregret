@@ -53,6 +53,19 @@ concept empty = std::is_empty_v< T >;
 template < typename T >
 concept not_empty = not std::is_empty_v< T >;
 
+template <typename T, typename Output>
+concept dynamic_pointer_castable_to = requires(T t) {
+   std::dynamic_pointer_cast<Output>(t);
+};
+
+template <typename T>
+concept smart_pointer_like = requires(T t) {
+   not std::is_pointer_v<T>;  // this would be true if T was a raw pointer!
+   typename T::element_type;
+   t.operator*();
+   t.operator->();
+};
+
 template < typename T >
 // clang-format off
 concept copyable_someway =

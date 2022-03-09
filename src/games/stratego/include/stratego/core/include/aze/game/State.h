@@ -48,6 +48,8 @@ class State {
       board_type board,
       std::optional< std::variant< size_t, utils::random::RNG > > seed);
 
+   State(const State&) = default;
+   State& operator=(const State&) = default;
    State(State&&)  noexcept = default;
    State& operator=(State&&)  noexcept = default;
    virtual ~State() = default;
@@ -58,7 +60,7 @@ class State {
 
    [[nodiscard]] virtual Team active_team() const = 0;
 
-   sptr< State > clone() const { return sptr< State >(clone_impl()); }
+   uptr< State > clone() const { return uptr< State >(clone_impl()); }
 
    void undo_last_rounds(size_t n = 1);
 

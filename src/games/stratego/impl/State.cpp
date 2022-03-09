@@ -17,15 +17,7 @@ void State::transition(const action_type &action)
 
 State *State::clone_impl() const
 {
-   const auto &hist = history();
-   History hist_copy;
-   // copy the contents of each map
-   for(const size_t &turn : hist.turns()) {
-      const auto &[team, action, pieces] = hist[History::Turn(turn)];
-      hist_copy.commit_action(turn, team, action, pieces);
-   }
-   return new State(
-      m_config, graveyard(), logic()->clone(), board(), turn_count(), hist_copy, rng());
+   return new State(*this);
 }
 State::State(Config cfg, std::optional< std::variant< size_t, aze::utils::random::RNG > > seed)
     : base_type(Logic::create_empty_board(cfg), seed),
@@ -65,6 +57,24 @@ std::string State::to_string(aze::Team team, bool hide_unknowns) const
 aze::Status State::check_terminal()
 {
    return m_logic->check_terminal(*this);
+}
+State::State(const State &state)
+    : State(
+       state.config(),
+       state.graveyard(),
+       state.logic()->clone(),
+       state.board(),
+       state.turn_count(),
+       state.history(),
+       state.rng())
+{
+}
+State &State::operator=(const State &state)
+{
+   base_type::operator=(state);
+   m_config = state.config();
+   m_graveyard = state.graveyard();
+   m_logic = state.logic()->clone();
 }
 
 State &State::operator=(State &&) noexcept = default;

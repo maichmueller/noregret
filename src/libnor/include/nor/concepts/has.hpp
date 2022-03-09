@@ -82,7 +82,7 @@ concept transition = requires(T&& t, Worldstate&& worldstate, Action action)
 {
    // apply the action on the given world state inplace.
    {
-      t.transition(action, std::forward< Worldstate >(worldstate))
+      t.transition(std::forward< Worldstate >(worldstate), action)
       } -> std::same_as< void >;
 };
 
@@ -101,7 +101,7 @@ concept transition_jointly = requires(
 {
    // apply the action on the given world state inplace.
    {
-      t.transition(action, worldstate, infostates, pubstate)
+      t.transition(worldstate, action)
       } -> std::same_as< void >;
 };
 
@@ -287,17 +287,13 @@ concept clone_other = std::is_pointer_v< Ptr< ElemT > > && requires(T&& t, Ptr< 
 template < typename T, typename Output = T >
 concept clone_self = requires(T const t)
 {
-   {
-      std::dynamic_pointer_cast< T >(std::shared_ptr{t.clone()})
-      } -> std::convertible_to< sptr< Output > >;
+   t.clone();
 };
 
-template < typename Ptr, typename Output = typename Ptr::element_type >
-concept clone_ptr = std::is_pointer_v< Ptr > && requires(Ptr const ptr)
+template < typename Ptr >
+concept clone_ptr = requires(Ptr const ptr)
 {
-   {
-      std::dynamic_pointer_cast< Output >(std::shared_ptr{ptr->clone()})
-      } -> std::convertible_to< sptr< Output > >;
+   ptr->clone();
 };
 
 template < typename T, typename U = T >
@@ -411,32 +407,32 @@ concept action_policy_type = requires(T t)
    typename T::action_policy_type;
 };
 
- template < typename T >
- concept action_type = requires(T t)
+template < typename T >
+concept action_type = requires(T t)
 {
    typename T::action_type;
 };
 
- template < typename T >
- concept observation_type = requires(T t)
+template < typename T >
+concept observation_type = requires(T t)
 {
    typename T::observation_type;
 };
 
- template < typename T >
- concept info_state_type = requires(T t)
+template < typename T >
+concept info_state_type = requires(T t)
 {
    typename T::info_state_type;
 };
 
- template < typename T >
- concept public_state_type = requires(T t)
+template < typename T >
+concept public_state_type = requires(T t)
 {
    typename T::public_state_type;
 };
 
- template < typename T >
- concept world_state_type = requires(T t)
+template < typename T >
+concept world_state_type = requires(T t)
 {
    typename T::world_state_type;
 };

@@ -79,11 +79,11 @@ concept world_state = true;
 
 template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
 // clang-format off
-concept action_policy =
-      is::sized< T >
-   && iterable< T >
-   && has::method::getitem< T, double&, Action >
-   && has::method::getitem< const T, double, Action >;
+concept action_policy = true;
+//      is::sized< T >
+//   && iterable< T >
+//   && has::method::getitem< T, double&, Action >
+//   && has::method::getitem< const T, double, Action >;
 // clang-format on
 
 template <

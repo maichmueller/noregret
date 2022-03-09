@@ -30,6 +30,8 @@ class Action {
    const Position& operator[](unsigned int index) const { return from_to[index]; }
    Position& operator[](unsigned int index) { return from_to[index]; }
 
+   [[nodiscard]] auto inline team() const { return m_team; }
+
    [[nodiscard]] auto inline from() const { return (*this)[0]; }
    [[nodiscard]] auto inline to() const { return (*this)[1]; }
    [[nodiscard]] auto inline flatten() const

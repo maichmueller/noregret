@@ -59,7 +59,7 @@ class Env {
    void reset(world_state_type& wstate);
    bool is_terminal(world_state_type& wstate);
    double reward(nor::Player player, world_state_type& wstate) const;
-   void transition(const action_type& action, world_state_type& worldstate);
+   void transition(world_state_type& worldstate, const action_type& action);
    observation_type private_observation(nor::Player player, const world_state_type& wstate);
    observation_type private_observation(nor::Player player, const action_type& action);
    observation_type public_observation(nor::Player player, const world_state_type& wstate);

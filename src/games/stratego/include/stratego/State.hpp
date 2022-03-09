@@ -112,6 +112,8 @@ class State: public aze::State< Board, History, Piece, Action > {
 
    // definitions for these needs to be in .cpp due to Logic being an incomplete type here and
    // uniq_ptr accessing it in its destructor
+   State(const State &);
+   State &operator=(const State &);
    State(State &&) noexcept;
    State &operator=(State &&) noexcept;
    ~State() override;

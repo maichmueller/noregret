@@ -38,7 +38,7 @@ std::vector< Environment::action_type > Environment::actions(
    return m_logic->valid_actions(wstate, to_team(player));
 }
 
-void Environment::transition(const action_type& action, world_state_type& worldstate) const
+void Environment::transition(world_state_type& worldstate, const action_type& action) const
 {
    m_logic->apply_action(worldstate, action);
 }

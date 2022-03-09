@@ -69,13 +69,13 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
 
    CFRNode(
       std::map< Player, Infostate > info_states,
-      Publicstate&& public_state,
+      Publicstate public_state,
       Player player,
       std::map< Player, double > reach_prob,
       CFRNode* parent = nullptr)
-       : cond_public_state_base(std::move(public_state)),
-         m_infostates(std::move(info_states)),
+       : cond_public_state_base{std::move(public_state)},
          m_player(player),
+         m_infostates(std::move(info_states)),
          m_reach_prob(std::move(reach_prob)),
          m_parent(parent)
    {
@@ -124,13 +124,15 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    std::map< Player, double > m_reach_prob{};
 
    // action-based storage
+   // these don't need to be on a per player basis, as only the active player of this node has
+   // actions to play.
 
    /// the children that each action maps to in the game tree.
    /// Should be filled during the traversal.
-   std::map< Action, CFRNode* > m_children{};
+   std::unordered_map< Action, CFRNode* > m_children{};
    /// the cumulative regret the active player amassed with each action.
    /// Defaults to 0 and should be updated later during the traversal.
-   std::map< Action, double > m_regret{};
+   std::unordered_map< Action, double > m_regret{};
 
    /// the parent node from which this node stems
    CFRNode* m_parent;

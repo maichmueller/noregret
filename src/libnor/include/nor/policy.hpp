@@ -158,6 +158,23 @@ class TabularPolicy {
    = default;
    TabularPolicy(table_type&& table) : m_table(std::forward< table_type >(table)) {}
 
+   auto begin() { return m_table.begin(); }
+   auto end() { return m_table.end(); }
+   [[nodiscard]] auto begin() const { return m_table.begin(); }
+   [[nodiscard]] auto end() const { return m_table.end(); }
+
+   template < typename... Args >
+   auto emplace(Args&&... args)
+   {
+      return m_table.emplace(std::forward< Args >(args)...);
+   }
+
+   inline auto find(const info_state_type& action) { return m_table.find(action); }
+   [[nodiscard]] inline auto find(const info_state_type& action) const
+   {
+      return m_table.find(action);
+   }
+
    inline auto& operator[](const info_state_type& state) { return m_table[state]; }
    inline const auto& operator[](const info_state_type& state) const { return m_table.at(state); }
 

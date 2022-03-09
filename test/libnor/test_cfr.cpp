@@ -18,12 +18,14 @@ TEST_F(MinimalState, vanilla_cfr_usage_stratego)
 
    constexpr rm::CFRConfig cfr_config{.alternating_updates = false, .store_public_states = false};
 
-      auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
-         std::move(env), tabular_policy, std::move(uniform_policy));
-//   auto cfr_runner = rm::VanillaCFR<
-//      cfr_config,
-//      nor::games::stratego::Environment,
-//      decltype(tabular_policy),
-//      decltype(uniform_policy) >{std::move(env), tabular_policy, std::move(uniform_policy)};
-   //   cfr_runner.iterate();
+   //      auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
+   //         std::move(env), tabular_policy, std::move(uniform_policy));
+   auto cfr_runner = rm::VanillaCFR<
+      cfr_config,
+      nor::games::stratego::Environment,
+      decltype(tabular_policy),
+      decltype(uniform_policy) >{std::move(env), tabular_policy, std::move(uniform_policy)};
+   //   static_assert(std::is_pointer_v<decltype(state)>, "huh");
+//   auto state_copy = nor::utils::clone_any_way(state);
+   cfr_runner.iterate(std::move(state));
 }

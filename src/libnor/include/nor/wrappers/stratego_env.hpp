@@ -92,7 +92,7 @@ class Environment {
    void reset(world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
    static double reward(Player player, world_state_type& wstate);
-   void transition(const action_type& action, world_state_type& worldstate) const;
+   void transition(world_state_type& worldstate, const action_type& action) const;
    observation_type private_observation(Player player, const world_state_type& wstate) const;
    observation_type private_observation(Player player, const action_type& action) const;
    observation_type public_observation(Player player, const world_state_type& wstate) const;

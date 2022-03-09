@@ -7,7 +7,6 @@
 //#include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 
-
 namespace nor {
 
 // using this macro gave cryptic allocator problems
@@ -28,8 +27,10 @@ struct Hint {
 
 namespace nor::utils {
 
+struct empty {
+};
 
-constexpr const char* btos(bool b)
+constexpr const char *btos(bool b)
 {
    if(b) {
       return "true";
@@ -65,17 +66,35 @@ inline std::conditional_t< UnaryPredicate< T >::value, T &&, T & > move_if(T &ob
 template < typename T >
 auto clone_any_way(const T &obj)
 {
-   if constexpr(std::is_pointer_v< T > && concepts::has::method::clone_ptr< T >) {
+   if constexpr(
+      nor::concepts::is::smart_pointer_like< T > && concepts::has::method::clone_ptr< T >) {
       return obj->clone();
    } else if constexpr(concepts::has::method::clone_self< T >) {
       return obj.clone();
    } else if constexpr(concepts::has::method::copy< T >) {
-      return obj.copy();
+      return std::make_unique< T >(obj.copy());
    } else if constexpr(std::is_copy_constructible_v< T >) {
-      return T(obj);
+      return std::make_unique< T >(obj);
    } else {
       static_assert(always_false_v< T >, "No cloning/copying method available in given type.");
    }
+}
+
+template < typename Derived, typename Base, typename Deleter >
+std::unique_ptr< Derived, Deleter > static_unique_ptr_cast(std::unique_ptr< Base, Deleter > &&p)
+{
+   auto d = static_cast< Derived * >(p.release());
+   return std::unique_ptr< Derived, Deleter >(d, std::move(p.get_deleter()));
+}
+
+template < typename Derived, typename Base, typename Deleter >
+std::unique_ptr< Derived, Deleter > dynamic_unique_ptr_cast(std::unique_ptr< Base, Deleter > &&p)
+{
+   if(Derived *result = dynamic_cast< Derived * >(p.get())) {
+      p.release();
+      return std::unique_ptr< Derived, Deleter >(result, std::move(p.get_deleter()));
+   }
+   return std::unique_ptr< Derived, Deleter >(nullptr, p.get_deleter());
 }
 
 template < typename Iter >
