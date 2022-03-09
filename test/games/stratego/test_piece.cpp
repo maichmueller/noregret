@@ -7,6 +7,8 @@
 #include "fixtures.hpp"
 #include "utils.hpp"
 
+using namespace stratego;
+
 TEST(Piece, constructor)
 {
    std::vector< Piece > pieces;

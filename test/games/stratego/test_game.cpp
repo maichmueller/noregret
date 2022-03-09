@@ -6,6 +6,8 @@
 #include "fixtures.hpp"
 #include "utils.hpp"
 
+using namespace stratego;
+
 TEST_F(MinimalState, run_game_fixed_actions)
 {
    struct plotter: aze::utils::Plotter< State > {

@@ -50,25 +50,25 @@ Environment::observation_type Environment::private_observation(
    Player player,
    const Environment::world_state_type& wstate) const
 {
-   // TODO: implement string representation of state
+   return utils::print_board(wstate.board(), to_team(player), true);
 }
 Environment::observation_type Environment::private_observation(
    Player player,
    const Environment::action_type& action) const
 {
-   // TODO: implement string representation of action
+   return action.to_string();
 }
 Environment::observation_type Environment::public_observation(
    Player player,
    const Environment::world_state_type& wstate) const
 {
-   // TODO: implement string representation of state
+   return utils::print_board(wstate.board(), std::nullopt, true);
 }
 Environment::observation_type Environment::public_observation(
    Player player,
    const Environment::action_type& action) const
 {
-   // TODO: implement string representation of action
+   return action.to_string();
 }
 
 Environment::Environment(uptr< ::stratego::Logic >&& logic) : m_logic(std::move(logic)) {}
@@ -76,6 +76,11 @@ Environment::Environment(uptr< ::stratego::Logic >&& logic) : m_logic(std::move(
 Player Environment::active_player(const Environment::world_state_type& wstate) const
 {
    return to_player(wstate.active_team());
+}
+std::vector< Environment::action_type > Environment::actions(
+   const Environment::info_state_type& istate) const
+{
+   return std::vector< action_type >();
 }
 
 }  // namespace nor::games::stratego

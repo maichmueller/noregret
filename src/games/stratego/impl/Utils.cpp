@@ -2,7 +2,7 @@
 
 namespace stratego::utils {
 
-std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
+std::string print_board(const Board &board, std::optional< aze::Team > team, bool hide_unknowns)
 {
    using Team = aze::Team;
 #if defined(_MSC_VER)
@@ -27,18 +27,17 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
    const size_t vert_limit = dim_x;
    const size_t horiz_limit = dim_y;
 
-
    // piece string lambda function that returns a str of the token
    // "-1 \n
    // 10.1 \n
    //   1"
-   auto create_piece_str = [&H_SIZE_PER_PIECE, &mid, &hide_unknowns](
+   auto create_piece_str = [&H_SIZE_PER_PIECE, &team, &mid, &hide_unknowns](
                               const std::optional< Piece > &piece_opt, int line) {
       if(not piece_opt.has_value()) {
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
       }
       const auto &piece = piece_opt.value();
-      std::string color = BLUE;  // blue by default
+      std::string color;
       if(piece.token() == Token::hole) {
 #if defined(_MSC_VER)
          // print hole over field
@@ -49,15 +48,18 @@ std::string print_board(const Board &board, aze::Team team, bool hide_unknowns)
 #endif
       } else if(piece.team() == Team::RED) {
          color = RED;  // background red, text "white"
+      } else {
+         color = BLUE;
       }
       if(line == mid - 1) {
          // hidden info line
-         std::string hidden = piece.flag_hidden() ? std::string("?") : std::string(" ");
-         return color + aze::utils::center(hidden, H_SIZE_PER_PIECE, " ") + RESET;
+         return color + aze::utils::center(piece.flag_hidden() ? "?" : " ", H_SIZE_PER_PIECE, " ")
+                + RESET;
       }
       if(line == mid) {
-         // type and version info line
-         if(hide_unknowns && piece.flag_hidden()) {
+         // token info line
+         if(hide_unknowns and piece.flag_hidden() and team.has_value()
+            and piece.team() != team.value()) {
             return color + std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ') + RESET;
          }
          const auto &token = piece.token();

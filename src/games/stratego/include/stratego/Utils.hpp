@@ -33,7 +33,7 @@ std::vector< T > flatten_counter(const std::map< T, IntType > &counter)
    return flattened_vec;
 }
 
-std::string print_board(const Board &board, aze::Team team, bool hide_unknowns);
+std::string print_board(const Board &board, std::optional<aze::Team> team = std::nullopt, bool hide_unknowns = false);
 
 }  // namespace stratego::utils
 

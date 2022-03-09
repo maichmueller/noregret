@@ -6,6 +6,8 @@
 #include "fixtures.hpp"
 #include "utils.hpp"
 
+using namespace stratego;
+
 TEST_F(MinimalState, action_is_valid)
 {
    EXPECT_TRUE(state.logic()->is_valid(state, Action{{1, 1}, {2, 1}}, Team::BLUE));

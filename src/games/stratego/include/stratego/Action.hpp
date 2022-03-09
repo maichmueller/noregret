@@ -22,15 +22,12 @@ class Action {
 
   private:
    action_container from_to;
-   Team m_team;
 
   public:
    Action(const Position& pos_from, const Position& pos_to) : from_to{pos_from, pos_to} {}
 
    const Position& operator[](unsigned int index) const { return from_to[index]; }
    Position& operator[](unsigned int index) { return from_to[index]; }
-
-   [[nodiscard]] auto inline team() const { return m_team; }
 
    [[nodiscard]] auto inline from() const { return (*this)[0]; }
    [[nodiscard]] auto inline to() const { return (*this)[1]; }
@@ -71,6 +68,8 @@ class Action {
       return (*this)[0] == other[0] && (*this)[1] == other[1];
    }
    bool operator!=(const Action& other) const { return not ((*this) == other); }
+
+   [[nodiscard]] auto to_string() const { return from().to_string() + "->" + to().to_string(); }
 
    friend auto& operator<<(std::ostream& os, const Action& action)
    {
@@ -127,7 +126,7 @@ struct hash< stratego::Action > {
             ss << value << ",";
          }
       }
-      return std::hash<std::string>{}(ss.str());
+      return std::hash< std::string >{}(ss.str());
    }
 };
 

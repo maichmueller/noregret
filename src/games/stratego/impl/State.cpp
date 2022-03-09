@@ -50,7 +50,7 @@ std::string State::to_string() const
    return to_string(aze::Team::BLUE, false);
 }
 
-std::string State::to_string(aze::Team team, bool hide_unknowns) const
+std::string State::to_string(std::optional< Team > team, bool hide_unknowns) const
 {
    return utils::print_board(board(), team, hide_unknowns);
 }

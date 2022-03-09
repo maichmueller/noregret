@@ -90,7 +90,7 @@ class State {
       return status;
    }
    [[nodiscard]] virtual std::string to_string() const = 0;
-   [[nodiscard]] virtual std::string to_string(Team team, bool hide_unknowns) const = 0;
+   [[nodiscard]] virtual std::string to_string(std::optional< Team > team, bool hide_unknowns) const = 0;
 };
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >

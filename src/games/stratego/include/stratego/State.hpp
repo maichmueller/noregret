@@ -133,7 +133,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    }
 
    [[nodiscard]] std::string to_string() const override;
-   [[nodiscard]] std::string to_string(aze::Team team, bool hide_unknowns) const override;
+   [[nodiscard]] std::string to_string(std::optional< Team > team, bool hide_unknowns) const override;
 
    [[nodiscard]] inline auto &config() const { return m_config; }
    [[nodiscard]] inline auto *logic() const { return &*m_logic; }
