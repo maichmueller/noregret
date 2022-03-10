@@ -153,9 +153,9 @@ TEST_P(CheckTerminalParamsF, check_terminal)
    State s_to_test(
       s.config(), s.graveyard(), s.logic()->clone(), s.board(), size_t(turn_counter), s.history(), s.rng());
 
-   LOGD2("State to test", s_to_test.to_string())
-   LOGD2("Observed Outcome", utils::enum_name(s_to_test.logic()->check_terminal(s_to_test)))
-   LOGD2("Expected Outcome", utils::enum_name(status))
+   LOGD2("State to test", s_to_test.to_string());
+   LOGD2("Observed Outcome", utils::enum_name(s_to_test.logic()->check_terminal(s_to_test)));
+   LOGD2("Expected Outcome", utils::enum_name(status));
 
    EXPECT_EQ(s_to_test.logic()->check_terminal(s_to_test), status);
 }

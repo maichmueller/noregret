@@ -6,7 +6,6 @@
 
 #include <stratego/stratego.hpp>
 
-
 class MinimalConfig: public ::testing::Test {
   public:
    using Token = stratego::Token;

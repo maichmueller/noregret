@@ -73,7 +73,7 @@ class State {
    {
       if(m_status_checked)
          return m_status;
-      LOGD("Checking terminality.")
+      LOGD("Checking terminality.");
       m_status_checked = true;
       m_status = check_terminal();
       return m_status;

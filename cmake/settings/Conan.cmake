@@ -4,7 +4,7 @@ macro(run_conan)
         message(
                 STATUS
                 "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
-        file(DOWNLOAD "https://github.com/conan-io/cmake-conan/raw/v0.15/conan.cmake"
+        file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/release/0.17/conan.cmake"
                 "${CMAKE_BINARY_DIR}/conan.cmake")
     endif ()
 
@@ -21,6 +21,6 @@ macro(run_conan)
             BASIC_SETUP
             CMAKE_TARGETS # individual targets to link to
             KEEP_RPATHS
-            BUILD
-            missing)
+            BUILD missing
+    )
 endmacro()

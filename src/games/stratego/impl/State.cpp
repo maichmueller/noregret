@@ -75,6 +75,7 @@ State &State::operator=(const State &state)
    m_config = state.config();
    m_graveyard = state.graveyard();
    m_logic = state.logic()->clone();
+   return *this;
 }
 
 State &State::operator=(State &&) noexcept = default;
