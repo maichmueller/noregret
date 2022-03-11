@@ -10,29 +10,29 @@ using namespace stratego;
 
 TEST_F(MinimalState, action_is_valid)
 {
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{{1, 1}, {2, 1}}, Team::BLUE));
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{{1, 4}, {2, 4}}, Team::BLUE));
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{{1, 1}, {2, 1}}, Team::BLUE));
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{{3, 0}, {2, 0}}, Team::RED));
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{{3, 0}, {1, 0}}, Team::RED));
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 1}, {2, 1}}, Team::BLUE));
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 4}, {2, 4}}, Team::BLUE));
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 1}, {2, 1}}, Team::BLUE));
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{3, 0}, {2, 0}}, Team::RED));
+   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{3, 0}, {1, 0}}, Team::RED));
 
    // cant walk onto own pieces
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{0, 0}, {1, 0}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{0, 3}, {1, 3}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{1, 1}, {0, 1}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{0, 0}, {1, 0}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{0, 3}, {1, 3}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 1}, {0, 1}}, Team::BLUE));
    EXPECT_FALSE(state.logic()->is_valid(state, Action{{4, 3}, {3, 3}}, Team::RED));
    EXPECT_FALSE(state.logic()->is_valid(state, Action{{4, 2}, {3, 2}}, Team::RED));
    // cant walk diagonally
    EXPECT_FALSE(state.logic()->is_valid(state, Action{{4, 2}, {3, 3}}, Team::RED));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{1, 2}, {2, 1}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 2}, {2, 1}}, Team::BLUE));
    // cant walk onto hole
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{1, 2}, {2, 2}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{1, 2}, {3, 2}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 2}, {2, 2}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 2}, {3, 2}}, Team::BLUE));
    // cant walk too far
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{1, 1}, {3, 1}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{1, 4}, {3, 4}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 1}, {3, 1}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 4}, {3, 4}}, Team::BLUE));
    // cant transition over pieces
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{3, 1}, {0, 1}}, Team::RED));
+   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{3, 1}, {0, 1}}, Team::RED));
 }
 
 TEST_F(MinimalState, apply_action)

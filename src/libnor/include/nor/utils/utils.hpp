@@ -138,46 +138,86 @@ struct CEMap {
    }
 };
 
+template < typename Key, typename Value, std::size_t Size >
+struct CEBijection {
+   std::array< std::pair< Key, Value >, Size > data;
+
+   template < typename T >
+   requires std::is_same_v< T, Key> or std::is_same_v<T, Value >
+   [[nodiscard]] constexpr auto at(const T& elem) const
+   {
+      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
+         if constexpr(std::is_same_v< T, Key >) {
+            return v.first == elem;
+         } else {
+            return v.second == elem;
+         }
+      });
+      if(itr != end(data)) {
+         if constexpr(std::is_same_v< T, Key >) {
+            return itr->second;
+         } else {
+            return itr->first;
+         }
+      } else {
+         throw std::range_error("Not Found");
+      }
+   }
+};
+
+constexpr CEBijection< Player, std::string_view, 27 > player_name_bij = {
+   std::pair{Player::chance, "chance"},     std::pair{Player::alex, "alex"},
+   std::pair{Player::bob, "bob"},           std::pair{Player::cedric, "cedric"},
+   std::pair{Player::dexter, "dexter"},     std::pair{Player::emily, "emily"},
+   std::pair{Player::florence, "florence"}, std::pair{Player::gustavo, "gustavo"},
+   std::pair{Player::henrick, "henrick"},   std::pair{Player::ian, "ian"},
+   std::pair{Player::julia, "julia"},       std::pair{Player::kelvin, "kelvin"},
+   std::pair{Player::lea, "lea"},           std::pair{Player::michael, "michael"},
+   std::pair{Player::norbert, "norbert"},   std::pair{Player::oscar, "oscar"},
+   std::pair{Player::pedro, "pedro"},       std::pair{Player::quentin, "quentin"},
+   std::pair{Player::rosie, "rosie"},       std::pair{Player::sophia, "sophia"},
+   std::pair{Player::tristan, "tristan"},   std::pair{Player::ulysses, "ulysses"},
+   std::pair{Player::victoria, "victoria"}, std::pair{Player::william, "william"},
+   std::pair{Player::xavier, "xavier"},     std::pair{Player::yeet, "yeet"},
+   std::pair{Player::zoey, "zoey"}};
+
+constexpr CEBijection< TurnDynamic, std::string_view, 2 > turndynamic_name_bij = {
+   std::pair{TurnDynamic::sequential, "sequential"},
+   std::pair{TurnDynamic::simultaneous, "simultaneous"}};
+
+constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_bij = {
+   std::pair{Stochasticity::deterministic, "deterministic"},
+   std::pair{Stochasticity::sample, "sample"},
+   std::pair{Stochasticity::choice, "choice"}};
+
 template < nor::concepts::is::enum_ Enum >
-std::string enum_name(Enum e);
+std::string_view enum_name(Enum e);
+
+template < typename To >
+To from_string(std::string_view str);
 
 template <>
-inline std::string enum_name(Player e)
+inline std::string_view enum_name(Player e)
 {
-   constexpr CEMap< Player, const char *, 27 > name_lookup = {
-      std::pair{Player::chance, "chance"},     std::pair{Player::alex, "alex"},
-      std::pair{Player::bob, "bob"},           std::pair{Player::cedric, "cedric"},
-      std::pair{Player::dexter, "dexter"},     std::pair{Player::emily, "emily"},
-      std::pair{Player::florence, "florence"}, std::pair{Player::gustavo, "gustavo"},
-      std::pair{Player::henrick, "henrick"},   std::pair{Player::ian, "ian"},
-      std::pair{Player::julia, "julia"},       std::pair{Player::kelvin, "kelvin"},
-      std::pair{Player::lea, "lea"},           std::pair{Player::michael, "michael"},
-      std::pair{Player::norbert, "norbert"},   std::pair{Player::oscar, "oscar"},
-      std::pair{Player::pedro, "pedro"},       std::pair{Player::quentin, "quentin"},
-      std::pair{Player::rosie, "rosie"},       std::pair{Player::sophia, "sophia"},
-      std::pair{Player::tristan, "tristan"},   std::pair{Player::ulysses, "ulysses"},
-      std::pair{Player::victoria, "victoria"}, std::pair{Player::william, "william"},
-      std::pair{Player::xavier, "xavier"},     std::pair{Player::yeet, "yeet"},
-      std::pair{Player::zoey, "zoey"}};
-   return name_lookup.at(e);
+   return player_name_bij.at(e);
 }
 template <>
-inline std::string enum_name(TurnDynamic e)
+inline std::string_view enum_name(TurnDynamic e)
 {
-   constexpr CEMap< TurnDynamic, const char *, 2 > name_lookup = {
-      std::pair{TurnDynamic::sequential, "sequential"},
-      std::pair{TurnDynamic::simultaneous, "simultaneous"}};
-   return name_lookup.at(e);
+   return turndynamic_name_bij.at(e);
 }
 template <>
-inline std::string enum_name(Stochasticity e)
+inline std::string_view enum_name(Stochasticity e)
 {
-   constexpr CEMap< Stochasticity, const char *, 3 > name_lookup = {
-      std::pair{Stochasticity::deterministic, "deterministic"},
-      std::pair{Stochasticity::sample, "sample"},
-      std::pair{Stochasticity::choice, "choice"}};
-   return name_lookup.at(e);
+   return stochasticity_name_bij.at(e);
 }
+
+template <>
+Player from_string< Player >(std::string_view str)
+{
+   return player_name_bij.at(str);
+}
+
 
 template < nor::concepts::is::enum_ Enum >
 requires nor::concepts::is::any_of< Enum, Player, TurnDynamic, Stochasticity >

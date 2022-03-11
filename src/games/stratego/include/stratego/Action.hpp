@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "StrategoDefs.hpp"
+#include "Utils.hpp"
 
 namespace stratego {
 
@@ -21,10 +22,14 @@ class Action {
    using const_iterator = typename action_container::const_iterator;
 
   private:
+   Team m_team;
    action_container from_to;
 
   public:
-   Action(const Position& pos_from, const Position& pos_to) : from_to{pos_from, pos_to} {}
+   Action(Team team, Position pos_from, Position pos_to)
+       : m_team(team), from_to{std::move(pos_from), std::move(pos_to)}
+   {
+   }
 
    const Position& operator[](unsigned int index) const { return from_to[index]; }
    Position& operator[](unsigned int index) { return from_to[index]; }
@@ -36,6 +41,8 @@ class Action {
       return std::array{from()[0], from()[1], to()[0], to()[1]};
    }
 
+   [[nodiscard]] auto team() const { return m_team; }
+
    iterator begin() { return from_to.begin(); }
    [[nodiscard]] const_iterator begin() const { return from_to.begin(); }
    iterator end() { return from_to.end(); }
@@ -45,21 +52,24 @@ class Action {
 
    Action operator+(const Action& other_action) const
    {
-      return {(*this)[0] + other_action[0], (*this)[1] + other_action[1]};
+      if(m_team != other_action.team()) {
+         throw std::logic_error("Trying to add actions of differing teams.");
+      }
+      return {m_team, (*this)[0] + other_action[0], (*this)[1] + other_action[1]};
    }
    Action operator*(const Action& other_action) const
    {
-      return {(*this)[0] * other_action[1], (*this)[1] * other_action[1]};
+      return {m_team, (*this)[0] * other_action[1], (*this)[1] * other_action[1]};
    }
    template < typename Number >
    Action operator+(const Number& n) const
    {
-      return {(*this)[0] * n, (*this)[1] * n};
+      return {m_team, (*this)[0] * n, (*this)[1] * n};
    }
    template < typename Number >
    Action operator*(const Number& n) const
    {
-      return {(*this)[0] * n, (*this)[1] * n};
+      return {m_team, (*this)[0] * n, (*this)[1] * n};
    }
    Action operator-(const Action& other_action) const { return *this + (other_action * (-1)); }
    Action operator/(const Action& other_action) const { return *this * (1 / other_action); }
@@ -69,7 +79,11 @@ class Action {
    }
    bool operator!=(const Action& other) const { return not ((*this) == other); }
 
-   [[nodiscard]] auto to_string() const { return from().to_string() + "->" + to().to_string(); }
+   [[nodiscard]] auto to_string() const
+   {
+      return std::string(utils::enum_name(m_team)) + ":" + from().to_string() + "->"
+             + to().to_string();
+   }
 
    friend auto& operator<<(std::ostream& os, const Action& action)
    {
@@ -95,7 +109,7 @@ class Action {
 template < typename Number >
 Action operator/(const Number& n, const Action& m)
 {
-   return {n / m[0], n / m[1]};
+   return {m.team(), n / m[0], n / m[1]};
 }
 
 }  // namespace stratego

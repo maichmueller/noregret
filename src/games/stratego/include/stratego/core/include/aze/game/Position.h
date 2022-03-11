@@ -67,7 +67,7 @@ class Position {
        : Position(std::index_sequence_for< Types... >{}, coordinates)
    {
    }
-   Position() : m_coordinates(0) {}
+   Position() : m_coordinates{} {}
    explicit Position(container_type coords) : m_coordinates(std::move(coords)) {}
 
    Position(const Position&) = default;

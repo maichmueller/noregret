@@ -14,7 +14,18 @@ namespace nor::games::stratego {
 
 using namespace ::stratego;
 
+inline auto to_team(const Player& player)
+{
+   return Team(static_cast< size_t >(player));
+}
+inline auto to_player(const Team& team)
+{
+   return Player(static_cast< size_t >(team));
+}
+
 using Observation = std::string;
+
+std::string observation(const State& state, std::optional< Player > observing_player = std::nullopt);
 
 class InfoState {
   public:
@@ -48,6 +59,8 @@ class InfoState {
    inline bool operator!=(const InfoState& other) const { return not (*this == other); }
 
   private:
+   /// the history (trajectory) of the state.
+   /// Each entry is a pair of action observation (first) and state observation (second)
    std::vector< std::pair< Observation, Observation > > m_history;
    Player m_player;
    size_t m_hash_cache{0};
@@ -95,20 +108,8 @@ class Environment {
    void transition(world_state_type& worldstate, const action_type& action) const;
    observation_type private_observation(Player player, const world_state_type& wstate) const;
    observation_type private_observation(Player player, const action_type& action) const;
-   observation_type public_observation(Player player, const world_state_type& wstate) const;
-   observation_type public_observation(Player player, const action_type& action) const;
-   static inline auto to_team(const Player& player)
-   {
-      {
-         return Team(static_cast< size_t >(player));
-      }
-   }
-   static inline auto to_player(const Team& team)
-   {
-      {
-         return Player(static_cast< size_t >(team));
-      }
-   }
+   observation_type public_observation(const world_state_type& wstate) const;
+   observation_type public_observation(const action_type& action) const;
 
   private:
    uptr< Logic > m_logic;

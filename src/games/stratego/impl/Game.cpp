@@ -29,7 +29,7 @@ Status Game::run(const sptr< aze::utils::Plotter< State > >& plotter)
          "Possible Moves",
          aze::utils::VectorPrinter{
             state().logic()->valid_actions(state(), active_team)});  // NOLINT
-      LOGD2("Selected Action by team " + utils::enum_name(active_team), action);
+      LOGD2("Selected Action by team " + std::string(utils::enum_name(active_team)), action);
 
       m_state->transition(action);
    }

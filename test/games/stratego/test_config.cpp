@@ -78,12 +78,12 @@ TEST_P(BattlematrixParamsF, default_battlematrix_outcomes)
 {
    auto [attacker, defender, outcome] = GetParam();
    LOGD2(
-      "Observed outcome for [" + utils::enum_name(attacker) + ", " + utils::enum_name(defender)
-         + "] = ",
+      "Observed outcome for [" + std::string(utils::enum_name(attacker)) + ", "
+         + std::string(utils::enum_name(defender)) + "] = ",
       utils::enum_name(bm[{attacker, defender}]));
    LOGD2(
-      "Expected outcome for [" + utils::enum_name(attacker) + ", " + utils::enum_name(defender)
-         + "] = ",
+      "Expected outcome for [" + std::string(utils::enum_name(attacker)) + ", "
+         + std::string(utils::enum_name(defender)) + "] = ",
       utils::enum_name(outcome));
    EXPECT_EQ((bm[{attacker, defender}]), outcome);
 }
@@ -261,8 +261,8 @@ TEST(Config, constructor_custom_dims_no_setup)
    tokens_red.emplace_back(Token::lieutenant);
 
    auto tokens = std::map{
-      std::pair{Team::BLUE, std::optional<Config::token_variant_t >{tokens_blue}},
-      std::pair{Team::RED, std::optional<Config::token_variant_t >{tokens_red}}};
+      std::pair{Team::BLUE, std::optional< Config::token_variant_t >{tokens_blue}},
+      std::pair{Team::RED, std::optional< Config::token_variant_t >{tokens_red}}};
 
    std::vector< Position > hole_pos{{1, 1}};
 

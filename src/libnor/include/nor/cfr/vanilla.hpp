@@ -232,13 +232,15 @@ class VanillaCFR {
       size_t n_iters = 1);
 
    template < bool current_policy >
-   auto& fetch_state_policy(Player player, const info_state_type& infostate)
+   auto& fetch_policy(Player player, const info_state_type& infostate)
    {
       if constexpr(current_policy) {
          auto& player_policy = m_curr_policy[player];
          auto found_action_policy = player_policy.find(infostate);
          if(found_action_policy == player_policy.end()) {
             auto legal_actions = m_env.actions(infostate);
+            auto debug_val = m_default_policy[{infostate, legal_actions}];
+            auto v  = m_default_policy[{infostate, legal_actions}][legal_actions[0]];
             return player_policy.emplace(infostate, m_default_policy[{infostate, legal_actions}])
                .first->second;
          }
@@ -429,8 +431,8 @@ template <
             }
             // multiply the current reach probabilities of this state by the policy of choosing the
             // action by the active player.
-            node_reach_probs[curr_player] *= m_curr_policy[curr_player][curr_node->info_states(
-               curr_player)][action];
+            node_reach_probs[curr_player] *= fetch_policy< true >(
+               curr_player, curr_node->info_states(curr_player))[action];
             // the child node has shared ownership by each player's game tree
             auto child_node_sptr = std::make_shared< cfr_node_type >(
                next_infostates,
@@ -569,8 +571,8 @@ template <
 {
    double reach_prob = reach_probability(node);
    const auto& infostate = node.info_states(player);
-   auto& avg_state_policy = fetch_state_policy< false >(player, infostate);
-   auto& curr_state_policy = fetch_state_policy< true >(player, infostate);
+   auto& avg_state_policy = fetch_policy< false >(player, infostate);
+   auto& curr_state_policy = fetch_policy< true >(player, infostate);
    ranges::for_each(
       child_collector(node, [&](cfr_node_type* child) { return child->value(player); }),
       [&](const auto& action_value_pair) {

@@ -28,7 +28,10 @@ class Logic {
 
    aze::Status check_terminal(State &state);
 
-   bool is_valid(const State &state, const Action &action, Team team);
+   bool is_valid(
+      const State &state,
+      const Action &action,
+      std::optional< Team > team_opt = std::nullopt);
 
    template < ranges::contiguous_range Range >
    auto _valid_vectors(Position pos, Range shape, int distance = 1);
@@ -37,7 +40,7 @@ class Logic {
 
    bool has_valid_actions(const State &state, Team team);
 
-   void reset(State& state);
+   void reset(State &state);
 
    static std::map< Position, Token > draw_setup_uniform(
       const Config &config,

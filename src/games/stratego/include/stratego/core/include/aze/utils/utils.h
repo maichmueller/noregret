@@ -284,6 +284,33 @@ struct CEMap {
    }
 };
 
+template < typename Key, typename Value, std::size_t Size >
+struct CEBijection {
+   std::array< std::pair< Key, Value >, Size > data;
+
+   template < typename T >
+   requires is_any_v< T, Key, Value >
+   [[nodiscard]] constexpr auto at(const T& elem) const
+   {
+      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
+         if constexpr(std::is_same_v< T, Key >) {
+            return v.first == elem;
+         } else {
+            return v.second == elem;
+         }
+      });
+      if(itr != end(data)) {
+         if constexpr(std::is_same_v< T, Key >) {
+            return itr->second;
+         } else {
+            return itr->first;
+         }
+      } else {
+         throw std::range_error("Not Found");
+      }
+   }
+};
+
 };  // namespace aze::utils
 
 #include <tuple>

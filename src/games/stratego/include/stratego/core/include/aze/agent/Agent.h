@@ -47,7 +47,7 @@ class RandomAgent: public Agent< StateType > {
       const StateType & /*state*/,
       const std::vector< action_type > &poss_moves) override
    {
-      std::array< action_type, 1 > selected_move{action_type{{0, 0}, {0, 0}}};
+      std::array< action_type, 1 > selected_move{action_type{base_type::team(), {}, {}}};
       std::sample(poss_moves.begin(), poss_moves.end(), selected_move.begin(), 1, mt);
 
       return selected_move[0];

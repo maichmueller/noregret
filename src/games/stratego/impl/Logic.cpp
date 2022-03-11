@@ -86,8 +86,13 @@ FightOutcome Logic::handle_fight(State &state, Piece &attacker, Piece &defender)
    }
    return outcome;
 }
-bool Logic::is_valid(const State &state, const Action &action, Team team)
+bool Logic::is_valid(const State &state, const Action &action, std::optional<Team> team_opt)
 {
+   const Team team = team_opt.value_or(action.team());
+   if(action.team() != team) {
+      // not this team's action
+      return false;
+   }
    const auto &[pos_before, pos_after] = action;
    const auto &board = state.board();
 
@@ -172,7 +177,7 @@ std::vector< Action > Logic::valid_actions(const State &state, Team team)
             }
             ranges::for_each(
                _valid_vectors(pos, board.shape(), token_move_range), [&](const Position &pos_to) {
-                  Action action{pos, pos + pos_to};
+                  Action action{team, pos, pos + pos_to};
                   if(is_valid(state, action, team)) {
                      actions_possible.emplace_back(action);
                   }
@@ -215,7 +220,7 @@ bool Logic::has_valid_actions(const State &state, Team team)
             if(ranges::any_of(
                   _valid_vectors(pos, board.shape(), token_move_range),
                   [&](const Position &vector) -> bool {
-                     return is_valid(state, Action{pos, pos + vector}, team);
+                     return is_valid(state, Action{team, pos, pos + vector}, team);
                   })) {
                return true;
             }

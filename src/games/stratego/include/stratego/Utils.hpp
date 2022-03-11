@@ -8,19 +8,44 @@
 
 namespace stratego::utils {
 
+constexpr inline Team opponent(Team t)
+{
+   if(t == Team::BLUE) {
+      return Team::RED;
+   }
+   if(t == Team::RED) {
+      return Team::BLUE;
+   }
+   return Team::NEUTRAL;
+}
+
 template < typename Enum >
-requires std::is_enum_v< Enum > std::string enum_name(Enum e);
+requires std::is_enum_v< Enum > std::string_view enum_name(Enum e);
+
+template < typename To >
+requires std::is_enum_v< To > To from_string(std::string_view str);
 
 template <>
-std::string enum_name(Status e);
+std::string_view enum_name(Status e);
 template <>
-std::string enum_name(Team e);
+std::string_view enum_name(Team e);
 template <>
-std::string enum_name(FightOutcome e);
+std::string_view enum_name(FightOutcome e);
 template <>
-std::string enum_name(Token e);
+std::string_view enum_name(Token e);
 template <>
-std::string enum_name(DefinedBoardSizes e);
+std::string_view enum_name(DefinedBoardSizes e);
+
+template <>
+auto from_string(std::string_view str) -> Status;
+template <>
+auto from_string(std::string_view str) -> Team;
+template <>
+auto from_string(std::string_view str) -> FightOutcome;
+template <>
+auto from_string(std::string_view str) -> Token;
+template <>
+auto from_string(std::string_view str) -> DefinedBoardSizes;
 
 template < typename T, std::integral IntType >
 std::vector< T > flatten_counter(const std::map< T, IntType > &counter)
