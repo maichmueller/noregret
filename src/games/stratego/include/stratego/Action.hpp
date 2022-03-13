@@ -10,26 +10,22 @@
 
 namespace stratego {
 
-class Action;
+class Move;
 
 template < typename Number >
-Action operator/(const Number& n, const Action& m);
+Move operator/(const Number& n, const Move& m);
 
-class Action {
+class Move {
   public:
    using action_container = std::array< Position, 2 >;
    using iterator = typename action_container::iterator;
    using const_iterator = typename action_container::const_iterator;
 
   private:
-   Team m_team;
    action_container from_to;
 
   public:
-   Action(Team team, Position pos_from, Position pos_to)
-       : m_team(team), from_to{std::move(pos_from), std::move(pos_to)}
-   {
-   }
+   Move(Position pos_from, Position pos_to) : from_to{std::move(pos_from), std::move(pos_to)} {}
 
    const Position& operator[](unsigned int index) const { return from_to[index]; }
    Position& operator[](unsigned int index) { return from_to[index]; }
@@ -41,8 +37,6 @@ class Action {
       return std::array{from()[0], from()[1], to()[0], to()[1]};
    }
 
-   [[nodiscard]] auto team() const { return m_team; }
-
    iterator begin() { return from_to.begin(); }
    [[nodiscard]] const_iterator begin() const { return from_to.begin(); }
    iterator end() { return from_to.end(); }
@@ -50,54 +44,47 @@ class Action {
 
    [[nodiscard]] auto positions() const { return from_to; }
 
-   Action operator+(const Action& other_action) const
+   Move operator+(const Move& other_action) const
    {
-      if(m_team != other_action.team()) {
-         throw std::logic_error("Trying to add actions of differing teams.");
-      }
-      return {m_team, (*this)[0] + other_action[0], (*this)[1] + other_action[1]};
+      return {(*this)[0] + other_action[0], (*this)[1] + other_action[1]};
    }
-   Action operator*(const Action& other_action) const
+   Move operator*(const Move& other_move) const
    {
-      return {m_team, (*this)[0] * other_action[1], (*this)[1] * other_action[1]};
+      return {(*this)[0] * other_move[1], (*this)[1] * other_move[1]};
    }
    template < typename Number >
-   Action operator+(const Number& n) const
+   Move operator+(const Number& n) const
    {
-      return {m_team, (*this)[0] * n, (*this)[1] * n};
+      return {(*this)[0] * n, (*this)[1] * n};
    }
    template < typename Number >
-   Action operator*(const Number& n) const
+   Move operator*(const Number& n) const
    {
-      return {m_team, (*this)[0] * n, (*this)[1] * n};
+      return {(*this)[0] * n, (*this)[1] * n};
    }
-   Action operator-(const Action& other_action) const { return *this + (other_action * (-1)); }
-   Action operator/(const Action& other_action) const { return *this * (1 / other_action); }
-   bool operator==(const Action& other) const
+   Move operator-(const Move& other_move) const { return *this + (other_move * (-1)); }
+   Move operator/(const Move& other_move) const { return *this * (1 / other_move); }
+   bool operator==(const Move& other) const
    {
       return (*this)[0] == other[0] && (*this)[1] == other[1];
    }
-   bool operator!=(const Action& other) const { return not ((*this) == other); }
+   bool operator!=(const Move& other) const { return not ((*this) == other); }
 
-   [[nodiscard]] auto to_string() const
-   {
-      return std::string(utils::enum_name(m_team)) + ":" + from().to_string() + "->"
-             + to().to_string();
-   }
+   [[nodiscard]] auto to_string() const { return from().to_string() + "->" + to().to_string(); }
 
-   friend auto& operator<<(std::ostream& os, const Action& action)
+   friend auto& operator<<(std::ostream& os, const Move& action)
    {
       os << action.from().to_string() << "->" << action.to().to_string();
       return os;
    }
-   friend auto& operator<<(std::stringstream& os, const Action& action)
+   friend auto& operator<<(std::stringstream& os, const Move& action)
    {
       os << action.from().to_string() << "->" << action.to().to_string();
       return os;
    }
 
    template < std::size_t Index >
-   std::tuple_element_t< Index, ::stratego::Action > get() const
+   std::tuple_element_t< Index, ::stratego::Move > get() const
    {
       if constexpr(Index == 0)
          return from();
@@ -107,22 +94,98 @@ class Action {
 };
 
 template < typename Number >
-Action operator/(const Number& n, const Action& m)
+Move operator/(const Number& n, const Move& m)
 {
-   return {m.team(), n / m[0], n / m[1]};
+   return {n / m[0], n / m[1]};
 }
+
+class Action {
+   using iterator = typename Move::iterator;
+   using const_iterator = typename Move::const_iterator;
+
+  private:
+   Team m_team;
+   Move m_move;
+
+  public:
+   Action(Team team, Position pos_from, Position pos_to)
+       : m_team(team), m_move{std::move(pos_from), std::move(pos_to)}
+   {
+   }
+
+   const Position& operator[](unsigned int index) const { return m_move[index]; }
+   Position& operator[](unsigned int index) { return m_move[index]; }
+
+   [[nodiscard]] inline auto team() const { return m_team; }
+   [[nodiscard]] inline auto& move() const { return m_move; }
+   inline auto& move() { return m_move; }
+
+   iterator begin() { return m_move.begin(); }
+   [[nodiscard]] const_iterator begin() const { return m_move.begin(); }
+   iterator end() { return m_move.end(); }
+   [[nodiscard]] const_iterator end() const { return m_move.end(); }
+
+   bool operator==(const Action& other) const
+   {
+      return m_team == other.team() and (*this)[0] == other[0] and (*this)[1] == other[1];
+   }
+   bool operator!=(const Action& other) const { return not ((*this) == other); }
+
+   [[nodiscard]] auto to_string() const
+   {
+      return std::string(utils::enum_name(m_team)) + ":" + move().to_string();
+   }
+
+   friend auto& operator<<(std::ostream& os, const Action& action)
+   {
+      os << action.to_string();
+      return os;
+   }
+   friend auto& operator<<(std::stringstream& os, const Action& action)
+   {
+      os << utils::enum_name(action.team()) << ":" << action.move().to_string();
+      return os;
+   }
+
+   template < std::size_t Index >
+   std::tuple_element_t< Index, ::stratego::Action > get() const
+   {
+      static_assert(Index <= 2, "An Action object decomposes into 3 parts.");
+
+      if constexpr(Index == 0)
+         return m_team;
+      if constexpr(Index == 1)
+         return m_move.from();
+      if constexpr(Index == 2)
+         return m_move.to();
+   }
+};
 
 }  // namespace stratego
 
 // allow action to be unpacked by structured bindings
 namespace std {
 template <>
-struct tuple_size< ::stratego::Action >: integral_constant< size_t, 2 > {
+struct tuple_size< ::stratego::Move >: integral_constant< size_t, 2 > {
+};
+
+template <>
+struct tuple_element< 0, ::stratego::Move > {
+   using type = ::stratego::Position;
+};
+
+template <>
+struct tuple_element< 1, ::stratego::Move > {
+   using type = ::stratego::Position;
+};
+
+template <>
+struct tuple_size< ::stratego::Action >: integral_constant< size_t, 3 > {
 };
 
 template <>
 struct tuple_element< 0, ::stratego::Action > {
-   using type = ::stratego::Position;
+   using type = ::stratego::Team;
 };
 
 template <>
@@ -131,11 +194,31 @@ struct tuple_element< 1, ::stratego::Action > {
 };
 
 template <>
+struct tuple_element< 2, ::stratego::Action > {
+   using type = ::stratego::Position;
+};
+
+template <>
+struct hash< stratego::Move > {
+   size_t operator()(const stratego::Move& move) const
+   {
+      std::stringstream ss;
+      for(const auto& pos : move) {
+         for(const auto& value : pos) {
+            ss << value << ",";
+         }
+      }
+      return std::hash< std::string >{}(ss.str());
+   }
+};
+
+template <>
 struct hash< stratego::Action > {
    size_t operator()(const stratego::Action& action) const
    {
       std::stringstream ss;
-      for(const auto& pos : action) {
+      ss << action.team() << "\n";
+      for(const auto& pos : action.move()) {
          for(const auto& value : pos) {
             ss << value << ",";
          }

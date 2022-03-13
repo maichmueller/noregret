@@ -95,7 +95,7 @@ class History {
 class State: public aze::State< Board, History, Piece, Action > {
   public:
    using base_type = aze::State< Board, History, Piece, Action >;
-   using graveyard_type = std::map< Team, std::map< Piece::token_type, unsigned int > >;
+   using graveyard_type = std::map< Team, std::map< Token, unsigned int > >;
 
    template < typename... Params >
    State(Config config, graveyard_type graveyard, uptr< Logic > logic, Params &&...params)

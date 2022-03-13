@@ -68,13 +68,30 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    using cond_public_state_base = detail::CondPubstate< Publicstate >;
 
    CFRNode(
+      Player player,
+      std::vector< Action > legal_actions,
+      std::map< Player, Infostate > info_states,
+      Publicstate public_state = {},
+      CFRNode* parent = nullptr)
+       : cond_public_state_base{std::move(public_state)},
+         m_player(player),
+         m_actions(std::move(legal_actions)),
+         m_infostates(std::move(info_states)),
+         m_reach_prob(),
+         m_parent(parent)
+   {
+   }
+
+   CFRNode(
+      Player player,
+      std::vector< Action > legal_actions,
       std::map< Player, Infostate > info_states,
       Publicstate public_state,
-      Player player,
       std::map< Player, double > reach_prob,
       CFRNode* parent = nullptr)
        : cond_public_state_base{std::move(public_state)},
          m_player(player),
+         m_actions(std::move(legal_actions)),
          m_infostates(std::move(info_states)),
          m_reach_prob(std::move(reach_prob)),
          m_parent(parent)
@@ -89,6 +106,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    auto& value() { return m_value; }
    auto& reach_probability(Player player) { return m_reach_prob[player]; }
    auto& reach_probability() { return m_reach_prob; }
+   auto& actions() { return m_actions; }
    auto& children(const Action& action) { return m_children[action]; }
    auto& children() { return m_children; }
    auto& regret(const Action& action) { return m_regret[action]; }
@@ -102,6 +120,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    [[nodiscard]] auto& value() const { return m_value; }
    [[nodiscard]] auto& reach_probability(Player player) const { return m_reach_prob.at(player); }
    [[nodiscard]] auto& reach_probability() const { return m_reach_prob; }
+   [[nodiscard]] auto& actions() const { return m_actions; }
    [[nodiscard]] auto& children(const Action& action) const { return m_children[action]; }
    [[nodiscard]] auto& regret(const Action& action) const { return m_regret[action]; }
    [[nodiscard]] auto& children() const { return m_children; }
@@ -111,6 +130,8 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
   private:
    /// the currently active player at the world state
    Player m_player;
+   /// the legal actions the active player can choose from at this state.
+   std::vector< Action > m_actions;
 
    // player-based storage
 
@@ -122,6 +143,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    /// the reach probability of each player for this node.
    /// Defaults to 0 and should be updated later during the traversal.
    std::map< Player, double > m_reach_prob{};
+
 
    // action-based storage
    // these don't need to be on a per player basis, as only the active player of this node has

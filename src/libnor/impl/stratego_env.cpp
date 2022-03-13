@@ -116,17 +116,22 @@ std::vector< Environment::action_type > Environment::actions(
       }
    };
    Board board;
-   std::array<Config::setup_t, 2> setups;
+   std::array< Config::setup_t, 2 > setups;
+   std::vector< Position > hole_pos;
    auto lines = nor::utils::split(latest_state_obs, line_delimiter);
-   auto active_team = from_string< Team >(lines.front());
+   auto active_team = stratego::utils::from_string< Team >(lines.front());
    for(auto line : ranges::span(lines).subspan(2)) {
       auto piece_infos = nor::utils::split(line, segment_delimiter);
       Position pos = position_parser(piece_infos[0]);
-      Team team = from_string< Team >(piece_infos[1]);
+      Team team = stratego::utils::from_string< Team >(piece_infos[1]);
       bool is_hidden = visibility_parser(piece_infos[2]);
       Token token = token_parser(piece_infos[3]);
       board[pos] = Piece(team, pos, token, is_hidden);
-      setups[static_cast<uint8_t>(team)] =
+      if(token == Token::hole) {
+         hole_pos.emplace_back(pos);
+      } else {
+         setups[static_cast< uint8_t >(team)][pos] = token;
+      }
    }
 
    return m_logic->valid_actions(State());
@@ -139,6 +144,16 @@ std::string observation(const State& state, std::optional< Player > observing_pl
    // start the infostate with the active player at the state followed by the turn count
    ss << state.active_team() << "\n";
    ss << state.turn_count() << "\n";
+   ss << (state.config().game_dims | ranges::views::all) << "\n";
+   const auto& gyards = state.graveyard();
+   for(auto team : std::set{Team::BLUE, Team::RED}) {
+      ss << "Graveyard " << stratego::utils::enum_name(team) << ":"
+         << (gyards.at(team) | ranges::views::keys) << "|"
+         << (gyards.at(team) | ranges::views::values);
+   }
+   ss << "Action History:";
+   const auto& action_hist = state.history().actions();
+   ss << (action_hist | ranges::views::all) << "\n";
    for(const auto& piece_opt : state.board()) {
       if(not piece_opt.has_value()) {
          continue;

@@ -119,7 +119,8 @@ class VanillaCFR {
    using game_tree_type = std::unordered_map< info_state_type, sptr< cfr_node_type > >;
 
    VanillaCFR(
-      Env&& game,
+      world_state_type root_state,
+      Env game,
       Policy policy = Policy(),
       DefaultPolicy default_policy = DefaultPolicy(),
       AveragePolicy avg_policy = AveragePolicy())
@@ -136,15 +137,12 @@ class VanillaCFR {
        // clang-format on
        :
        m_env(std::move(game)),
+       m_root_state(std::move(root_state)),
        m_curr_policy(),
        m_avg_policy(),
        m_default_policy(std::move(default_policy))
    {
-      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
-         throw std::invalid_argument(
-            "VanillaCFR can only be performed on a sequential turn-based game.");
-      }
-
+      _assert_sequential_game();
       for(auto player : game.players()) {
          m_curr_policy[player] = policy;
          m_avg_policy[player] = avg_policy;
@@ -153,6 +151,26 @@ class VanillaCFR {
 
    VanillaCFR(
       Env&& game,
+      Policy policy = Policy(),
+      DefaultPolicy default_policy = DefaultPolicy(),
+      AveragePolicy avg_policy = AveragePolicy())
+      // clang-format off
+      requires
+         concepts::has::method::initial_world_state< Env >
+       // clang-format on
+       :
+       VanillaCFR(
+          m_env.initial_world_state(),
+          std::move(game),
+          std::move(policy),
+          std::move(default_policy),
+          std::move(avg_policy))
+   {
+   }
+
+   VanillaCFR(
+      world_state_type root_state,
+      Env env,
       Policy policy,
       AveragePolicy avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
@@ -165,7 +183,8 @@ class VanillaCFR {
        // clang-format on
        :
        VanillaCFR(
-          std::move(game),
+          std::move(env),
+          std::move(root_state),
           std::move(policy),
           std::move(avg_policy),
           std::move(default_policy))
@@ -173,18 +192,16 @@ class VanillaCFR {
    }
 
    VanillaCFR(
-      Env&& game,
+      Env game,
       const std::map< Player, Policy >& policy,
-      DefaultPolicy default_policy = DefaultPolicy())
-       : m_env(std::move(game)),
-         m_curr_policy(policy),
-         m_avg_policy(policy),
-         m_default_policy(std::move(default_policy))
+      DefaultPolicy default_policy =
+         DefaultPolicy()) requires std::is_copy_constructible_v< Policy >:
+       m_env(std::move(game)),
+       m_curr_policy(policy),
+       m_avg_policy(policy),
+       m_default_policy(std::move(default_policy))
    {
-      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
-         throw std::invalid_argument(
-            "VanillaCFR can only be performed on a sequential turn-based game.");
-      }
+      _assert_sequential_game();
    }
 
    VanillaCFR(
@@ -221,8 +238,7 @@ class VanillaCFR {
    {
       return iterate(Player::chance, n_iterations);
    }
-   const auto& iterate([[maybe_unused]] Player player_to_update, size_t n_iters = 1) requires
-      concepts::has::method::initial_world_state< Env >
+   const auto& iterate([[maybe_unused]] Player player_to_update, size_t n_iters = 1)
    {
       return iterate(m_env.initial_world_state(), player_to_update, n_iters);
    }
@@ -232,29 +248,30 @@ class VanillaCFR {
       size_t n_iters = 1);
 
    template < bool current_policy >
-   auto& fetch_policy(Player player, const info_state_type& infostate)
+   auto& fetch_policy(Player player, const cfr_node_type& node)
    {
+      const auto& info_state = node.info_states(player);
       if constexpr(current_policy) {
          auto& player_policy = m_curr_policy[player];
-         auto found_action_policy = player_policy.find(infostate);
+         auto found_action_policy = player_policy.find(info_state);
          if(found_action_policy == player_policy.end()) {
-            auto legal_actions = m_env.actions(infostate);
-            auto debug_val = m_default_policy[{infostate, legal_actions}];
-            auto v  = m_default_policy[{infostate, legal_actions}][legal_actions[0]];
-            return player_policy.emplace(infostate, m_default_policy[{infostate, legal_actions}])
+            auto legal_actions = m_env.actions(info_state);
+            auto debug_val = m_default_policy[{info_state, legal_actions}];
+            auto v = m_default_policy[{info_state, legal_actions}][legal_actions[0]];
+            return player_policy.emplace(info_state, m_default_policy[{info_state, legal_actions}])
                .first->second;
          }
          return found_action_policy->second;
       } else {
          // the average policy is
          auto& player_policy = m_avg_policy[player];
-         auto found_action_policy = player_policy.find(infostate);
+         auto found_action_policy = player_policy.find(info_state);
          if(found_action_policy == player_policy.end()) {
             typename AveragePolicy::action_policy_type default_avg_policy;
-            for(const auto& action : m_env.actions(infostate)) {
+            for(const auto& action : m_env.actions(info_state)) {
                default_avg_policy[action] = 0.;
             }
-            return player_policy.emplace(infostate, default_avg_policy).first->second;
+            return player_policy.emplace(info_state, default_avg_policy).first->second;
          }
          return found_action_policy->second;
       }
@@ -269,6 +286,8 @@ class VanillaCFR {
   private:
    /// the environment object to maneuver the states with.
    env_type m_env;
+   /// the root game state to solve
+   world_state_type m_root_state;
 
    /// the game tree mapping information states to the associated game nodes.
    std::map< Player, game_tree_type > m_game_trees;
@@ -283,11 +302,19 @@ class VanillaCFR {
    size_t m_iteration = 0;
 
    template < std::invocable< cfr_node_type* > Functor >
-   auto child_collector(VanillaCFR::cfr_node_type& node, Functor f)
+   auto _child_collector(VanillaCFR::cfr_node_type& node, Functor f)
    {
       return ranges::views::zip(
          node.children() | ranges::views::keys,
          node.children() | ranges::views::values | ranges::views::transform(f));
+   }
+
+   void _assert_sequential_game()
+   {
+      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
+         throw std::invalid_argument(
+            "VanillaCFR can only be performed on a sequential turn-based game.");
+      }
    }
 };
 
@@ -318,7 +345,6 @@ template <
        >
      // clang-format on
      const auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::iterate(
-        world_state_type initial_wstate,
         Player player_to_update,
         size_t n_iters)
 {
@@ -349,12 +375,13 @@ template <
       // The stack uses raw pointers to nodes, since nodes are first emplaced in the tree(s) and
       // then put on the stack for later visitation. Their lifetime management is thus handled by
       // shared pointers stored in the trees.
-      std::stack<
-         std::tuple< sptr< world_state_type >, cfr_node_type*, std::vector< action_type >, bool > >
-         visit_stack;
+      std::stack< std::tuple< sptr< world_state_type >, cfr_node_type*, bool > > visit_stack;
 
-      Player curr_player = m_env.active_player(initial_wstate);
+      Player curr_player = m_env.active_player(m_root_state);
       auto root_node = std::make_shared< cfr_node_type >(
+         curr_player,  // the root active_player
+         m_env.actions(curr_player, m_root_state),  // the root actions
+         /*infostates=*/
          []< concepts::iterable T >(T&& players) {
             std::map< Player, info_state_type > istate_map;
             for(auto player : players) {
@@ -363,7 +390,7 @@ template <
             return istate_map;
          }(m_env.players()),
          typename cfr_node_type::public_state_type{},
-         curr_player,
+         /*reach_probs=*/
          []< concepts::iterable T >(T&& players) {
             std::map< Player, double > reach_p;
             for(auto player : players) {
@@ -377,12 +404,8 @@ template <
       }
       // the root node is NOT a trigger for value propagation (=false), since only the children of a
       // state can trigger value collection of their parent.
-      auto root_actions = m_env.actions(curr_player, initial_wstate);
       visit_stack.emplace(
-         std::make_shared< world_state_type >(std::move(initial_wstate)),
-         root_node.get(),
-         std::move(root_actions),
-         false);
+         std::make_shared< world_state_type >(std::move(m_root_state)), root_node.get(), false);
 
       while(not visit_stack.empty()) {
          // get the next tree node from the queue:
@@ -390,7 +413,8 @@ template <
          // actions: all the possible actions the active player has in this node
          // trigger_value_propagation: a boolean indicating if this is the 'rightmost' child node of
          // the parent and thus should trigger the collection of state values
-         auto& [curr_wstate, curr_node, actions, trigger_value_propagation] = visit_stack.top();
+         auto& [curr_wstate, curr_node, trigger_value_propagation] = visit_stack.top();
+         const auto& actions = curr_node->actions();
          // the last action index decides which child of curr_node will be the one to trigger
          // the curr_node's value collection from its child states
          size_t last_action_idx = actions.size() - 1;
@@ -400,7 +424,9 @@ template <
          // we have to reverse the index range, in order to guarantee that the last_action_idx child
          // node is going to be emplaced FIRST and thus popped as the LAST child of the current node
          // (and as such trigger the value propagation)
-         for(auto&& [action_idx, action] : iter::enumerate(iter::reversed(actions))) {
+         //         for(auto&& [action_idx, action] : iter::enumerate(iter::reversed(actions))) {
+         for(const auto& [action_idx, action] :
+             actions | ranges::views::reverse | ranges::views::enumerate) {
             // the index starts enumerating at 0, but we are stepping through the actions in
             // reverse, so we need to adapt the index acoordingly
             action_idx = last_action_idx - action_idx;
@@ -415,9 +441,6 @@ template <
                std::is_copy_constructible_v< info_state_type >,
                "Infostate type needs to be copy constructible.");
             auto next_infostates = curr_node->info_states();
-            // copy the current reach probabilities as well. These will now be updated by the active
-            // player's likelihood of playing towards this node.
-            std::map< Player, double > node_reach_probs = curr_node->reach_probability();
             // append each players action observation and world state observation to the current
             // stream of information states.
             for(auto player : m_env.players()) {
@@ -429,16 +452,15 @@ template <
             if constexpr(not concepts::is::empty< typename cfr_node_type::public_state_type >) {
                next_public_state.append(m_env.public_observation(*next_wstate));
             }
-            // multiply the current reach probabilities of this state by the policy of choosing the
-            // action by the active player.
-            node_reach_probs[curr_player] *= fetch_policy< true >(
-               curr_player, curr_node->info_states(curr_player))[action];
             // the child node has shared ownership by each player's game tree
             auto child_node_sptr = std::make_shared< cfr_node_type >(
+               m_env.active_player(*next_wstate),
+               m_env.actions(curr_player, *next_wstate),
                next_infostates,
                std::move(next_public_state),
-               m_env.active_player(*next_wstate),
-               node_reach_probs,
+               std::as_const(
+                  curr_node->reach_probability()),  // we for now only copy the parent's reach
+                                                    // probs. they will be updated later
                curr_node);
             // add this new world state into each player's tree with their respective info state as
             // key
@@ -448,6 +470,10 @@ template <
             // append the new tree node as a child of the currently visited node. We are using a raw
             // pointer here to avoid the unnecessary sptr counter increase cost
             curr_node->children(action) = child_node_sptr.get();
+            // Update the active player's reach probability of this node by its current policy of
+            // playing the action that lead to it.
+            child_node_sptr->reach_probability()[curr_player] *= fetch_policy< true >(
+               curr_player, *curr_node)[action];
             if(m_env.is_terminal(*next_wstate)) {
                // we have reached a terminal state and can save the reward as the value of this
                // node within the node. This value will later in the algorithm be propagated up in
@@ -457,10 +483,10 @@ template <
                   // once, then we will assume this is a more performant alternative and use it
                   // instead (e.g. when it is costly to compute the reward of each player
                   // individually).
-                  auto& value_map = child_node_sptr->value();
-                  auto rewards = m_env.reward(m_env.players(), *next_wstate);
                   ranges::views::for_each(
-                     ranges::views::zip(m_env.player(), rewards), [&](const auto& p_r_pair) {
+                     ranges::views::zip(
+                        m_env.players(), m_env.reward(m_env.players(), *next_wstate)),
+                     [&value_map = child_node_sptr->value()](const auto& p_r_pair) {
                         value_map.emplace(std::get< 0 >(p_r_pair), std::get< 1 >(p_r_pair));
                      });
                } else {
@@ -473,11 +499,9 @@ template <
                // if the newly reached world state is not a terminal state, then we merely append
                // the new child node to the queue. This way we further explore its child states as
                // reachable from the next possible actions.
-               auto next_actions = m_env.actions(curr_player, *next_wstate);
                visit_stack.emplace(
                   std::shared_ptr(std::move(next_wstate)),
                   child_node_sptr.get(),
-                  std::move(next_actions),
                   action_idx == last_action_idx  // reaching the last action index means that this
                                                  // node should trigger value propagation
                );
@@ -490,7 +514,7 @@ template <
             // them by the current policy.
             // This entire idea relies upon a POST-ORDER DEPTH-FIRST GAME TREE traversal!
             auto value_collector = [&](cfr_node_type& node, Player player) {
-               auto action_value_view = child_collector(
+               auto action_value_view = _child_collector(
                   node, [&](cfr_node_type* child) { return child->value(player); });
                // v <- v + pi_{player}(s, a) * v(s'(a))
                node.value(player) += std::transform_reduce(
@@ -502,20 +526,12 @@ template <
                      // applied action is the action that lead to the child node!
                      const auto& [applied_action, action_value] = action_value_pair;
                      // pi_{player}(s, a) * v(s'(a))
-                     return m_curr_policy[player][node.info_states(player)][applied_action]
-                            * action_value;
+                     return fetch_policy< true >(player, node)[applied_action] * action_value;
                   });
             };
-            // TODO: time the parallel execution. It might be too much overhead.
-            // the unparallelized version is a simple for loop over the players.
-            // auto exec_policy = std::execution::seq;
-            // the parallelized version uses std for_each with parallel execution policy
-            auto exec_policy = std::execution::par_unseq;
-            std::for_each(
-               exec_policy,
-               m_env.players().begin(),
-               m_env.players().end(),
-               [&, node = curr_node->parent()](Player player) { value_collector(*node, player); });
+            ranges::for_each(m_env.players(), [&, node = curr_node->parent()](Player player) {
+               value_collector(*node, player);
+            });
          }
 
          if constexpr(cfr_config.alternating_updates) {
@@ -570,11 +586,10 @@ template <
         Player player)
 {
    double reach_prob = reach_probability(node);
-   const auto& infostate = node.info_states(player);
-   auto& avg_state_policy = fetch_policy< false >(player, infostate);
-   auto& curr_state_policy = fetch_policy< true >(player, infostate);
+   auto& avg_state_policy = fetch_policy< false >(player, node);
+   auto& curr_state_policy = fetch_policy< true >(player, node);
    ranges::for_each(
-      child_collector(node, [&](cfr_node_type* child) { return child->value(player); }),
+      _child_collector(node, [&](cfr_node_type* child) { return child->value(player); }),
       [&](const auto& action_value_pair) {
          const auto& [action, action_value] = action_value_pair;
          node.regret(action) += cf_reach_probability(node, reach_prob, player)

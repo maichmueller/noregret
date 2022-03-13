@@ -35,7 +35,7 @@ aze::Status Logic::check_terminal(State &state)
 void Logic::apply_action(State &state, const Action &action)
 {
    // preliminaries
-   const auto &[from, to] = action;
+   const auto &[_, from, to] = action;
 
    // save the access to the pieces in question
    // (removes redundant searching in board later)
@@ -93,7 +93,7 @@ bool Logic::is_valid(const State &state, const Action &action, std::optional<Tea
       // not this team's action
       return false;
    }
-   const auto &[pos_before, pos_after] = action;
+   const auto &[_, pos_before, pos_after] = action;
    const auto &board = state.board();
 
    if(not check_bounds(board, pos_before) or not check_bounds(board, pos_after))

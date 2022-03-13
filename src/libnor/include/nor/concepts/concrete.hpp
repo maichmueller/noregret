@@ -75,7 +75,7 @@ concept info_state =
 // clang-format on
 
 template < typename T >
-concept world_state = true;
+concept world_state = std::is_move_constructible_v< T > and is::copyable_someway< T >;
 
 template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
 // clang-format off

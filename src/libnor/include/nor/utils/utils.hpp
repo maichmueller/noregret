@@ -9,7 +9,7 @@
 
 namespace nor {
 
-// using this macro gave cryptic allocator problems
+
 #ifndef NEW_EMPTY_TYPE
    #define NEW_EMPTY_TYPE decltype([]() {})
 #endif
