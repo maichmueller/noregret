@@ -2,8 +2,8 @@
 #ifndef NOR_VANILLA_HPP
 #define NOR_VANILLA_HPP
 
-#include <cppitertools/enumerate.hpp>
-#include <cppitertools/reversed.hpp>
+//#include <cppitertools/enumerate.hpp>
+//#include <cppitertools/reversed.hpp>
 #include <execution>
 #include <iostream>
 #include <list>
@@ -431,7 +431,6 @@ template <
          // we have to reverse the index range, in order to guarantee that the last_action_idx child
          // node is going to be emplaced FIRST and thus popped as the LAST child of the current node
          // (and as such trigger the value propagation)
-         //         for(auto&& [action_idx, action] : iter::enumerate(iter::reversed(actions))) {
          for(const auto& [action_idx, action] :
              actions | ranges::views::reverse | ranges::views::enumerate) {
             // the index starts enumerating at 0, but we are stepping through the actions in
@@ -599,9 +598,8 @@ template <
          std::stringstream ssout;
          ssout << "Given combination of '";
          ssout << Player::chance;
-         ssout << "' and '";
-         ssout << "alternating updates'";
-         ssout << "is incompatible. Did you forget to pass the correct player parameter?";
+         ssout << "' and 'alternating updates' is incompatible. "
+                  "Did you forget to pass the correct player parameter?";
          throw std::invalid_argument(ssout.str());
       }
    }
