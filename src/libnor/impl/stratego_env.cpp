@@ -41,7 +41,7 @@ std::vector< Environment::action_type > Environment::actions(
 
 void Environment::transition(world_state_type& worldstate, const action_type& action) const
 {
-   m_logic->apply_action(worldstate, action);
+   worldstate.transition(action);
 }
 void Environment::reset(world_state_type& wstate) const
 {

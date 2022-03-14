@@ -70,7 +70,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    CFRNode(
       Player player,
       std::vector< Action > legal_actions,
-      double is_terminal,
+      bool is_terminal,
       std::map< Player, Infostate > info_states,
       Publicstate public_state = {},
       CFRNode* parent = nullptr)
@@ -87,7 +87,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    CFRNode(
       Player player,
       std::vector< Action > legal_actions,
-      double is_terminal,
+      bool is_terminal,
       std::map< Player, Infostate > info_states,
       Publicstate public_state,
       std::map< Player, double > reach_prob,
@@ -138,7 +138,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    /// the legal actions the active player can choose from at this state.
    std::vector< Action > m_actions;
    /// whether it is a terminal node
-   double m_terminal = false;
+   bool m_terminal = false;
 
    // player-based storage
 

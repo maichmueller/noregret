@@ -32,10 +32,10 @@ template < typename T >
 concept enum_ = std::is_enum_v< T >;
 
 template < class T, class... Ts >
-concept any_of = ::std::disjunction< ::std::is_same< T, Ts >... >::value;
+concept any_of = ::std::disjunction_v< ::std::is_same< T, Ts >... >;
 
 template < class T, class... Ts >
-concept same_as_all = ::std::conjunction< ::std::is_same< T, Ts >... >::value;
+concept same_as_all = ::std::conjunction_v< ::std::is_same< T, Ts >... >;
 
 template < typename T >
 concept iterator = requires(T t)

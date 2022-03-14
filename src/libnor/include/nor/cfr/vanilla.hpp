@@ -388,13 +388,17 @@ class VanillaCFR {
 
          // we allocate the current player here to not ask for its retrieval for every action anew
          Player curr_player = curr_node->player();
-
+         LOGD2("Active player", curr_player);
+         //         std::cout << (curr_node->actions() | ranges::views::all);
+         LOGD2("Legal actions", (curr_node->actions() | ranges::views::all));
          for(const auto& action : curr_node->actions()) {
             // copy the current nodes world state
             auto next_wstate_uptr = utils::static_unique_ptr_cast< world_state_type >(
                utils::clone_any_way(curr_wstate));
             // move the new world state forward by the current action
+                        LOGD2("State before transition", next_wstate_uptr->to_string());
             m_env.transition(*next_wstate_uptr, action);
+                        LOGD2("State after transition", next_wstate_uptr->to_string());
             // copy the current information states of all players. Each state will be updated with
             // the new private observation the respective player receives from the environment.
             static_assert(
@@ -415,7 +419,7 @@ class VanillaCFR {
             // the child node has shared ownership by each player's game tree
             auto child_node_sptr = std::make_shared< cfr_node_type >(
                m_env.active_player(*next_wstate_uptr),
-               m_env.actions(curr_player, *next_wstate_uptr),
+               m_env.actions(m_env.active_player(*next_wstate_uptr), *next_wstate_uptr),
                m_env.is_terminal(*next_wstate_uptr),
                next_infostates,
                std::move(next_public_state),

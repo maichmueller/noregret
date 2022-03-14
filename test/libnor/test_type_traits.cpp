@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "nor/nor.hpp"
+#include "nor/utils/type_traits.hpp"
 
 TEST(add_const_if, expected_constness)
 {

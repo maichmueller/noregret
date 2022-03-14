@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "dummy_classes.hpp"
-#include "nor/nor.hpp"
+#include "nor/concepts.hpp"
 
 TEST(concrete, iterable)
 {

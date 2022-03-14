@@ -3,7 +3,7 @@
 #include <string>
 #include <type_traits>
 
-#include "nor/nor.hpp"
+#include "nor/fosg_traits.hpp"
 #include "dummy_classes.hpp"
 
 

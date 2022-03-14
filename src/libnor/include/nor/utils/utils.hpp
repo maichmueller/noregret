@@ -219,14 +219,6 @@ inline Player from_string< Player >(std::string_view str)
 }
 
 
-template < nor::concepts::is::enum_ Enum >
-requires nor::concepts::is::any_of< Enum, Player, TurnDynamic, Stochasticity >
-inline auto &operator<<(std::ostream &os, Enum e)
-{
-   os << nor::utils::enum_name(e);
-   return os;
-}
-
 }  // namespace nor::utils
 
 template < nor::concepts::is::enum_ Enum, typename T >
@@ -245,6 +237,14 @@ inline std::string operator+(Enum e, const T &other)
 template < nor::concepts::is::enum_ Enum >
 requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
 inline auto &operator<<(std::stringstream &os, Enum e)
+{
+   os << nor::utils::enum_name(e);
+   return os;
+}
+
+template < nor::concepts::is::enum_ Enum >
+requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+inline auto &operator<<(std::ostream &os, Enum e)
 {
    os << nor::utils::enum_name(e);
    return os;
