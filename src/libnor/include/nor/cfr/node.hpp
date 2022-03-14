@@ -119,7 +119,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    [[nodiscard]] auto& public_state() const { return cond_public_state_base::public_state; }
    [[nodiscard]] auto terminal() const { return m_terminal; }
    [[nodiscard]] auto player() const { return m_player; }
-   [[nodiscard]] auto& info_states(Player player) const { return m_infostates[player]; }
+   [[nodiscard]] auto& info_states(Player player) const { return m_infostates.at(player); }
    [[nodiscard]] auto& info_states() const { return m_infostates; }
    [[nodiscard]] auto& value(Player player) const { return m_value.at(player); }
    [[nodiscard]] auto& value() const { return m_value; }

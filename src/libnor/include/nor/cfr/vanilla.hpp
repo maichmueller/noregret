@@ -236,7 +236,7 @@ class VanillaCFR {
          auto& player_policy = m_curr_policy[player];
          auto found_action_policy = player_policy.find(info_state);
          if(found_action_policy == player_policy.end()) {
-            auto legal_actions = m_env.actions(info_state);
+            auto legal_actions = node.actions();
             auto debug_val = m_default_policy[{info_state, legal_actions}];
             auto v = m_default_policy[{info_state, legal_actions}][legal_actions[0]];
             return player_policy.emplace(info_state, m_default_policy[{info_state, legal_actions}])
@@ -248,7 +248,7 @@ class VanillaCFR {
          auto found_action_policy = player_policy.find(info_state);
          if(found_action_policy == player_policy.end()) {
             typename AveragePolicy::action_policy_type default_avg_policy;
-            for(const auto& action : m_env.actions(info_state)) {
+            for(const auto& action : node.actions()) {
                default_avg_policy[action] = 0.;
             }
             return player_policy.emplace(info_state, default_avg_policy).first->second;
@@ -389,10 +389,10 @@ class VanillaCFR {
 
          for(const auto& action : curr_node->actions()) {
             // copy the current nodes world state
-            auto next_wstate = utils::static_unique_ptr_cast< world_state_type >(
+            auto next_wstate_uptr = utils::static_unique_ptr_cast< world_state_type >(
                utils::clone_any_way(curr_wstate));
             // move the new world state forward by the current action
-            m_env.transition(*next_wstate, action);
+            m_env.transition(*next_wstate_uptr, action);
             // copy the current information states of all players. Each state will be updated with
             // the new private observation the respective player receives from the environment.
             static_assert(
@@ -404,17 +404,17 @@ class VanillaCFR {
             for(auto player : m_env.players()) {
                next_infostates[player].append(
                   m_env.private_observation(player, action),
-                  m_env.private_observation(player, *next_wstate));
+                  m_env.private_observation(player, *next_wstate_uptr));
             }
             auto next_public_state = curr_node->public_state();
             if constexpr(not concepts::is::empty< typename cfr_node_type::public_state_type >) {
-               next_public_state.append(m_env.public_observation(*next_wstate));
+               next_public_state.append(m_env.public_observation(*next_wstate_uptr));
             }
             // the child node has shared ownership by each player's game tree
             auto child_node_sptr = std::make_shared< cfr_node_type >(
-               m_env.active_player(*next_wstate),
-               m_env.actions(curr_player, *next_wstate),
-               m_env.is_terminal(*next_wstate),
+               m_env.active_player(*next_wstate_uptr),
+               m_env.actions(curr_player, *next_wstate_uptr),
+               m_env.is_terminal(*next_wstate_uptr),
                next_infostates,
                std::move(next_public_state),
                curr_node->reach_probability(),  // we for now only copy the parent's reach
@@ -432,16 +432,18 @@ class VanillaCFR {
             child_node_sptr->reach_probability(curr_player) *= fetch_policy< true >(
                curr_player, *curr_node)[action];
 
-            if(m_env.is_terminal(*next_wstate)) {
+            if(m_env.is_terminal(*next_wstate_uptr)) {
                // we have reached a terminal state and can save the reward as the value of this
                // node within the node. This value will later in the algorithm be propagated up in
                // the tree.
-               collect_rewards(*next_wstate, *child_node_sptr);
+               collect_rewards(*next_wstate_uptr, *child_node_sptr);
             } else {
                // if the newly reached world state is not a terminal state, then we merely append
                // the new child node to the queue. This way we further explore its child states as
                // reachable from the next possible actions.
-               visit_stack.emplace(std::make_shared(std::move(next_wstate)), child_node_sptr.get());
+               visit_stack.emplace(
+                  std::move(next_wstate_uptr),
+                  child_node_sptr.get());
             }
          }
          // enqueue the current node for delayed regret & strategy updates

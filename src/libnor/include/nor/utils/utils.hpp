@@ -213,7 +213,7 @@ inline std::string_view enum_name(Stochasticity e)
 }
 
 template <>
-Player from_string< Player >(std::string_view str)
+inline Player from_string< Player >(std::string_view str)
 {
    return player_name_bij.at(str);
 }
