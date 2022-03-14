@@ -100,18 +100,12 @@ Move operator/(const Number& n, const Move& m)
 }
 
 class Action {
+  public:
+   using move_type = Move;
    using iterator = typename Move::iterator;
    using const_iterator = typename Move::const_iterator;
 
-  private:
-   Team m_team;
-   Move m_move;
-
-  public:
-   Action(Team team, Position pos_from, Position pos_to)
-       : m_team(team), m_move{std::move(pos_from), std::move(pos_to)}
-   {
-   }
+   Action(Team team, Move move) : m_team(team), m_move(std::move(move)) {}
 
    const Position& operator[](unsigned int index) const { return m_move[index]; }
    Position& operator[](unsigned int index) { return m_move[index]; }
@@ -127,7 +121,7 @@ class Action {
 
    bool operator==(const Action& other) const
    {
-      return m_team == other.team() and (*this)[0] == other[0] and (*this)[1] == other[1];
+      return m_team == other.team() and m_move == other.move();
    }
    bool operator!=(const Action& other) const { return not ((*this) == other); }
 
@@ -159,6 +153,10 @@ class Action {
       if constexpr(Index == 2)
          return m_move.to();
    }
+
+  private:
+   Team m_team;
+   Move m_move;
 };
 
 }  // namespace stratego

@@ -10,29 +10,29 @@ using namespace stratego;
 
 TEST_F(MinimalState, action_is_valid)
 {
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 1}, {2, 1}}, Team::BLUE));
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 4}, {2, 4}}, Team::BLUE));
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 1}, {2, 1}}, Team::BLUE));
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{3, 0}, {2, 0}}, Team::RED));
-   EXPECT_TRUE(state.logic()->is_valid(state, Action{Team::BLUE,{3, 0}, {1, 0}}, Team::RED));
+   EXPECT_TRUE(state.logic()->is_valid(state, Move{{1, 1}, {2, 1}}, Team::BLUE));
+   EXPECT_TRUE(state.logic()->is_valid(state, Move{{1, 4}, {2, 4}}, Team::BLUE));
+   EXPECT_TRUE(state.logic()->is_valid(state, Move{{1, 1}, {2, 1}}, Team::BLUE));
+   EXPECT_TRUE(state.logic()->is_valid(state, Move{{3, 0}, {2, 0}}, Team::RED));
+   EXPECT_TRUE(state.logic()->is_valid(state, Move{{3, 0}, {1, 0}}, Team::RED));
 
    // cant walk onto own pieces
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{0, 0}, {1, 0}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{0, 3}, {1, 3}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 1}, {0, 1}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{4, 3}, {3, 3}}, Team::RED));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{4, 2}, {3, 2}}, Team::RED));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{0, 0}, {1, 0}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{0, 3}, {1, 3}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{1, 1}, {0, 1}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{4, 3}, {3, 3}}, Team::RED));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{4, 2}, {3, 2}}, Team::RED));
    // cant walk diagonally
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{{4, 2}, {3, 3}}, Team::RED));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 2}, {2, 1}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{4, 2}, {3, 3}}, Team::RED));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{1, 2}, {2, 1}}, Team::BLUE));
    // cant walk onto hole
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 2}, {2, 2}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 2}, {3, 2}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{1, 2}, {2, 2}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{1, 2}, {3, 2}}, Team::BLUE));
    // cant walk too far
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 1}, {3, 1}}, Team::BLUE));
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{1, 4}, {3, 4}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{1, 1}, {3, 1}}, Team::BLUE));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{1, 4}, {3, 4}}, Team::BLUE));
    // cant transition over pieces
-   EXPECT_FALSE(state.logic()->is_valid(state, Action{Team::BLUE,{3, 1}, {0, 1}}, Team::RED));
+   EXPECT_FALSE(state.logic()->is_valid(state, Move{{3, 1}, {0, 1}}, Team::RED));
 }
 
 TEST_F(MinimalState, apply_action)
@@ -65,7 +65,9 @@ TEST_F(MinimalState, apply_action)
    EXPECT_EQ(piece.team(), Team::RED);
 
    // move spy onto enemy marshall -> fight and win
-   state_copy->transition({{4, 1}, {3, 1}});
+   // since the copy is a pointer to the base class, we now have to provide an action_type and not a
+   // stratego move_type.
+   state_copy->transition({Team::RED, {{4, 1}, {3, 1}}});
 
    EXPECT_THROW((state_copy->board()[{4, 1}].value()), std::bad_optional_access);
    piece = state_copy->board()[{3, 1}].value();
@@ -77,10 +79,18 @@ TEST_F(MinimalState, apply_action)
 TEST_F(MinimalState, valid_action_list)
 {
    //   std::cout << state.to_string();
+   auto to_moves = [](auto eq_rng) {
+      std::vector< Move > v;
+      std::transform(eq_rng.begin(), eq_rng.end(), std::back_inserter(v), [&](Action action) {
+         return action.move();
+      });
+      return v;
+   };
 
-   std::map< Team, std::vector< Action > > expected;
-   expected[Team::BLUE] = std::vector< Action >{{{1, 1}, {2, 1}}, {{1, 4}, {2, 4}}};
-   expected[Team::RED] = std::vector< Action >{
+   std::map< Team, std::vector< Move > > expected;
+   expected[Team::BLUE] = std::vector< Move >{{{1, 1}, {2, 1}}, {{1, 4}, {2, 4}}};
+
+   expected[Team::RED] = std::vector< Move >{
       {{3, 0}, {1, 0}},
       {{3, 0}, {2, 0}},
       {{3, 1}, {1, 1}},
@@ -97,7 +107,8 @@ TEST_F(MinimalState, valid_action_list)
       //         "Valid actions expected Team: " + utils::enum_name(Team(i)),
       //         aze::utils::VectorPrinter(expected[Team(i)]));
 
-      EXPECT_EQ(eq_rng(state.logic()->valid_actions(state, Team(i))), eq_rng(expected[Team(i)]));
+      EXPECT_EQ(
+         eq_rng(to_moves(state.logic()->valid_actions(state, Team(i)))), eq_rng(expected[Team(i)]));
    }
 
    // move marshall one field up
@@ -105,14 +116,14 @@ TEST_F(MinimalState, valid_action_list)
 
    //   std::cout << state.to_string();
 
-   expected[Team::BLUE] = std::vector< Action >{
+   expected[Team::BLUE] = std::vector< Move >{
       {{2, 1}, {3, 1}},
       {{2, 1}, {1, 1}},
       {{1, 2}, {1, 1}},
       {{0, 1}, {1, 1}},
       {{2, 1}, {2, 0}},
       {{1, 4}, {2, 4}}};
-   expected[Team::RED] = std::vector< Action >{
+   expected[Team::RED] = std::vector< Move >{
       {{3, 0}, {1, 0}},
       {{3, 0}, {2, 0}},
       {{3, 1}, {2, 1}},
@@ -128,18 +139,19 @@ TEST_F(MinimalState, valid_action_list)
       //         "Valid actions expected Team: " + utils::enum_name(Team(i)),
       //         aze::utils::VectorPrinter(expected[Team(i)]));
 
-      EXPECT_EQ(eq_rng(state.logic()->valid_actions(state, Team(i))), eq_rng(expected[Team(i)]));
+      EXPECT_EQ(
+         eq_rng(to_moves(state.logic()->valid_actions(state, Team(i)))), eq_rng(expected[Team(i)]));
    }
 }
 
 TEST_P(CheckTerminalParamsF, check_terminal)
 {
    auto hole_pos = std::vector< Position >{Position{2, 2}};
-   auto [turn_counter, starting_team, game_dims, setups, tokens, fields, status] = GetParam();
+   auto [turn_counter, beginning_team, game_dims, setups, tokens, fields, status] = GetParam();
 
    // proxy state to get the defaults easily instantiated
    State s(Config(
-      starting_team,
+      beginning_team,
       game_dims,
       setups,
       hole_pos,
@@ -151,7 +163,7 @@ TEST_P(CheckTerminalParamsF, check_terminal)
 
    // actual state to test on
    State s_to_test(
-      s.config(), s.graveyard(), s.logic()->clone(), s.board(), size_t(turn_counter), s.history(), s.rng());
+      s.config(), s.graveyard(), s.logic()->clone(), s.board(), turn_counter, s.history(), s.rng());
 
    LOGD2("State to test", s_to_test.to_string());
    LOGD2("Observed Outcome", utils::enum_name(s_to_test.logic()->check_terminal(s_to_test)));

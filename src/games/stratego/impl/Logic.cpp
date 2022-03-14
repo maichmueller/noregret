@@ -86,7 +86,7 @@ FightOutcome Logic::handle_fight(State &state, Piece &attacker, Piece &defender)
    }
    return outcome;
 }
-bool Logic::is_valid(const State &state, const Action &action, std::optional<Team> team_opt)
+bool Logic::is_valid(const State &state, const Action &action, std::optional< Team > team_opt)
 {
    const Team team = team_opt.value_or(action.team());
    if(action.team() != team) {
@@ -177,7 +177,7 @@ std::vector< Action > Logic::valid_actions(const State &state, Team team)
             }
             ranges::for_each(
                _valid_vectors(pos, board.shape(), token_move_range), [&](const Position &pos_to) {
-                  Action action{team, pos, pos + pos_to};
+                  Action action{team, {pos, pos + pos_to}};
                   if(is_valid(state, action, team)) {
                      actions_possible.emplace_back(action);
                   }
@@ -220,7 +220,7 @@ bool Logic::has_valid_actions(const State &state, Team team)
             if(ranges::any_of(
                   _valid_vectors(pos, board.shape(), token_move_range),
                   [&](const Position &vector) -> bool {
-                     return is_valid(state, Action{team, pos, pos + vector}, team);
+                     return is_valid(state, Action{team, {pos, pos + vector}}, team);
                   })) {
                return true;
             }
@@ -319,13 +319,18 @@ Logic *Logic::clone_impl() const
 {
    return new Logic();
 }
-void Logic::reset(State& state) {
+void Logic::reset(State &state)
+{
    if(not state.config().fixed_starting_team) {
       Config cfg_copy = state.config();
       cfg_copy.starting_team = aze::utils::random::choose(
          std::array{Team::BLUE, Team::RED}, state.rng());
    }
    state = State(state.config());
+}
+bool Logic::is_valid(const State &state, Move move, Team team)
+{
+   return is_valid(state, Action{team, std::move(move)});
 }
 
 }  // namespace stratego

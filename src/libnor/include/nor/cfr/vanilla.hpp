@@ -141,7 +141,8 @@ class VanillaCFR {
        m_curr_policy(),
        m_avg_policy(),
        m_default_policy(std::move(default_policy)),
-       m_root_state(std::move(root_state))
+       m_root_state(std::move(root_state)),
+       m_root_node(_emplace_root_node())
    {
       _assert_sequential_game();
       for(auto player : game.players()) {
@@ -207,7 +208,8 @@ class VanillaCFR {
        m_root_state(std::move(root_state)),
        m_curr_policy(std::move(policy)),
        m_avg_policy(std::move(avg_policy)),
-       m_default_policy(std::move(default_policy))
+       m_default_policy(std::move(default_policy)),
+       m_root_node(_emplace_root_node())
    {
       _assert_sequential_game();
    }
@@ -284,9 +286,9 @@ class VanillaCFR {
    default_policy_type m_default_policy;
 
    /// the root game state to solve
-   sptr< world_state_type > m_root_state;
+   const sptr< world_state_type > m_root_state;
    /// the root game state to solve
-   sptr< cfr_node_type > m_root_node = nullptr;
+   const sptr< cfr_node_type > m_root_node;
    /// The update queue to use once the nodes have been filled from a tree traversal.
    /// We need to arrange a delayed update of tree nodes, since any node's values depend on the
    /// child values and the reach probabilities. Those values are found once the full traversal
@@ -330,7 +332,7 @@ class VanillaCFR {
       }
    }
 
-   cfr_node_type* _emplace_root_node()
+   sptr< cfr_node_type > _emplace_root_node()
    {
       auto curr_player = m_env.active_player(*m_root_state);
       auto root_node = std::make_shared< cfr_node_type >(
@@ -358,7 +360,7 @@ class VanillaCFR {
       for(const auto& [player, info_state] : root_node->info_states()) {
          m_game_trees[player].emplace(info_state, root_node);
       }
-      return root_node.get();
+      return root_node;
    }
 
    void _first_traversal()
@@ -441,9 +443,7 @@ class VanillaCFR {
                // if the newly reached world state is not a terminal state, then we merely append
                // the new child node to the queue. This way we further explore its child states as
                // reachable from the next possible actions.
-               visit_stack.emplace(
-                  std::move(next_wstate_uptr),
-                  child_node_sptr.get());
+               visit_stack.emplace(std::move(next_wstate_uptr), child_node_sptr.get());
             }
          }
          // enqueue the current node for delayed regret & strategy updates

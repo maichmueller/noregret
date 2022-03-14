@@ -33,6 +33,11 @@ class Logic {
       const Action &action,
       std::optional< Team > team_opt = std::nullopt);
 
+   bool is_valid(
+      const State &state,
+      Move move,
+      Team team_opt);
+
    template < ranges::contiguous_range Range >
    auto _valid_vectors(Position pos, Range shape, int distance = 1);
 

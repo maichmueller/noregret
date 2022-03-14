@@ -126,6 +126,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    }
 
    void transition(const action_type &action) override;
+   void transition(Move move);
    aze::Status check_terminal() override;
    [[nodiscard]] Team active_team() const override
    {
@@ -133,12 +134,13 @@ class State: public aze::State< Board, History, Piece, Action > {
    }
 
    [[nodiscard]] std::string to_string() const override;
-   [[nodiscard]] std::string to_string(std::optional< Team > team, bool hide_unknowns) const override;
+   [[nodiscard]] std::string to_string(std::optional< Team > team, bool hide_unknowns)
+      const override;
 
    [[nodiscard]] inline auto &config() const { return m_config; }
    [[nodiscard]] inline auto *logic() const { return &*m_logic; }
-   [[nodiscard]] inline auto& graveyard() const { return m_graveyard; }
-   [[nodiscard]] inline auto& graveyard(Team team) const { return m_graveyard.at(team); }
+   [[nodiscard]] inline auto &graveyard() const { return m_graveyard; }
+   [[nodiscard]] inline auto &graveyard(Team team) const { return m_graveyard.at(team); }
 
   private:
    /// the specific configuration of the stratego game belonging to this state

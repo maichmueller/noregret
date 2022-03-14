@@ -62,12 +62,18 @@ struct sorted {
    {
       std::sort(value.begin(), value.end(), sort);
    }
+   auto begin() const { return value.begin(); }
+   auto end() const { return value.end(); }
 };
 template < typename T, typename SortF = flattable_sorter >
 struct eq_rng {
    sorted< T > sorted_rng;
    explicit eq_rng(T val, SortF sort = SortF()) : sorted_rng(val, sort) {}
    bool operator==(const eq_rng& other) const { return cmp_equal_rngs(value(), other.value()); };
+
+   auto begin() const { return sorted_rng.begin(); }
+   auto end() const { return sorted_rng.end(); }
+
    const auto& value() const { return sorted_rng.value; }
    friend auto& operator<<(std::ostream& os, const eq_rng& rng)
    {

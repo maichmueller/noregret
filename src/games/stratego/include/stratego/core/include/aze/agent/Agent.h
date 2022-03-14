@@ -47,8 +47,9 @@ class RandomAgent: public Agent< StateType > {
       const StateType & /*state*/,
       const std::vector< action_type > &poss_moves) override
    {
-      std::array< action_type, 1 > selected_move{action_type{base_type::team(), {}, {}}};
-      std::sample(poss_moves.begin(), poss_moves.end(), selected_move.begin(), 1, mt);
+      std::vector< action_type > selected_move;
+      selected_move.reserve(1);
+      std::sample(poss_moves.begin(), poss_moves.end(), std::back_inserter(selected_move), 1, mt);
 
       return selected_move[0];
    }
@@ -64,10 +65,22 @@ class FixedAgent: public Agent< StateType > {
    using action_type = typename base_type::action_type;
 
   public:
-   explicit FixedAgent(Team team, std::vector< action_type > actions) : base_type(team), m_actions()
+   FixedAgent(Team team, std::vector< action_type > actions) : base_type(team), m_actions()
    {
       m_actions.reserve(actions.size());
       std::copy(actions.rbegin(), actions.rend(), std::back_inserter(m_actions));
+   }
+   FixedAgent(Team team, std::vector< typename action_type::move_type > moves)
+       : base_type(team), m_actions()
+   {
+      m_actions.reserve(moves.size());
+      std::transform(
+         moves.rbegin(),
+         moves.rend(),
+         std::back_inserter(m_actions),
+         [&](typename action_type::move_type &move) {
+            return action_type{team, std::move(move)};
+         });
    }
 
    action_type decide_action(
@@ -79,7 +92,8 @@ class FixedAgent: public Agent< StateType > {
 
       if(ranges::find(poss_actions, action) == poss_actions.end()) {
          std::stringstream ss;
-         ss << "Latest action of scripted actor not in agreement with current possible actions to choose from.\n";
+         ss << "Latest action of scripted actor not in agreement with current possible actions to "
+               "choose from.\n";
          ss << "Action: " << action << "\n";
          ss << "Possible actions: " << aze::utils::VectorPrinter{poss_actions} << "\n";
          throw std::logic_error(ss.str());

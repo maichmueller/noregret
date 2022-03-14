@@ -15,6 +15,11 @@ void State::transition(const action_type &action)
    incr_turn_count();
 }
 
+void State::transition(Move move)
+{
+   return transition(Action{active_team(), std::move(move)});
+}
+
 State *State::clone_impl() const
 {
    return new State(*this);
