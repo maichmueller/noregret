@@ -70,12 +70,14 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    CFRNode(
       Player player,
       std::vector< Action > legal_actions,
+      double is_terminal,
       std::map< Player, Infostate > info_states,
       Publicstate public_state = {},
       CFRNode* parent = nullptr)
        : cond_public_state_base{std::move(public_state)},
          m_player(player),
          m_actions(std::move(legal_actions)),
+         m_terminal(is_terminal),
          m_infostates(std::move(info_states)),
          m_reach_prob(),
          m_parent(parent)
@@ -85,6 +87,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    CFRNode(
       Player player,
       std::vector< Action > legal_actions,
+      double is_terminal,
       std::map< Player, Infostate > info_states,
       Publicstate public_state,
       std::map< Player, double > reach_prob,
@@ -92,6 +95,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
        : cond_public_state_base{std::move(public_state)},
          m_player(player),
          m_actions(std::move(legal_actions)),
+         m_terminal(is_terminal),
          m_infostates(std::move(info_states)),
          m_reach_prob(std::move(reach_prob)),
          m_parent(parent)
@@ -113,6 +117,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    auto& regret() { return m_regret; }
    auto parent() { return m_parent; }
    [[nodiscard]] auto& public_state() const { return cond_public_state_base::public_state; }
+   [[nodiscard]] auto terminal() const { return m_terminal; }
    [[nodiscard]] auto player() const { return m_player; }
    [[nodiscard]] auto& info_states(Player player) const { return m_infostates[player]; }
    [[nodiscard]] auto& info_states() const { return m_infostates; }
@@ -132,6 +137,8 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    Player m_player;
    /// the legal actions the active player can choose from at this state.
    std::vector< Action > m_actions;
+   /// whether it is a terminal node
+   double m_terminal = false;
 
    // player-based storage
 

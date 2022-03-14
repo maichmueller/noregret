@@ -137,8 +137,8 @@ class State: public aze::State< Board, History, Piece, Action > {
 
    [[nodiscard]] inline auto &config() const { return m_config; }
    [[nodiscard]] inline auto *logic() const { return &*m_logic; }
-   [[nodiscard]] inline auto graveyard() const { return m_graveyard; }
-   [[nodiscard]] inline auto graveyard(Team team) const { return m_graveyard.at(team); }
+   [[nodiscard]] inline auto& graveyard() const { return m_graveyard; }
+   [[nodiscard]] inline auto& graveyard(Team team) const { return m_graveyard.at(team); }
 
   private:
    /// the specific configuration of the stratego game belonging to this state

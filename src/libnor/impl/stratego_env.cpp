@@ -76,66 +76,66 @@ Player Environment::active_player(const Environment::world_state_type& wstate) c
 {
    return to_player(wstate.active_team());
 }
-std::vector< Environment::action_type > Environment::actions(
-   const Environment::info_state_type& istate) const
-{
-   const std::string line_delimiter = "\n";
-   const std::string segment_delimiter = "|";
-   std::string_view latest_state_obs = istate.history().back().second;
-
-   auto position_parser = [](const std::string_view pos_str) {
-      size_t left_paren = pos_str.find("(");
-      size_t right_paren = pos_str.find(")");
-      std::vector< std::string_view > pos_entries = nor::utils::split(
-         pos_str.substr(left_paren + 1, right_paren - left_paren - 1), ",");
-      return Position{
-         std::stoi(std::string(pos_entries[0])), std::stoi(std::string(pos_entries[1]))};
-   };
-
-   auto visibility_parser = [](std::string_view str) {
-      if(str == "!") {
-         return false;
-      } else if(str == "?") {
-         return true;
-      } else {
-         std::stringstream ss;
-         ss << "Given visibility string ";
-         ss << std::quoted(str);
-         ss << " could not be parsed.";
-         throw std::logic_error(ss.str());
-      }
-   };
-
-   auto token_parser = [](std::string_view str) {
-      if(str == "-") {
-         // If an opponent's hidden unit is given, then just assign it as spy. The token of hidden
-         // opponent units is unused for legal action finding anyway
-         return Token::spy;
-      } else {
-         return stratego::utils::from_string< Token >(str);
-      }
-   };
-   Board board;
-   std::array< Config::setup_t, 2 > setups;
-   std::vector< Position > hole_pos;
-   auto lines = nor::utils::split(latest_state_obs, line_delimiter);
-   auto active_team = stratego::utils::from_string< Team >(lines.front());
-   for(auto line : ranges::span(lines).subspan(2)) {
-      auto piece_infos = nor::utils::split(line, segment_delimiter);
-      Position pos = position_parser(piece_infos[0]);
-      Team team = stratego::utils::from_string< Team >(piece_infos[1]);
-      bool is_hidden = visibility_parser(piece_infos[2]);
-      Token token = token_parser(piece_infos[3]);
-      board[pos] = Piece(team, pos, token, is_hidden);
-      if(token == Token::hole) {
-         hole_pos.emplace_back(pos);
-      } else {
-         setups[static_cast< uint8_t >(team)][pos] = token;
-      }
-   }
-
-   return m_logic->valid_actions(State());
-}
+//std::vector< Environment::action_type > Environment::actions(
+//   const Environment::info_state_type& istate) const
+//{
+//   const std::string line_delimiter = "\n";
+//   const std::string segment_delimiter = "|";
+//   std::string_view latest_state_obs = istate.history().back().second;
+//
+//   auto position_parser = [](const std::string_view pos_str) {
+//      size_t left_paren = pos_str.find("(");
+//      size_t right_paren = pos_str.find(")");
+//      std::vector< std::string_view > pos_entries = nor::utils::split(
+//         pos_str.substr(left_paren + 1, right_paren - left_paren - 1), ",");
+//      return Position{
+//         std::stoi(std::string(pos_entries[0])), std::stoi(std::string(pos_entries[1]))};
+//   };
+//
+//   auto visibility_parser = [](std::string_view str) {
+//      if(str == "!") {
+//         return false;
+//      } else if(str == "?") {
+//         return true;
+//      } else {
+//         std::stringstream ss;
+//         ss << "Given visibility string ";
+//         ss << std::quoted(str);
+//         ss << " could not be parsed.";
+//         throw std::logic_error(ss.str());
+//      }
+//   };
+//
+//   auto token_parser = [](std::string_view str) {
+//      if(str == "-") {
+//         // If an opponent's hidden unit is given, then just assign it as spy. The token of hidden
+//         // opponent units is unused for legal action finding anyway
+//         return Token::spy;
+//      } else {
+//         return stratego::utils::from_string< Token >(str);
+//      }
+//   };
+//   Board board;
+//   std::array< Config::setup_t, 2 > setups;
+//   std::vector< Position > hole_pos;
+//   auto lines = nor::utils::split(latest_state_obs, line_delimiter);
+//   auto active_team = stratego::utils::from_string< Team >(lines.front());
+//   for(auto line : ranges::span(lines).subspan(2)) {
+//      auto piece_infos = nor::utils::split(line, segment_delimiter);
+//      Position pos = position_parser(piece_infos[0]);
+//      Team team = stratego::utils::from_string< Team >(piece_infos[1]);
+//      bool is_hidden = visibility_parser(piece_infos[2]);
+//      Token token = token_parser(piece_infos[3]);
+//      board[pos] = Piece(team, pos, token, is_hidden);
+//      if(token == Token::hole) {
+//         hole_pos.emplace_back(pos);
+//      } else {
+//         setups[static_cast< uint8_t >(team)][pos] = token;
+//      }
+//   }
+//
+//   return m_logic->valid_actions(State());
+//}
 
 std::string observation(const State& state, std::optional< Player > observing_player)
 {
@@ -145,15 +145,14 @@ std::string observation(const State& state, std::optional< Player > observing_pl
    ss << state.active_team() << "\n";
    ss << state.turn_count() << "\n";
    ss << (state.config().game_dims | ranges::views::all) << "\n";
-   const auto& gyards = state.graveyard();
+
    for(auto team : std::set{Team::BLUE, Team::RED}) {
       ss << "Graveyard " << stratego::utils::enum_name(team) << ":"
-         << (gyards.at(team) | ranges::views::keys) << "|"
-         << (gyards.at(team) | ranges::views::values);
+         << (state.graveyard(team) | ranges::views::keys) << "|"
+         << (state.graveyard(team) | ranges::views::values);
    }
    ss << "Action History:";
-   const auto& action_hist = state.history().actions();
-   ss << (action_hist | ranges::views::all) << "\n";
+   ss << (state.history().actions() | ranges::views::values) << "\n";
    for(const auto& piece_opt : state.board()) {
       if(not piece_opt.has_value()) {
          continue;

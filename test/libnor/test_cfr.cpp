@@ -24,8 +24,12 @@ TEST_F(MinimalState, vanilla_cfr_usage_stratego)
       cfr_config,
       nor::games::stratego::Environment,
       decltype(tabular_policy),
-      decltype(uniform_policy) >{std::move(state), std::move(env), tabular_policy, std::move(uniform_policy)};
+      decltype(uniform_policy) >{
+      std::make_shared< State >(std::move(state)),
+      std::move(env),
+      tabular_policy,
+      std::move(uniform_policy)};
    //   static_assert(std::is_pointer_v<decltype(state)>, "huh");
-//   auto state_copy = nor::utils::clone_any_way(state);
+   //   auto state_copy = nor::utils::clone_any_way(state);
    cfr_runner.iterate();
 }

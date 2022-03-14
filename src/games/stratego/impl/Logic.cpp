@@ -5,10 +5,10 @@ namespace stratego {
 
 aze::Status Logic::check_terminal(State &state)
 {
-   if(state.graveyard(Team::BLUE)[Token::flag] != 0) {
+   if(state.graveyard(Team::BLUE).at(Token::flag) != 0) {
       // flag of team 0 has been captured (killed), therefore team 0 lost
       return state.status(aze::Status::WIN_RED);
-   } else if(state.graveyard(Team::RED)[Token::flag] != 0) {
+   } else if(state.graveyard(Team::RED).at(Token::flag) != 0) {
       // flag of team 1 has been captured (killed), therefore team 1 lost
       return state.status(aze::Status::WIN_BLUE);
    }

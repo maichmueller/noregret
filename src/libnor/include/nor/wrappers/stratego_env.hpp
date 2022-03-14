@@ -99,7 +99,7 @@ class Environment {
    explicit Environment(uptr< Logic >&& logic);
 
    std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
-   std::vector< action_type > actions(const info_state_type& istate) const;
+//   std::vector< action_type > actions(const info_state_type& istate) const;
    static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
    Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate) const;
