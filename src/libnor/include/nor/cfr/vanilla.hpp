@@ -61,6 +61,10 @@ struct CFRConfig {
 /**
  * A (Vanilla) Counterfactual Regret Minimization algorithm class following the
  * terminology of the Factored-Observation Stochastic Games (FOSG) formulation.
+ *
+ * The implementation follows the algorithm detail of @cite Neller2013
+ *
+ *
  * @tparam Env, the environment/game type to run VanillaCFR on.
  *
  */
@@ -223,52 +227,81 @@ class VanillaCFR {
     * The decision for doing alternating updates or simultaneous updates happens at compile time via
     * the cfr config. This optimizes some unncessary repeated if-branching away at the cost of
     * higher maintenance. The user can also decide whether to store the public state at each node
+    * within the CFR config! This can save some memory, since the public states are not needed,
+    * unless one wants to extract some analysis.
     *
-    * @param n_iterations, the number of iterations to perform.
-    * @return the updated state_policy
+    * When one
+    *
+    * @param n_iterations the number of iterations to perform.
+    * @return reference to the updated state policy
     */
-   auto iterate(size_t n_iterations = 1);
+   auto iterate(size_t n_iterations);
    auto iterate(Player player_to_update) requires(cfr_config.alternating_updates);
 
+   /**
+    * @brief gets the current or average state policy of a node
+    *
+    * Depending on the template parameter either the current policy (true) or the average policy
+    * (false) over the last iterations is queried. If the current node has not been emplaced in the
+    * policy yet, then the default policy will be asked to provide an initial entry.
+    * @tparam current_policy switch for querying either the current (true) or the average (false)
+    * policy.
+    * @param player the player whose policy is to be fetched
+    * @param node the game node at which the policy is required
+    * @return action_policy_type the player's state policy (distribution) over all actions at this
+    * node
+    */
    template < bool current_policy >
-   auto& fetch_policy(Player player, const cfr_node_type& node)
-   {
-      const auto& info_state = node.info_states(player);
-      if constexpr(current_policy) {
-         auto& player_policy = m_curr_policy[player];
-         auto found_action_policy = player_policy.find(info_state);
-         if(found_action_policy == player_policy.end()) {
-            auto legal_actions = node.actions();
-            auto debug_val = m_default_policy[{info_state, legal_actions}];
-            auto v = m_default_policy[{info_state, legal_actions}][legal_actions[0]];
-            return player_policy.emplace(info_state, m_default_policy[{info_state, legal_actions}])
-               .first->second;
-         }
-         return found_action_policy->second;
-      } else {
-         auto& player_policy = m_avg_policy[player];
-         auto found_action_policy = player_policy.find(info_state);
-         if(found_action_policy == player_policy.end()) {
-            typename AveragePolicy::action_policy_type default_avg_policy;
-            for(const auto& action : node.actions()) {
-               default_avg_policy[action] = 0.;
-            }
-            return player_policy.emplace(info_state, default_avg_policy).first->second;
-         }
-         return found_action_policy->second;
-      }
-   }
+   auto& fetch_policy(Player player, const cfr_node_type& node);
 
+   /**
+    * @brief updates the regret and policy tables of the node with the state-values. Then performs
+    * regret-matching.
+    *
+    * The method implements lines 21-25 of @cite Neller2013.
+    *
+    * @param node the node to update the values at
+    * @param player the player whose values are to be updated
+    */
    void update_regret_and_policy(cfr_node_type& node, Player player);
-   double reach_probability(const cfr_node_type& node) const
+
+   /**
+    * @brief computes the reach probability of the node.
+    *
+    * Since each player's compounding likelihood contribution is stored in the nodes themselves, the
+    * actual computation is nothing more than merely multiplying all player's individual
+    * contributions.
+    * @param node the node whose reach probability to provide
+    * @return the reach probability of the nde
+    */
+   inline double reach_probability(const cfr_node_type& node) const
    {
       auto values_view = node.reach_probability_contrib() | ranges::views::values;
       return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
    }
+
+   /**
+    * @brief computes the counterfactual reach probability of the player for this node.
+    *
+    * The method delegates the actual computation to the overload with an already provided reach
+    * probability.
+    * @param node the node at which the counterfactual reach probability is to be computed
+    * @param player the player for which the value is computed
+    * @return the counterfactual reach probability
+    */
    inline double cf_reach_probability(const cfr_node_type& node, const Player& player) const
    {
       return cf_reach_probability(node, reach_probability(node), player);
    }
+   /**
+    * @brief computes the counterfactual reach probability of the player for this node.
+    *
+    * The method overload is useful if the reach probability has already been computed and needs to
+    * be simply scaled by removing the player's contribution.
+    * @param node the node at which the counterfactual reach probability is to be computed
+    * @param player the player for which the value is computed
+    * @return the counterfactual reach probability
+    */
    inline double
    cf_reach_probability(const cfr_node_type& node, double reach_prob, const Player& player) const
    {  // remove the players contribution to the likelihood
@@ -297,7 +330,7 @@ class VanillaCFR {
 
    /// the root game state to solve
    const sptr< world_state_type > m_root_state;
-   /// the root game state to solve
+   /// the root game node
    const sptr< cfr_node_type > m_root_node;
    /// The update queue to use once the nodes have been filled from a tree traversal.
    /// We need to arrange a delayed update of tree nodes, since any node's values depend on the
@@ -427,7 +460,7 @@ class VanillaCFR {
                next_infostates,  // the node copies these infostate maps in its constructor
                std::move(next_public_state),
                curr_node->reach_probability_contrib(),  // we for now only copy the parent's reach
-                                                // probs. they will be updated later
+                                                        // probs. they will be updated later
                curr_node);
             // add this new world state into each player's tree with their respective info state key
             _emplace_node(std::move(next_infostates), child_node_sptr);
@@ -463,8 +496,8 @@ class VanillaCFR {
     * This method is supposed to be called only during the first iteration of the Vanilla CFR method
     * as each infoset is only updated in subsequent iterations. Many dynamic allocations and
     * deallocations are avoided this way, just like the storage of the actual world states.
-    * @param infostates, the info states of each player as given by a map
-    * @param node_sptr, the node ptr to store away
+    * @param infostates the info states of each player as given by a map
+    * @param node_sptr the node ptr to store away
     */
    void _emplace_node(
       std::map< Player, info_state_type > infostates,
@@ -802,6 +835,62 @@ template <
          avg_state_policy[action] += reach_prob * curr_state_policy[action];
       });
    regret_matching(curr_state_policy, node.regret());
+}
+
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
+// clang-format off
+ requires
+    concepts::fosg< Env >
+    && fosg_traits_partial_match< Policy, Env >::value
+    && concepts::state_policy<
+          Policy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
+   && concepts::state_policy<
+         AveragePolicy,
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Env >::observation_type
+      >
+    && concepts::default_state_policy<
+          DefaultPolicy,
+          typename fosg_auto_traits< Env >::info_state_type,
+          typename fosg_auto_traits< Env >::observation_type
+       >
+     // clang-format on
+     template < bool current_policy >
+     auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::fetch_policy(
+        Player player,
+        const VanillaCFR::cfr_node_type& node)
+{
+   const auto& info_state = node.info_states(player);
+   if constexpr(current_policy) {
+      auto& player_policy = m_curr_policy[player];
+      auto found_action_policy = player_policy.find(info_state);
+      if(found_action_policy == player_policy.end()) {
+         return player_policy.emplace(info_state, m_default_policy[{info_state, node.actions()}])
+            .first->second;
+      }
+      return found_action_policy->second;
+   } else {
+      auto& player_policy = m_avg_policy[player];
+      auto found_action_policy = player_policy.find(info_state);
+      if(found_action_policy == player_policy.end()) {
+         // the average policy is necessary to be 0 initialized on all unseen entries, since
+         // these entries are to be updated cumulatively.
+         typename AveragePolicy::action_policy_type default_avg_policy;
+         for(const auto& action : node.actions()) {
+            default_avg_policy[action] = 0.;
+         }
+         return player_policy.emplace(info_state, default_avg_policy).first->second;
+      }
+      return found_action_policy->second;
+   }
 }
 
 }  // namespace nor::rm

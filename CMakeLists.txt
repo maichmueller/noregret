@@ -9,7 +9,7 @@ include(GNUInstallDirs)
 
 # options
 
-option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be installed on the system" OFF)
+option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be installed on the system" ON)
 option(ENABLE_BUILD_PYTHON_EXTENSION "Enable building the python extension." ON)
 option(ENABLE_BUILD_SANDBOX "Enable building of the sandbox testbed (Only for development purposes)." ON)
 option(ENABLE_BUILD_WITH_TIME_TRACE "Enable -ftime-trace to generate time tracing .json files on clang" OFF)

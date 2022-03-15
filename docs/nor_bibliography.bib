@@ -1,0 +1,30 @@
+@article{Neller2013,
+abstract = {In 2000, Hart and Mas-Colell introduced the important game-theoretic algorithm of regret matching. Players reach equilibrium play by tracking regrets for past plays, making future plays proportional to positive regrets. The technique is not only simple and intuitive; it has sparked a revolution in computer game play of some of the most difficult bluffing games, including clear domination of annual computer poker competitions. Since the algorithm is relatively recent, there are few curricular materials available to introduce regret-based algorithms to the next generation of researchers and practitioners in this area. These materials represent a modest first step towards making recent innovations more accessible to advanced Computer Science undergraduates, graduate students, interested researchers, and ambitious practition-ers. In Section 2, we introduce the concept of player regret, describe the regret-matching algorithm, present a rock-paper-scissors worked example in the literate programming style, and suggest related exercises. Counterfactual Regret Minimization (CFR) is introduced in Section 3 with a worked example solving Kuhn Poker. Supporting code is provided for a substantive CFR exercise computing optimal play for 1-die-versus-1-die Dudo. In Section 4, we briefly mention means of " cleaning " approximately optimal computed policies, which can in many cases improve results. Section 5 covers an advanced application of CFR to games with repeated states (e.g. through imperfect recall abstraction) that can reduce computational complexity of a CFR training iteration from exponential to linear. Here, we use our independently devised game of Liar Die to demonstrate application of the algorithm. We then suggest that the reader apply the technique to 1-die-versus-1-die Dudo with a memory of 3 claims. In Section 6, we briefly discuss an open research problem: Among possible equilibrium strategies, how do we compute one that optimally exploits opponent errors? The reader is invited to modify our Liar Die example code to so as to gain insight to this interesting problem. Finally, in Section 7, we suggest further challenge problems and paths for continued learning. 2 Regret in Games In this section, we describe a means by which computers may, through self-simulated play, use regrets of past game choices to inform future choices. We begin by introducing the familiar game of Rock-Paper-Scissors (RPS), a.k.a. Roshambo. After defining foundational terms of game theory, we discuss regret matching and present an algorithm computing strategy that minimizes expected regret. Using this algorithm, we present a worked example for learning RPS strategy and associated exercises.},
+author = {Neller, Todd W and Lanctot, Marc},
+journal = {EAAI-13: The 4th Symposium on Educational Advances in Artificial Intelligence},
+language = {en},
+pages = {1--38},
+title = {{An Introduction to Counterfactual Regret Minimization Regret in Games}},
+url = {http://modelai.gettysburg.edu/2013/cfr/cfr.pdf},
+year = {2013}
+}
+
+@article{Kovarik2022,
+abstract = {Multiagent decision-making in partially observable environments is usually modelled as either an extensive-form game (EFG) in game theory or a partially observable stochastic game (POSG) in multiagent reinforcement learning (MARL). One issue with the current situation is that while most practical problems can be modelled in both formalisms, the relationship of the two models is unclear, which hinders the transfer of ideas between the two communities. A second issue is that while EFGs have recently seen significant algorithmic progress, their classical formalization is unsuitable for efficient presentation of the underlying ideas, such as those around decomposition. To solve the first issue, we introduce factored-observation stochastic games (FOSGs), a minor modification of the POSG formalism which distinguishes between private and public observation and thereby greatly simplifies decomposition. To remedy the second issue, we show that FOSGs and POSGs are naturally connected to EFGs: by “unrolling” a FOSG into its tree form, we obtain an EFG. Conversely, any perfect-recall timeable EFG corresponds to some underlying FOSG in this manner. Moreover, this relationship justifies several minor modifications to the classical EFG formalization that recently appeared as an implicit response to the model's issues with decomposition. Finally, we illustrate the transfer of ideas between EFGs and MARL by presenting three key EFG techniques – counterfactual regret minimization, sequence form, and decomposition – in the FOSG framework.},
+archivePrefix = {arXiv},
+arxivId = {1906.11110},
+author = {Kovař{\'{i}}k, Vojt{\v{e}}ch and Schmid, Martin and Burch, Neil and Bowling, Michael and Lis{\'{y}}, Viliam},
+doi = {10.1016/j.artint.2021.103645},
+eprint = {1906.11110},
+issn = {00043702},
+journal = {Artificial Intelligence},
+keywords = {,Decomposition,Extensive form game,Imperfect information game,Multiagent reinforcement learning,Partially-observable stochastic game,Public information},
+month = {jun},
+pages = {103645},
+publisher = {Elsevier B.V.},
+title = {{Rethinking formal models of partially observable multiagent decision making}},
+url = {https://arxiv.org/abs/1906.11110v4},
+volume = {303},
+year = {2022}
+}
+
