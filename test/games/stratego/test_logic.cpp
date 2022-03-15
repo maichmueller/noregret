@@ -8,7 +8,7 @@
 
 using namespace stratego;
 
-TEST_F(MinimalState, action_is_valid)
+TEST_F(StrategoState5x5, action_is_valid)
 {
    EXPECT_TRUE(state.logic()->is_valid(state, Move{{1, 1}, {2, 1}}, Team::BLUE));
    EXPECT_TRUE(state.logic()->is_valid(state, Move{{1, 4}, {2, 4}}, Team::BLUE));
@@ -35,7 +35,7 @@ TEST_F(MinimalState, action_is_valid)
    EXPECT_FALSE(state.logic()->is_valid(state, Move{{3, 1}, {0, 1}}, Team::RED));
 }
 
-TEST_F(MinimalState, apply_action)
+TEST_F(StrategoState5x5, apply_action)
 {
    // move marshall one field up
    state.transition({{1, 1}, {2, 1}});
@@ -76,7 +76,7 @@ TEST_F(MinimalState, apply_action)
    EXPECT_EQ(piece.team(), Team::RED);
 }
 
-TEST_F(MinimalState, valid_action_list)
+TEST_F(StrategoState5x5, valid_action_list)
 {
    //   std::cout << state.to_string();
    auto to_moves = [](auto eq_rng) {

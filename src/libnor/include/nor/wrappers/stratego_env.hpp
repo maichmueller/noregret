@@ -25,7 +25,9 @@ inline auto to_player(const Team& team)
 
 using Observation = std::string;
 
-std::string observation(const State& state, std::optional< Player > observing_player = std::nullopt);
+std::string observation(
+   const State& state,
+   std::optional< Player > observing_player = std::nullopt);
 
 class InfoState {
   public:
@@ -47,13 +49,29 @@ class InfoState {
    [[nodiscard]] size_t hash() const { return m_hash_cache; }
    [[nodiscard]] Player player() const { return m_player; }
 
+   auto to_string() const
+   {
+      std::stringstream ss;
+      size_t pos = 0;
+      for(const auto& [action, observation] : m_history) {
+         ss << "a_" << pos << ":[" << action << "]\n";
+         ss << "obs_" << pos << ":[" << observation << "]\n";
+         ss << "-----\n";
+         pos++;
+      }
+      return ss.str();
+   };
+
    bool operator==(const InfoState& other) const
    {
+      if(size() != other.size()) {
+         return false;
+      }
       auto zip_view = ranges::views::zip(m_history, other.history());
       return std::all_of(zip_view.begin(), zip_view.end(), [](const auto& tuple) {
          const auto& [this_hist_elem, other_hist_elem] = tuple;
          return this_hist_elem.first == other_hist_elem.first
-                && this_hist_elem.second == other_hist_elem.second;
+                and this_hist_elem.second == other_hist_elem.second;
       });
    }
    inline bool operator!=(const InfoState& other) const { return not (*this == other); }
@@ -67,15 +85,7 @@ class InfoState {
 
    size_t _hash()
    {
-      std::stringstream ss;
-      size_t pos = 0;
-      for(const auto& [action, observation] : m_history) {
-         ss << "a_" << pos << ":" << action;
-         ss << "-";
-         ss << "obs_" << pos << ":" << observation;
-         pos++;
-      }
-      size_t hash = std::hash< Observation >{}(ss.str());
+      size_t hash = std::hash< Observation >{}(to_string());
       m_hash_cache = hash;
       return hash;
    }
@@ -99,7 +109,7 @@ class Environment {
    explicit Environment(uptr< Logic >&& logic);
 
    std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
-//   std::vector< action_type > actions(const info_state_type& istate) const;
+   //   std::vector< action_type > actions(const info_state_type& istate) const;
    static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
    Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate) const;

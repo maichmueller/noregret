@@ -6,7 +6,7 @@
 using namespace nor;
 using namespace games::stratego;
 
-TEST_F(MinimalState, vanilla_cfr_usage_stratego)
+TEST_F(StrategoState5x5, vanilla_cfr_usage_stratego)
 {
    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
    Environment env{std::make_unique< Logic >()};

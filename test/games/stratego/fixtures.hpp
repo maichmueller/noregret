@@ -60,12 +60,12 @@ class MinimalConfig: public ::testing::Test {
    }
 };
 
-class MinimalState: public MinimalConfig {
+class StrategoState5x5: public MinimalConfig {
   public:
    State state;
 
-   MinimalState() : state(cfg, size_t(0)) {}
-   ~MinimalState() override = default;
+   StrategoState5x5() : state(cfg, size_t(0)) {}
+   ~StrategoState5x5() override = default;
 };
 
 class BattlematrixParamsF:

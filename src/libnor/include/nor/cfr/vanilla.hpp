@@ -142,7 +142,7 @@ class VanillaCFR {
        m_avg_policy(),
        m_default_policy(std::move(default_policy)),
        m_root_state(std::move(root_state)),
-       m_root_node(_emplace_root_node())
+       m_root_node(_make_root_node())
    {
       _assert_sequential_game();
       for(auto player : game.players()) {
@@ -209,7 +209,7 @@ class VanillaCFR {
        m_curr_policy(std::move(policy)),
        m_avg_policy(std::move(avg_policy)),
        m_default_policy(std::move(default_policy)),
-       m_root_node(_emplace_root_node())
+       m_root_node(_make_root_node())
    {
       _assert_sequential_game();
    }
@@ -332,11 +332,11 @@ class VanillaCFR {
       }
    }
 
-   sptr< cfr_node_type > _emplace_root_node()
+   sptr< cfr_node_type > _make_root_node()
    {
       auto curr_player = m_env.active_player(*m_root_state);
       auto root_node = std::make_shared< cfr_node_type >(
-         curr_player,  // the root active_player
+         curr_player,  // the root's active_player
          m_env.actions(curr_player, *m_root_state),  // the root actions
          m_env.is_terminal(*m_root_state),
          /*infostates=*/
@@ -357,9 +357,7 @@ class VanillaCFR {
             return reach_p;
          }(m_env.players()));
       // add the root node to each player's game tree
-      for(const auto& [player, info_state] : root_node->info_states()) {
-         m_game_trees[player].emplace(info_state, root_node);
-      }
+      _emplace_node(root_node->info_states(), root_node);
       return root_node;
    }
 
@@ -388,17 +386,12 @@ class VanillaCFR {
 
          // we allocate the current player here to not ask for its retrieval for every action anew
          Player curr_player = curr_node->player();
-         LOGD2("Active player", curr_player);
-         //         std::cout << (curr_node->actions() | ranges::views::all);
-         LOGD2("Legal actions", (curr_node->actions() | ranges::views::all));
          for(const auto& action : curr_node->actions()) {
             // copy the current nodes world state
             auto next_wstate_uptr = utils::static_unique_ptr_cast< world_state_type >(
                utils::clone_any_way(curr_wstate));
             // move the new world state forward by the current action
-                        LOGD2("State before transition", next_wstate_uptr->to_string());
             m_env.transition(*next_wstate_uptr, action);
-                        LOGD2("State after transition", next_wstate_uptr->to_string());
             // copy the current information states of all players. Each state will be updated with
             // the new private observation the respective player receives from the environment.
             static_assert(
@@ -421,15 +414,13 @@ class VanillaCFR {
                m_env.active_player(*next_wstate_uptr),
                m_env.actions(m_env.active_player(*next_wstate_uptr), *next_wstate_uptr),
                m_env.is_terminal(*next_wstate_uptr),
-               next_infostates,
+               next_infostates,  // the node copies these infostate maps in its constructor
                std::move(next_public_state),
                curr_node->reach_probability(),  // we for now only copy the parent's reach
                                                 // probs. they will be updated later
                curr_node);
             // add this new world state into each player's tree with their respective info state key
-            for(auto player : m_env.players()) {
-               m_game_trees[player].emplace(next_infostates[player], child_node_sptr);
-            }
+            _emplace_node(std::move(next_infostates), child_node_sptr);
             // append the new tree node as a child of the currently visited node. We are using a raw
             // pointer here to avoid the unnecessary sptr counter increase cost
             curr_node->children(action) = child_node_sptr.get();
@@ -452,6 +443,24 @@ class VanillaCFR {
          }
          // enqueue the current node for delayed regret & strategy updates
          m_update_stack.push(curr_node);
+      }
+   }
+   void _emplace_node(
+      std::map< Player, info_state_type > infostates,
+      const std::shared_ptr< cfr_node_type >& node_sptr)
+   {
+      for(auto player : m_env.players()) {
+         auto [it, emplaced] = m_game_trees[player].emplace(
+            infostates[player], node_sptr);
+         if(not emplaced) {
+            std::stringstream ss;
+            ss << "Could not emplace child node into game tree of player ";
+            ss << player
+               << ", since another value was already found at its place. This could indicate "
+                  "a bug in "
+               << std::quoted("operator==") << "of the provided info_state_type.";
+            throw std::logic_error(ss.str());
+         }
       }
    }
 
@@ -706,7 +715,7 @@ template <
         std::optional< Player > player_to_update)
 {
    if(m_iteration == 0) {
-      _emplace_root_node();
+      _make_root_node();
       _first_traversal();
    } else {
       _traversal();
@@ -827,8 +836,7 @@ template <
         const VanillaCFR::cfr_node_type& node,
         const Player& player) const
 {
-   auto reach_prob = reach_probability(node);
-   return cf_reach_probability(node, reach_prob, player);
+   return cf_reach_probability(node, reach_probability(node), player);
 }
 
 template <
@@ -864,8 +872,8 @@ template <
         const Player& player) const
 {
    // remove the players contribution to the likelihood
-   auto cf_reach_prob = reach_prob / node.reach_probability(player);
-   return cf_reach_prob;
+   return reach_prob / node.reach_probability(player);
+
 }
 
 }  // namespace nor::rm
