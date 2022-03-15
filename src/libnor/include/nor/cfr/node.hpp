@@ -79,7 +79,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
          m_actions(std::move(legal_actions)),
          m_terminal(is_terminal),
          m_infostates(std::move(info_states)),
-         m_reach_prob(),
+         m_compound_reach_prob_contribution(),
          m_parent(parent)
    {
    }
@@ -97,7 +97,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
          m_actions(std::move(legal_actions)),
          m_terminal(is_terminal),
          m_infostates(std::move(info_states)),
-         m_reach_prob(std::move(reach_prob)),
+         m_compound_reach_prob_contribution(std::move(reach_prob)),
          m_parent(parent)
    {
    }
@@ -108,8 +108,8 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    auto& info_states() { return m_infostates; }
    auto& value(Player player) { return m_value[player]; }
    auto& value() { return m_value; }
-   auto& reach_probability(Player player) { return m_reach_prob[player]; }
-   auto& reach_probability() { return m_reach_prob; }
+   auto& reach_probability_contrib(Player player) { return m_compound_reach_prob_contribution[player]; }
+   auto& reach_probability_contrib() { return m_compound_reach_prob_contribution; }
    auto& actions() { return m_actions; }
    auto& children(const Action& action) { return m_children[action]; }
    auto& children() { return m_children; }
@@ -123,8 +123,14 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    [[nodiscard]] auto& info_states() const { return m_infostates; }
    [[nodiscard]] auto& value(Player player) const { return m_value.at(player); }
    [[nodiscard]] auto& value() const { return m_value; }
-   [[nodiscard]] auto& reach_probability(Player player) const { return m_reach_prob.at(player); }
-   [[nodiscard]] auto& reach_probability() const { return m_reach_prob; }
+   [[nodiscard]] auto& reach_probability_contrib(Player player) const
+   {
+      return m_compound_reach_prob_contribution.at(player);
+   }
+   [[nodiscard]] auto& reach_probability_contrib() const
+   {
+      return m_compound_reach_prob_contribution;
+   }
    [[nodiscard]] auto& actions() const { return m_actions; }
    [[nodiscard]] auto& children(const Action& action) const { return m_children[action]; }
    [[nodiscard]] auto& regret(const Action& action) const { return m_regret[action]; }
@@ -147,10 +153,10 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    /// the value of each player for this node.
    /// Defaults to 0 and should be updated later during the traversal.
    std::map< Player, double > m_value{};
-   /// the reach probability of each player for this node.
-   /// Defaults to 0 and should be updated later during the traversal.
-   std::map< Player, double > m_reach_prob{};
-
+   /// the compounding reach probability of each player for this node (i.e. the probability
+   /// contribution of each player along the trajectory to this node).
+   /// Defaults to 0 and has to be updated during the traversal with the current policy.
+   std::map< Player, double > m_compound_reach_prob_contribution{};
 
    // action-based storage
    // these don't need to be on a per player basis, as only the active player of this node has
