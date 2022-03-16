@@ -21,57 +21,56 @@ struct factory {
    }
 
   public:
-//   template <
-//      CFRConfig cfg,
-//      typename Env,
-//      typename Policy,
-//      typename DefaultPolicy,
-//      typename AveragePolicy = Policy >
-//   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
-//   make_vanilla(Env&& env, Policy&& policy, DefaultPolicy&& def_policy)
-//   {
-//      return {
-//         std::forward< Env >(env),
-//         std::forward< Policy >(policy),
-//         std::forward< DefaultPolicy >(def_policy)};
-//   }
-
    template <
       CFRConfig cfg,
       bool as_map,
       typename Env,
       typename Policy,
       typename DefaultPolicy,
-      typename AveragePolicy>
-   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy >
-   make_vanilla(Env&& env, Policy&& policy, AveragePolicy&& avg_policy, DefaultPolicy&& def_policy)
+      typename AveragePolicy >
+   static VanillaCFR<
+      cfg,
+      std::decay_t< Env >,  // decay_t is necessary to avoid having e.g. Env captured as const Env&
+      std::decay_t< Policy >,
+      std::decay_t< DefaultPolicy >,
+      std::decay_t< AveragePolicy > >
+   make_vanilla(
+      Env&& env,
+      sptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      Policy&& policy,
+      AveragePolicy&& avg_policy,
+      DefaultPolicy&& def_policy)
    {
       if constexpr(as_map) {
          return {
             std::forward< Env >(env),
+            std::move(root_state),
             to_map(env.players(), std::forward< Policy >(policy)),
             to_map(env.players(), std::forward< AveragePolicy >(avg_policy)),
             std::forward< DefaultPolicy >(def_policy)};
       } else {
          return {
             std::forward< Env >(env),
+            std::move(root_state),
             std::forward< Policy >(policy),
             std::forward< AveragePolicy >(avg_policy),
             std::forward< DefaultPolicy >(def_policy)};
       }
    }
 
-   template <
-      CFRConfig cfg,
-      bool as_map,
-      typename Env,
-      typename Policy,
-      typename DefaultPolicy >
-   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, Policy >
-   make_vanilla(Env&& env, const Policy& policy, DefaultPolicy&& def_policy = DefaultPolicy())
+   template < CFRConfig cfg, bool as_map, typename Env, typename Policy, typename DefaultPolicy >
+   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, Policy > make_vanilla(
+      Env&& env,
+      sptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      const Policy& policy,
+      DefaultPolicy&& def_policy = DefaultPolicy())
    {
       return make_vanilla< cfg, as_map >(
-         std::forward< Env >(env), policy, policy, std::forward< DefaultPolicy >(def_policy));
+         std::forward< Env >(env),
+         std::move(root_state),
+         policy,
+         policy,
+         std::forward< DefaultPolicy >(def_policy));
    }
 
    template < typename Infostate, typename ActionPolicy, typename Table >

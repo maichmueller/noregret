@@ -14,7 +14,7 @@ namespace nor::concepts::has {
 namespace method {
 
 template < typename T, typename GameType = typename T::game_type >
-concept game = requires(T&& t)
+concept game = requires(T t)
 {
    {
       t.game()
@@ -22,7 +22,7 @@ concept game = requires(T&& t)
 };
 
 template < typename T, typename Policy = typename T::policy_type >
-concept current_policy = requires(T&& t)
+concept current_policy = requires(T t)
 {
    {
       t.current_policy()
@@ -30,7 +30,7 @@ concept current_policy = requires(T&& t)
 };
 
 template < typename T, typename Policy = typename T::policy_type >
-concept avg_policy = requires(T&& t)
+concept avg_policy = requires(T t)
 {
    {
       t.avg_policy()
@@ -38,7 +38,7 @@ concept avg_policy = requires(T&& t)
 };
 
 template < typename T >
-concept iteration = requires(T&& t)
+concept iteration = requires(T t)
 {
    {
       t.iteration()
@@ -46,7 +46,7 @@ concept iteration = requires(T&& t)
 };
 
 template < typename T, typename TreeContainer = typename T::tree_type >
-concept game_tree = requires(T&& t)
+concept game_tree = requires(T t)
 {
    {
       t.game_tree()
@@ -66,7 +66,7 @@ concept actions = requires(T const t, Worldstate&& worldstate, Player player)
 };
 
 template < typename T, typename ReturnType, typename... Args >
-concept append = requires(T&& t, Args&&... args)
+concept append = requires(T t, Args&&... args)
 {
    // append object u to t
    {
@@ -78,7 +78,7 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type >
-concept transition = requires(T&& t, Worldstate&& worldstate, Action action)
+concept transition = requires(T t, Worldstate&& worldstate, Action action)
 {
    // apply the action on the given world state inplace.
    {
@@ -93,7 +93,7 @@ template <
    typename Publicstate = typename T::public_state_type,
    typename Action = typename T::action_type >
 concept transition_jointly = requires(
-   T&& t,
+   T t,
    Action action,
    Worldstate& worldstate,
    std::map< Player, Infostate >& infostates,
@@ -106,7 +106,7 @@ concept transition_jointly = requires(
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept reward = requires(T&& t, Worldstate wstate, Player player)
+concept reward = requires(T t, Worldstate wstate, Player player)
 {
    {
       t.reward(player, wstate)
@@ -114,7 +114,7 @@ concept reward = requires(T&& t, Worldstate wstate, Player player)
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept reward_multi = requires(T&& t, Worldstate wstate, const std::vector< Player >& players)
+concept reward_multi = requires(T t, Worldstate wstate, const std::vector< Player >& players)
 {
    {
       t.reward(players, wstate)
@@ -122,7 +122,7 @@ concept reward_multi = requires(T&& t, Worldstate wstate, const std::vector< Pla
 };
 
 template < typename T >
-concept run = requires(T&& t)
+concept run = requires(T t)
 {
    {
       t.run()
@@ -133,7 +133,7 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename ReturnType = void >
-concept reset = requires(T&& t, Worldstate& wstate)
+concept reset = requires(T t, Worldstate& wstate)
 {
    {
       t.reset(wstate)
@@ -141,7 +141,7 @@ concept reset = requires(T&& t, Worldstate& wstate)
 };
 
 template < typename T >
-concept players = requires(T&& t)
+concept players = requires(T t)
 {
    {
       t.players()
@@ -149,7 +149,7 @@ concept players = requires(T&& t)
 };
 
 template < typename T >
-concept player = requires(T&& t)
+concept player = requires(T t)
 {
    {
       t.player()
@@ -157,7 +157,7 @@ concept player = requires(T&& t)
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept is_terminal = requires(T&& t, Worldstate& wstate)
+concept is_terminal = requires(T t, Worldstate& wstate)
 {
    {
       t.is_terminal(wstate)
@@ -165,7 +165,7 @@ concept is_terminal = requires(T&& t, Worldstate& wstate)
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept active_player = requires(T&& t, Worldstate wstate)
+concept active_player = requires(T t, Worldstate wstate)
 {
    {
       t.active_player(wstate)
@@ -173,7 +173,7 @@ concept active_player = requires(T&& t, Worldstate wstate)
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept initial_world_state = requires(T&& t)
+concept initial_world_state = requires(T t)
 {
    {
       t.initial_world_state()
@@ -184,7 +184,7 @@ template <
    typename T,
    typename Publicstate = typename T::public_state_type,
    typename Worldstate = typename T::world_state_type >
-concept public_state = requires(T&& t, const Worldstate& wstate)
+concept public_state = requires(T t, const Worldstate& wstate)
 {
    {
       t.public_state(wstate)
@@ -195,7 +195,7 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Infostate = typename T::info_state_type >
-concept info_state = requires(T&& t, Worldstate wstate, Player player)
+concept info_state = requires(T t, Worldstate wstate, Player player)
 {
    {
       t.info_states(wstate, player)
@@ -206,7 +206,7 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Observation = typename T::observation_type >
-concept private_observation = requires(T&& t, Player player, Worldstate wstate)
+concept private_observation = requires(T t, Player player, Worldstate wstate)
 {
    {
       t.private_observation(player, wstate)
@@ -217,7 +217,7 @@ template <
    typename Worldstate = typename T::world_state_type,
    typename Observation = typename T::observation_type >
 concept private_observation_multi =
-   requires(T&& t, const std::vector< Player >& player_list, Worldstate wstate)
+   requires(T t, const std::vector< Player >& player_list, Worldstate wstate)
 {
    // get only private obervations.
    // Output is a paired vector of observations, i.e. output[i] is paired to player_list[i].
@@ -230,7 +230,7 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Observation = typename T::observation_type >
-concept public_observation = requires(T&& t, Worldstate wstate)
+concept public_observation = requires(T t, Worldstate wstate)
 {
    {
       t.public_observation(wstate)
@@ -241,7 +241,7 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Observation = typename T::observation_type >
-concept observation = requires(T&& t, Player player, Worldstate wstate)
+concept observation = requires(T t, Player player, Worldstate wstate)
 {
    {
       t.observation(player, wstate)
@@ -253,7 +253,7 @@ template <
    typename Worldstate = typename T::world_state_type,
    typename Observation = typename T::observation_type >
 concept observation_multi =
-   requires(T&& t, const std::vector< Player >& player_list, Worldstate wstate)
+   requires(T t, const std::vector< Player >& player_list, Worldstate wstate)
 {
    // get full observation: private and public.
    // Output is a paired vector of observations, i.e. output[i] is paired to player_list[i].
@@ -291,7 +291,7 @@ concept copy = requires(T const t)
 };
 
 template < typename T, typename OutputT, typename InputT >
-concept getitem = requires(T&& t, InputT inp)
+concept getitem = requires(T t, InputT inp)
 {
    /// getitem method for input type returning an output type
    {
@@ -300,7 +300,7 @@ concept getitem = requires(T&& t, InputT inp)
 };
 
 template < typename T, typename OutputT, typename InputT >
-concept at = requires(T&& t, InputT inp)
+concept at = requires(T t, InputT inp)
 {
    /// getitem method for input type returning an output type
    {

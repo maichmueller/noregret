@@ -18,18 +18,11 @@ TEST_F(StrategoState5x5, vanilla_cfr_usage_stratego)
 
    constexpr rm::CFRConfig cfr_config{.alternating_updates = false, .store_public_states = false};
 
-   //      auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
-   //         std::move(env), tabular_policy, std::move(uniform_policy));
-   auto cfr_runner = rm::VanillaCFR<
-      cfr_config,
-      nor::games::stratego::Environment,
-      decltype(tabular_policy),
-      decltype(uniform_policy) >{
-      std::make_shared< State >(std::move(state)),
+   auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env),
+      std::make_shared< State >(std::move(state)),
       tabular_policy,
-      std::move(uniform_policy)};
-   //   static_assert(std::is_pointer_v<decltype(state)>, "huh");
-   //   auto state_copy = nor::utils::clone_any_way(state);
+      std::move(uniform_policy));
+
    cfr_runner.iterate(1);
 }

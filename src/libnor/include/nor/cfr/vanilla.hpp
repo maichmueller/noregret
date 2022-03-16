@@ -124,26 +124,22 @@ class VanillaCFR {
    using game_tree_type = std::unordered_map< info_state_type, sptr< cfr_node_type > >;
 
    VanillaCFR(
-      sptr< world_state_type > root_state,
       Env game,
+      sptr< world_state_type > root_state,
       Policy policy = Policy(),
       DefaultPolicy default_policy = DefaultPolicy(),
       AveragePolicy avg_policy = AveragePolicy())
       // clang-format off
       requires
          all_predicate_v<
-            std::is_default_constructible,
-            Policy,
-            AveragePolicy>
-         and all_predicate_v<
-            std::is_copy_constructible,
+            std::is_move_constructible,
             Policy,
             AveragePolicy >
        // clang-format on
        :
        m_env(std::move(game)),
-       m_curr_policy(),
-       m_avg_policy(),
+       m_curr_policy(std::move(policy())),
+       m_avg_policy(std::move(avg_policy())),
        m_default_policy(std::move(default_policy)),
        m_root_state(std::move(root_state)),
        m_root_node(_make_root_node())
@@ -167,8 +163,8 @@ class VanillaCFR {
        // clang-format on
        :
        VanillaCFR(
-          std::make_shared< world_state_type >(env.initial_world_state()),
           std::move(env),
+          std::make_shared< world_state_type >(env.initial_world_state()),
           std::move(policy),
           std::move(default_policy),
           std::move(avg_policy))
@@ -176,43 +172,17 @@ class VanillaCFR {
    }
 
    VanillaCFR(
-      sptr< world_state_type > root_state,
-      Env env,
-      Policy policy,
-      AveragePolicy avg_policy,
-      DefaultPolicy default_policy = DefaultPolicy())
-      // clang-format off
-   requires
-      all_predicate_v<
-         std::is_copy_constructible,
-         Policy,
-         AveragePolicy >
-       // clang-format on
-       :
-       VanillaCFR(
-          std::move(env),
-          std::move(root_state),
-          std::move(policy),
-          std::move(avg_policy),
-          std::move(default_policy))
-   {
-   }
-
-   VanillaCFR(
-      sptr< world_state_type > root_state,
       Env game,
+      sptr< world_state_type > root_state,
       std::map< Player, Policy > policy,
       std::map< Player, AveragePolicy > avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
-      // clang-format off
-      requires std::is_copy_constructible_v< Policy >
-       // clang-format on
        :
        m_env(std::move(game)),
-       m_root_state(std::move(root_state)),
        m_curr_policy(std::move(policy)),
        m_avg_policy(std::move(avg_policy)),
        m_default_policy(std::move(default_policy)),
+       m_root_state(std::move(root_state)),
        m_root_node(_make_root_node())
    {
       _assert_sequential_game();
