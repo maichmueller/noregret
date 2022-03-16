@@ -34,7 +34,7 @@ class HashmapActionPolicy {
    using iterator = typename map_type::iterator;
    using const_iterator = typename map_type::const_iterator;
 
-   HashmapActionPolicy() = default;
+   HashmapActionPolicy(default_value_generator dvg = &_zero< double >) : m_def_value_gen(dvg) {}
    HashmapActionPolicy(
       ranges::span< const action_type > actions,
       double value,

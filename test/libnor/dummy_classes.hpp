@@ -62,8 +62,8 @@ class Env {
    void transition(world_state_type& worldstate, const action_type& action);
    observation_type private_observation(nor::Player player, const world_state_type& wstate);
    observation_type private_observation(nor::Player player, const action_type& action);
-   observation_type public_observation(nor::Player player, const world_state_type& wstate);
-   observation_type public_observation(nor::Player player, const action_type& action);
+   observation_type public_observation(const world_state_type& wstate);
+   observation_type public_observation(const action_type& action);
 };
 
 struct Traits {

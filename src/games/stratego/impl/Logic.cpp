@@ -24,7 +24,7 @@ aze::Status Logic::check_terminal(State &state)
       }
    }
 
-   // Rule 1: The maximum turn count has been reached
+   // Rule 2: The maximum turn count has been reached
    if(std::cmp_greater_equal(state.turn_count(), state.config().max_turn_count)) {
       LOGD2("Turn count on finish: ", state.turn_count());
       return state.status(aze::Status::TIE);

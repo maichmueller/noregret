@@ -854,7 +854,6 @@ template <
         std::optional< Player > player_to_update)
 {
    if(m_iteration == 0) {
-      _make_root_node();
       _first_traversal();
    } else {
       _traversal();

@@ -63,7 +63,7 @@ void concept_fosg_check();
 
 TEST(concrete, fosg_dummy)
 {
-   //   concept_fosg_check< dummy::Env >();
+//      concept_fosg_check< dummy::Env >();
 
    EXPECT_TRUE((nor::concepts::fosg< dummy::Env >) );
 }

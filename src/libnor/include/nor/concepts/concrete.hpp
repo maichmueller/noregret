@@ -153,10 +153,10 @@ concept fosg =
    && is::copyable_someway< Worldstate >
    && has::method::actions< Env, const Worldstate& >
    && has::method::transition< Env, Worldstate& >
-   && has::method::private_observation< Env, Worldstate, Observation >
-   && has::method::public_observation< Env, Worldstate, Observation >
-   && has::method::private_observation< Env, Action, Observation >
-   && has::method::public_observation< Env, Action, Observation >
+   && has::method::private_observation< Env, Worldstate&, Observation >
+   && has::method::public_observation< Env, Worldstate&, Observation >
+   && has::method::private_observation< Env, Action&, Observation >
+   && has::method::public_observation< Env, Action&, Observation >
    && has::method::reset< Env, Worldstate& >
    && has::method::reward< const Env, Worldstate >
    && has::method::is_terminal< Env, Worldstate& >
