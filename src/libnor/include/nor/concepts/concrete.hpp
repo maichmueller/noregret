@@ -158,7 +158,7 @@ concept fosg =
    && has::method::private_observation< Env, Action, Observation >
    && has::method::public_observation< Env, Action, Observation >
    && has::method::reset< Env, Worldstate& >
-   && has::method::reward< const Env >
+   && has::method::reward< const Env, Worldstate >
    && has::method::is_terminal< Env, Worldstate& >
    && has::method::active_player< Env >
    && has::method::players< Env >

@@ -106,18 +106,18 @@ concept transition_jointly = requires(
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept reward = requires(T&& t, Worldstate wstate, Player player)
+concept reward = requires(T&& t, Worldstate&& wstate, Player player)
 {
    {
-      t.reward(player, wstate)
+      t.reward(player, std::forward<Worldstate>(wstate))
       } -> std::convertible_to< double >;
 };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept reward_multi = requires(T&& t, Worldstate& wstate, const std::vector< Player >& players)
+concept reward_multi = requires(T&& t, Worldstate&& wstate, const std::vector< Player >& players)
 {
    {
-      t.reward(players, wstate)
+      t.reward(players, std::forward<Worldstate>(wstate))
       } -> std::convertible_to< std::vector< double > >;
 };
 
