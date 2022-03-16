@@ -6,7 +6,7 @@
 
 #include <stratego/stratego.hpp>
 
-class MinimalConfig: public ::testing::Test {
+class TinyConfig: public ::testing::Test {
   public:
    using Token = stratego::Token;
    using Team = stratego::Team;
@@ -19,8 +19,66 @@ class MinimalConfig: public ::testing::Test {
    std::map< Position, Token > setup1;
    Config cfg;
 
-   MinimalConfig() : setup0(), setup1(), cfg(_init_cfg()) {}
-   ~MinimalConfig() override = default;
+   TinyConfig() : setup0(), setup1(), cfg(_init_cfg()) {}
+   ~TinyConfig() override = default;
+
+   Config _init_cfg()
+   {
+      // the following setup is build:
+      // ----------------
+      // |    | 1R | 0R |
+      // ----------------
+      // |    |    |    |
+      // ----------------
+      // | 0B | 1B |    |
+      // ----------------
+      //
+      // with a max of 10 turns
+
+      setup0[{0, 0}] = Token::flag;
+      setup0[{0, 1}] = Token::spy;
+      setup1[{2, 1}] = Token::spy;
+      setup1[{2, 2}] = Token::flag;
+
+      Config config{
+         Team::BLUE,
+         3u,
+         std::map{
+            std::pair{Team::BLUE, std::make_optional(setup0)},
+            std::pair{Team::RED, std::make_optional(setup1)}},
+         std::vector<Position>{},
+         true,
+         true,
+         10};
+
+      return config;
+   }
+};
+
+class StrategoState3x3: public TinyConfig {
+  public:
+   State state;
+
+   StrategoState3x3() : state(cfg, size_t(0)) {}
+   ~StrategoState3x3() override = default;
+};
+
+
+class SmallConfig: public ::testing::Test {
+  public:
+   using Token = stratego::Token;
+   using Team = stratego::Team;
+   using Position = stratego::Position;
+   using Config = stratego::Config;
+   using State = stratego::State;
+
+
+   std::map< Position, Token > setup0;
+   std::map< Position, Token > setup1;
+   Config cfg;
+
+   SmallConfig() : setup0(), setup1(), cfg(_init_cfg()) {}
+   ~SmallConfig() override = default;
 
    Config _init_cfg()
    {
@@ -60,7 +118,7 @@ class MinimalConfig: public ::testing::Test {
    }
 };
 
-class StrategoState5x5: public MinimalConfig {
+class StrategoState5x5: public SmallConfig {
   public:
    State state;
 
