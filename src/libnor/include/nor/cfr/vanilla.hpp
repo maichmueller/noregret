@@ -688,7 +688,7 @@ class VanillaCFR {
    {
       while(not m_update_stack.empty()) {
          // pop the next node to update from the stack
-         auto node = std::move(m_update_stack.top());
+         auto& node = *m_update_stack.top();
          m_update_stack.pop();
          ranges::for_each(m_env.players(), [&](Player player) {
             // the value propagation works by specifying the last action in the list to be the
@@ -717,13 +717,13 @@ class VanillaCFR {
          if constexpr(cfr_config.alternating_updates) {
             // in alternating updates, we only update the regret and strategy if the current
             // player is the chosen player to update.
-            if(node->player() == player_to_update.value_or(Player::chance)) {
-               update_regret_and_policy(*node, node->player());
+            if(node.player() == player_to_update.value_or(Player::chance)) {
+               update_regret_and_policy(node, node.player());
             }
          } else {
             // if we do simultaenous updates, then we always update the regret and strategy
             // values of the node's active player.
-            update_regret_and_policy(*node, node->player());
+            update_regret_and_policy(node, node.player());
          }
       }
    }

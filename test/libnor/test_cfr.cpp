@@ -31,5 +31,5 @@ TEST_F(StrategoState5x5, vanilla_cfr_usage_stratego)
       std::move(uniform_policy)};
    //   static_assert(std::is_pointer_v<decltype(state)>, "huh");
    //   auto state_copy = nor::utils::clone_any_way(state);
-   cfr_runner.iterate();
+   cfr_runner.iterate(1);
 }
