@@ -178,6 +178,8 @@ class TabularPolicy {
    inline auto& operator[](const info_state_type& state) { return m_table[state]; }
    inline const auto& operator[](const info_state_type& state) const { return m_table.at(state); }
 
+   [[nodiscard]] auto& table() const { return m_table; }
+
   private:
    table_type m_table;
 };

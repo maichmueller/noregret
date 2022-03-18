@@ -157,7 +157,7 @@ bool Logic::is_valid(const State &state, const Action &action, std::optional< Te
 }
 std::vector< Action > Logic::valid_actions(const State &state, Team team)
 {
-   LOGD("Checking for valid actions.")
+   LOGD("Checking for valid actions.");
    const auto &board = state.board();
    std::vector< Action > actions_possible;
    for(const auto &elem : board) {

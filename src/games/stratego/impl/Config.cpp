@@ -445,8 +445,8 @@ Config::Config(
    for(int i = 0; i < 2; ++i) {
       if(utils::flatten_counter(token_counters[aze::Team(i)]).size()
          != start_fields[aze::Team(i)].size()) {
-         LOGD2("Token vector size:", utils::flatten_counter(token_counters[aze::Team(i)]).size())
-         LOGD2("Field vector size:", start_fields[aze::Team(i)].size())
+         LOGD2("Token vector size:", utils::flatten_counter(token_counters[aze::Team(i)]).size());
+         LOGD2("Field vector size:", start_fields[aze::Team(i)].size());
          throw std::invalid_argument(
             "Token counters and start position vectors do not match in size");
       }

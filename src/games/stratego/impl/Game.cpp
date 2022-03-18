@@ -20,7 +20,7 @@ Status Game::run(const sptr< aze::utils::Plotter< State > >& plotter)
       if(state().status() != Status::ONGOING) {
          return state().status();
       }
-      LOGD("Running transition.")
+      LOGD("Running transition.");
       Team active_team = state().active_team();
       auto action = agent(active_team)
                        ->decide_action(
@@ -28,7 +28,7 @@ Status Game::run(const sptr< aze::utils::Plotter< State > >& plotter)
       LOGD2(
          "Possible Moves",
          aze::utils::VectorPrinter{
-            state().logic()->valid_actions(state(), active_team)});  // NOLINT
+            state().logic()->valid_actions(state(), active_team)});
       LOGD2("Selected Action by team " + std::string(utils::enum_name(active_team)), action);
 
       m_state->transition(action);

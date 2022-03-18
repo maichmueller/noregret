@@ -24,5 +24,7 @@ TEST_F(StrategoState3x3, vanilla_cfr_usage_stratego)
       tabular_policy,
       std::move(uniform_policy));
 
-   cfr_runner.iterate(1);
+   const auto& curr_policy = *cfr_runner.iterate(100);
+   std::cout << curr_policy.at(Player::alex).table().size();
+   LOGD2("Table size", curr_policy.at(Player::alex).table().size());
 }
