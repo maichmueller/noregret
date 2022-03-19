@@ -22,40 +22,14 @@
 #include "nor/type_defs.hpp"
 #include "nor/utils/logging_macros.h"
 #include "nor/utils/utils.hpp"
+#include "rm.hpp"
 
 namespace nor::rm {
-
-template < concepts::action Action, concepts::action_policy< Action > Policy >
-void regret_matching(Policy& policy_map, const std::unordered_map< Action, double >& cumul_regret)
-{
-   // sum up the positivized regrets and store them in a new vector
-   std::unordered_map< Action, double > pos_regrets;
-   double pos_regret_sum{0.};
-   for(const auto& [action, regret] : cumul_regret) {
-      double pos_regret = std::max(0., regret);
-      pos_regrets.emplace(action, pos_regret);
-      pos_regret_sum += pos_regret;
-   }
-   // apply the new policy to the vector policy
-   auto exec_policy{std::execution::par_unseq};
-   if(pos_regret_sum > 0) {
-      if(cumul_regret.size() != policy_map.size()) {
-         throw std::invalid_argument(
-            "Passed regrets and policy maps do not have the same number of elements");
-      }
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(entry) = cumul_regret.at(std::get< 0 >(entry)) / pos_regret_sum;
-      });
-   } else {
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
-      });
-   }
-}
 
 struct CFRConfig {
    bool alternating_updates = true;
    bool store_public_states = false;
+   bool store_world_states = false;
 };
 
 /**
@@ -113,11 +87,14 @@ class VanillaCFR {
    // https://stackoverflow.com/questions/71382976
    using cfr_node_type = CFRNode<
       action_type,
+
+            std::conditional_t< cfr_config.store_world_states, world_state_type, utils::empty>,
       info_state_type,
       std::conditional_t< cfr_config.store_public_states, public_state_type, utils::empty > >;
 #else
    using cfr_node_type = CFRNode<
       action_type,
+      world_state_type,
       info_state_type,
       std::conditional_t< cfr_config.store_public_states, public_state_type, NEW_EMPTY_TYPE > >;
 #endif

@@ -39,6 +39,28 @@ namespace detail {
 //   void append(const std::pair <Action, Observation>&) {}
 //};
 
+template < typename Worldstate, typename = void >
+struct CondWorldstate {
+   /// the world state at this node
+   sptr< Worldstate > world_state;
+};
+
+/**
+ * @brief Empty Worldstate optimization for when its storage is not required.
+ *
+ * This is useful e.g. when one would want to visualize the tree with private and public
+ * information.
+ */
+template < typename Worldstate >
+struct CondWorldstate< Worldstate, std::enable_if_t< concepts::is::empty< Worldstate > > > {
+   CondWorldstate() = default;
+   CondWorldstate(const sptr< Worldstate >&) = default;
+   /// the world state at this node
+   /// In order to avoid any storage overhead we don't let the empty type have unique storage. This
+   /// way there won't be individual storage of empty structs, but rather a single address for all
+   [[no_unique_address]] Worldstate world_state{};
+};
+
 template < typename Publicstate, typename = void >
 struct CondPubstate {
    /// the public information state at this node
@@ -61,20 +83,26 @@ struct CondPubstate< Publicstate, std::enable_if_t< concepts::is::empty< Publics
 
 }  // namespace detail
 
-template < typename Action, typename Infostate, typename Publicstate >
-struct CFRNode: public detail::CondPubstate< Publicstate > {
+template < typename Action, typename Worldstate, typename Infostate, typename Publicstate >
+struct CFRNode:
+    public detail::CondPubstate< Publicstate >,
+    public detail::CondWorldstate< Worldstate > {
    using info_state_type = Infostate;
    using public_state_type = Publicstate;
+   using world_state_type = Worldstate;
+   using cond_world_state_base = detail::CondWorldstate< Worldstate >;
    using cond_public_state_base = detail::CondPubstate< Publicstate >;
 
    CFRNode(
       Player player,
       std::vector< Action > legal_actions,
       bool is_terminal,
-      std::map< Player, Infostate > info_states,
+      std::vector< Infostate > info_states,
       Publicstate public_state = {},
+      const sptr< Worldstate >& world_state = nullptr,
       CFRNode* parent = nullptr)
        : cond_public_state_base{std::move(public_state)},
+         cond_world_state_base{std::move(world_state)},
          m_player(player),
          m_actions(std::move(legal_actions)),
          m_terminal(is_terminal),
@@ -90,9 +118,11 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
       bool is_terminal,
       std::map< Player, Infostate > info_states,
       Publicstate public_state,
-      std::map< Player, double > reach_prob,
+      const sptr< Worldstate >& world_state,
+      std::vector< double > reach_prob,
       CFRNode* parent = nullptr)
        : cond_public_state_base{std::move(public_state)},
+         cond_world_state_base{std::move(world_state)},
          m_player(player),
          m_actions(std::move(legal_actions)),
          m_terminal(is_terminal),
@@ -102,13 +132,24 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    {
    }
 
+   world_state_type* world_state()
+   {
+      if constexpr(concepts::is::empty< world_state_type >) {
+         return cond_public_state_base::world_state.get();
+      } else {
+         return nullptr;
+      }
+   }
    auto& public_state() { return cond_public_state_base::public_state; }
    auto player() { return m_player; }
-   auto& info_states(Player player) { return m_infostates[player]; }
+   auto& info_states(Player player) { return m_infostates[static_cast< uint8_t >(player)]; }
    auto& info_states() { return m_infostates; }
-   auto& value(Player player) { return m_value[player]; }
+   auto& value(Player player) { return m_value[static_cast< uint8_t >(player)]; }
    auto& value() { return m_value; }
-   auto& reach_probability_contrib(Player player) { return m_compound_reach_prob_contribution[player]; }
+   auto& reach_probability_contrib(Player player)
+   {
+      return m_compound_reach_prob_contribution[static_cast< uint8_t >(player)];
+   }
    auto& reach_probability_contrib() { return m_compound_reach_prob_contribution; }
    auto& actions() { return m_actions; }
    auto& children(const Action& action) { return m_children[action]; }
@@ -116,16 +157,30 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    auto& regret(const Action& action) { return m_regret[action]; }
    auto& regret() { return m_regret; }
    auto parent() { return m_parent; }
+   [[nodiscard]] const world_state_type* world_state() const
+   {
+      if constexpr(concepts::is::empty< world_state_type >) {
+         return cond_public_state_base::world_state.get();
+      } else {
+         return nullptr;
+      }
+   }
    [[nodiscard]] auto& public_state() const { return cond_public_state_base::public_state; }
    [[nodiscard]] auto terminal() const { return m_terminal; }
    [[nodiscard]] auto player() const { return m_player; }
-   [[nodiscard]] auto& info_states(Player player) const { return m_infostates.at(player); }
+   [[nodiscard]] auto& info_states(Player player) const
+   {
+      return m_infostates[static_cast< uint8_t >(player)];
+   }
    [[nodiscard]] auto& info_states() const { return m_infostates; }
-   [[nodiscard]] auto& value(Player player) const { return m_value.at(player); }
+   [[nodiscard]] auto& value(Player player) const
+   {
+      return m_value[static_cast< uint8_t >(player)];
+   }
    [[nodiscard]] auto& value() const { return m_value; }
    [[nodiscard]] auto& reach_probability_contrib(Player player) const
    {
-      return m_compound_reach_prob_contribution.at(player);
+      return m_compound_reach_prob_contribution[static_cast< uint8_t >(player)];
    }
    [[nodiscard]] auto& reach_probability_contrib() const
    {
@@ -139,7 +194,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    [[nodiscard]] auto parent() const { return m_parent; }
 
   private:
-   /// the currently active player at the world state
+   /// the currently active player at this node
    Player m_player;
    /// the legal actions the active player can choose from at this state.
    std::vector< Action > m_actions;
@@ -149,14 +204,14 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    // player-based storage
 
    /// the information states of each player at this node
-   std::map< Player, Infostate > m_infostates;
+   std::vector< Infostate > m_infostates;
    /// the value of each player for this node.
    /// Defaults to 0 and should be updated later during the traversal.
-   std::map< Player, double > m_value{};
+   std::vector< double > m_value{};
    /// the compounding reach probability of each player for this node (i.e. the probability
    /// contribution of each player along the trajectory to this node).
    /// Defaults to 0 and has to be updated during the traversal with the current policy.
-   std::map< Player, double > m_compound_reach_prob_contribution{};
+   std::vector< double > m_compound_reach_prob_contribution{};
 
    // action-based storage
    // these don't need to be on a per player basis, as only the active player of this node has
