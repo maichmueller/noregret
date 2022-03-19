@@ -65,6 +65,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
          m_actions(std::move(legal_actions)),
          m_terminal(is_terminal),
          m_infostates(std::move(info_states)),
+         m_value(m_infostates.size()),
          m_compound_reach_prob_contribution(),
          m_parent(parent)
    {
@@ -74,7 +75,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
       Player player,
       std::vector< Action > legal_actions,
       bool is_terminal,
-      std::map< Player, Infostate > info_states,
+      std::vector< Infostate > info_states,
       Publicstate public_state,
       std::vector< double > reach_prob,
       CFRNode* parent = nullptr)
@@ -83,6 +84,7 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
          m_actions(std::move(legal_actions)),
          m_terminal(is_terminal),
          m_infostates(std::move(info_states)),
+         m_value(m_infostates.size(), 0.),
          m_compound_reach_prob_contribution(std::move(reach_prob)),
          m_parent(parent)
    {
@@ -148,11 +150,11 @@ struct CFRNode: public detail::CondPubstate< Publicstate > {
    std::vector< Infostate > m_infostates;
    /// the value of each player for this node.
    /// Defaults to 0 and should be updated later during the traversal.
-   std::vector< double > m_value{};
+   std::vector< double > m_value;
    /// the compounding reach probability of each player for this node (i.e. the probability
    /// contribution of each player along the trajectory to this node).
    /// Defaults to 0 and has to be updated during the traversal with the current policy.
-   std::vector< double > m_compound_reach_prob_contribution{};
+   std::vector< double > m_compound_reach_prob_contribution;
 
    // action-based storage
    // these don't need to be on a per player basis, as only the active player of this node has

@@ -391,22 +391,10 @@ class VanillaCFR {
          m_env.actions(curr_player, *m_root_state),  // the root actions
          m_env.is_terminal(*m_root_state),
          /*infostates=*/
-         []< concepts::iterable T >(T&& players) {
-            std::map< Player, info_state_type > istate_map;
-            for(auto player : players) {
-               istate_map.emplace(player, info_state_type{});
-            }
-            return istate_map;
-         }(m_env.players()),
+         std::vector< info_state_type >(size_t(m_env.players().size()), info_state_type{}),
          typename cfr_node_type::public_state_type{},
          /*reach_probs=*/
-         []< concepts::iterable T >(T&& players) {
-            std::map< Player, double > reach_p;
-            for(auto player : players) {
-               reach_p.emplace(player, 1.);
-            }
-            return reach_p;
-         }(m_env.players()));
+         std::vector< double >(size_t(m_env.players().size()), 1.));
       // add the root node to each player's game tree
       _emplace_node(root_node->info_states(), root_node);
       return root_node;
@@ -457,9 +445,6 @@ class VanillaCFR {
             m_env.transition(*next_wstate_uptr, action);
             // copy the current information states of all players. Each state will be updated with
             // the new private observation the respective player receives from the environment.
-            static_assert(
-               std::is_copy_constructible_v< info_state_type >,
-               "Infostate type needs to be copy constructible.");
             auto next_infostates = curr_node->info_states();
             // append each players action observation and world state observation to the current
             // stream of information states.
