@@ -180,8 +180,12 @@ class TabularPolicy {
 
    [[nodiscard]] auto& table() const { return m_table; }
 
-  private:
-   table_type m_table;
+   [[nodiscard]] auto size() const requires(concepts::is::sized< table_type >)
+   {
+      return m_table.size();
+   }
+
+  private: table_type m_table;
 };
 
 }  // namespace nor

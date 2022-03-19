@@ -177,13 +177,12 @@ class VanillaCFR {
       std::map< Player, Policy > policy,
       std::map< Player, AveragePolicy > avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
-       :
-       m_env(std::move(game)),
-       m_curr_policy(std::move(policy)),
-       m_avg_policy(std::move(avg_policy)),
-       m_default_policy(std::move(default_policy)),
-       m_root_state(std::move(root_state)),
-       m_root_node(_make_root_node())
+       : m_env(std::move(game)),
+         m_curr_policy(std::move(policy)),
+         m_avg_policy(std::move(avg_policy)),
+         m_default_policy(std::move(default_policy)),
+         m_root_state(std::move(root_state)),
+         m_root_node(_make_root_node())
    {
       _assert_sequential_game();
    }
