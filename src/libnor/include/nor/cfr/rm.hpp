@@ -95,7 +95,7 @@ class GameTree {
       // The stack uses raw pointers to nodes, since nodes are first emplaced in the tree(s) and
       // then put on the stack for later visitation. Their lifetime management is thus handled by
       // shared pointers stored in the trees.
-      std::stack< std::tuple< uptr< Worldstate >, node_type* > > visit_stack;
+      std::stack< std::tuple< uptr< world_state_type >, node_type* > > visit_stack;
       // copy the root state into the visitation stack
       visit_stack.emplace(std::move(root_state), root_node());
 
