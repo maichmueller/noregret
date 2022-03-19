@@ -25,42 +25,6 @@ namespace nor::rm {
 
 namespace detail {
 
-///**
-// * The empty public state type will still need to fulfill the concept of a public state type!
-// * @tparam Action
-// * @tparam Observation
-// */
-// template < concepts::action Action, concepts::observation Observation >
-// struct empty_public_state {
-//   using action_type = Action;
-//   using observation_type = Observation;
-//
-//   [[nodiscard]] size_t size() const { return 0; }
-//   void append(const std::pair <Action, Observation>&) {}
-//};
-
-template < typename Worldstate, typename = void >
-struct CondWorldstate {
-   /// the world state at this node
-   sptr< Worldstate > world_state;
-};
-
-/**
- * @brief Empty Worldstate optimization for when its storage is not required.
- *
- * This is useful e.g. when one would want to visualize the tree with private and public
- * information.
- */
-template < typename Worldstate >
-struct CondWorldstate< Worldstate, std::enable_if_t< concepts::is::empty< Worldstate > > > {
-   CondWorldstate() = default;
-   CondWorldstate(const sptr< Worldstate >&) = default;
-   /// the world state at this node
-   /// In order to avoid any storage overhead we don't let the empty type have unique storage. This
-   /// way there won't be individual storage of empty structs, but rather a single address for all
-   [[no_unique_address]] Worldstate world_state{};
-};
-
 template < typename Publicstate, typename = void >
 struct CondPubstate {
    /// the public information state at this node
@@ -83,14 +47,10 @@ struct CondPubstate< Publicstate, std::enable_if_t< concepts::is::empty< Publics
 
 }  // namespace detail
 
-template < typename Action, typename Worldstate, typename Infostate, typename Publicstate >
-struct CFRNode:
-    public detail::CondPubstate< Publicstate >,
-    public detail::CondWorldstate< Worldstate > {
+template < typename Action, typename Infostate, typename Publicstate >
+struct CFRNode: public detail::CondPubstate< Publicstate > {
    using info_state_type = Infostate;
    using public_state_type = Publicstate;
-   using world_state_type = Worldstate;
-   using cond_world_state_base = detail::CondWorldstate< Worldstate >;
    using cond_public_state_base = detail::CondPubstate< Publicstate >;
 
    CFRNode(
@@ -99,10 +59,8 @@ struct CFRNode:
       bool is_terminal,
       std::vector< Infostate > info_states,
       Publicstate public_state = {},
-      const sptr< Worldstate >& world_state = nullptr,
       CFRNode* parent = nullptr)
        : cond_public_state_base{std::move(public_state)},
-         cond_world_state_base{std::move(world_state)},
          m_player(player),
          m_actions(std::move(legal_actions)),
          m_terminal(is_terminal),
@@ -118,11 +76,9 @@ struct CFRNode:
       bool is_terminal,
       std::map< Player, Infostate > info_states,
       Publicstate public_state,
-      const sptr< Worldstate >& world_state,
       std::vector< double > reach_prob,
       CFRNode* parent = nullptr)
        : cond_public_state_base{std::move(public_state)},
-         cond_world_state_base{std::move(world_state)},
          m_player(player),
          m_actions(std::move(legal_actions)),
          m_terminal(is_terminal),
@@ -132,14 +88,6 @@ struct CFRNode:
    {
    }
 
-   world_state_type* world_state()
-   {
-      if constexpr(concepts::is::empty< world_state_type >) {
-         return cond_public_state_base::world_state.get();
-      } else {
-         return nullptr;
-      }
-   }
    auto& public_state() { return cond_public_state_base::public_state; }
    auto player() { return m_player; }
    auto& info_states(Player player) { return m_infostates[static_cast< uint8_t >(player)]; }
@@ -157,14 +105,7 @@ struct CFRNode:
    auto& regret(const Action& action) { return m_regret[action]; }
    auto& regret() { return m_regret; }
    auto parent() { return m_parent; }
-   [[nodiscard]] const world_state_type* world_state() const
-   {
-      if constexpr(concepts::is::empty< world_state_type >) {
-         return cond_public_state_base::world_state.get();
-      } else {
-         return nullptr;
-      }
-   }
+
    [[nodiscard]] auto& public_state() const { return cond_public_state_base::public_state; }
    [[nodiscard]] auto terminal() const { return m_terminal; }
    [[nodiscard]] auto player() const { return m_player; }

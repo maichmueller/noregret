@@ -29,7 +29,6 @@ namespace nor::rm {
 struct CFRConfig {
    bool alternating_updates = true;
    bool store_public_states = false;
-   bool store_world_states = false;
 };
 
 /**
@@ -87,14 +86,11 @@ class VanillaCFR {
    // https://stackoverflow.com/questions/71382976
    using cfr_node_type = CFRNode<
       action_type,
-
-            std::conditional_t< cfr_config.store_world_states, world_state_type, utils::empty>,
       info_state_type,
       std::conditional_t< cfr_config.store_public_states, public_state_type, utils::empty > >;
 #else
    using cfr_node_type = CFRNode<
       action_type,
-      world_state_type,
       info_state_type,
       std::conditional_t< cfr_config.store_public_states, public_state_type, NEW_EMPTY_TYPE > >;
 #endif
@@ -264,7 +260,7 @@ class VanillaCFR {
     */
    inline double reach_probability(const cfr_node_type& node) const
    {
-      auto values_view = node.reach_probability_contrib() | ranges::views::values;
+      auto values_view = node.reach_probability_contrib() | ranges::views::all;
       return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
    }
 
@@ -468,7 +464,7 @@ class VanillaCFR {
             // append each players action observation and world state observation to the current
             // stream of information states.
             for(auto player : m_env.players()) {
-               next_infostates[player].append(
+               next_infostates[static_cast< uint8_t >(player)].append(
                   m_env.private_observation(player, action),
                   m_env.private_observation(player, *next_wstate_uptr));
             }
@@ -481,7 +477,7 @@ class VanillaCFR {
                m_env.active_player(*next_wstate_uptr),
                m_env.actions(m_env.active_player(*next_wstate_uptr), *next_wstate_uptr),
                m_env.is_terminal(*next_wstate_uptr),
-               next_infostates,  // the node copies these infostate maps in its constructor
+               next_infostates,  // the node copies these infostate vectors in its constructor
                std::move(next_public_state),
                curr_node->reach_probability_contrib(),  // we for now only copy the parent's reach
                                                         // probs. they will be updated later
@@ -524,11 +520,12 @@ class VanillaCFR {
     * @param node_sptr the node ptr to store away
     */
    void _emplace_node(
-      std::map< Player, info_state_type > infostates,
+      std::vector< info_state_type > infostates,
       const std::shared_ptr< cfr_node_type >& node_sptr)
    {
       for(auto player : m_env.players()) {
-         auto [it, emplaced] = m_game_trees[player].emplace(infostates[player], node_sptr);
+         auto [it, emplaced] = m_game_trees[player].emplace(
+            infostates[static_cast< uint8_t >(player)], node_sptr);
          if(not emplaced) {
             std::stringstream ss;
             ss << "Could not emplace child node into game tree of player ";
