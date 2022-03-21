@@ -50,15 +50,16 @@ struct Node {
    Node* parent;
    /// the children that each action maps to in the game tree.
    /// Should be filled during the traversal.
-   std::unordered_map< Action, uptr< Node > > children{};
+   std::unordered_map< Action, Node* > children{};
 };
 
-template < concepts::fosg Env >
+template < concepts::fosg Env, typename NodeDataType >
 class GameTree {
   public:
    using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
-   using action_type = typename fosg_auto_traits< Env >::action_type ;
+   using action_type = typename fosg_auto_traits< Env >::action_type;
    using node_type = Node< action_type >;
+   using node_data_type = NodeDataType;
 
    /**
     * @brief Does the first full traversal of the game tree and emplaces the nodes along the way.
@@ -72,8 +73,48 @@ class GameTree {
     * hash table. Whether the slight code duplication will become a maintenance issue will need
     * to be seen in the future.
     */
+   // clang-format off
+   template < typename NodeDataExtractor >
+   requires
+      std::invocable<
+         NodeDataExtractor,
+         NodeDataType,        // return type
+         node_type&,          // current node input
+         node_type&,          // child node input
+         world_state_type&,   // current world state
+         world_state_type&,   // child world state
+         const NodeDataType&, // current node's data
+         const action_type&   // action that led to the child
+      >
+   // clang-format on
+   GameTree(Env& env, uptr< const world_state_type >&& root_state, NodeDataExtractor data_extractor)
+       : m_root_state(std::move(root_state)), m_nodes{}
+   {
+      _grow_tree< true >(env, std::move(root_state), std::move(data_extractor));
+   }
+
    GameTree(Env& env, uptr< const world_state_type >&& root_state)
        : m_root_state(std::move(root_state)), m_nodes{}
+   {
+      _grow_tree< false >(env, std::move(root_state));
+   }
+
+   [[nodiscard]] auto* root_node() const { return &(m_nodes[0]); }
+   [[nodiscard]] auto* root_state() const { return m_root_state.get(); }
+
+  private:
+   /// the node storage of all nodes in the tree. Entry 0 is the root.
+   std::vector< node_type > m_nodes;
+   /// the paired node data vector holds at entry i the data for node i
+   std::vector< node_data_type > m_node_data;
+   /// the root game state from which the tree is built
+   sptr< world_state_type > m_root_state;
+
+   template < bool extract_data, typename NodeDataExtractor = utils::empty >
+   void _grow_tree(
+      Env& env,
+      uptr< const world_state_type >&& root_state,
+      NodeDataExtractor data_extractor = {})
    {
       auto fill_children = [&](node_type& node, world_state_type& wstate) {
          for(const auto& action : env.actions(env.active_player(wstate), wstate)) {
@@ -101,7 +142,7 @@ class GameTree {
 
       while(not visit_stack.empty()) {
          // get the top node and world state from the stack and move them into our values.
-         auto [curr_wstate, curr_node] = std::move(visit_stack.top());
+         auto [curr_wstate_uptr, curr_node] = std::move(visit_stack.top());
          // remove those elements from the stack (there is no unified pop-and-return method for
          // stack)
          visit_stack.pop();
@@ -109,7 +150,7 @@ class GameTree {
          for(const auto& action : ranges::views::keys(curr_node->children)) {
             // copy the current nodes world state
             auto next_wstate_uptr = utils::static_unique_ptr_cast< world_state_type >(
-               utils::clone_any_way(curr_wstate));
+               utils::clone_any_way(curr_wstate_uptr));
             // move the new world state forward by the current action
             env.transition(*next_wstate_uptr, action);
             // the child node has shared ownership by each player's game tree
@@ -121,6 +162,16 @@ class GameTree {
             // raw pointer here to avoid the unnecessary sptr counter increase cost
             curr_node->children(action) = &child_node;
 
+            if constexpr(extract_data) {
+               m_node_data.emplace_back(data_extractor(
+                  *curr_node,
+                  *child_node,
+                  *curr_wstate_uptr,
+                  *next_wstate_uptr,
+                  m_node_data[curr_node->id],
+                  action));
+            }
+
             if(not env.is_terminal(*next_wstate_uptr)) {
                // if the newly reached world state is not a terminal state, then we merely append
                // the new child node to the queue. This way we further explore its child states
@@ -130,13 +181,6 @@ class GameTree {
          }
       }
    }
-
-   [[nodiscard]] auto* root_node() const { return &(m_nodes[0]); }
-   [[nodiscard]] auto* root_state() const { return m_root_state.get(); }
-
-  private:
-   std::vector< node_type > m_nodes;
-   sptr< world_state_type > m_root_state;
 };
 }  // namespace forest
 
