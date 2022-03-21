@@ -41,8 +41,9 @@ enum class TurnDynamic {
 
 enum class Stochasticity {
    deterministic = 0,  // the environment is deterministic
-   sample,  // the environment is sampling a random outcome
-   choice  // the environment can provide a vector of random outcomes to choose from
+   sample,  // the environment is sampling a random outcome at a given state
+   choice  // the environment can provide a vector of random outcomes to choose from at any given
+           // state
 };
 
 }  // namespace nor

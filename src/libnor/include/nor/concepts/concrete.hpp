@@ -165,8 +165,36 @@ concept fosg =
    && has::method::players< Env >
    && has::method::max_player_count< Env >
    && has::method::player_count< Env >
+   && has::method::stochasticity< Env >
    && has::method::turn_dynamic< Env >;
 // clang-format on
+
+template<typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
+// clang-format off
+concept vanilla_cfr_requirements =
+   concepts::fosg< Env >
+   && fosg_traits_partial_match< Policy, Env >::value
+   && concepts::state_policy<
+       Policy,
+       typename fosg_auto_traits< Env >::info_state_type,
+       typename fosg_auto_traits< Env >::observation_type
+      >
+   && concepts::state_policy<
+         AveragePolicy,
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Env >::observation_type
+      >
+   && concepts::default_state_policy<
+       DefaultPolicy,
+       typename fosg_auto_traits< Env >::info_state_type,
+       typename fosg_auto_traits< Env >::observation_type
+      >;
+
+// clang-format on
+
 //
 // template <
 //   typename T,

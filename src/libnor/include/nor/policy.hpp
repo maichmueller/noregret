@@ -178,14 +178,48 @@ class TabularPolicy {
    inline auto& operator[](const info_state_type& state) { return m_table[state]; }
    inline const auto& operator[](const info_state_type& state) const { return m_table.at(state); }
 
-   [[nodiscard]] auto& table() const { return m_table; }
-
    [[nodiscard]] auto size() const requires(concepts::is::sized< table_type >)
    {
       return m_table.size();
    }
 
-  private: table_type m_table;
+   [[nodiscard]] auto& table() const { return m_table; }
+
+  private:
+   table_type m_table;
+};
+
+template <
+   concepts::info_state Infostate,
+   concepts::action Action,
+   typename TabularOpponentPolicy,
+   typename Table = std::unordered_map< Infostate, Action > >
+// clang-format off
+requires
+   concepts::state_policy<
+      TabularOpponentPolicy,
+      Infostate,
+      typename fosg_auto_traits< Infostate >::observation_type >
+   && concepts::map< Table, Infostate, Action >
+// clang-format on
+class TabularBestResponse {
+   TabularBestResponse(
+      Player best_responding_player,
+      const TabularOpponentPolicy& opponent_policy,
+      Table best_response_table)
+       : m_responder(best_responding_player),
+         m_opponent_policy(&opponent_policy),
+         m_best_response(std::move(best_response_table))
+   {
+   }
+
+  private:
+   /// the player who is acting according to the best response
+   Player m_responder;
+   /// the tabular opponent policy the given player is searching the best response to
+   const TabularOpponentPolicy* m_opponent_policy;
+   /// the table of a best response to a given infostate
+   Table m_best_response;
 };
 
 }  // namespace nor

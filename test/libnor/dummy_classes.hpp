@@ -51,6 +51,7 @@ class Env {
    static constexpr size_t max_player_count() { return 10; }
    static constexpr size_t player_count() { return 10; }
    static constexpr nor::TurnDynamic turn_dynamic() { return nor::TurnDynamic::simultaneous; }
+   static constexpr nor::Stochasticity stochasticity() { return nor::Stochasticity::deterministic; }
 
    std::vector< action_type > actions(nor::Player player, const world_state_type& wstate) const;
    std::vector< action_type > actions(const info_state_type& istate) const;

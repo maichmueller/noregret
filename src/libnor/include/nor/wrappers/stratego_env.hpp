@@ -105,6 +105,7 @@ class Environment {
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
    static constexpr TurnDynamic turn_dynamic() { return TurnDynamic::sequential; }
+   static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
    explicit Environment(uptr< Logic >&& logic);
 

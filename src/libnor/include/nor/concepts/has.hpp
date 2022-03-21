@@ -383,6 +383,14 @@ concept turn_dynamic = requires(T t)
       } -> std::same_as< TurnDynamic >;
 };
 
+template < typename T >
+concept stochasticity = requires(T t)
+{
+   {
+      t.stochasticity()
+      } -> std::same_as< Stochasticity >;
+};
+
 }  // namespace method
 
 namespace trait {
