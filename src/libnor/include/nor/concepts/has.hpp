@@ -57,11 +57,24 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type >
-concept actions = requires(T const t, Worldstate&& worldstate, Player player)
+concept actions = requires(T const t, Worldstate worldstate, Player player)
 {
    // legal actions getter for the given player
    {
-      t.actions(player, std::forward< Worldstate >(worldstate))
+      t.actions(player, worldstate)
+      } -> std::convertible_to< std::vector< Action > >;
+};
+
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::action_type >
+concept chance_actions = requires(T const t, Worldstate worldstate, Player player)
+{
+   // return the current open choices for 'chance' to act on. This is only relevant for games with
+   // stochastic game aspects (e.g. stochastic state transitions)
+   {
+      t.chance_actions(player, worldstate)
       } -> std::convertible_to< std::vector< Action > >;
 };
 
@@ -167,6 +180,8 @@ concept is_terminal = requires(T t, Worldstate& wstate)
 template < typename T, typename Worldstate = typename T::world_state_type >
 concept active_player = requires(T t, Worldstate wstate)
 {
+   // returns the current active player at this world state. This may also return Player::chance if
+   // the current state requires a chance outcome to proceed next!
    {
       t.active_player(wstate)
       } -> std::same_as< Player >;
@@ -307,31 +322,6 @@ concept at = requires(T t, InputT inp)
       t.at(inp)
       } -> std::same_as< OutputT >;
 };
-
-// template < typename T, typename OutputT, typename...InputTs >
-// concept getitem_overloaded = requires(T&& t, InputTs&&... inp)
-//{
-//    /// getitem method for input type returning an output type
-//    {
-//       t[inp]
-//       } -> std::same_as< OutputT >;
-// };
-
-// template < typename T, typename OutputT, typename... InputTs >
-// concept getitem = requires(T&& t, InputTs&&... inp)
-//{
-//    /// getitem method for input type returning an output type
-//    {
-//       t[inp]
-//       } -> std::same_as< OutputT >;
-// };
-//
-// template < typename T, typename OutputT, typename... InputT1, typename... InputTs >
-// concept getitem_for_each_arg = requires(T&& t, InputT1 inp, InputTs&&... rest_inp)
-//{
-//    /// getitem method for input type returning an output type
-//    invocable_with_each_v
-// };
 
 template < typename T, typename U = typename T::iterator >
 concept begin = requires(T t)

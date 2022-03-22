@@ -36,7 +36,7 @@ struct factory {
       std::decay_t< AveragePolicy > >
    make_vanilla(
       Env&& env,
-      sptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy,
       DefaultPolicy&& def_policy)
@@ -61,7 +61,7 @@ struct factory {
    template < CFRConfig cfg, bool as_map, typename Env, typename Policy, typename DefaultPolicy >
    static VanillaCFR< cfg, Env, Policy, DefaultPolicy, Policy > make_vanilla(
       Env&& env,
-      sptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       const Policy& policy,
       DefaultPolicy&& def_policy = DefaultPolicy())
    {

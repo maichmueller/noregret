@@ -20,7 +20,7 @@ TEST_F(StrategoState3x3, vanilla_cfr_usage_stratego)
 
    auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env),
-      std::make_shared< State >(std::move(state)),
+      std::make_unique< State >(std::move(state)),
       tabular_policy,
       std::move(uniform_policy));
 
