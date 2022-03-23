@@ -462,7 +462,6 @@ class VanillaCFR {
   private:
    /// the environment object to maneuver the states with.
    env_type m_env;
-
    /// the game tree mapping information states to the associated game nodes.
    game_tree_type m_game_tree;
    /// the current policy $\pi^t$ that each player is following in this iteration (t).
@@ -471,7 +470,6 @@ class VanillaCFR {
    std::map< Player, AveragePolicy > m_avg_policy;
    /// the fallback policy to use when the encountered infostate has not been obseved before
    default_policy_type m_default_policy;
-
    /// The update queue to use once the nodes have been filled from a tree traversal.
    /// We need to arrange a delayed update of tree nodes, since any node's values depend on the
    /// child values and the reach probabilities. Those values are found once the full traversal
@@ -481,7 +479,6 @@ class VanillaCFR {
    /// ensures we are updating the values from the leaves, which are inserted last, to the root of
    /// the tree, which is inserted first.
    std::stack< const node_type* > m_update_stack;
-
    /// the next player to update when doing alternative updates. Otherwise this member will be
    /// unused.
    std::deque< Player > m_player_update_schedule{};
