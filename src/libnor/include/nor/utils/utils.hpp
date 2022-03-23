@@ -4,7 +4,6 @@
 #include <iterator>
 #include <type_traits>
 
-//#include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 
 namespace nor {
