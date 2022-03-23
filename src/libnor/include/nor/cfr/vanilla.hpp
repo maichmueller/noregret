@@ -461,7 +461,9 @@ class VanillaCFR {
    std::vector< node_data_type > m_node_data;
    /// the current policy $\pi^t$ that each player is following in this iteration (t).
    std::map< Player, Policy > m_curr_policy;
-   /// the average policy table.
+   /// the average policy table. The values stored in this table are the UNNORMALIZED average state
+   /// policies. This means that the state policy p(s, . ) for a given info state s needs to
+   /// normalize its probabilities p(s, . ) by \sum_a p(s,a) when used for evaluation.
    std::map< Player, AveragePolicy > m_avg_policy;
    /// the fallback policy to use when the encountered infostate has not been obseved before
    default_policy_type m_default_policy;
