@@ -9,8 +9,9 @@ include(GNUInstallDirs)
 
 # options
 
-option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be installed on the system" OFF)
+option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be installed on the system" ON)
 option(ENABLE_BUILD_PYTHON_EXTENSION "Enable building the python extension." ON)
+option(ENABLE_BUILD_SANDBOX "Enable building of the sandbox testbed (Only for development purposes)." ON)
 option(ENABLE_BUILD_WITH_TIME_TRACE "Enable -ftime-trace to generate time tracing .json files on clang" OFF)
 option(ENABLE_CACHE "Enable cache if available" ON)
 option(ENABLE_CLANG_TIDY "Enable static analysis with clang-tidy" OFF)
@@ -91,6 +92,8 @@ target_compile_features(project_options
 if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang" AND ENABLE_BUILD_WITH_TIME_TRACE)
     add_compile_definitions(project_options INTERFACE -ftime-trace)
 endif ()
+# string APPEND is needed for options in order to concatenate these strings AS IS,
+# i.e. avoid the semicolon between every code line
 string(
         APPEND _options
         "$<$<CXX_COMPILER_ID:MSVC>:"
@@ -105,7 +108,17 @@ string(
         "$<$<CONFIG:RELEASE>:-O3>"
         ">"
 )
-target_compile_options(project_options INTERFACE "${_options}")
+set(
+        _extra_options
+        "-ftemplate-backtrace-limit=0"
+        "$<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=5>"
+)
+target_compile_options(
+        project_options
+        INTERFACE
+        "${_options}"
+        "${_extra_options}"
+)
 
 # Set up some extra Conan dependencies based on our needs
 # before loading Conan
@@ -163,6 +176,10 @@ endif ()
 if (ENABLE_GAMES)
     message(STATUS "Configuring Game Builds.")
     include(${_cmake_DIR}/targets/games.cmake)
+endif ()
+if (ENABLE_BUILD_SANDBOX)
+    message(STATUS "Configuring Sandbox Build.")
+    include(${_cmake_DIR}/targets/sandbox.cmake)
 endif ()
 
 # use, i.e. don't skip the full RPATH for the build tree

@@ -67,7 +67,7 @@ class Position {
        : Position(std::index_sequence_for< Types... >{}, coordinates)
    {
    }
-   Position() : m_coordinates(0) {}
+   Position() : m_coordinates{} {}
    explicit Position(container_type coords) : m_coordinates(std::move(coords)) {}
 
    Position(const Position&) = default;
@@ -363,7 +363,7 @@ template < typename ValueType, size_t N >
 struct hash< aze::Position< ValueType, N > > {
    constexpr size_t operator()(const aze::Position< ValueType, N > &pos) const
    {
-      // ( x*p1 xor y*p2 xor z*p3) mod n is supposedly a better spatial hash
+      // ( x*p1 xor y*p2 xor z*p3) mod n is supposedly a better spatial _hash
       // function
       long int curr = pos[0] * primes::primes_list[0];
       for(unsigned int  i = 1; i < N; ++i) {

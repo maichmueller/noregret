@@ -95,7 +95,7 @@ class History {
 class State: public aze::State< Board, History, Piece, Action > {
   public:
    using base_type = aze::State< Board, History, Piece, Action >;
-   using graveyard_type = std::map< Team, std::map< Piece::token_type, unsigned int > >;
+   using graveyard_type = std::map< Team, std::map< Token, unsigned int > >;
 
    template < typename... Params >
    State(Config config, graveyard_type graveyard, uptr< Logic > logic, Params &&...params)
@@ -110,7 +110,10 @@ class State: public aze::State< Board, History, Piece, Action > {
       Config config,
       std::optional< std::variant< size_t, aze::utils::random::RNG > > seed = std::nullopt);
 
-   // definitions for these needs to be in .cpp due to Logic being an incomplete type here
+   // definitions for these needs to be in .cpp due to Logic being an incomplete type here and
+   // uniq_ptr accessing it in its destructor
+   State(const State &);
+   State &operator=(const State &);
    State(State &&) noexcept;
    State &operator=(State &&) noexcept;
    ~State() override;
@@ -122,7 +125,8 @@ class State: public aze::State< Board, History, Piece, Action > {
       }
    }
 
-   void apply_action(const action_type &action) override;
+   void transition(const action_type &action) override;
+   void transition(Move move);
    aze::Status check_terminal() override;
    [[nodiscard]] Team active_team() const override
    {
@@ -130,12 +134,13 @@ class State: public aze::State< Board, History, Piece, Action > {
    }
 
    [[nodiscard]] std::string to_string() const override;
-   [[nodiscard]] std::string to_string(aze::Team team, bool hide_unknowns) const override;
+   [[nodiscard]] std::string to_string(std::optional< Team > team, bool hide_unknowns)
+      const override;
 
    [[nodiscard]] inline auto &config() const { return m_config; }
    [[nodiscard]] inline auto *logic() const { return &*m_logic; }
-   [[nodiscard]] inline auto graveyard() const { return m_graveyard; }
-   [[nodiscard]] inline auto graveyard(Team team) const { return m_graveyard.at(team); }
+   [[nodiscard]] inline auto &graveyard() const { return m_graveyard; }
+   [[nodiscard]] inline auto &graveyard(Team team) const { return m_graveyard.at(team); }
 
   private:
    /// the specific configuration of the stratego game belonging to this state

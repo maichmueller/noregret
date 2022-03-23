@@ -48,17 +48,19 @@ class State {
       board_type board,
       std::optional< std::variant< size_t, utils::random::RNG > > seed);
 
+   State(const State&) = default;
+   State& operator=(const State&) = default;
    State(State&&)  noexcept = default;
    State& operator=(State&&)  noexcept = default;
    virtual ~State() = default;
 
-   virtual void apply_action(const action_type &action) = 0;
+   virtual void transition(const action_type &action) = 0;
    virtual Status check_terminal() = 0;
    virtual void restore_to_round(size_t round);
 
    [[nodiscard]] virtual Team active_team() const = 0;
 
-   sptr< State > clone() const { return sptr< State >(clone_impl()); }
+   uptr< State > clone() const { return uptr< State >(clone_impl()); }
 
    void undo_last_rounds(size_t n = 1);
 
@@ -71,7 +73,7 @@ class State {
    {
       if(m_status_checked)
          return m_status;
-      LOGD("Checking terminality.")
+      LOGD("Checking terminality.");
       m_status_checked = true;
       m_status = check_terminal();
       return m_status;
@@ -88,7 +90,7 @@ class State {
       return status;
    }
    [[nodiscard]] virtual std::string to_string() const = 0;
-   [[nodiscard]] virtual std::string to_string(Team team, bool hide_unknowns) const = 0;
+   [[nodiscard]] virtual std::string to_string(std::optional< Team > team, bool hide_unknowns) const = 0;
 };
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >

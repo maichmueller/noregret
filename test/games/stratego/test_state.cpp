@@ -7,6 +7,8 @@
 #include "fixtures.hpp"
 #include "utils.hpp"
 
+using namespace stratego;
+
 TEST(State, constructor)
 {
    std::map< Position, Token > setup0;

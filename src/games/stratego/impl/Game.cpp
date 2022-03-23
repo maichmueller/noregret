@@ -5,50 +5,39 @@
 
 namespace stratego {
 
-Status Game::run_game(const sptr< aze::utils::Plotter< state_type > >& plotter)
+Status Game::run(const sptr< aze::utils::Plotter< State > >& plotter)
 {
    while(true) {
       if(plotter) {
-         plotter->plot(*state());
+         plotter->plot(state());
       }
 
-      Status outcome = state()->status();
+      Status outcome = state().status();
 
-      LOGD(std::string("\n") + state()->to_string(Team::BLUE, false));
+      LOGD(std::string("\n") + state().to_string(Team::BLUE, false));
       LOGD2("Status", static_cast< int >(outcome));
 
-      if(state()->status() != Status::ONGOING) {
-         return state()->status();
+      if(state().status() != Status::ONGOING) {
+         return state().status();
       }
-      run_step();
+      LOGD("Running transition.");
+      Team active_team = state().active_team();
+      auto action = agent(active_team)
+                       ->decide_action(
+                          state(), state().logic()->valid_actions(state(), active_team));
+      LOGD2(
+         "Possible Moves",
+         aze::utils::VectorPrinter{
+            state().logic()->valid_actions(state(), active_team)});
+      LOGD2("Selected Action by team " + std::string(utils::enum_name(active_team)), action);
+
+      m_state->transition(action);
    }
-}
-
-Status Game::run_step()
-{
-   LOGD(std::string_view("Running step."))
-   Team active_team = state()->active_team();
-   auto action = agent(active_team)
-                    ->decide_action(
-                       *state(), state()->logic()->valid_actions(*state(), active_team));
-   LOGD2(
-      "Possible Moves",
-      aze::utils::VectorPrinter{state()->logic()->valid_actions(*state(), active_team)}); // NOLINT
-   LOGD2("Selected Action by team " + utils::enum_name(active_team), action);
-
-   state()->apply_action(action);
-   return state()->status();
 }
 
 void Game::reset()
 {
-   if(state()->config().fixed_starting_team) {
-      state() = std::make_unique< State >(state()->config());
-   } else {
-      Config cfg_copy = state()->config();
-      cfg_copy.starting_team = aze::utils::random::choose(
-         std::array{Team::BLUE, Team::RED}, state()->rng());
-   }
+   state().logic()->reset(state());
 }
 
 }  // namespace stratego

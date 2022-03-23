@@ -22,6 +22,30 @@ using wptr = std::weak_ptr< T >;
 
 namespace aze::utils {
 
+template < std::string_view const&... Strs >
+struct join {
+   // Join all strings into a single std::array of chars
+   static constexpr auto impl() noexcept
+   {
+      constexpr std::size_t len = (Strs.size() + ... + 0);
+      std::array< char, len + 1 > arr{};
+      auto append = [i = 0, &arr](auto const& s) mutable {
+         for(auto c : s)
+            arr[i++] = c;
+      };
+      (append(Strs), ...);
+      arr[len] = 0;
+      return arr;
+   }
+   // Give the joined string static storage
+   static constexpr auto arr = impl();
+   // View as a std::string_view
+   static constexpr std::string_view value{arr.data(), arr.size() - 1};
+};
+// Helper to get the value out
+template < std::string_view const&... Strs >
+static constexpr auto join_v = join< Strs... >::value;
+
 /**
  * Literal class type that wraps a constant expression string.
  * Can be used as template parameter to differentiate via 'strings'
@@ -278,6 +302,33 @@ struct CEMap {
          begin(data), end(data), [&key](const auto& v) { return v.first == key; });
       if(itr != end(data)) {
          return itr->second;
+      } else {
+         throw std::range_error("Not Found");
+      }
+   }
+};
+
+template < typename Key, typename Value, std::size_t Size >
+struct CEBijection {
+   std::array< std::pair< Key, Value >, Size > data;
+
+   template < typename T >
+   requires is_any_v< T, Key, Value >
+   [[nodiscard]] constexpr auto at(const T& elem) const
+   {
+      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
+         if constexpr(std::is_same_v< T, Key >) {
+            return v.first == elem;
+         } else {
+            return v.second == elem;
+         }
+      });
+      if(itr != end(data)) {
+         if constexpr(std::is_same_v< T, Key >) {
+            return itr->second;
+         } else {
+            return itr->first;
+         }
       } else {
          throw std::range_error("Not Found");
       }

@@ -60,7 +60,7 @@ int main()
    //
    // run/train on the game
    //
-   game.run_game(nullptr);
+   game.run(nullptr);
 
    return 0;
 }
