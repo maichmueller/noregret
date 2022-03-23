@@ -49,6 +49,9 @@ template <
    typename AveragePolicy = Policy >
 requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
 class VanillaCFR {
+   ////////////////////////////
+   /// API: public typedefs ///
+   ////////////////////////////
   public:
    /// aliases for the template types
    using env_type = Env;
@@ -77,6 +80,10 @@ class VanillaCFR {
 #endif
    using game_tree_type = forest::GameTree< env_type, node_data_type >;
    using node_type = typename game_tree_type::node_type;
+
+   ////////////////////
+   /// Constructors ///
+   ////////////////////
 
    VanillaCFR(
       Env game,
@@ -146,9 +153,11 @@ class VanillaCFR {
       });
    }
 
-  public:
-   /// API
+   ////////////////////////////////////
+   /// API: public member functions ///
+   ////////////////////////////////////
 
+  public:
    /**
     * @brief executes n iterations of the VanillaCFR algorithm in unrolled form (no recursion).
     *
@@ -286,35 +295,11 @@ class VanillaCFR {
    [[nodiscard]] const auto& policy() const { return m_curr_policy; }
    [[nodiscard]] const auto& average_policy() const { return m_avg_policy; }
 
+   ////////////////////////////////
+   /// private member functions ///
+   ////////////////////////////////
+
   private:
-   /// the environment object to maneuver the states with.
-   env_type m_env;
-
-   /// the game tree mapping information states to the associated game nodes.
-   game_tree_type m_game_tree;
-   /// the current policy $\pi^t$ that each player is following in this iteration (t).
-   std::map< Player, Policy > m_curr_policy;
-   /// the average policy table.
-   std::map< Player, AveragePolicy > m_avg_policy;
-   /// the fallback policy to use when the encountered infostate has not been obseved before
-   default_policy_type m_default_policy;
-
-   /// The update queue to use once the nodes have been filled from a tree traversal.
-   /// We need to arrange a delayed update of tree nodes, since any node's values depend on the
-   /// child values and the reach probabilities. Those values are found once the full traversal
-   /// encounters terminal states (leaf nodes) whose values are then propagated back up with the
-   /// relevant reach probability. The order in which this propragation occurs is crucial and thus
-   /// defined by the update_queue. This queue needs to be a First-In-Last-Out structure, as it
-   /// ensures we are updating the values from the leaves, which are inserted last, to the root of
-   /// the tree, which is inserted first.
-   std::stack< const node_type* > m_update_stack;
-
-   /// the next player to update when doing alternative updates. Otherwise this member will be
-   /// unused.
-   std::deque< Player > m_player_update_schedule{};
-   /// the number of iterations we have run so far.
-   size_t m_iteration = 0;
-
    /**
     * @brief The internal vanilla cfr iteration routine.
     *
@@ -469,7 +454,45 @@ class VanillaCFR {
     * @return the player to update next.
     */
    Player _cycle_player_to_update(std::optional< Player > player_to_update = std::nullopt);
+
+   ///////////////////////////////////////////
+   /// private member variable definitions ///
+   ///////////////////////////////////////////
+
+  private:
+   /// the environment object to maneuver the states with.
+   env_type m_env;
+
+   /// the game tree mapping information states to the associated game nodes.
+   game_tree_type m_game_tree;
+   /// the current policy $\pi^t$ that each player is following in this iteration (t).
+   std::map< Player, Policy > m_curr_policy;
+   /// the average policy table.
+   std::map< Player, AveragePolicy > m_avg_policy;
+   /// the fallback policy to use when the encountered infostate has not been obseved before
+   default_policy_type m_default_policy;
+
+   /// The update queue to use once the nodes have been filled from a tree traversal.
+   /// We need to arrange a delayed update of tree nodes, since any node's values depend on the
+   /// child values and the reach probabilities. Those values are found once the full traversal
+   /// encounters terminal states (leaf nodes) whose values are then propagated back up with the
+   /// relevant reach probability. The order in which this propragation occurs is crucial and thus
+   /// defined by the update_queue. This queue needs to be a First-In-Last-Out structure, as it
+   /// ensures we are updating the values from the leaves, which are inserted last, to the root of
+   /// the tree, which is inserted first.
+   std::stack< const node_type* > m_update_stack;
+
+   /// the next player to update when doing alternative updates. Otherwise this member will be
+   /// unused.
+   std::deque< Player > m_player_update_schedule{};
+   /// the number of iterations we have run so far.
+   size_t m_iteration = 0;
 };
+
+
+///////////////////////////////////
+/// member function definitions ///
+///////////////////////////////////
 
 template <
    CFRConfig cfr_config,
