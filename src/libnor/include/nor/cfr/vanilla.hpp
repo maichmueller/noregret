@@ -87,15 +87,15 @@ class VanillaCFR {
       // clang-format off
       requires
          all_predicate_v<
-            std::is_move_constructible,
+            std::is_copy_constructible,
             Policy,
             AveragePolicy >
        // clang-format on
        :
        m_env(std::move(game)),
        m_game_tree(m_env, std::move(root_state)),
-       m_curr_policy(std::move(policy())),
-       m_avg_policy(std::move(avg_policy())),
+       m_curr_policy(),
+       m_avg_policy(),
        m_default_policy(std::move(default_policy))
    {
       _assert_sequential_game();
@@ -104,6 +104,9 @@ class VanillaCFR {
          m_avg_policy[player] = avg_policy;
       }
       _init_player_update_schedule();
+      m_game_tree.build([&]< typename... Args >(Args && ... args) {
+         return data_extractor(std::forward< Args >(args)...);
+      });
    }
 
    VanillaCFR(
@@ -132,17 +135,15 @@ class VanillaCFR {
       std::map< Player, AveragePolicy > avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
        : m_env(std::move(game)),
-         m_game_tree(
-            m_env,
-            std::move(root_state),
-            [&]< typename... Args >(Args && ... args) {
-               return data_extractor(std::forward< Args >(args)...);
-            }),
+         m_game_tree(m_env, std::move(root_state)),
          m_curr_policy(std::move(policy)),
          m_avg_policy(std::move(avg_policy)),
          m_default_policy(std::move(default_policy))
    {
       _assert_sequential_game();
+      m_game_tree.build([&]< typename... Args >(Args && ... args) {
+         return data_extractor(std::forward< Args >(args)...);
+      });
    }
 
   public:
@@ -370,7 +371,7 @@ class VanillaCFR {
       const node_data_type* parent_node_data,
       const std::map< Player, info_state_type >& curr_infostates,
       const typename node_data_type::public_state_type& curr_publicstate,
-      const std::optional<action_type>& action_from_parent)
+      const std::optional< action_type >& action_from_parent)
    {
       if(node.category == forest::NodeCategory::chance) {
          // if this is a chance node we don't store any data for it. This data is only needed for
