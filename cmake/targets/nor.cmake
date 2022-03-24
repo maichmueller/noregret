@@ -60,6 +60,7 @@ set_target_properties(
 set(
         WRAPPER_SOURCES
         stratego_env.cpp
+        kuhn_env.cpp
 )
 list(TRANSFORM WRAPPER_SOURCES PREPEND "${PROJECT_NOR_DIR}/impl/")
 
@@ -80,5 +81,6 @@ if (ENABLE_GAMES)
             PUBLIC
             ${nor_lib}
             stratego
+            kuhn_poker
     )
 endif ()
