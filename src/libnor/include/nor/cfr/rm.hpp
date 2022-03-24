@@ -8,7 +8,7 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/type_defs.hpp"
-#include "nor/utils/logging_macros.h"
+#include "common/common.hpp"
 #include "nor/utils/utils.hpp"
 
 namespace nor::rm {

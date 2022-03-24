@@ -15,12 +15,12 @@
 #include <utility>
 #include <vector>
 
+#include "common/common.hpp"
 #include "node.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/policy.hpp"
 #include "nor/type_defs.hpp"
-#include "nor/utils/logging_macros.h"
 #include "nor/utils/utils.hpp"
 #include "rm.hpp"
 
