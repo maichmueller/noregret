@@ -31,6 +31,13 @@ add_library(
         ${nor-lib-type}
 )
 
+target_include_directories(
+        ${nor_lib}
+        INTERFACE
+        $<BUILD_INTERFACE:${PROJECT_NOR_INCLUDE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
 target_link_libraries(
         ${nor_lib}
         INTERFACE
