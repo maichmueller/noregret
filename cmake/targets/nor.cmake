@@ -1,20 +1,41 @@
 
+##########################################
+### Common utilities for all libraries ###
+##########################################
+
 add_library(
-        ${nor_lib}
-        ${nor-lib-type}
+        common
+        INTERFACE
 )
 
 target_include_directories(
-        ${nor_lib}
+        common
         INTERFACE
-        $<BUILD_INTERFACE:${PROJECT_NOR_INCLUDE_DIR}>
+        $<BUILD_INTERFACE:${PROJECT_COMMON_INCLUDE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+target_link_libraries(
+        common
+        INTERFACE
+        project_options
+        CONAN_PKG::range-v3
+)
+
+##########################################
+###                NOR                 ###
+##########################################
+
+add_library(
+        ${nor_lib}
+        ${nor-lib-type}
 )
 
 target_link_libraries(
         ${nor_lib}
         INTERFACE
         project_options
+        common
         CONAN_PKG::cppitertools
         CONAN_PKG::range-v3
 )
@@ -24,6 +45,10 @@ set_target_properties(
         PROPERTIES
         CXX_VISIBILITY_PRESET hidden
 )
+
+##########################################
+###      NOR Environment Wrappers      ###
+##########################################
 
 set(
         WRAPPER_SOURCES

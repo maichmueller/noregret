@@ -60,9 +60,7 @@ struct StringLiteral {
 template < typename T >
 requires requires(T t)
 {
-   {
-      std::cout << t
-      } -> std::same_as< std::ostream& >;
+   std::cout << t;
 }
 struct VectorPrinter {
    const std::vector< T >& value;
@@ -87,9 +85,7 @@ struct VectorPrinter {
 template < typename T >
 requires requires(T t)
 {
-   {
-      std::cout << t
-      } -> std::same_as< std::ostream& >;
+   std::cout << t;
 }
 struct SpanPrinter {
    std::span< T > value;
@@ -111,13 +107,7 @@ struct SpanPrinter {
    }
 };
 
-template < typename StateType >
-class Plotter {
-  public:
-   virtual ~Plotter() = default;
 
-   virtual void plot(const StateType& state) = 0;
-};
 
 template < typename... Ts >
 struct Overload: Ts... {

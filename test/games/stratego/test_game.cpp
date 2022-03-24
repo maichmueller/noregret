@@ -10,7 +10,7 @@ using namespace stratego;
 
 TEST_F(StrategoState3x3, run_game_fixed_actions)
 {
-   struct plotter: aze::utils::Plotter< State > {
+   struct plotter: utils::Plotter< State > {
       void plot(const State& state) override { std::cout << state.to_string(Team::BLUE, false); }
    };
    // run the game with a fixed execution list of actions from the two agents.
@@ -29,7 +29,7 @@ TEST_F(StrategoState3x3, run_game_fixed_actions)
 
 TEST_F(StrategoState5x5, run_game_fixed_actions)
 {
-   struct plotter: aze::utils::Plotter< State > {
+   struct plotter: utils::Plotter< State > {
       void plot(const State& state) override { std::cout << state.to_string(Team::BLUE, false); }
    };
    // run the game with a fixed execution list of actions from the two agents. These sequences
