@@ -23,7 +23,6 @@ target_link_libraries(
 
 set(
         STRATEGO_SOURCES
-        main.cpp
         Game.cpp
         Config.cpp
         Utils.cpp
@@ -45,6 +44,7 @@ target_link_libraries(
         stratego
         PUBLIC
         project_options
+        common
         stratego_core
         CONAN_PKG::range-v3
         CONAN_PKG::namedtype
@@ -52,5 +52,29 @@ target_link_libraries(
 
 
 #################################
-#
+# Kuhn Poker
 #################################
+
+set(
+        KUHNPOKER_SOURCES
+        state.cpp
+)
+
+list(TRANSFORM KUHNPOKER_SOURCES PREPEND "${PROJECT_GAMES_DIR}/kuhn_poker/impl/")
+
+add_library(kuhn_poker SHARED ${KUHNPOKER_SOURCES})
+
+target_include_directories(
+        kuhn_poker
+        PUBLIC
+        ${PROJECT_GAMES_DIR}/kuhn_poker/include
+)
+
+target_link_libraries(
+        kuhn_poker
+        PUBLIC
+        project_options
+        common
+        CONAN_PKG::range-v3
+        CONAN_PKG::namedtype
+)

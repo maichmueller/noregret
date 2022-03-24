@@ -118,8 +118,8 @@ struct CFRNodeData: public detail::CondPubstate< Publicstate > {
    // these don't need to be on a per player basis, as only the active player of this node has
    // actions to play.
 
-   /// the cumulative regret the active player amassed with each action.
-   /// Defaults to 0 and should be updated later during the traversal.
+   /// the cumulative regret the active player amassed with each action. Cumulative with regards to
+   /// the number of CFR iterations. Defaults to 0 and should be updated later during the traversal.
    std::unordered_map< Action, double > m_regret{};
 };
 

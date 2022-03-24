@@ -27,7 +27,7 @@ class Game {
    Game& operator=(Game&&) noexcept = default;
    ~Game() = default;
 
-   aze::Status run(const sptr< aze::utils::Plotter< State > > &plotter);
+   aze::Status run(const sptr< utils::Plotter< State > > &plotter);
    void reset();
 
    [[nodiscard]] static constexpr auto nr_players() { return n_teams; }

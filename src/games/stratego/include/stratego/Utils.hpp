@@ -8,6 +8,14 @@
 
 namespace stratego::utils {
 
+template < typename StateType >
+class Plotter {
+  public:
+   virtual ~Plotter() = default;
+
+   virtual void plot(const StateType& state) = 0;
+};
+
 constexpr inline Team opponent(Team t)
 {
    if(t == Team::BLUE) {

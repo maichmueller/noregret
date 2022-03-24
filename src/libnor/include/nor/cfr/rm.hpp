@@ -8,7 +8,7 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/type_defs.hpp"
-#include "nor/utils/logging_macros.h"
+#include "common/common.hpp"
 #include "nor/utils/utils.hpp"
 
 namespace nor::rm {
@@ -62,7 +62,7 @@ struct Node {
    std::unordered_map< Action, Node* > children{};
 };
 
-template < concepts::fosg Env, typename NodeDataType >
+template < concepts::fosg Env >
 class GameTree {
   public:
    using action_type = typename fosg_auto_traits< Env >::action_type;
@@ -72,15 +72,14 @@ class GameTree {
    using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
 
    using node_type = Node< action_type >;
-   using node_data_type = NodeDataType;
 
    GameTree(Env& env, uptr< world_state_type >&& root_state)
-       : m_env(&env), m_nodes{}, m_node_data{}, m_root_state(std::move(root_state))
+       : m_env(&env), m_nodes{}, m_root_state(std::move(root_state))
    {
    }
 
    /**
-    * @brief Does the first full traversal of the game tree and emplaces the nodes along the way.
+    * @brief Traverses all possible game choices and connects the nodes along the way.
     *
     * This function should be called exactly once after object construction and never thereafter.
     * The method traverses the game tree and emplaces all nodes and their assoicted data storage (if
@@ -89,23 +88,21 @@ class GameTree {
    template < typename NodeDataExtractor >
    // clang-format off
    requires
-      std::is_invocable_r_v<
-         uptr< NodeDataType >,  // return type
+      std::is_invocable_v<
          NodeDataExtractor,  // the actual functor
          const node_type&,  // child node input
          world_state_type*,  // current world state
          world_state_type&,  // child world state
-         const NodeDataType*,  // current node's data
          const std::map< Player, info_state_type>&,  // current info states
-         const typename fosg_auto_traits<NodeDataType>::public_state_type &,  // current public state
+         const public_state_type &,  // current public state
          const std::optional<action_type>&  // action that led to the child
       >
          // clang-format on
-         inline void build(NodeDataExtractor data_extractor)
+         inline void initialize(NodeDataExtractor data_extractor)
    {
       _grow_tree< true >(m_root_state, std::move(data_extractor));
    }
-   inline void build() { _grow_tree< false >(m_root_state); }
+   inline void initialize() { _grow_tree< false >(m_root_state); }
 
    /**
     * @brief walk up the tree until a non-chance node parent is found or the root is hit
@@ -123,26 +120,15 @@ class GameTree {
       return node->parent;
    }
 
-   auto* data(const node_type& node)
-   {
-      uptr< node_data_type >& data = m_node_data[node.id];
-      return data == nullptr ? nullptr : data.get();
-   }
-   [[nodiscard]] const auto* data(const node_type& node) const
-   {
-      const uptr< node_data_type >& data = m_node_data[node.id];
-      return data == nullptr ? nullptr : data.get();
-   }
+   [[nodiscard]] auto size() const { return m_nodes.size(); }
    [[nodiscard]] auto& root_state() const { return *m_root_state; }
    [[nodiscard]] auto& root_node() const { return *(m_nodes[0]); }
 
   private:
-   /// pointer to the environment used to build the tree
+   /// pointer to the environment used to initialize the tree
    Env* m_env;
    /// the node storage of all nodes in the tree. Entry 0 is the root.
    std::vector< uptr< node_type > > m_nodes;
-   /// the paired node data vector holds at entry i the data for node i
-   std::vector< uptr< node_data_type > > m_node_data;
    /// the root game state from which the tree is built
    const uptr< world_state_type > m_root_state;
 
@@ -153,7 +139,7 @@ class GameTree {
       const uptr< world_state_type >& root_state,
       NodeDataExtractor data_extractor = {})
    {
-      auto fill_children = [&](node_type& node, world_state_type& wstate) {
+      auto dummy_fill_children = [&](node_type& node, world_state_type& wstate) {
          for(const auto& action : m_env->actions(m_env->active_player(wstate), wstate)) {
             node.children.emplace(action, nullptr);
          }
@@ -177,22 +163,16 @@ class GameTree {
          }
          return istate_map;
       }();
-      auto init_publicstate = typename fosg_auto_traits< NodeDataType >::public_state_type{};
+      public_state_type init_publicstate{};
       // emplace the root node
       auto& root = m_nodes.emplace_back(std::make_unique< node_type >(
          node_type{.id = index_pool++, .category = categorizer(*root_state)}));
-      fill_children(*root, *root_state);
+      dummy_fill_children(*root, *root_state);
       // we need to fill the root node's data (if desired) before entering the loop, since the loop
       // assumes all entered nodes to have their data node emplaced already.
       if constexpr(extract_data) {
-         m_node_data.emplace_back(data_extractor(
-            *root,
-            nullptr,
-            *m_root_state,
-            nullptr,
-            init_infostate,
-            init_publicstate,
-            std::nullopt));
+         data_extractor(
+            *root, nullptr, *m_root_state, init_infostate, init_publicstate, std::nullopt);
       }
       // the tree needs to be traversed. To do so, every node (starting from the root node aka
       // the current game state) will emplace its child states - as generated from its possible
@@ -209,7 +189,7 @@ class GameTree {
          node_type*,
          sptr< world_state_type >,
          std::map< Player, info_state_type >,
-         typename fosg_auto_traits< NodeDataType >::public_state_type > >
+         public_state_type > >
          visit_stack;
       // the info state and public state types need to be default constructible to be filled along
       // the trajectory
@@ -244,31 +224,30 @@ class GameTree {
                   m_env->private_observation(player, *next_wstate_uptr));
             }
             auto next_publicstate = curr_publicstate;
-            if constexpr(not concepts::is::empty< typename node_data_type::public_state_type >) {
-               next_publicstate.append(m_env->public_observation(*next_wstate_uptr));
-            }
+            next_publicstate.append(
+               m_env->public_observation(action), m_env->public_observation(*next_wstate_uptr));
+
             auto& child_node = m_nodes.emplace_back(std::make_unique< node_type >(node_type{
                .id = index_pool++,
                .category = categorizer(*next_wstate_uptr),
                .parent = curr_node,
                .children = {}}));
-            fill_children(*child_node, *next_wstate_uptr);
+            dummy_fill_children(*child_node, *next_wstate_uptr);
             // append the new tree node as a child of the currently visited node. We are using a
             // raw pointer here since lifetime management is maintained by the game tree itself
             curr_node->children[action] = child_node.get();
 
             if constexpr(extract_data) {
-               m_node_data.emplace_back(data_extractor(
+               data_extractor(
                   *child_node,
                   curr_wstate_uptr.get(),
                   *next_wstate_uptr,
-                  data(*curr_node),
                   next_infostates,
                   next_publicstate,
-                  action));
+                  action);
             }
 
-            if(not m_env->is_terminal(*next_wstate_uptr)) {
+            if(child_node->category != forest::NodeCategory::terminal) {
                // if the newly reached world state is not a terminal state, then we merely append
                // the new child node to the queue. This way we further explore its child states
                // as reachable from the next possible actions.
@@ -285,5 +264,24 @@ class GameTree {
 }  // namespace forest
 
 }  // namespace nor::rm
+
+namespace nor::utils {
+constexpr CEBijection< nor::rm::forest::NodeCategory, std::string_view, 27 > nodecateogry_name_bij =
+   {std::pair{nor::rm::forest::NodeCategory::chance, "chance"},
+    std::pair{nor::rm::forest::NodeCategory::choice, "choice"},
+    std::pair{nor::rm::forest::NodeCategory::terminal, "terminal"}};
+template <>
+inline std::string_view enum_name(nor::rm::forest::NodeCategory e)
+{
+   return nodecateogry_name_bij.at(e);
+}
+
+}  // namespace nor::utils
+
+inline auto& operator<<(std::ostream& os, nor::rm::forest::NodeCategory e)
+{
+   os << nor::utils::enum_name(e);
+   return os;
+}
 
 #endif  // NOR_RM_HPP

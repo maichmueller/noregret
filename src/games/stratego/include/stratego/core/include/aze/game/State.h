@@ -7,6 +7,7 @@
 
 #include "Piece.h"
 #include "aze/utils.h"
+#include "common/common.hpp"
 
 namespace aze {
 

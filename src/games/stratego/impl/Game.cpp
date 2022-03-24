@@ -5,7 +5,7 @@
 
 namespace stratego {
 
-Status Game::run(const sptr< aze::utils::Plotter< State > >& plotter)
+Status Game::run(const sptr< utils::Plotter< State > >& plotter)
 {
    while(true) {
       if(plotter) {
