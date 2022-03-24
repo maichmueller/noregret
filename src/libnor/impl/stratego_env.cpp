@@ -1,7 +1,7 @@
 
 #include "nor/wrappers/stratego_env.hpp"
 
-#include "nor/utils/string_utils.hpp"
+#include "common/common.hpp"
 #include "stratego/stratego.hpp"
 
 namespace nor::games::stratego {
