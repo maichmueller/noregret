@@ -56,7 +56,6 @@ auto choose(const Container& cont)
 
 }  // namespace random
 
-
 template < typename T >
 inline std::map< T, unsigned int > counter(const std::vector< T >& vals)
 {
@@ -103,6 +102,15 @@ inline auto counter(
    return rv;
 }
 
+template < class Lambda, int = (Lambda{}(), 0) >
+constexpr bool is_constexpr(Lambda)
+{
+   return true;
+}
+constexpr bool is_constexpr(...)
+{
+   return false;
+}
 
 template < class first, class second, class... types >
 auto min(first f, second s, types... t)
@@ -115,8 +123,5 @@ auto min(first f, second s)
 {
    return std::min(f, s);
 }
-
-
-
 
 };  // namespace common

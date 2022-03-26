@@ -5,6 +5,7 @@
 
 #include "StrategoDefs.hpp"
 #include "aze/aze.h"
+#include "common/common.hpp"
 
 namespace stratego::utils {
 
@@ -13,7 +14,7 @@ class Plotter {
   public:
    virtual ~Plotter() = default;
 
-   virtual void plot(const StateType& state) = 0;
+   virtual void plot(const StateType &state) = 0;
 };
 
 constexpr inline Team opponent(Team t)
@@ -26,34 +27,6 @@ constexpr inline Team opponent(Team t)
    }
    return Team::NEUTRAL;
 }
-
-template < typename Enum >
-requires std::is_enum_v< Enum > std::string_view enum_name(Enum e);
-
-template < typename To >
-requires std::is_enum_v< To > To from_string(std::string_view str);
-
-template <>
-std::string_view enum_name(Status e);
-template <>
-std::string_view enum_name(Team e);
-template <>
-std::string_view enum_name(FightOutcome e);
-template <>
-std::string_view enum_name(Token e);
-template <>
-std::string_view enum_name(DefinedBoardSizes e);
-
-template <>
-auto from_string(std::string_view str) -> Status;
-template <>
-auto from_string(std::string_view str) -> Team;
-template <>
-auto from_string(std::string_view str) -> FightOutcome;
-template <>
-auto from_string(std::string_view str) -> Token;
-template <>
-auto from_string(std::string_view str) -> DefinedBoardSizes;
 
 template < typename T, std::integral IntType >
 std::vector< T > flatten_counter(const std::map< T, IntType > &counter)
@@ -73,12 +46,38 @@ std::string print_board(
 
 }  // namespace stratego::utils
 
+namespace common {
+
+template <>
+std::string_view enum_name(stratego::Status e);
+template <>
+std::string_view enum_name(stratego::Team e);
+template <>
+std::string_view enum_name(stratego::FightOutcome e);
+template <>
+std::string_view enum_name(stratego::Token e);
+template <>
+std::string_view enum_name(stratego::DefinedBoardSizes e);
+
+template <>
+auto from_string(std::string_view str) -> stratego::Status;
+template <>
+auto from_string(std::string_view str) -> stratego::Team;
+template <>
+auto from_string(std::string_view str) -> stratego::FightOutcome;
+template <>
+auto from_string(std::string_view str) -> stratego::Token;
+template <>
+auto from_string(std::string_view str) -> stratego::DefinedBoardSizes;
+
+}  // namespace common
+
 template < aze::utils::is_enum Enum >
 requires aze::utils::
    is_any_v< Enum, stratego::Token, stratego::Status, stratego::Team, stratego::FightOutcome >
 inline auto &operator<<(std::ostream &os, Enum e)
 {
-   os << stratego::utils::enum_name(e);
+   os << common::enum_name(e);
    return os;
 }
 
@@ -87,7 +86,7 @@ requires aze::utils::
    is_any_v< Enum, stratego::Token, stratego::Status, stratego::Team, stratego::FightOutcome >
 inline auto &operator<<(std::stringstream &ss, Enum e)
 {
-   ss << stratego::utils::enum_name(e);
+   ss << common::enum_name(e);
    return ss;
 }
 
@@ -101,12 +100,12 @@ namespace stratego {
 
 inline auto &operator<<(std::ostream &os, Token e)
 {
-   os << utils::enum_name(e);
+   os << common::enum_name(e);
    return os;
 }
 inline auto &operator<<(std::ostream &os, FightOutcome e)
 {
-   os << utils::enum_name(e);
+   os << common::enum_name(e);
    return os;
 }
 }  // namespace stratego
@@ -114,12 +113,12 @@ inline auto &operator<<(std::ostream &os, FightOutcome e)
 namespace aze {
 inline auto &operator<<(std::ostream &os, Status e)
 {
-   os << stratego::utils::enum_name(e);
+   os << common::enum_name(e);
    return os;
 }
 inline auto &operator<<(std::ostream &os, Team e)
 {
-   os << stratego::utils::enum_name(e);
+   os << common::enum_name(e);
    return os;
 }
 }  // namespace aze

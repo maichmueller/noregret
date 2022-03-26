@@ -190,56 +190,59 @@ constexpr aze::utils::CEBijection< DefinedBoardSizes, std::string_view, 3 >
       std::pair{DefinedBoardSizes::medium, "medium"},
       std::pair{DefinedBoardSizes::large, "large"},
 };
-
-template <>
-std::string_view enum_name(Status e)
-{
-   return status_name_bij.at(e);
-}
-template <>
-std::string_view enum_name(Team e)
-{
-   return team_name_bij.at(e);
-}
-template <>
-std::string_view enum_name(FightOutcome e)
-{
-   return fightoutcome_name_bij.at(e);
-}
-template <>
-std::string_view enum_name(Token e)
-{
-   return token_name_bij.at(e);
-}
-template <>
-std::string_view enum_name(DefinedBoardSizes e)
-{
-   return definedboardsizes_name_bij.at(e);
-}
-template <>
-auto from_string(std::string_view str) -> Status
-{
-   return status_name_bij.at(str);
-}
-template <>
-auto from_string(std::string_view str) -> Team
-{
-   return team_name_bij.at(str);
-}
-template <>
-auto from_string(std::string_view str) -> FightOutcome
-{
-   return fightoutcome_name_bij.at(str);
-}
-template <>
-auto from_string(std::string_view str) -> Token
-{
-   return token_name_bij.at(str);
-}
-template <>
-auto from_string(std::string_view str) -> DefinedBoardSizes
-{
-   return definedboardsizes_name_bij.at(str);
-}
-
 }  // namespace stratego::utils
+
+namespace common {
+
+template <>
+std::string_view enum_name(stratego::Status e)
+{
+   return stratego::utils::status_name_bij.at(e);
+}
+template <>
+std::string_view enum_name(stratego::Team e)
+{
+   return stratego::utils::team_name_bij.at(e);
+}
+template <>
+std::string_view enum_name(stratego::FightOutcome e)
+{
+   return stratego::utils::fightoutcome_name_bij.at(e);
+}
+template <>
+std::string_view enum_name(stratego::Token e)
+{
+   return stratego::utils::token_name_bij.at(e);
+}
+template <>
+std::string_view enum_name(stratego::DefinedBoardSizes e)
+{
+   return stratego::utils::definedboardsizes_name_bij.at(e);
+}
+template <>
+auto from_string(std::string_view str) -> stratego::Status
+{
+   return stratego::utils::status_name_bij.at(str);
+}
+template <>
+auto from_string(std::string_view str) -> stratego::Team
+{
+   return stratego::utils::team_name_bij.at(str);
+}
+template <>
+auto from_string(std::string_view str) -> stratego::FightOutcome
+{
+   return stratego::utils::fightoutcome_name_bij.at(str);
+}
+template <>
+auto from_string(std::string_view str) -> stratego::Token
+{
+   return stratego::utils::token_name_bij.at(str);
+}
+template <>
+auto from_string(std::string_view str) -> stratego::DefinedBoardSizes
+{
+   return stratego::utils::definedboardsizes_name_bij.at(str);
+}
+
+}  // namespace common

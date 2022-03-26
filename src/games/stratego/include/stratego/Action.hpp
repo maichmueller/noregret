@@ -127,7 +127,7 @@ class Action {
 
    [[nodiscard]] auto to_string() const
    {
-      return std::string(utils::enum_name(m_team)) + ":" + move().to_string();
+      return std::string(common::enum_name(m_team)) + ":" + move().to_string();
    }
 
    friend auto& operator<<(std::ostream& os, const Action& action)
@@ -137,7 +137,7 @@ class Action {
    }
    friend auto& operator<<(std::stringstream& os, const Action& action)
    {
-      os << utils::enum_name(action.team()) << ":" << action.move().to_string();
+      os << common::enum_name(action.team()) << ":" << action.move().to_string();
       return os;
    }
 

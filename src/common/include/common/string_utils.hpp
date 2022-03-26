@@ -8,6 +8,14 @@
 
 namespace common {
 
+template < typename Enum >
+requires std::is_enum_v< Enum >
+std::string_view enum_name(Enum e);
+
+template < typename To >
+To from_string(std::string_view str);
+
+
 inline std::vector<std::string_view> split(std::string_view str, std::string_view delim) {
    std::vector<std::string_view> splits;
    std::string_view curr_substr = str;
