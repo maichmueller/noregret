@@ -2,6 +2,8 @@
 
 #include "dummy_classes.hpp"
 #include "nor/concepts.hpp"
+#include "nor/wrappers.hpp"
+#include "nor/policy.hpp"
 
 TEST(concrete, iterable)
 {
@@ -61,9 +63,13 @@ template < typename Env >
 requires nor::concepts::fosg< Env >
 void concept_fosg_check();
 
+template < typename Env >
+requires nor::concepts::deterministic_fosg< Env >
+void concept_deterministic_fosg_check();
+
 TEST(concrete, fosg_dummy)
 {
-//      concept_fosg_check< dummy::Env >();
+   //      concept_fosg_check< dummy::Env >();
 
    EXPECT_TRUE((nor::concepts::fosg< dummy::Env >) );
 }
@@ -71,28 +77,20 @@ TEST(concrete, fosg_dummy)
 TEST(concrete, fosg_stratego)
 {
    //   concept_fosg_check< nor::games::stratego::Environment >();
+   //   concept_deterministic_fosg_check< nor::games::stratego::Environment >();
 
    EXPECT_TRUE((nor::concepts::fosg< nor::games::stratego::Environment >) );
+   EXPECT_TRUE((nor::concepts::deterministic_fosg< nor::games::stratego::Environment >) );
+}
+
+TEST(concrete, fosg_kuhn)
+{
+
+   EXPECT_TRUE((nor::concepts::fosg< nor::games::kuhn::Environment >) );
+   EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::kuhn::Environment >) );
 }
 
 TEST(concrete, vanilla_requirements)
 {
-   //   concept_fosg_check< nor::games::stratego::Environment >();
-   using policy = decltype(nor::rm::factory::make_tabular_policy(
-      std::unordered_map<
-         nor::games::stratego::InfoState,
-         nor::HashmapActionPolicy< nor::games::stratego::Action > >{}));
-   constexpr bool
-      reqs = nor::concepts::fosg<
-                nor::games::stratego::
-                   Environment > && nor::fosg_traits_partial_match< policy, nor::games::stratego::Environment >::value
-             && nor::concepts::
-                state_policy<
-                   policy,
-                   typename nor::fosg_auto_traits<
-                      nor::games::stratego::Environment >::info_state_type,
-                   typename nor::fosg_auto_traits< nor::games::stratego::Environment >::
-                      observation_type > && nor::concepts::state_policy< policy, typename nor::fosg_auto_traits< nor::games::stratego::Environment >::info_state_type, typename nor::fosg_auto_traits< nor::games::stratego::Environment >::observation_type > && nor::concepts::default_state_policy< nor::UniformPolicy< nor::games::stratego::InfoState, nor::HashmapActionPolicy< nor::games::stratego::Action > >, typename nor::fosg_auto_traits< nor::games::stratego::Environment >::info_state_type, typename nor::fosg_auto_traits< nor::games::stratego::Environment >::observation_type >;
 
-   EXPECT_TRUE(reqs);
 }

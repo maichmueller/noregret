@@ -28,7 +28,7 @@ struct History {
    std::vector< Action > sequence{};
 };
 
-bool operator==(const History& left, const History& right)
+inline bool operator==(const History& left, const History& right)
 {
    if(left.sequence.size() != right.sequence.size()) {
       return false;
@@ -50,6 +50,7 @@ class State {
    [[nodiscard]] bool is_terminal() const;
    [[nodiscard]] std::vector< Action > actions() const;
    [[nodiscard]] std::vector< ChanceAction > chance_actions() const;
+   [[nodiscard]] double chance_probability(ChanceAction action) const;
    [[nodiscard]] int16_t payoff(Player player) const;
 
    [[nodiscard]] auto active_player() const { return m_active_player; }
@@ -58,13 +59,12 @@ class State {
       return m_player_cards[static_cast< uint8_t >(player)];
    }
    [[nodiscard]] auto& history() const { return m_history; }
+   [[nodiscard]] auto& cards() const { return m_player_cards; }
 
   private:
    Player m_active_player = Player::chance;
    std::array< std::optional< Card >, 2 > m_player_cards = {std::nullopt, std::nullopt};
    History m_history{};
-   bool m_terminal = false;
-   bool m_terminal_checked = false;
 
    static const std::vector< History >& _all_terminal_histories();
    bool _all_cards_engaged() const;

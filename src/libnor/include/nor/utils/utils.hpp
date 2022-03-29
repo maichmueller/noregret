@@ -4,10 +4,11 @@
 #include <iterator>
 #include <type_traits>
 
+#include "common/common.hpp"
+#include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 
 namespace nor {
-
 
 #ifndef NEW_EMPTY_TYPE
    #define NEW_EMPTY_TYPE decltype([]() {})
@@ -29,15 +30,21 @@ namespace nor::utils {
 struct empty {
 };
 
-constexpr const char *btos(bool b)
-{
-   if(b) {
-      return "true";
+struct hashable_empty {
+   constexpr bool operator==(const hashable_empty&) { return true;}
+};
 
-   } else {
-      return "false";
-   }
-}
+}  // namespace nor::utils
+
+namespace std {
+
+template <>
+struct hash< nor::utils::hashable_empty > {
+   size_t operator()(const nor::utils::hashable_empty &) const { return 0; }
+};
+}  // namespace std
+
+namespace nor::utils {
 
 template < class >
 inline constexpr bool always_false_v = false;
@@ -61,13 +68,18 @@ inline std::conditional_t< UnaryPredicate< T >::value, T &&, T & > move_if(T &ob
       return obj;
    }
 }
+template < typename... Args >
+struct what;
 
 template < typename T >
 auto clone_any_way(const T &obj)
 {
-   if constexpr(
-      nor::concepts::is::smart_pointer_like< T > && concepts::has::method::clone_ptr< T >) {
-      return obj->clone();
+   if constexpr(nor::concepts::is::smart_pointer_like< T >) {
+      if constexpr(concepts::has::method::clone_ptr< T >) {
+         return obj->clone();
+      } else if constexpr(std::is_copy_constructible_v< typename T::element_type >) {
+         return std::make_unique< typename T::element_type >(*obj);
+      }
    } else if constexpr(concepts::has::method::clone_self< T >) {
       return obj.clone();
    } else if constexpr(concepts::has::method::copy< T >) {
@@ -142,10 +154,10 @@ struct CEBijection {
    std::array< std::pair< Key, Value >, Size > data;
 
    template < typename T >
-   requires std::is_same_v< T, Key> or std::is_same_v<T, Value >
-   [[nodiscard]] constexpr auto at(const T& elem) const
+   requires std::is_same_v< T, Key > or std::is_same_v< T, Value >
+   [[nodiscard]] constexpr auto at(const T &elem) const
    {
-      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
+      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto &v) {
          if constexpr(std::is_same_v< T, Key >) {
             return v.first == elem;
          } else {
@@ -189,55 +201,51 @@ constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_b
    std::pair{Stochasticity::sample, "sample"},
    std::pair{Stochasticity::choice, "choice"}};
 
-template < nor::concepts::is::enum_ Enum >
-std::string_view enum_name(Enum e);
-
-template < typename To >
-To from_string(std::string_view str);
-
-template <>
-inline std::string_view enum_name(Player e)
-{
-   return player_name_bij.at(e);
-}
-template <>
-inline std::string_view enum_name(TurnDynamic e)
-{
-   return turndynamic_name_bij.at(e);
-}
-template <>
-inline std::string_view enum_name(Stochasticity e)
-{
-   return stochasticity_name_bij.at(e);
-}
-
-template <>
-inline Player from_string< Player >(std::string_view str)
-{
-   return player_name_bij.at(str);
-}
-
-
 }  // namespace nor::utils
+
+namespace common {
+template <>
+inline std::string_view enum_name(nor::Player e)
+{
+   return nor::utils::player_name_bij.at(e);
+}
+template <>
+inline std::string_view enum_name(nor::TurnDynamic e)
+{
+   return nor::utils::turndynamic_name_bij.at(e);
+}
+template <>
+inline std::string_view enum_name(nor::Stochasticity e)
+{
+   return nor::utils::stochasticity_name_bij.at(e);
+}
+
+template <>
+inline nor::Player from_string< nor::Player >(std::string_view str)
+{
+   return nor::utils::player_name_bij.at(str);
+}
+
+}  // namespace common
 
 template < nor::concepts::is::enum_ Enum, typename T >
 requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
 inline std::string operator+(const T &other, Enum e)
 {
-   return std::string_view(other) + nor::utils::enum_name(e);
+   return std::string_view(other) + common::enum_name(e);
 }
 template < nor::concepts::is::enum_ Enum, typename T >
 requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
 inline std::string operator+(Enum e, const T &other)
 {
-   return nor::utils::enum_name(e) + std::string_view(other);
+   return common::enum_name(e) + std::string_view(other);
 }
 
 template < nor::concepts::is::enum_ Enum >
 requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
 inline auto &operator<<(std::stringstream &os, Enum e)
 {
-   os << nor::utils::enum_name(e);
+   os << common::enum_name(e);
    return os;
 }
 
@@ -245,7 +253,7 @@ template < nor::concepts::is::enum_ Enum >
 requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
 inline auto &operator<<(std::ostream &os, Enum e)
 {
-   os << nor::utils::enum_name(e);
+   os << common::enum_name(e);
    return os;
 }
 

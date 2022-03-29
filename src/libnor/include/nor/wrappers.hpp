@@ -1,8 +1,8 @@
-//
-// Created by michael on 25/03/2022.
-//
 
 #ifndef NOR_WRAPPERS_HPP
 #define NOR_WRAPPERS_HPP
+
+#include "nor/wrappers/kuhn_env.hpp"
+#include "nor/wrappers/stratego_env.hpp"
 
 #endif  // NOR_WRAPPERS_HPP

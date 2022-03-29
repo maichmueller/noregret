@@ -68,14 +68,25 @@ concept actions = requires(T const t, Worldstate worldstate, Player player)
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
-   typename Action = typename T::action_type >
+   typename Action = typename T::chance_outcome_type >
 concept chance_actions = requires(T const t, Worldstate worldstate, Player player)
 {
-   // return the current open choices for 'chance' to act on. This is only relevant for games with
-   // stochastic game aspects (e.g. stochastic state transitions)
+   // legal actions getter for the given player
    {
       t.chance_actions(player, worldstate)
       } -> std::convertible_to< std::vector< Action > >;
+};
+
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::chance_outcome_type >
+concept chance_probability = requires(T const t, Worldstate worldstate, Action action)
+{
+   // legal actions getter for the given player
+   {
+      t.chance_probability({worldstate, action})
+      } -> std::convertible_to< double >;
 };
 
 template < typename T, typename ReturnType, typename... Args >
@@ -292,7 +303,7 @@ concept clone_self = requires(T const t)
 };
 
 template < typename Ptr >
-concept clone_ptr = requires(Ptr const ptr)
+concept clone_ptr = requires(Ptr ptr)
 {
    ptr->clone();
 };
@@ -389,6 +400,18 @@ template < typename T >
 concept action_policy_type = requires(T t)
 {
    typename T::action_policy_type;
+};
+
+template < typename T >
+concept chance_outcome_type = requires(T t)
+{
+   typename T::chance_outcome_type;
+};
+
+template < typename T >
+concept chance_distribution_type = requires(T t)
+{
+   typename T::chance_distribution_type;
 };
 
 template < typename T >

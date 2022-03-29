@@ -2,7 +2,8 @@
 #ifndef NOR_DUMMY_CLASSES_HPP
 #define NOR_DUMMY_CLASSES_HPP
 
-#include "nor/nor.hpp"
+#include "nor/fosg_traits.hpp"
+#include "nor/game_defs.hpp"
 
 namespace dummy {
 

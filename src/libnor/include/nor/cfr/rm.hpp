@@ -4,11 +4,11 @@
 
 #include <execution>
 
+#include "common/common.hpp"
 #include "node.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/type_defs.hpp"
-#include "common/common.hpp"
 #include "nor/utils/utils.hpp"
 
 namespace nor::rm {
@@ -49,8 +49,18 @@ enum class NodeCategory {
    terminal,
 };
 
-template < typename Action >
+template < concepts::action Action, typename ChanceOutcome >
 struct Node {
+   static_assert(
+      std::conditional_t<
+         std::is_same_v< ChanceOutcome, void >,
+         std::true_type,
+         std::conditional_t<
+            concepts::chance_outcome< ChanceOutcome >,
+            std::true_type,
+            std::false_type > >::value,
+      "The passed chance outcome type either has to be void or fulfill the concept: "
+      "'chance_outcome'.");
    /// this node's id (or index within the node vector)
    size_t id;
    /// what type of node this is
@@ -59,19 +69,35 @@ struct Node {
    Node* parent = nullptr;
    /// the children that each action maps to in the game tree.
    /// Should be filled during the traversal.
-   std::unordered_map< Action, Node* > children{};
+   // If the environment is deterministic, then ChanceOutcome should be void, and thus the map only
+   // store the action type itself. If the environment is stochastic however, then either actions or
+   // chance outcomes can be stored.
+   static constexpr size_t action_type_access_index = 0;
+   static constexpr size_t chance_outcome_type_access_index = 1;
+   using chance_outcome_variant_type = std::
+      conditional_t< std::is_same_v< ChanceOutcome, void >, std::monostate, ChanceOutcome >;
+   using action_variant = std::variant< Action, chance_outcome_variant_type >;
+   using variant_hasher = decltype([](const auto& action_variant) {
+      return std::visit(
+         []< typename VarType >(const VarType& var_element) {
+            return std::hash< VarType >{}(var_element);
+         },
+         action_variant);
+   });
+   std::unordered_map< action_variant, Node*, variant_hasher > children{};
 };
 
 template < concepts::fosg Env >
 class GameTree {
   public:
    using action_type = typename fosg_auto_traits< Env >::action_type;
+   using chance_outcome_type = typename fosg_auto_traits< Env >::chance_outcome_type;
    using observation_type = typename fosg_auto_traits< Env >::observation_type;
    using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
    using public_state_type = typename fosg_auto_traits< Env >::public_state_type;
    using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
 
-   using node_type = Node< action_type >;
+   using node_type = Node< action_type, chance_outcome_type >;
 
    GameTree(Env& env, uptr< world_state_type >&& root_state)
        : m_env(&env), m_nodes{}, m_root_state(std::move(root_state))
@@ -95,7 +121,7 @@ class GameTree {
          world_state_type&,  // child world state
          const std::map< Player, info_state_type>&,  // current info states
          const public_state_type &,  // current public state
-         const std::optional<action_type>&  // action that led to the child
+         const typename node_type::action_variant*  // action that led to the child
       >
          // clang-format on
          inline void initialize(NodeDataExtractor data_extractor)
@@ -103,7 +129,6 @@ class GameTree {
       _grow_tree< true >(m_root_state, std::move(data_extractor));
    }
    inline void initialize() { _grow_tree< false >(m_root_state); }
-
    /**
     * @brief walk up the tree until a non-chance node parent is found or the root is hit
     * @param node the node for which a non chance parent is sought
@@ -140,8 +165,23 @@ class GameTree {
       NodeDataExtractor data_extractor = {})
    {
       auto dummy_fill_children = [&](node_type& node, world_state_type& wstate) {
-         for(const auto& action : m_env->actions(m_env->active_player(wstate), wstate)) {
-            node.children.emplace(action, nullptr);
+         if constexpr(concepts::deterministic_fosg< Env >) {
+            // if we have a deterministic environment then we don't need to enfore the existence of
+            // a chance action member function
+            for(const auto& action : m_env->actions(m_env->active_player(wstate), wstate)) {
+               node.children.emplace(action, nullptr);
+            }
+         } else {
+            auto action_emplacer = [&](auto&& action_container) {
+               for(auto& action : action_container) {
+                  node.children.emplace(std::move(action), nullptr);
+               }
+            };
+            if(node.category == NodeCategory::chance) {
+               action_emplacer(m_env->chance_actions(wstate));
+            } else {
+               action_emplacer(m_env->actions(m_env->active_player(wstate), wstate));
+            }
          }
       };
       auto index_pool = size_t(0);
@@ -158,9 +198,8 @@ class GameTree {
       // initialize the infostates and public states
       auto init_infostate = [&]() {
          std::map< Player, info_state_type > istate_map{};
-         for(auto player : m_env->players()) {
-            istate_map.emplace(player, info_state_type{});
-         }
+         for(auto player : m_env->players())
+            istate_map.emplace(player, info_state_type{player});
          return istate_map;
       }();
       public_state_type init_publicstate{};
@@ -172,7 +211,12 @@ class GameTree {
       // assumes all entered nodes to have their data node emplaced already.
       if constexpr(extract_data) {
          data_extractor(
-            *root, nullptr, *m_root_state, init_infostate, init_publicstate, std::nullopt);
+            *root,
+            static_cast< world_state_type* >(nullptr),
+            *m_root_state,
+            init_infostate,
+            init_publicstate,
+            static_cast< typename node_type::action_variant* >(nullptr));
       }
       // the tree needs to be traversed. To do so, every node (starting from the root node aka
       // the current game state) will emplace its child states - as generated from its possible
@@ -194,8 +238,8 @@ class GameTree {
       // the info state and public state types need to be default constructible to be filled along
       // the trajectory
       static_assert(
-         all_predicate_v< std::is_default_constructible, info_state_type, public_state_type >,
-         "The Infostate and Publicstate type need to be default constructible.");
+         std::is_default_constructible_v< public_state_type >,
+         "The Publicstate type needs to be default constructible.");
       // copy the root state into the visitation stack
       visit_stack.emplace(
          root.get(),
@@ -215,17 +259,49 @@ class GameTree {
             auto next_wstate_uptr = utils::static_unique_ptr_cast< world_state_type >(
                utils::clone_any_way(curr_wstate_uptr));
             // move the new world state forward by the current action
-            m_env->transition(*next_wstate_uptr, action);
+            if constexpr(concepts::deterministic_fosg< Env >) {
+               m_env->transition(*next_wstate_uptr, std::get< action_type >(action));
+            } else {
+               std::visit(
+                  common::Overload{[&](const auto& any_action) {
+                     m_env->transition(*next_wstate_uptr, any_action);
+                  }},
+                  action);
+            }
             // copy the infostates to append the new observations to it
             auto next_infostates = curr_infostates;
             for(auto player : m_env->players()) {
-               next_infostates[player].append(
-                  m_env->private_observation(player, action),
-                  m_env->private_observation(player, *next_wstate_uptr));
+               if(player != Player::chance) {
+                  next_infostates.at(player).append(
+                     [&] {
+                        if constexpr(concepts::deterministic_fosg< Env >) {
+                           return m_env->private_observation(
+                              player, std::get< action_type >(action));
+                        } else {
+                           return std::visit(
+                              common::Overload{[&](const auto& any_action) {
+                                 return m_env->private_observation(player, any_action);
+                              }},
+                              action);
+                        }
+                     }(),
+                     m_env->private_observation(player, *next_wstate_uptr));
+               }
             }
             auto next_publicstate = curr_publicstate;
             next_publicstate.append(
-               m_env->public_observation(action), m_env->public_observation(*next_wstate_uptr));
+               [&] {
+                  if constexpr(concepts::deterministic_fosg< Env >) {
+                     return m_env->public_observation(std::get< action_type >(action));
+                  } else {
+                     return std::visit(
+                        common::Overload{[&](const auto& any_action) {
+                           return m_env->public_observation(any_action);
+                        }},
+                        action);
+                  }
+               }(),
+               m_env->public_observation(*next_wstate_uptr));
 
             auto& child_node = m_nodes.emplace_back(std::make_unique< node_type >(node_type{
                .id = index_pool++,
@@ -244,7 +320,7 @@ class GameTree {
                   *next_wstate_uptr,
                   next_infostates,
                   next_publicstate,
-                  action);
+                  &action);
             }
 
             if(child_node->category != forest::NodeCategory::terminal) {
@@ -270,17 +346,20 @@ constexpr CEBijection< nor::rm::forest::NodeCategory, std::string_view, 27 > nod
    {std::pair{nor::rm::forest::NodeCategory::chance, "chance"},
     std::pair{nor::rm::forest::NodeCategory::choice, "choice"},
     std::pair{nor::rm::forest::NodeCategory::terminal, "terminal"}};
-template <>
-inline std::string_view enum_name(nor::rm::forest::NodeCategory e)
-{
-   return nodecateogry_name_bij.at(e);
-}
 
 }  // namespace nor::utils
 
+namespace common {
+template <>
+inline std::string_view enum_name(nor::rm::forest::NodeCategory e)
+{
+   return nor::utils::nodecateogry_name_bij.at(e);
+}
+}  // namespace common
+
 inline auto& operator<<(std::ostream& os, nor::rm::forest::NodeCategory e)
 {
-   os << nor::utils::enum_name(e);
+   os << common::enum_name(e);
    return os;
 }
 

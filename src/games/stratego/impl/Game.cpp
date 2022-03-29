@@ -1,6 +1,6 @@
 
 #include "stratego/Game.hpp"
-
+#include "common/common.hpp"
 #include "stratego/Logic.hpp"
 
 namespace stratego {
@@ -29,7 +29,7 @@ Status Game::run(const sptr< utils::Plotter< State > >& plotter)
          "Possible Moves",
          aze::utils::VectorPrinter{
             state().logic()->valid_actions(state(), active_team)});
-      LOGD2("Selected Action by team " + std::string(utils::enum_name(active_team)), action);
+      LOGD2("Selected Action by team " + std::string(common::enum_name(active_team)), action);
 
       m_state->transition(action);
    }

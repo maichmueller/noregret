@@ -54,26 +54,24 @@ struct CFRNodeData: public detail::CondPubstate< Publicstate > {
    using cond_public_state_base = detail::CondPubstate< Publicstate >;
 
    CFRNodeData(
-      size_t n_players,
       Player player,
       Infostate info_state,
       Publicstate public_state,
-      std::vector< double > reach_prob)
+      std::unordered_map< Player,  double > reach_prob)
        : cond_public_state_base{std::move(public_state)},
          m_player(player),
          m_infostate(std::move(info_state)),
-         m_value(n_players, 0.),
          m_compound_reach_prob_contribution(std::move(reach_prob))
    {
    }
 
    auto& publicstate() { return cond_public_state_base::m_public_state; }
    auto& infostate() { return m_infostate; }
-   auto& value(Player player) { return m_value[static_cast< uint8_t >(player)]; }
+   auto& value(Player player) { return m_value[player]; }
    auto& value() { return m_value; }
    auto& reach_probability_contrib(Player player)
    {
-      return m_compound_reach_prob_contribution[static_cast< uint8_t >(player)];
+      return m_compound_reach_prob_contribution[player];
    }
    auto& reach_probability_contrib() { return m_compound_reach_prob_contribution; }
    auto& regret(const Action& action) { return m_regret[action]; }
@@ -84,12 +82,12 @@ struct CFRNodeData: public detail::CondPubstate< Publicstate > {
    [[nodiscard]] auto player() const { return m_player; }
    [[nodiscard]] auto& value(Player player) const
    {
-      return m_value[static_cast< uint8_t >(player)];
+      return m_value.at(player);
    }
    [[nodiscard]] auto& value() const { return m_value; }
    [[nodiscard]] auto& reach_probability_contrib(Player player) const
    {
-      return m_compound_reach_prob_contribution[static_cast< uint8_t >(player)];
+      return m_compound_reach_prob_contribution.at(player);
    }
    [[nodiscard]] auto& reach_probability_contrib() const
    {
@@ -108,11 +106,11 @@ struct CFRNodeData: public detail::CondPubstate< Publicstate > {
 
    /// the value of each player for this node.
    /// Needs to be updated later during the traversal.
-   std::vector< double > m_value;
+   std::unordered_map< Player, double > m_value;
    /// the compounding reach probability of each player for this node (i.e. the probability
    /// contribution of each player along the trajectory to this node multiplied together).
    /// Needs to be updated during the traversal with the current policy.
-   std::vector< double > m_compound_reach_prob_contribution;
+   std::unordered_map< Player, double > m_compound_reach_prob_contribution;
 
    // action-based storage
    // these don't need to be on a per player basis, as only the active player of this node has

@@ -63,22 +63,15 @@ class VanillaCFR {
    using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
    using public_state_type = typename fosg_auto_traits< Env >::public_state_type;
    using observation_type = typename fosg_auto_traits< Env >::observation_type;
-   // the CFR Node type to store in the tree
-#if(COMPILER_NAME == gcc)
-   // gcc has a bug here in which using the lambda macro for declaring a unique new empty type
-   // will cause static assertion fails of the allocator within std::map and unordered_map. See
-   // https://stackoverflow.com/questions/71382976
+   using chance_policy_type = typename fosg_auto_traits< Env >::chance_distribution_type;
+   /// the CFR Node type to store in the tree
    using node_data_type = CFRNodeData<
       action_type,
       info_state_type,
       std::conditional_t< cfr_config.store_public_states, public_state_type, utils::empty > >;
-#else
-   using node_data_type = CFRNodeData<
-      action_type,
-      info_state_type,
-      std::conditional_t< cfr_config.store_public_states, public_state_type, NEW_EMPTY_TYPE > >;
-#endif
+   /// the game tree type specific to our environment
    using game_tree_type = forest::GameTree< env_type >;
+   /// the node type used within the game tree
    using node_type = typename game_tree_type::node_type;
 
    ////////////////////
@@ -210,14 +203,14 @@ class VanillaCFR {
     * @return action_policy_type the player's state policy (distribution) over all actions at this
     * node
     */
-   template < bool current_policy >
+   template < bool current_policy = true >
    auto& fetch_policy(Player player, const node_type& node);
 
    /**
     * The const overload of this function (@see fetch_policy) will not insert or return a default
     * policy if one wasn't found, but throw an error instead.
     */
-   template < bool current_policy >
+   template < bool current_policy = true >
    auto& fetch_policy(Player player, const node_type& node) const;
 
    /**
@@ -225,7 +218,7 @@ class VanillaCFR {
     * @param action the action to select at this node
     * @return
     */
-   template < bool current_policy >
+   template < bool current_policy = true >
    inline auto& fetch_policy(Player player, const node_type& node, const action_type& action)
    {
       return fetch_policy< current_policy >(player, node)[action];
@@ -233,12 +226,11 @@ class VanillaCFR {
    /**
     * Const overload for action selection at the node.
     */
-   template < bool current_policy >
+   template < bool current_policy = true >
    inline auto& fetch_policy(Player player, const node_type& node, const action_type& action) const
    {
       return fetch_policy< current_policy >(player, node)[action];
    }
-
    /**
     * @brief updates the regret and policy tables of the node with the state-values. Then performs
     * regret-matching.
@@ -249,7 +241,6 @@ class VanillaCFR {
     * @param player the player whose values are to be updated
     */
    void update_regret_and_policy(const VanillaCFR::node_type& node);
-
    /**
     * @brief computes the reach probability of the node.
     *
@@ -261,10 +252,9 @@ class VanillaCFR {
     */
    inline double reach_probability(const node_data_type& node_data) const
    {
-      auto values_view = node_data.reach_probability_contrib() | ranges::views::all;
+      auto values_view = node_data.reach_probability_contrib() | ranges::views::values;
       return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
    }
-
    /**
     * @brief computes the counterfactual reach probability of the player for this node.
     *
@@ -276,7 +266,12 @@ class VanillaCFR {
     */
    inline double cf_reach_probability(const node_data_type& node_data, const Player& player) const
    {
-      return cf_reach_probability(node_data, reach_probability(node_data), player);
+      auto values_view = node_data.reach_probability_contrib()
+                         | ranges::views::filter([&](const auto& player_rp_pair) {
+                              return std::get< 0 >(player_rp_pair) != player;
+                           })
+                         | ranges::views::values;
+      return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
    }
    /**
     * @brief computes the counterfactual reach probability of the player for this node.
@@ -319,7 +314,6 @@ class VanillaCFR {
     * same time (simultaneous updates).
     */
    void _iterate(std::optional< Player > player_to_update);
-
    /**
     * @brief Convenience method to iterate over the child as map with transformed values.
     *
@@ -340,7 +334,6 @@ class VanillaCFR {
          node.children | ranges::views::keys,
          node.children | ranges::views::values | ranges::views::transform(f));
    }
-
    inline void _assert_sequential_game()
    {
       if(m_env.turn_dynamic() != TurnDynamic::sequential) {
@@ -348,7 +341,6 @@ class VanillaCFR {
             "VanillaCFR can only be performed on a sequential turn-based game.");
       }
    }
-
    inline void _init_player_update_schedule()
    {
       if constexpr(cfr_config.alternating_updates) {
@@ -357,23 +349,32 @@ class VanillaCFR {
          }
       }
    }
-
+   /**
+    *
+    * @param node
+    * @param parent_worldstate
+    * @param curr_worldstate
+    * @param curr_infostates
+    * @param curr_publicstate
+    * @param action_from_parent
+    */
    void _extract_data(
       const node_type& node,
-      [[maybe_unused]] world_state_type* /*unused*/,
+      [[maybe_unused]] world_state_type* parent_worldstate,
       world_state_type& curr_worldstate,
       const std::map< Player, info_state_type >& curr_infostates,
       const public_state_type& curr_publicstate,
-      const std::optional< action_type >& action_from_parent)
+      auto* action_from_parent_ptr)
    {
+      LOGD("Entered data_extractor");
       auto curr_player = m_env.active_player(curr_worldstate);
       auto parent_node = node.parent;
-      auto init_node = [&](std::vector< double > reach_p_per_player) -> auto&
+      auto init_node = [&](std::unordered_map< Player, double > reach_p_per_player) -> auto&
       {
          return m_node_data.emplace_back(
-            m_env.player_count(),
             curr_player,
-            curr_player != Player::chance ? curr_infostates.at(curr_player) : info_state_type{},
+            curr_player != Player::chance ? curr_infostates.at(curr_player)
+                                          : info_state_type{curr_player},
             [&]() {
                if constexpr(cfr_config.store_public_states) {
                   return curr_publicstate;
@@ -385,16 +386,50 @@ class VanillaCFR {
       };
       if(parent_node == nullptr) {
          // we are currently at the root and need to initialize the root node's data
-         init_node(std::vector< double >(size_t(m_env.players().size()), 1.));
+         init_node([&] {
+            std::unordered_map< Player, double > rp_map;
+            for(auto player : m_env.players()) {
+               rp_map[player] = 1.;
+            }
+            return rp_map;
+         }());
          return;
       } else {
          // Update the parent player's reach probability of this node by its current policy of
          // playing the action that lead to it.
+         if(not action_from_parent_ptr or not parent_worldstate) {
+            // at this both parent_worldstate and action_from_parent must be non-nullptr as we
+            // already checked for being the root node! Otherwise, there is a logical error
+            throw std::logic_error(
+               "Found nullptr in parent worldstate or action from parent. This should not be "
+               "possible at this branch.");
+         }
          auto& parent_node_data = data(*parent_node);
          auto parent_player = parent_node_data.player();
          auto reach_probability_contrib = parent_node_data.reach_probability_contrib();
-         reach_probability_contrib[static_cast< uint8_t >(parent_player)] *= fetch_policy< true >(
-            parent_player, *parent_node, action_from_parent.value());
+         if(parent_player == Player::chance) {
+            reach_probability_contrib[parent_player] *= [&] {
+               if constexpr(concepts::has::method::chance_probability<
+                               env_type,
+                               world_state_type,
+                               typename fosg_auto_traits< env_type >::chance_outcome_type >) {
+                  return m_env.chance_probability(std::pair{
+                     *parent_worldstate,
+                     std::get< typename fosg_auto_traits< env_type >::chance_outcome_type >(
+                        *action_from_parent_ptr)});
+               } else {
+                  throw std::logic_error(
+                     "A chance player's node was encountered, but the environment has no "
+                     "chance_probability member function.");
+                  // the return is to silence an error about not ignoring a void return value. We
+                  // never reach here anyway, but compilers dont like that
+                  return 0.;
+               }
+            }();
+         } else {
+            reach_probability_contrib[parent_player] *= fetch_policy< true >(
+               parent_player, *parent_node, std::get< action_type >(*action_from_parent_ptr));
+         }
          auto& node_data = init_node(std::move(reach_probability_contrib));
 
          if(node.category == forest::NodeCategory::terminal) {
@@ -402,7 +437,6 @@ class VanillaCFR {
          }
       }
    }
-
    /**
     * @brief traverses the game tree and fills the nodes with current policy weighted value updates.
     *
@@ -502,7 +536,6 @@ auto const* VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >:
       if constexpr(cfr_config.alternating_updates) {
          _iterate(_cycle_player_to_update());
       } else {
-         auto size = m_game_tree.size();
          _iterate(std::nullopt);
       }
       m_iteration++;
@@ -587,7 +620,8 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::update
    ranges::for_each(
       _child_collector(node, [&](node_type* child) { return data(*child).value(player); }),
       [&](const auto& action_value_pair) {
-         const auto& [action, action_value] = action_value_pair;
+         const auto& [action_variant, action_value] = action_value_pair;
+         const auto& action = std::get< action_type >(action_variant);
          node_data.regret(action) += cf_reach_probability(node_data, reach_prob, player)
                                      * (action_value - node_data.value(player));
          avg_state_policy[action] += reach_prob * curr_state_policy[action];
@@ -617,9 +651,8 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
    std::stack< const node_type* > visit_stack;
    // copy the root state into the visitation stack
    visit_stack.emplace(&(std::as_const(m_game_tree).root_node()));
-   int counter = 0;
+
    while(not visit_stack.empty()) {
-      counter += 1;
       // move the next tree node from the queue into a local variable
       auto curr_node = visit_stack.top();
       // remove this node from the visit stack
@@ -630,12 +663,12 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
       Player curr_player = curr_node_data.player();
 
       for(const auto& [action, child_node] : curr_node->children) {
-         counter += 1;
-         data(*child_node).reach_probability_contrib(curr_player) *= fetch_policy< true >(
-            curr_player, *curr_node, action);
-
+         if(curr_player != Player::chance) {
+            // the chance distribution is assumed to be fixed, hence never needs to be updated
+            data(*child_node).reach_probability_contrib(curr_player) *= fetch_policy< true >(
+               curr_player, *curr_node, std::get< action_type >(action));
+         }
          if(child_node->category != forest::NodeCategory::terminal) {
-            // We only reach here for a non-terminal child node!
             // append the child node to the queue. This way we further explore its child states
             // as reachable from the next possible actions.
             visit_stack.emplace(child_node);
@@ -663,6 +696,10 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_updat
       // pop the next node to update from the stack
       auto& node = *m_update_stack.top();
       m_update_stack.pop();
+      // any node popped here has to be a choice node, otherwise: logical error!
+      //      if(node.category != forest::NodeCategory::choice) {
+      //         throw std::logic_error("Non-choice node emplaced in the update-stack.");
+      //      }
       node_data_type& node_data = data(node);
       ranges::for_each(m_env.players(), [&](Player player) {
          // the value propagation works by specifying the last action in the list to be the
@@ -684,7 +721,8 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_updat
                // applied action is the action that lead to the child node!
                const auto& [applied_action, action_value] = action_value_pair;
                // pi_{player}(s, a) * v(s'(a))
-               return fetch_policy< true >(player, node, applied_action) * action_value;
+               return fetch_policy< true >(player, node, std::get< action_type >(applied_action))
+                      * action_value;
             });
       });
 
@@ -721,15 +759,17 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_colle
       // once, then we will assume this is a more performant alternative and use it
       // instead (e.g. when it is costly to compute the reward of each player
       // individually).
+      auto non_chance_filter = [](Player player) { return player != Player::chance; };
       ranges::views::for_each(
-         ranges::views::zip(m_env.players(), m_env.reward(m_env.players(), terminal_wstate)),
-         [&value_map = node_data.value()](const auto& p_r_pair) {
-            value_map.emplace(std::get< 0 >(p_r_pair), std::get< 1 >(p_r_pair));
+         m_env.players() | ranges::views::filter(non_chance_filter),
+         [&, &value_map = node_data.value()](Player player) {
+            value_map.emplace(player, m_env.reward(m_env.players(), terminal_wstate));
          });
    } else {
       // otherwise we just loop over the per player reward method
       for(auto player : m_env.players()) {
-         node_data.value(player) = m_env.reward(player, terminal_wstate);
+         if(player != Player::chance)
+            node_data.value(player) = m_env.reward(player, terminal_wstate);
       }
    }
 }
@@ -772,11 +812,15 @@ auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::fetch
       auto& player_policy = m_curr_policy[player];
       auto found_action_policy = player_policy.find(infostate);
       if(found_action_policy == player_policy.end()) {
-         return player_policy
-            .emplace(
-               infostate,
-               m_default_policy[{
-                  infostate, ranges::to< std::vector >(node.children | ranges::views::keys)}])
+         auto actions = ranges::to< std::vector< action_type > >(
+            // the actual rangev3 equivalents cannot compile here for some obscure reason
+            node.children | ranges::cpp20::views::keys
+            | ranges::cpp20::views::transform([](const auto& action_or_chance_outcome_variant) {
+                 // we know that no chance outcome could be demanded here so we ask for the
+                 // action type
+                 return std::get< action_type >(action_or_chance_outcome_variant);
+              }));
+         return player_policy.emplace(infostate, m_default_policy[{infostate, actions}])
             .first->second;
       }
       return found_action_policy->second;
@@ -788,7 +832,9 @@ auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::fetch
          // these entries are to be updated cumulatively.
          typename AveragePolicy::action_policy_type default_avg_policy;
          for(const auto& action : node.children | ranges::views::keys) {
-            default_avg_policy[action] = 0.;
+            // we know that no chance outcome could be demanded here
+            // so we ask for the action type to be returned
+            default_avg_policy[std::get< action_type >(action)] = 0.;
          }
          return player_policy.emplace(infostate, default_avg_policy).first->second;
       }

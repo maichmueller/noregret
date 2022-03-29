@@ -46,6 +46,9 @@ template < typename T >
 concept action = is::hashable< T >;
 
 template < typename T >
+concept chance_outcome = is::hashable< T >;
+
+template < typename T >
 concept observation = is::hashable< T >;
 
 template < typename T, typename Observation = typename fosg_auto_traits< T >::observation_type >
@@ -80,11 +83,11 @@ concept world_state = std::is_move_constructible_v< T > and is::copyable_someway
 
 template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
 // clang-format off
-concept action_policy = true;
-//      is::sized< T >
-//   && iterable< T >
-//   && has::method::getitem< T, double&, Action >
-//   && has::method::getitem< const T, double, Action >;
+concept action_policy =
+      is::sized< T >
+   && iterable< T >
+   && has::method::getitem< T, double&, Action >
+   && has::method::getitem< const T, double, Action >;
 // clang-format on
 
 template <
@@ -137,6 +140,28 @@ concept default_state_policy =
       >;
 // clang-format on
 
+template < typename T, typename Worldstate, typename Action >
+// clang-format off
+concept chance_distribution =
+/**/  world_state< Worldstate >
+   && has::method::getitem<
+         T,
+         double,
+         const std::pair<
+            Worldstate,
+            Action
+         >&
+      >
+   && has::method::getitem<
+         T,
+         double,
+         const std::pair<
+            Worldstate,
+            Action
+         >&
+      >;
+// clang-format on
+
 template <
    typename Env,
    typename Action = typename nor::fosg_auto_traits< Env >::action_type,
@@ -158,7 +183,6 @@ concept fosg =
    && has::method::public_observation< Env, Worldstate&, Observation >
    && has::method::private_observation< Env, Action&, Observation >
    && has::method::public_observation< Env, Action&, Observation >
-   && has::method::reset< Env, Worldstate& >
    && has::method::reward< const Env, Worldstate >
    && has::method::is_terminal< Env, Worldstate& >
    && has::method::active_player< Env >
@@ -169,10 +193,27 @@ concept fosg =
    && has::method::turn_dynamic< Env >;
 // clang-format on
 
-template<typename Env,
-   typename Policy,
-   typename DefaultPolicy,
-   typename AveragePolicy >
+template <
+   typename Env,
+   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
+   typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
+   typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
+   typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
+   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type >
+// clang-format off
+concept deterministic_fosg =
+/**/  fosg< Env, Action, Observation, Infostate, Publicstate, Worldstate >
+   && requires (Env e) {
+         // checks if the stochasticity function is static and constexpr
+         {std::bool_constant< (Env::stochasticity(), true) >() } -> std::same_as<std::true_type>;
+         // checks if the function is also giving the correct value
+         requires(
+            Env::stochasticity() == Stochasticity::deterministic
+         );
+      };
+// clang-format on
+
+template < typename Env, typename Policy, typename DefaultPolicy, typename AveragePolicy >
 // clang-format off
 concept vanilla_cfr_requirements =
    concepts::fosg< Env >

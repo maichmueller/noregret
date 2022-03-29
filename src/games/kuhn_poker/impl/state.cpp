@@ -94,5 +94,16 @@ std::vector< Action > State::actions() const
    }
    return std::vector< Action >{Action::check, Action::bet};
 }
+double State::chance_probability(ChanceAction) const
+{
+   if(m_player_cards[0].has_value()) {
+      if(m_player_cards[1].has_value()) {
+         return 0.;
+      } else {
+         return 0.5;
+      }
+   }
+   return 1./3.;
+}
 
 }  // namespace kuhn

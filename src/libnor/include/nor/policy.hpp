@@ -45,8 +45,10 @@ class HashmapActionPolicy {
          emplace(action, value);
       }
    }
-   HashmapActionPolicy(size_t n_actions, default_value_generator dvg = &_zero< double >)
-       : m_map(), m_def_value_gen(dvg)
+   HashmapActionPolicy(size_t n_actions, default_value_generator dvg = &_zero< double >) requires
+      std::is_integral_v< action_type >:
+       m_map(),
+       m_def_value_gen(dvg)
    {
       for(auto a : ranges::views::iota(size_t(0), n_actions)) {
          emplace(a, m_def_value_gen());
@@ -187,6 +189,24 @@ class TabularPolicy {
 
   private:
    table_type m_table;
+};
+
+template < concepts::world_state Worldstate, concepts::action Action >
+class FixedActionsChanceDistribution {
+   using world_state_type = Worldstate;
+   using action_type = Action;
+   FixedActionsChanceDistribution(std::unordered_map< action_type, double > action_dist)
+       : m_action_dist(std::move(action_dist))
+   {
+   }
+
+   double operator[](const std::pair< Worldstate, action_type >& state_action_pair)
+   {
+      return m_action_dist.at(state_action_pair.second);
+   }
+
+  private:
+   std::unordered_map< action_type, double > m_action_dist;
 };
 
 template <

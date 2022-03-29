@@ -5,6 +5,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <variant>
 
 namespace nor::concepts::is {
 
@@ -27,6 +28,13 @@ concept hashable = requires(T t)
       std::hash< T >{}(t)
       } -> std::convertible_to< std::size_t >;
 };
+
+template <typename T>
+constexpr bool variant(const T&) { return false;}
+
+template <typename...Types> requires (sizeof...(Types) > 1 )
+constexpr bool variant(const std::variant<Types...>&) { return true;}
+
 
 template < typename T >
 concept enum_ = std::is_enum_v< T >;
