@@ -614,7 +614,7 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::update
 {
    auto& node_data = data(node);
    Player player = node_data.player();
-   double reach_prob = reach_probability(node_data);
+   double player_reach_prob = node_data.reach_probability_contrib(player);
    auto& curr_state_policy = fetch_policy< true >(player, node);
    auto& avg_state_policy = fetch_policy< false >(player, node);
    ranges::for_each(
@@ -622,9 +622,9 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::update
       [&](const auto& action_value_pair) {
          const auto& [action_variant, action_value] = action_value_pair;
          const auto& action = std::get< action_type >(action_variant);
-         node_data.regret(action) += cf_reach_probability(node_data, reach_prob, player)
+         node_data.regret(action) += cf_reach_probability(node_data, player)
                                      * (action_value - node_data.value(player));
-         avg_state_policy[action] += reach_prob * curr_state_policy[action];
+         avg_state_policy[action] += player_reach_prob * curr_state_policy[action];
       });
    regret_matching(curr_state_policy, node_data.regret());
 }
