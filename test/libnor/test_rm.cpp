@@ -18,24 +18,14 @@ using namespace nor;
 
 TEST_P(RegretMatchingParamsF, integer_actions)
 {
-   std::vector< std::vector< double > > regret_situations{
-      {1., 2., 3., 4., 5.}, {1, -1, 1, -1, 1}, {-1, -1, 0, -1, -1}};
-   std::vector< std::unordered_map< int, double > > expected_policies{
-      {{1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}},
-      {{1, 1. / 3.}, {2, 0.}, {3, 1. / 3.}, {4, 0.}, {5, 1. / 3.}},
-      {{1, 0.2}, {2, 0.2}, {3, 0.2}, {4, 0.2}, {5, 0.2}}};
+   auto [regret, expected, policy] = GetParam();
 
-   for(auto [regret, expected] : ranges::views::zip(regret_situations, expected_policies)) {
-      HashmapActionPolicy< int > policy{std::unordered_map< int, double >{
-         {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}}};
-
-      std::unordered_map< int, double > regret_map;
-      for(auto [a, r] : ranges::views::zip(actions, regret)) {
-         regret_map[a] = r;
-      }
-      rm::regret_matching(policy, regret_map);
-      ASSERT_EQ(policy, HashmapActionPolicy< int >{expected});
+   std::unordered_map< int, double > regret_map;
+   for(auto [a, r] : ranges::views::zip(actions, regret)) {
+      regret_map[a] = r;
    }
+   rm::regret_matching(policy, regret_map);
+   ASSERT_EQ(policy, HashmapActionPolicy< int >{expected});
 }
 
 template < size_t N >
@@ -67,8 +57,7 @@ template <>
 auto value_pack< 2 >()
 {
    std::vector< double > r{-1, -1, 0, -1, -1};
-   std::unordered_map< int, double > exp
-      {{1, 0.2}, {2, 0.2}, {3, 0.2}, {4, 0.2}, {5, 0.2}};
+   std::unordered_map< int, double > exp{{1, 0.2}, {2, 0.2}, {3, 0.2}, {4, 0.2}, {5, 0.2}};
    nor::HashmapActionPolicy< int > pol{std::unordered_map< int, double >{
       {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}}};
    return std::tuple{r, exp, pol};
