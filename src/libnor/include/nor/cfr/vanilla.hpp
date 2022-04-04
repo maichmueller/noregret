@@ -284,6 +284,12 @@ class VanillaCFR {
                               return std::get< 0 >(player_rp_pair) != player;
                            })
                          | ranges::views::values;
+      LOGD2(
+         "Reach probability players",
+         ranges::views::keys(node_data.reach_probability_contrib()));
+      LOGD2(
+         "Reach probability contribs",
+         ranges::views::values(node_data.reach_probability_contrib()));
       return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
    }
    /**
@@ -718,9 +724,16 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::update
       [&](const auto& action_value_pair) {
          const auto& [action_variant, action_value] = action_value_pair;
          const auto& action = std::get< action_type >(action_variant);
+         LOGD2(
+            "Counterfactual reach probability",
+            cf_reach_probability(node_data, player) * (action_value - node_data.value(player)));
          node_data.regret(action) += cf_reach_probability(node_data, player)
                                      * (action_value - node_data.value(player));
+         LOGD2("Average state policy action", common::enum_name(action));
+         LOGD2("Value before", avg_state_policy[action]);
+         LOGD2("Average Policy increment", player_reach_prob * curr_state_policy[action]);
          avg_state_policy[action] += player_reach_prob * curr_state_policy[action];
+         LOGD2("Value after", avg_state_policy[action]);
       });
    regret_matching(curr_state_policy, node_data.regret());
 }

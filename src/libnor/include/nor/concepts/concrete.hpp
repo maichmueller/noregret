@@ -87,7 +87,7 @@ concept action_policy =
       is::sized< T >
    && iterable< T >
    && has::method::getitem< T, double&, Action >
-   && has::method::getitem< const T, double, Action >;
+   && has::method::at< const T, double, Action >;
 // clang-format on
 
 template <

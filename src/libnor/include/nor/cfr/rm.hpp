@@ -32,7 +32,7 @@ void regret_matching(Policy& policy_map, const std::unordered_map< Action, doubl
             "Passed regrets and policy maps do not have the same number of elements");
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(entry) = cumul_regret.at(std::get< 0 >(entry)) / pos_regret_sum;
+         return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry))) / pos_regret_sum;
       });
    } else {
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {

@@ -3,6 +3,7 @@
 #define NOR_POLICY_HPP
 
 #include <concepts>
+#include <range/v3/all.hpp>
 
 #include "nor/concepts.hpp"
 #include "nor/utils/utils.hpp"
@@ -54,6 +55,11 @@ class HashmapActionPolicy {
          emplace(a, m_def_value_gen());
       }
    }
+   HashmapActionPolicy(map_type map, default_value_generator dvg = &_zero< double >) :
+       m_map(std::move(map)),
+       m_def_value_gen(dvg)
+   {
+   }
 
    template < typename... Args >
    inline auto emplace(Args&&... args)
@@ -71,6 +77,16 @@ class HashmapActionPolicy {
 
    [[nodiscard]] inline auto size() const noexcept { return m_map.size(); }
 
+   [[nodiscard]] bool operator==(const HashmapActionPolicy& other) const
+   {
+      if(size() != other.size()) {
+         return false;
+      }
+      return std::all_of(begin(), end(), [&](const auto& action_and_prob) {
+         return other.at(std::get< 0 >(action_and_prob)) == std::get< 1 >(action_and_prob);
+      });
+   }
+
    inline auto& operator[](const action_type& action)
    {
       if(auto found = find(action); found != end()) {
@@ -79,7 +95,7 @@ class HashmapActionPolicy {
          return emplace(action, m_def_value_gen()).first->second;
       }
    }
-   [[nodiscard]] inline auto operator[](const action_type& action) const
+   [[nodiscard]] inline auto at(const action_type& action) const
    {
       if(auto found = find(action); found != end()) {
          return found->second;
