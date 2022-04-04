@@ -21,6 +21,11 @@ using wptr = std::weak_ptr< T >;
 
 namespace common {
 
+template <typename...Args>
+struct debug;
+
+using noop = decltype([]< typename... Args >(Args && ...) { return; });
+
 namespace random {
 
 using RNG = std::mt19937_64;

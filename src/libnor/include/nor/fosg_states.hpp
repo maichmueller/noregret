@@ -50,10 +50,8 @@ class DefaultPublicstate {
    {
       std::stringstream ss;
       size_t pos = 0;
-      for(const auto& [action, observation] : m_history) {
-         ss << "a_" << pos << ":[" << action << "]\n";
-         ss << "obs_" << pos << ":[" << observation << "]\n";
-         ss << "-----\n";
+      for(const auto& observation : m_history) {
+         ss << "obs_" << pos << ": " << observation << "\n";
          pos++;
       }
       return ss.str();
@@ -64,19 +62,16 @@ class DefaultPublicstate {
       if(size() != other.size()) {
          return false;
       }
-      auto zip_view = ranges::views::zip(m_history, other.history());
-      return std::all_of(zip_view.begin(), zip_view.end(), [](const auto& tuple) {
-         const auto& [this_hist_elem, other_hist_elem] = tuple;
-         return this_hist_elem.first == other_hist_elem.first
-                and this_hist_elem.second == other_hist_elem.second;
+      return ranges::all_of(ranges::views::zip(m_history, other.history()), [](const auto& pair) {
+         return std::get< 0 >(pair) == std::get< 1 >(pair);
       });
    }
    inline bool operator!=(const DefaultPublicstate& other) const { return not (*this == other); }
 
   private:
    /// the history (action trajectory) of the state.
-   /// Each entry is a pair of action observation (first) and state observation (second)
-   std::vector< std::pair< Observation, Observation > > m_history{};
+   /// Each entry is an observation of an action or a state
+   std::vector< Observation > m_history{};
    size_t m_hash_cache{0};
 
    size_t _hash()

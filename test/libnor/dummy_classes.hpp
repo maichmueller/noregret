@@ -15,10 +15,9 @@ class Publicstate {
    size_t size() const;
    bool operator==(const Publicstate&) const;
 
-   std::pair< observation_type, observation_type >& append(
-      std::pair< observation_type, observation_type >);
+   observation_type& append(observation_type);
 
-   std::pair< observation_type, observation_type >& operator[](size_t);
+   observation_type& operator[](size_t);
 };
 
 class Infostate: public Publicstate {

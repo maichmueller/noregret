@@ -31,7 +31,7 @@ struct empty {
 };
 
 struct hashable_empty {
-   constexpr bool operator==(const hashable_empty&) { return true;}
+   constexpr bool operator==(const hashable_empty &) { return true; }
 };
 
 }  // namespace nor::utils
@@ -92,10 +92,27 @@ auto clone_any_way(const T &obj)
 }
 
 template < typename Derived, typename Base, typename Deleter >
-std::unique_ptr< Derived, Deleter > static_unique_ptr_cast(std::unique_ptr< Base, Deleter > &&p)
+requires std::is_same_v< Deleter, std::default_delete< Base > > std::unique_ptr< Derived >
+static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p)
 {
-   auto d = static_cast< Derived * >(p.release());
-   return std::unique_ptr< Derived, Deleter >(d, std::move(p.get_deleter()));
+   if constexpr(std::is_same_v< Derived, Base >) {
+      return std::move(p);
+   } else {
+      auto d = static_cast< Derived * >(p.release());
+      return std::unique_ptr< Derived >(d);
+   }
+}
+
+template < typename Derived, typename DerivedDeleter, typename Base, typename Deleter >
+requires std::convertible_to< Deleter, DerivedDeleter > std::unique_ptr< Derived, DerivedDeleter >
+static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p)
+{
+   if constexpr(std::is_same_v< Derived, Base >) {
+      return std::move(p);
+   } else {
+      auto d = static_cast< Derived * >(p.release());
+      return std::unique_ptr< Derived, DerivedDeleter >(d, std::move(p.get_deleter()));
+   }
 }
 
 template < typename Derived, typename Base, typename Deleter >

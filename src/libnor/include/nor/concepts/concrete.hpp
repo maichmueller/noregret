@@ -61,12 +61,12 @@ concept public_state =
    && std::equality_comparable< T >
    && has::method::append<
          T,
-         std::pair< /*action_=*/Observation, /*state_=*/Observation>&,
-         std::pair< /*action_=*/Observation, /*state_=*/Observation>
+         Observation&,
+         Observation
       >
    && has::method::getitem<
          T,
-         std::pair< /*action_=*/Observation, /*state_=*/Observation>&,
+         Observation&,
          size_t
       >;
 // clang-format on
