@@ -266,7 +266,7 @@ class VanillaCFR {
    inline double reach_probability(const node_data_type& node_data) const
    {
       auto values_view = node_data.reach_probability_contrib() | ranges::views::values;
-      return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
+      return std::reduce(values_view.begin(), values_view.end(), double(1.), std::multiplies{});
    }
    /**
     * @brief computes the counterfactual reach probability of the player for this node.
@@ -284,13 +284,7 @@ class VanillaCFR {
                               return std::get< 0 >(player_rp_pair) != player;
                            })
                          | ranges::views::values;
-      LOGD2(
-         "Reach probability players",
-         ranges::views::keys(node_data.reach_probability_contrib()));
-      LOGD2(
-         "Reach probability contribs",
-         ranges::views::values(node_data.reach_probability_contrib()));
-      return std::reduce(values_view.begin(), values_view.end(), 1, std::multiplies{});
+      return std::reduce(values_view.begin(), values_view.end(), double(1.), std::multiplies{});
    }
    /**
     * @brief computes the counterfactual reach probability of the player for this node.
@@ -431,7 +425,7 @@ class VanillaCFR {
       world_state_type* parent_worldstate,
       world_state_type* curr_worldstate)
    {
-      LOGD2("Entered", __FUNCTION__);
+      //      LOGD2("Entered", __FUNCTION__);
       auto child_player = m_env.active_player(*curr_worldstate);
       auto parent_node = node.parent;
       // we are not at the root node currently, but at a child further down the tree.
@@ -634,7 +628,7 @@ auto const* VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >:
    size_t n_iters)
 {
    for(auto iteration : ranges::views::iota(size_t(0), n_iters)) {
-      LOGD2("Iteration number: ", iteration);
+      LOGD2("Iteration number: ", m_iteration + iteration);
       if constexpr(cfr_config.alternating_updates) {
          _iterate(_cycle_player_to_update());
       } else {
@@ -724,16 +718,9 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::update
       [&](const auto& action_value_pair) {
          const auto& [action_variant, action_value] = action_value_pair;
          const auto& action = std::get< action_type >(action_variant);
-         LOGD2(
-            "Counterfactual reach probability",
-            cf_reach_probability(node_data, player) * (action_value - node_data.value(player)));
          node_data.regret(action) += cf_reach_probability(node_data, player)
                                      * (action_value - node_data.value(player));
-         LOGD2("Average state policy action", common::enum_name(action));
-         LOGD2("Value before", avg_state_policy[action]);
-         LOGD2("Average Policy increment", player_reach_prob * curr_state_policy[action]);
          avg_state_policy[action] += player_reach_prob * curr_state_policy[action];
-         LOGD2("Value after", avg_state_policy[action]);
       });
    regret_matching(curr_state_policy, node_data.regret());
 }

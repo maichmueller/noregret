@@ -42,7 +42,7 @@ TEST(KuhnPoker, vanilla_cfr_usage_kuhnpoker)
       cfr_runner.average_policy().at(Player::alex).table());
 
    for(int i = 0; i < 20; i++) {
-      cfr_runner.iterate(1);
+      cfr_runner.iterate(100);
 
       auto curr_policy_profile = normalize_infostate_policy(
          cfr_runner.average_policy().at(Player::alex).table());
