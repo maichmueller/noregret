@@ -161,8 +161,7 @@ class VanillaCFR {
       {
          return _root_node_hook(std::forward< Args >(args)...);
       };
-      //      common::debug< decltype(forest::TraversalHooks{
-      //         .child_hook = std::move(child_hook), .root_hook = std::move(root_hook)}) >{};
+
       m_game_tree.traverse(
          [&]< typename... Args >(Args && ... args) {
             return m_game_tree.traverse_all_actions(std::forward< Args >(args)...);
@@ -254,19 +253,91 @@ class VanillaCFR {
     * @param player the player whose values are to be updated
     */
    void update_regret_and_policy(const VanillaCFR::node_type& node);
+
+   template < bool current >
+   double policy_value(Player player)
+   {
+      if constexpr(current) {
+         double value = 0.;
+         auto child_hook = [&](const node_type& child_node, auto&&...) {
+            if(child_node.category == forest::NodeCategory::terminal) {
+               value += reach_probability(child_node) * data(child_node).value(player);
+            }
+         };
+
+         m_game_tree.traverse(
+            [&]< typename... Args >(Args && ... args) {
+               return m_game_tree.traverse_all_actions(std::forward< Args >(args)...);
+            },
+            forest::TraversalHooks{.child_hook = std::move(child_hook)},
+            /*traverse_via_worldstate=*/false);
+
+      } else {
+         std::unordered_map< size_t, std::unordered_map< Player, double > > reach_probs;
+         auto normalize_action_policy = [](const auto& policy) {
+            auto normalized_policy = policy;
+            double sum = 0.;
+            for(auto [action, prob] : policy) {
+               sum += prob;
+            }
+            for(auto [action, prob] : policy) {
+               normalized_policy[action] = prob / sum;
+            }
+            return normalized_policy;
+         };
+         double value = 0.;
+         auto root_hook = [&](const node_type& root_node) {
+            for(auto player : m_env.players()) {
+               reach_probs[root_node.id][player] = 1.;
+            }
+         };
+         auto child_hook = [&](const node_type& child_node, auto&&...) {
+            auto prev_reach_prob = data(*(child_node.parent)).infostate();
+            auto node_policy =
+            if(child_node.category == forest::NodeCategory::terminal) {
+               value += reach_probability(reach_probs[child_node.id])
+                        * data(child_node).value(player);
+            }
+         };
+
+         m_game_tree.traverse(
+            [&]< typename... Args >(Args && ... args) {
+               return m_game_tree.traverse_all_actions(std::forward< Args >(args)...);
+            },
+            forest::TraversalHooks{.child_hook = std::move(child_hook)},
+            /*traverse_via_worldstate=*/false);
+      }
+
+      return _policy_value(
+         [&](const node_type& node) { return fetch_policy< current >(player, node); }, player);
+   }
+
    /**
     * @brief computes the reach probability of the node.
     *
     * Since each player's compounding likelihood contribution is stored in the nodes themselves, the
     * actual computation is nothing more than merely multiplying all player's individual
     * contributions.
+    * @param reach_probability_contributions the compounded reach probability of each player for
+    * this node
+    * @return the reach probability of the nde
+    */
+   inline double reach_probability(
+      const std::unordered_map< Player, double >& reach_probability_contributions) const
+   {
+      auto values_view = reach_probability_contributions | ranges::views::values;
+      return std::reduce(values_view.begin(), values_view.end(), double(1.), std::multiplies{});
+   }
+   /**
+    * @brief computes the reach probability of the node.
+    *
+    * Ease of access overload for the node data itself
     * @param node the node whose reach probability to provide
     * @return the reach probability of the nde
     */
    inline double reach_probability(const node_data_type& node_data) const
    {
-      auto values_view = node_data.reach_probability_contrib() | ranges::views::values;
-      return std::reduce(values_view.begin(), values_view.end(), double(1.), std::multiplies{});
+      return reach_probability(node_data.reach_probability_contrib());
    }
    /**
     * @brief computes the counterfactual reach probability of the player for this node.
@@ -362,6 +433,10 @@ class VanillaCFR {
          }
       }
    }
+
+   template < typename PolicyFetcher >
+   double _policy_value(PolicyFetcher policy_fetcher, Player player);
+
    node_type* _upstream_player_parent(const node_type& node, Player player)
    {
       if(node.parent == nullptr) {
@@ -391,24 +466,7 @@ class VanillaCFR {
          std::move(reach_p_per_player));
    };
 
-   void _root_node_hook(const node_type& root_node, world_state_type* root_worldstate)
-   {
-      auto curr_player = m_env.active_player(*root_worldstate);
-      // we are currently at the root and need to initialize the root node's data
-      m_node_data.emplace(
-         root_node.id,
-         node_data_type{
-            curr_player,
-            info_state_type{curr_player},
-            typename node_data_type::public_state_type{},
-            [&] {
-               std::unordered_map< Player, double > rp_map;
-               for(auto player : m_env.players()) {
-                  rp_map[player] = 1.;
-               }
-               return rp_map;
-            }()});
-   }
+   void _root_node_hook(const node_type& root_node, world_state_type* root_worldstate);
 
    /**
     *
@@ -423,116 +481,8 @@ class VanillaCFR {
       const node_type& node,
       const auto* action_from_parent_ptr,
       world_state_type* parent_worldstate,
-      world_state_type* curr_worldstate)
-   {
-      //      LOGD2("Entered", __FUNCTION__);
-      auto child_player = m_env.active_player(*curr_worldstate);
-      auto parent_node = node.parent;
-      // we are not at the root node currently, but at a child further down the tree.
+      world_state_type* curr_worldstate);
 
-      // Update the parent player's reach probability of this node by its current policy of
-      // playing the action that lead to it.
-#ifndef NDEBUG
-      if(not action_from_parent_ptr or not parent_worldstate) {
-         // at this both parent_worldstate and action_from_parent must be non-nullptr as we
-         // already checked for being the root node! Otherwise, there is a logical error
-         throw std::logic_error(
-            "Found nullptr in parent worldstate or action from parent. This should not be "
-            "possible at this branch.");
-      }
-#endif
-      auto& parent_node_data = data(*parent_node);
-      auto parent_player = parent_node_data.player();
-
-      auto reach_probability_contrib = parent_node_data.reach_probability_contrib();
-      if(parent_player == Player::chance) {
-         // for the chance player we need to query the environment itself for the likelihood
-         // of the action. This is a willful design to later down the line enable the usage of
-         // sample based chance actions whose probability may not easily accessible and costly
-         // to generate and store.
-         if constexpr(concepts::has::method::chance_probability<
-                         env_type,
-                         world_state_type,
-                         typename fosg_auto_traits< env_type >::chance_outcome_type >) {
-            reach_probability_contrib[parent_player] *= m_env.chance_probability(std::pair{
-               *parent_worldstate,
-               std::get< typename fosg_auto_traits< env_type >::chance_outcome_type >(
-                  *action_from_parent_ptr)});
-         } else {
-            // if the environment is not safely deterministic then it will need to provide at
-            // least a dummy implemenation (e.g. deterministic game, but derived from common
-            // interface for all kinds of games as in open_spiel)
-            throw std::logic_error(
-               "A chance player's node was encountered, but the environment has no "
-               "chance_probability member function.");
-         }
-      } else {
-         reach_probability_contrib[parent_player] *= fetch_policy< true >(
-            parent_player, *parent_node, std::get< action_type >(*action_from_parent_ptr));
-      }
-      auto& node_data = m_node_data
-                           .emplace(
-                              node.id,
-                              node_data_type{
-                                 child_player,
-                                 [&] {
-                                    if(child_player == Player::chance) {
-                                       return info_state_type{Player::chance};
-                                    }
-                                    auto* upstream_player_node = _upstream_player_parent(
-                                       node, child_player);
-                                    auto next_infostate = upstream_player_node == nullptr
-                                                             ? info_state_type{child_player}
-                                                             : data(*upstream_player_node)
-                                                                  .infostate();
-                                    next_infostate.append([&] {
-                                       if constexpr(concepts::deterministic_fosg< Env >) {
-                                          return m_env.private_observation(
-                                             child_player,
-                                             std::get< action_type >(*action_from_parent_ptr));
-                                       } else {
-                                          return std::visit(
-                                             common::Overload{[&](const auto& any_action) {
-                                                return m_env.private_observation(
-                                                   child_player, any_action);
-                                             }},
-                                             *action_from_parent_ptr);
-                                       }
-                                    }());
-                                    next_infostate.append(
-                                       m_env.private_observation(child_player, *curr_worldstate));
-                                    return next_infostate;
-                                 }(),
-                                 [&] {
-                                    if constexpr(cfr_config.store_public_states) {
-                                       auto next_publicstate = parent_node_data.publicstate();
-                                       next_publicstate.append([&] {
-                                          if constexpr(concepts::deterministic_fosg< Env >) {
-                                             return m_env->public_observation(
-                                                std::get< action_type >(*action_from_parent_ptr));
-                                          } else {
-                                             return std::visit(
-                                                common::Overload{[&](const auto& any_action) {
-                                                   return m_env->public_observation(any_action);
-                                                }},
-                                                *action_from_parent_ptr);
-                                          }
-                                       }());
-                                       next_publicstate.append(
-                                          m_env->public_observation(*curr_worldstate));
-                                       return next_publicstate;
-                                    } else {
-                                       return typename node_data_type::public_state_type{};
-                                    }
-                                 }(),
-                                 std::move(reach_probability_contrib)})
-                           .first->second;
-      // terminal states need their rewards set so that the upstream nodes can update their
-      // values later on
-      if(node.category == forest::NodeCategory::terminal) {
-         _collect_rewards(*curr_worldstate, node_data);
-      }
-   }
    /**
     * @brief traverses the game tree and fills the nodes with current policy weighted value updates.
     *
@@ -612,10 +562,33 @@ class VanillaCFR {
    /// the number of iterations we have run so far.
    size_t m_iteration = 0;
 };
-
+///
+//////
+/////////
+////////////
+///////////////
+//////////////////
+/////////////////////
+////////////////////////
+///////////////////////////
+//////////////////////////////
+/////////////////////////////////
 ///////////////////////////////////
-/// member function definitions ///
+///                              ///
+/// member function definitions  ///
+///                              ///
 ///////////////////////////////////
+/////////////////////////////////
+//////////////////////////////
+///////////////////////////
+////////////////////////
+/////////////////////
+//////////////////
+///////////////
+////////////
+/////////
+//////
+///
 
 template <
    CFRConfig cfr_config,
@@ -627,8 +600,8 @@ requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, Average
 auto const* VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::iterate(
    size_t n_iters)
 {
-   for(auto iteration : ranges::views::iota(size_t(0), n_iters)) {
-      LOGD2("Iteration number: ", m_iteration + iteration);
+   for(auto _ : ranges::views::iota(size_t(0), n_iters)) {
+      LOGD2("Iteration number: ", m_iteration + _);
       if constexpr(cfr_config.alternating_updates) {
          _iterate(_cycle_player_to_update());
       } else {
@@ -884,13 +857,178 @@ template <
    typename DefaultPolicy,
    typename AveragePolicy >
 requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
+void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_child_node_hook(
+   const node_type& node,
+   const auto* action_from_parent_ptr,
+   world_state_type* parent_worldstate,
+   world_state_type* curr_worldstate)
+{
+   //      LOGD2("Entered", __FUNCTION__);
+   auto child_player = m_env.active_player(*curr_worldstate);
+   auto parent_node = node.parent;
+   // we are not at the root node currently, but at a child further down the tree.
+
+   // Update the parent player's reach probability of this node by its current policy of
+   // playing the action that lead to it.
+#ifndef NDEBUG
+   if(not action_from_parent_ptr or not parent_worldstate) {
+      // at this both parent_worldstate and action_from_parent must be non-nullptr as we
+      // already checked for being the root node! Otherwise, there is a logical error
+      throw std::logic_error(
+         "Found nullptr in parent worldstate or action from parent. This should not be "
+         "possible at this branch.");
+   }
+#endif
+   auto& parent_node_data = data(*parent_node);
+   auto parent_player = parent_node_data.player();
+
+   auto reach_probability_contrib = parent_node_data.reach_probability_contrib();
+   if(parent_player == Player::chance) {
+      // for the chance player we need to query the environment itself for the likelihood
+      // of the action. This is a willful design to later down the line enable the usage of
+      // sample based chance actions whose probability may not easily accessible and costly
+      // to generate and store.
+      if constexpr(concepts::has::method::chance_probability<
+                      env_type,
+                      world_state_type,
+                      typename fosg_auto_traits< env_type >::chance_outcome_type >) {
+         reach_probability_contrib[parent_player] *= m_env.chance_probability(std::pair{
+            *parent_worldstate,
+            std::get< typename fosg_auto_traits< env_type >::chance_outcome_type >(
+               *action_from_parent_ptr)});
+      } else {
+         // if the environment is not safely deterministic then it will need to provide at
+         // least a dummy implemenation (e.g. deterministic game, but derived from common
+         // interface for all kinds of games as in open_spiel)
+         throw std::logic_error(
+            "A chance player's node was encountered, but the environment has no "
+            "chance_probability member function.");
+      }
+   } else {
+      reach_probability_contrib[parent_player] *= fetch_policy< true >(
+         parent_player, *parent_node, std::get< action_type >(*action_from_parent_ptr));
+   }
+   auto& node_data = m_node_data
+                        .emplace(
+                           node.id,
+                           node_data_type{
+                              child_player,
+                              [&] {
+                                 if(child_player == Player::chance) {
+                                    return data(*(node.parent)).infostates();
+                                 }
+                                 std::unordered_map< Player, info_state_type > next_infostates;
+                                 for(auto [player, next_infostate] :  // we have to copy the istate
+                                     data(*(node.parent)).infostates()) {
+                                    next_infostate.append([&, player = player] {
+                                       if constexpr(concepts::deterministic_fosg< Env >) {
+                                          return m_env.private_observation(
+                                             player,
+                                             std::get< action_type >(*action_from_parent_ptr));
+                                       } else {
+                                          return std::visit(
+                                             common::Overload{[&](const auto& any_action) {
+                                                return m_env.private_observation(
+                                                   player, any_action);
+                                             }},
+                                             *action_from_parent_ptr);
+                                       }
+                                    }());
+                                    next_infostate.append(
+                                       m_env.private_observation(player, *curr_worldstate));
+                                    next_infostates.emplace(player, std::move(next_infostate));
+                                 }
+                                 return next_infostates;
+                              }(),
+                              [&] {
+                                 if constexpr(cfr_config.store_public_states) {
+                                    auto next_publicstate = parent_node_data.publicstate();
+                                    next_publicstate.append([&] {
+                                       if constexpr(concepts::deterministic_fosg< Env >) {
+                                          return m_env.public_observation(
+                                             std::get< action_type >(*action_from_parent_ptr));
+                                       } else {
+                                          return std::visit(
+                                             common::Overload{[&](const auto& any_action) {
+                                                return m_env.public_observation(any_action);
+                                             }},
+                                             *action_from_parent_ptr);
+                                       }
+                                    }());
+                                    next_publicstate.append(
+                                       m_env->public_observation(*curr_worldstate));
+                                    return next_publicstate;
+                                 } else {
+                                    return typename node_data_type::public_state_type{};
+                                 }
+                              }(),
+                              std::move(reach_probability_contrib)})
+                        .first->second;
+   // terminal states need their rewards set so that the upstream nodes can update their
+   // values later on
+   if(node.category == forest::NodeCategory::terminal) {
+      _collect_rewards(*curr_worldstate, node_data);
+   }
+}
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
+requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
+void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_root_node_hook(
+   const node_type& root_node,
+   world_state_type* root_worldstate)
+{
+   auto curr_player = m_env.active_player(*root_worldstate);
+   // we are currently at the root and need to initialize the root node's data
+   m_node_data.emplace(
+      root_node.id,
+      node_data_type{
+         curr_player,
+         [&] {
+            std::unordered_map< Player, info_state_type > init_infostates;
+            for(auto player : m_env.players()) {
+               if(player != Player::chance) {
+                  auto& player_infostate = init_infostates.emplace(player, info_state_type{player})
+                                              .first->second;
+                  // the world state is filled with each player's private observation of the initial
+                  // world state
+                  player_infostate.append(m_env.private_observation(player, *root_worldstate));
+               }
+            }
+            return init_infostates;
+         }(),
+         [&] {
+            auto init_publicstate = typename node_data_type::public_state_type{};
+            if constexpr(cfr_config.store_public_states) {
+               init_publicstate.append(m_env.public_observation(*root_worldstate));
+            }
+            return init_publicstate;
+         }(),
+         [&] {
+            std::unordered_map< Player, double > rp_map;
+            for(auto player : m_env.players()) {
+               rp_map[player] = 1.;
+            }
+            return rp_map;
+         }()});
+}
+
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
+requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
 template < bool current_policy >
 auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::fetch_policy(
    Player player,
    const VanillaCFR::node_type& node)
 {
-   const auto& node_data = data(node);
-   const auto& infostate = node_data.infostate();
+   const auto& infostate = data(node).infostate();
    if constexpr(current_policy) {
       auto& player_policy = m_curr_policy[player];
       auto found_action_policy = player_policy.find(infostate);
@@ -923,6 +1061,33 @@ auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::fetch
       }
       return found_action_policy->second;
    }
+}
+
+template <
+   CFRConfig cfr_config,
+   typename Env,
+   typename Policy,
+   typename DefaultPolicy,
+   typename AveragePolicy >
+requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
+template < typename PolicyFetcher >
+double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_policy_value(
+   PolicyFetcher policy_fetcher,
+   Player player)
+{
+   double value = 0.;
+   auto child_hook = [&](const node_type& child_node, auto&&...) {
+      if(child_node.category == forest::NodeCategory::terminal) {
+         value += reach_probability(child_node) * data(child_node).value(player);
+      }
+   };
+
+   m_game_tree.traverse(
+      [&]< typename... Args >(Args && ... args) {
+         return m_game_tree.traverse_all_actions(std::forward< Args >(args)...);
+      },
+      forest::TraversalHooks{.child_hook = std::move(child_hook)},
+      /*traverse_via_worldstate=*/false);
 }
 
 }  // namespace nor::rm

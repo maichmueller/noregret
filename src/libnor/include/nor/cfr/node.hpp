@@ -55,18 +55,20 @@ struct CFRNodeData: public detail::CondPubstate< Publicstate > {
 
    CFRNodeData(
       Player player,
-      Infostate info_state,
+      std::unordered_map< Player, Infostate > info_states,
       Publicstate public_state,
-      std::unordered_map< Player,  double > reach_prob)
+      std::unordered_map< Player, double > reach_prob)
        : cond_public_state_base{std::move(public_state)},
          m_player(player),
-         m_infostate(std::move(info_state)),
+         m_infostates(std::move(info_states)),
          m_compound_reach_prob_contribution(std::move(reach_prob))
    {
    }
 
    auto& publicstate() { return cond_public_state_base::m_public_state; }
-   auto& infostate() { return m_infostate; }
+   auto& infostates() { return m_infostates; }
+   auto& infostate(Player player) { return m_infostates.at(player); }
+   auto& infostate() { return infostate(m_player); }
    auto& value(Player player) { return m_value[player]; }
    auto& value() { return m_value; }
    auto& reach_probability_contrib(Player player)
@@ -78,12 +80,11 @@ struct CFRNodeData: public detail::CondPubstate< Publicstate > {
    auto& regret() { return m_regret; }
 
    [[nodiscard]] auto& publicstate() const { return cond_public_state_base::m_public_state; }
-   [[nodiscard]] auto& infostate() const { return m_infostate; }
+   [[nodiscard]] auto& infostates() const { return m_infostates; }
+   [[nodiscard]] auto& infostate(Player player) const { return m_infostates.at(player); }
+   [[nodiscard]] auto& infostate() const { return infostate(m_player); }
    [[nodiscard]] auto player() const { return m_player; }
-   [[nodiscard]] auto& value(Player player) const
-   {
-      return m_value.at(player);
-   }
+   [[nodiscard]] auto& value(Player player) const { return m_value.at(player); }
    [[nodiscard]] auto& value() const { return m_value; }
    [[nodiscard]] auto& reach_probability_contrib(Player player) const
    {
@@ -99,8 +100,8 @@ struct CFRNodeData: public detail::CondPubstate< Publicstate > {
   private:
    /// the active player at this node
    Player m_player;
-   /// the information states of the active player at this node
-   Infostate m_infostate;
+   /// the information state of the each player at this node
+   std::unordered_map< Player, Infostate > m_infostates;
 
    // per-player-based storage
 
