@@ -208,40 +208,37 @@ class VanillaCFR {
     * Depending on the template parameter either the current policy (true) or the average policy
     * (false) over the last iterations is queried. If the current node has not been emplaced in the
     * policy yet, then the default policy will be asked to provide an initial entry.
-    * @tparam current_policy switch for querying either the current (true) or the average (false)
+    * @param current_policy switch for querying either the current (true) or the average (false)
     * policy.
     * @param player the player whose policy is to be fetched
     * @param node the game node at which the policy is required
     * @return action_policy_type the player's state policy (distribution) over all actions at this
     * node
     */
-   template < bool current_policy = true >
-   auto& fetch_policy(Player player, const node_type& node);
+   auto& fetch_policy(bool current_policy, const node_type& node);
 
    /**
     * The const overload of this function (@see fetch_policy) will not insert or return a default
     * policy if one wasn't found, but throw an error instead.
     */
-   template < bool current_policy = true >
-   auto& fetch_policy(Player player, const node_type& node) const;
+   auto& fetch_policy(bool current_policy, const node_type& node) const;
 
    /**
     *
     * @param action the action to select at this node
     * @return
     */
-   template < bool current_policy = true >
-   inline auto& fetch_policy(Player player, const node_type& node, const action_type& action)
+   inline auto& fetch_policy(bool current_policy, const node_type& node, const action_type& action)
    {
-      return fetch_policy< current_policy >(player, node)[action];
+      return fetch_policy(current_policy, node)[action];
    }
    /**
     * Const overload for action selection at the node.
     */
-   template < bool current_policy = true >
-   inline auto& fetch_policy(Player player, const node_type& node, const action_type& action) const
+   inline auto& fetch_policy(bool current_policy, const node_type& node, const action_type& action)
+      const
    {
-      return fetch_policy< current_policy >(player, node)[action];
+      return fetch_policy(current_policy, node)[action];
    }
    /**
     * @brief updates the regret and policy tables of the node with the state-values. Then performs
@@ -254,10 +251,9 @@ class VanillaCFR {
     */
    void update_regret_and_policy(const VanillaCFR::node_type& node);
 
-   template < bool current >
-   double policy_value(Player player)
+   double policy_value(bool current_policy, Player player)
    {
-      if constexpr(current) {
+      if(current_policy) {
          double value = 0.;
          auto child_hook = [&](const node_type& child_node, auto&&...) {
             if(child_node.category == forest::NodeCategory::terminal) {
@@ -274,17 +270,6 @@ class VanillaCFR {
 
       } else {
          std::unordered_map< size_t, std::unordered_map< Player, double > > reach_probs;
-         auto normalize_action_policy = [](const auto& policy) {
-            auto normalized_policy = policy;
-            double sum = 0.;
-            for(auto [action, prob] : policy) {
-               sum += prob;
-            }
-            for(auto [action, prob] : policy) {
-               normalized_policy[action] = prob / sum;
-            }
-            return normalized_policy;
-         };
          double value = 0.;
          auto root_hook = [&](const node_type& root_node) {
             for(auto player : m_env.players()) {
@@ -292,11 +277,40 @@ class VanillaCFR {
             }
          };
          auto child_hook = [&](const node_type& child_node, auto&&...) {
-            auto prev_reach_prob = data(*(child_node.parent)).infostate();
-            auto node_policy =
+            auto* parent_node = child_node.parent;
+            const auto& parent_data = data(*parent_node);
+            auto next_reach_prob = reach_probs[parent_node->id];
+            if constexpr(concepts::deterministic_fosg< env_type >) {
+               auto normalized_policy = rm::normalize_action_policy< false >(
+                  fetch_policy(false, *parent_node));
+               next_reach_prob[data(*parent_node).player()] *= normalized_policy
+                  [std::get< action_type >(child_node.action_from_parent)];
+            } else {
+               std::visit(
+                  common::Overload{
+                     [&](const action_type& action) {
+                        next_reach_prob[data(*parent_node).player()] *= rm::normalize_action_policy<
+                           false >(fetch_policy(false, *parent_node))[action];
+                     },
+                     [&](const auto&) {
+               // a chance action's likelihood must have been already stored in the
+               // relevant child node during a traversal of the tree, so we don't need to
+               // requery this.
+#ifndef NDEBUG
+                        if(data(*(child_node.parent)).player() != Player::chance) {
+                           throw std::logic_error(
+                              "Was expecting an action from the chance player.");
+                        }
+#endif
+                        next_reach_prob[Player::chance] = data(child_node)
+                                                             .reach_probability_contrib(
+                                                                Player::chance);
+                     }},
+                  child_node.action_from_parent);
+            }
+            auto& child_node_rp = reach_probs.emplace(child_node.id, next_reach_prob).first->second;
             if(child_node.category == forest::NodeCategory::terminal) {
-               value += reach_probability(reach_probs[child_node.id])
-                        * data(child_node).value(player);
+               value += reach_probability(child_node_rp) * data(child_node).value(player);
             }
          };
 
@@ -307,9 +321,6 @@ class VanillaCFR {
             forest::TraversalHooks{.child_hook = std::move(child_hook)},
             /*traverse_via_worldstate=*/false);
       }
-
-      return _policy_value(
-         [&](const node_type& node) { return fetch_policy< current >(player, node); }, player);
    }
 
    /**
@@ -433,9 +444,6 @@ class VanillaCFR {
          }
       }
    }
-
-   template < typename PolicyFetcher >
-   double _policy_value(PolicyFetcher policy_fetcher, Player player);
 
    node_type* _upstream_player_parent(const node_type& node, Player player)
    {
@@ -1023,14 +1031,13 @@ template <
    typename DefaultPolicy,
    typename AveragePolicy >
 requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
-template < bool current_policy >
 auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::fetch_policy(
-   Player player,
-   const VanillaCFR::node_type& node)
+   bool current_policy,
+   const node_type& node)
 {
    const auto& infostate = data(node).infostate();
-   if constexpr(current_policy) {
-      auto& player_policy = m_curr_policy[player];
+   if(current_policy) {
+      auto& player_policy = m_curr_policy[data(node).player()];
       auto found_action_policy = player_policy.find(infostate);
       if(found_action_policy == player_policy.end()) {
          auto actions = ranges::to< std::vector< action_type > >(
@@ -1046,7 +1053,7 @@ auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::fetch
       }
       return found_action_policy->second;
    } else {
-      auto& player_policy = m_avg_policy[player];
+      auto& player_policy = m_avg_policy[data(node).player()];
       auto found_action_policy = player_policy.find(infostate);
       if(found_action_policy == player_policy.end()) {
          // the average policy is necessary to be 0 initialized on all unseen entries, since
@@ -1061,33 +1068,6 @@ auto& VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::fetch
       }
       return found_action_policy->second;
    }
-}
-
-template <
-   CFRConfig cfr_config,
-   typename Env,
-   typename Policy,
-   typename DefaultPolicy,
-   typename AveragePolicy >
-requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
-template < typename PolicyFetcher >
-double VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_policy_value(
-   PolicyFetcher policy_fetcher,
-   Player player)
-{
-   double value = 0.;
-   auto child_hook = [&](const node_type& child_node, auto&&...) {
-      if(child_node.category == forest::NodeCategory::terminal) {
-         value += reach_probability(child_node) * data(child_node).value(player);
-      }
-   };
-
-   m_game_tree.traverse(
-      [&]< typename... Args >(Args && ... args) {
-         return m_game_tree.traverse_all_actions(std::forward< Args >(args)...);
-      },
-      forest::TraversalHooks{.child_hook = std::move(child_hook)},
-      /*traverse_via_worldstate=*/false);
 }
 
 }  // namespace nor::rm

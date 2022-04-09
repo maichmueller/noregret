@@ -13,6 +13,28 @@
 
 namespace nor::rm {
 
+template < bool inplace, concepts::action_policy Policy >
+auto normalize_action_policy(std::conditional_t< inplace, Policy&, const Policy& > policy)
+   -> std::conditional_t< inplace, Policy&, Policy >  // copy if not inplace, otherwise ref back
+{
+   auto normalize_routine = [](Policy& pol) {
+      double sum = 0.;
+      for(auto [action, prob] : pol) {
+         sum += prob;
+      }
+      for(auto [action, prob] : pol) {
+         pol[action] = prob / sum;
+      }
+      return pol;
+   };
+   if constexpr(inplace) {
+      return normalize_routine(policy);
+   } else {
+      auto copy = policy;
+      return normalize_routine(copy);
+   }
+};
+
 template < concepts::action Action, concepts::action_policy< Action > Policy >
 void regret_matching(Policy& policy_map, const std::unordered_map< Action, double >& cumul_regret)
 {
@@ -32,7 +54,8 @@ void regret_matching(Policy& policy_map, const std::unordered_map< Action, doubl
             "Passed regrets and policy maps do not have the same number of elements");
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry))) / pos_regret_sum;
+         return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
+                                       / pos_regret_sum;
       });
    } else {
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
@@ -271,22 +294,22 @@ class GameTree {
       TraversalHooks< HookFunctors... >&& hooks,
       bool single_trajectory)
    {
-//      static_assert(
-//         // clang-format off
-//         std::invocable< TraversalStrategy, node_type& >
-//         and ranges::range< std::invoke_result_t< TraversalStrategy, node_type&, world_state_type* > >
-//         and std::is_same_v<
-//            typename node_type::action_variant_type,
-//            decltype(*(
-//               std::declval< TraversalStrategy >()(
-//                  std::declval< node_type >(),
-//                  std::declval< world_state_type* >()
-//               )
-//            ))
-//         >,
-//         // clang-format on
-//         ""
-//         "Traversal strategy needs to provide a range over action variants.");
+      //      static_assert(
+      //         // clang-format off
+      //         std::invocable< TraversalStrategy, node_type& >
+      //         and ranges::range< std::invoke_result_t< TraversalStrategy, node_type&,
+      //         world_state_type* > > and std::is_same_v<
+      //            typename node_type::action_variant_type,
+      //            decltype(*(
+      //               std::declval< TraversalStrategy >()(
+      //                  std::declval< node_type >(),
+      //                  std::declval< world_state_type* >()
+      //               )
+      //            ))
+      //         >,
+      //         // clang-format on
+      //         ""
+      //         "Traversal strategy needs to provide a range over action variants.");
 
       // we need to fill the root node's data (if desired) before entering the loop, since the
       // loop assumes all entered nodes to have their data node emplaced already.
@@ -358,14 +381,16 @@ class GameTree {
                }
                if(child_node == nullptr) {
                   auto child_id = m_index_counter++;
-                  child_node = &(m_nodes.emplace(
-                     child_id,
-                     node_type{
-                        .id = child_id,
-                        .category = _categorize(*next_wstate_uptr),
-                        .parent = curr_node,
-                        .children = {},
-                        .action_from_parent = action}).first->second);
+                  child_node = &(m_nodes
+                                    .emplace(
+                                       child_id,
+                                       node_type{
+                                          .id = child_id,
+                                          .category = _categorize(*next_wstate_uptr),
+                                          .parent = curr_node,
+                                          .children = {},
+                                          .action_from_parent = action})
+                                    .first->second);
                }
                // append the new tree node as a child of the currently visited node. We are using a
                // raw pointer here since lifetime management is maintained by the game tree itself
