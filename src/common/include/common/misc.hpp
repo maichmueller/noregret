@@ -24,7 +24,7 @@ namespace common {
 template <typename...Args>
 struct debug;
 
-using noop = decltype([]< typename... Args >(Args && ...) { return; });
+using noop = decltype([](auto&& ...) { return; });
 
 namespace random {
 
