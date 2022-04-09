@@ -333,7 +333,7 @@ class VanillaCFR {
     * this node
     * @return the reach probability of the nde
     */
-   inline double reach_probability(
+   [[nodiscard]] inline double reach_probability(
       const std::unordered_map< Player, double >& reach_probability_contributions) const
    {
       auto values_view = reach_probability_contributions | ranges::views::values;
@@ -692,8 +692,8 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::update
    auto& node_data = data(node);
    Player player = node_data.player();
    double player_reach_prob = node_data.reach_probability_contrib(player);
-   auto& curr_state_policy = fetch_policy< true >(player, node);
-   auto& avg_state_policy = fetch_policy< false >(player, node);
+   auto& curr_state_policy = fetch_policy(true, node);
+   auto& avg_state_policy = fetch_policy(false, node);
    ranges::for_each(
       _child_collector(node, [&](node_type* child) { return data(*child).value(player); }),
       [&](const auto& action_value_pair) {
@@ -724,8 +724,8 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
       Player parent_player = data(*child_node.parent).player();
       if(parent_player != Player::chance) {
          // the chance distribution is assumed to be fixed, hence never needs to be updated
-         data(child_node).reach_probability_contrib(parent_player) *= fetch_policy< true >(
-            parent_player, *child_node.parent, std::get< action_type >(*action_from_parent));
+         data(child_node).reach_probability_contrib(parent_player) *= fetch_policy(
+            true, *child_node.parent, std::get< action_type >(*action_from_parent));
       }
    };
    auto post_child_hook = [&](const node_type& node, auto&&...) {
@@ -782,10 +782,19 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_updat
             0.,
             std::plus{},
             [&](const auto& action_value_pair) {
-               // applied action is the action that lead to the child node!
+               // applied action is the action that lead to the child node! The value is the one we
+               // queryied for in _child_collector
                const auto& [applied_action, action_value] = action_value_pair;
-               // pi_{player}(s, a) * v(s'(a))
-               return fetch_policy< true >(player, node, std::get< action_type >(applied_action))
+               // the update rule for collecting the value from child nodes is:
+               //    pi_{active_player}(s, a) * v_{player}(s'(a))
+               // Note, that we always have to take the policy of the active player at this node,
+               // but we multiply it onto the value associated with the current player we iterate
+               // for! The value herein reflects the player's perspective, while the policy
+               // probabilities simply decide how likely it is that the active player chooses this
+               // node. If the active player is also the current player we iterate for, then this is
+               // obviously the choice that player is making. For the other players, this likelihood
+               // might as well be considered random decisions by the environment.
+               return fetch_policy(true, node, std::get< action_type >(applied_action))
                       * action_value;
             });
       });
@@ -816,7 +825,7 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_colle
       concepts::has::method::reward< env_type, const world_state_type& >,
       const world_state_type&,
       world_state_type& > terminal_wstate,
-   VanillaCFR::node_data_type& node_data) const
+   node_data_type& node_data) const
 {
    if constexpr(nor::concepts::has::method::reward_multi< Env >) {
       // if the environment has a method for returning all rewards for given players at
@@ -913,8 +922,8 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_child
             "chance_probability member function.");
       }
    } else {
-      reach_probability_contrib[parent_player] *= fetch_policy< true >(
-         parent_player, *parent_node, std::get< action_type >(*action_from_parent_ptr));
+      reach_probability_contrib[parent_player] *= fetch_policy(
+         true, *parent_node, std::get< action_type >(*action_from_parent_ptr));
    }
    auto& node_data = m_node_data
                         .emplace(
