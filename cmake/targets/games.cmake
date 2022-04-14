@@ -78,3 +78,29 @@ target_link_libraries(
         CONAN_PKG::range-v3
         CONAN_PKG::namedtype
 )
+
+#################################
+# Rock Paper Scissors
+#################################
+
+set(
+        ROCKPAPERSCISSORS_SOURCES
+        state.cpp
+)
+
+list(TRANSFORM ROCKPAPERSCISSORS_SOURCES PREPEND "${PROJECT_GAMES_DIR}/rock_paper_scissors/impl/")
+
+add_library(rock_paper_scissors SHARED ${ROCKPAPERSCISSORS_SOURCES})
+
+target_include_directories(
+        rock_paper_scissors
+        PUBLIC
+        ${PROJECT_GAMES_DIR}/rock_paper_scissors/include
+)
+
+target_link_libraries(
+        rock_paper_scissors
+        PUBLIC
+        project_options
+        common
+)

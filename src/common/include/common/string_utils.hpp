@@ -2,26 +2,43 @@
 #ifndef NOR_COMMON_STRING_UTILS_HPP
 #define NOR_COMMON_STRING_UTILS_HPP
 
-#include <string>
 #include <array>
+#include <string>
 #include <vector>
 
 namespace common {
 
-template < typename Enum >
-requires std::is_enum_v< Enum >
-std::string_view enum_name(Enum e);
+template < typename T >
+std::string to_string(const T& value);
 
 template < typename To >
 To from_string(std::string_view str);
 
+}  // namespace common
 
-inline std::vector<std::string_view> split(std::string_view str, std::string_view delim) {
-   std::vector<std::string_view> splits;
+template < typename T >
+requires std::is_enum_v< T >
+inline auto& operator<<(std::ostream& os, const T& value)
+{
+   return os << common::to_string(value);
+}
+
+template < typename T >
+requires std::is_enum_v< T >
+inline auto& operator<<(std::stringstream& os, const T& value)
+{
+   return os << common::to_string(value);
+}
+
+namespace common {
+
+inline std::vector< std::string_view > split(std::string_view str, std::string_view delim)
+{
+   std::vector< std::string_view > splits;
    std::string_view curr_substr = str;
    size_t pos = 0;
    std::string segment;
-   while ((pos = curr_substr.find(delim)) != std::string_view::npos) {
+   while((pos = curr_substr.find(delim)) != std::string_view::npos) {
       // extract the left half of the delimited segment
       splits.emplace_back(curr_substr.substr(0, pos));
       // reassign the right half as the curr substr
@@ -31,7 +48,6 @@ inline std::vector<std::string_view> split(std::string_view str, std::string_vie
    splits.emplace_back(curr_substr);
    return splits;
 }
-
 
 template < std::string_view const&... Strs >
 struct join {
@@ -56,7 +72,6 @@ struct join {
 // Helper to get the value out
 template < std::string_view const&... Strs >
 static constexpr auto join_v = join< Strs... >::value;
-
 
 inline std::string repeat(std::string str, const std::size_t n)
 {
@@ -99,6 +114,6 @@ inline std::string operator*(std::string str, std::size_t n)
    return repeat(std::move(str), n);
 }
 
-}
+}  // namespace common
 
 #endif  // NOR_COMMON_STRING_UTILS_HPP

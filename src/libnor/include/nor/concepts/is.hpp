@@ -29,12 +29,17 @@ concept hashable = requires(T t)
       } -> std::convertible_to< std::size_t >;
 };
 
-template <typename T>
-constexpr bool variant(const T&) { return false;}
+template < typename T >
+constexpr bool variant(const T&)
+{
+   return false;
+}
 
-template <typename...Types> requires (sizeof...(Types) > 1 )
-constexpr bool variant(const std::variant<Types...>&) { return true;}
-
+template < typename... Types >
+requires(sizeof...(Types) > 1) constexpr bool variant(const std::variant< Types... >&)
+{
+   return true;
+}
 
 template < typename T >
 concept enum_ = std::is_enum_v< T >;
@@ -61,14 +66,16 @@ concept empty = std::is_empty_v< T >;
 template < typename T >
 concept not_empty = not std::is_empty_v< T >;
 
-template <typename T, typename Output>
-concept dynamic_pointer_castable_to = requires(T t) {
-   std::dynamic_pointer_cast<Output>(t);
+template < typename T, typename Output >
+concept dynamic_pointer_castable_to = requires(T t)
+{
+   std::dynamic_pointer_cast< Output >(t);
 };
 
-template <typename T>
-concept smart_pointer_like = requires(T t) {
-   not std::is_pointer_v<T>;  // this would be true if T was a raw pointer!
+template < typename T >
+concept smart_pointer_like = requires(T t)
+{
+   not std::is_pointer_v< T >;  // this would be true if T was a raw pointer!
    typename T::element_type;
    t.operator*();
    t.operator->();
@@ -79,9 +86,9 @@ template < typename T >
 concept copyable_someway =
    (
       std::is_pointer_v< T >
-      and concepts::has::method::clone_ptr< T >
+      and concepts::has::method::clone< std::remove_pointer_t<T> >
    )
-   or concepts::has::method::clone_self< T >
+   or concepts::has::method::clone< T >
    or concepts::has::method::copy< T >
    or std::is_copy_constructible_v< T >;
 // clang-format on

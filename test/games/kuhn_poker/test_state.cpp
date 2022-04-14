@@ -10,17 +10,17 @@ using namespace kuhn;
 
 TEST_F(KuhnPokerState, apply_chance_action)
 {
-   state.apply_action(Card::king);
-   state.apply_action(Card::queen);
+   state.apply_action(ChanceOutcome{Player::one, Card::king});
+   state.apply_action(ChanceOutcome{Player::two, Card::queen});
    EXPECT_EQ(state.card(Player::one).value(), Card::king);
    EXPECT_EQ(state.card(Player::two).value(), Card::queen);
-   EXPECT_THROW(state.apply_action(Card::jack), std::logic_error);
+   EXPECT_THROW(state.apply_action(ChanceOutcome{Player::two, Card::jack}), std::logic_error);
 }
 
 TEST_F(KuhnPokerState, apply_action)
 {
-   state.apply_action(Card::king);
-   state.apply_action(Card::queen);
+   state.apply_action(ChanceOutcome{Player::one, Card::king});
+   state.apply_action(ChanceOutcome{Player::two, Card::queen});
    state.apply_action(Action::check);
    EXPECT_EQ(state.history().sequence.size(), 1);
    EXPECT_EQ(state.history().sequence[0], Action::check);
@@ -40,19 +40,19 @@ TEST_F(KuhnPokerState, apply_action)
 
 TEST_F(KuhnPokerState, is_valid_chance_action)
 {
-   EXPECT_TRUE(state.is_valid(Card::jack));
-   EXPECT_TRUE(state.is_valid(Card::queen));
-   EXPECT_TRUE(state.is_valid(Card::king));
+   EXPECT_TRUE(state.is_valid(ChanceOutcome{Player::one, Card::jack}));
+   EXPECT_TRUE(state.is_valid(ChanceOutcome{Player::one, Card::queen}));
+   EXPECT_TRUE(state.is_valid(ChanceOutcome{Player::one, Card::king}));
 
-   state.apply_action(Card::king);
-   EXPECT_FALSE(state.is_valid(Card::king));
-   EXPECT_TRUE(state.is_valid(Card::jack));
-   EXPECT_TRUE(state.is_valid(Card::queen));
+   state.apply_action(ChanceOutcome{Player::one, Card::king});
+   EXPECT_FALSE(state.is_valid(ChanceOutcome{Player::two, Card::king}));
+   EXPECT_TRUE(state.is_valid(ChanceOutcome{Player::two, Card::jack}));
+   EXPECT_TRUE(state.is_valid(ChanceOutcome{Player::two, Card::queen}));
 
-   state.apply_action(Card::queen);
-   EXPECT_FALSE(state.is_valid(Card::jack));
-   EXPECT_FALSE(state.is_valid(Card::queen));
-   EXPECT_FALSE(state.is_valid(Card::king));
+   state.apply_action(ChanceOutcome{Player::two, Card::queen});
+   EXPECT_FALSE(state.is_valid(ChanceOutcome{Player::two, Card::jack}));
+   EXPECT_FALSE(state.is_valid(ChanceOutcome{Player::two, Card::queen}));
+   EXPECT_FALSE(state.is_valid(ChanceOutcome{Player::two, Card::king}));
 }
 
 TEST_F(KuhnPokerState, is_valid_action)
@@ -60,8 +60,8 @@ TEST_F(KuhnPokerState, is_valid_action)
    EXPECT_FALSE(state.is_valid(Action::check));
    EXPECT_FALSE(state.is_valid(Action::bet));
 
-   state.apply_action(Card::king);
-   state.apply_action(Card::queen);
+   state.apply_action(ChanceOutcome{Player::one, Card::king});
+   state.apply_action(ChanceOutcome{Player::two, Card::queen});
 
    EXPECT_TRUE(state.is_valid(Action::check));
    EXPECT_TRUE(state.is_valid(Action::bet));
@@ -76,14 +76,21 @@ TEST_F(KuhnPokerState, is_valid_action)
 
 TEST_F(KuhnPokerState, valid_chance_actions)
 {
-   EXPECT_TRUE(
-      cmp_equal_rngs(state.chance_actions(), std::vector{Card::jack, Card::queen, Card::king}));
+   EXPECT_TRUE(cmp_equal_rngs(
+      state.chance_actions(),
+      std::vector{
+         ChanceOutcome{Player::one, Card::jack},
+         ChanceOutcome{Player::one, Card::queen},
+         ChanceOutcome{Player::one, Card::king}}));
 
-   state.apply_action(Card::king);
+   state.apply_action(ChanceOutcome{Player::one, Card::king});
 
-   EXPECT_TRUE(cmp_equal_rngs(state.chance_actions(), std::vector{Card::jack, Card::queen}));
+   EXPECT_TRUE(cmp_equal_rngs(
+      state.chance_actions(),
+      std::vector{
+         ChanceOutcome{Player::two, Card::jack}, ChanceOutcome{Player::two, Card::queen}}));
 
-   state.apply_action(Card::queen);
+   state.apply_action(ChanceOutcome{Player::two, Card::queen});
 
    EXPECT_TRUE(state.chance_actions().empty());
 }
@@ -91,19 +98,19 @@ TEST_F(KuhnPokerState, valid_chance_actions)
 TEST_F(KuhnPokerState, actions)
 {
    EXPECT_TRUE(state.actions().empty());
-   state.apply_action(Card::king);
+   state.apply_action(ChanceOutcome{Player::one, Card::king});
    EXPECT_TRUE(state.actions().empty());
-   state.apply_action(Card::jack);
-
+   state.apply_action(ChanceOutcome{Player::two, Card::jack});
    EXPECT_TRUE(cmp_equal_rngs(state.actions(), std::vector{Action::check, Action::bet}));
 }
 
 TEST_P(TerminalParamsF, terminal_situations)
 {
    auto [cards, actions, expected_terminal] = GetParam();
-   for(auto card : cards) {
-      state.apply_action(card);
-   }
+
+   state.apply_action({Player::one, cards[0]});
+   state.apply_action({Player::two, cards[1]});
+
    for(auto action : actions.sequence) {
       state.apply_action(action);
    }
@@ -144,9 +151,8 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(PayoffParamsF, payoff_combinations)
 {
    auto [cards, actions, expected_payoffs] = GetParam();
-   for(auto card : cards) {
-      state.apply_action(card);
-   }
+   state.apply_action({Player::one, cards[0]});
+   state.apply_action({Player::two, cards[1]});
    for(auto action : actions.sequence) {
       state.apply_action(action);
    }

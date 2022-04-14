@@ -43,13 +43,13 @@ concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
 };
 
 template < typename T >
-concept action = is::hashable< T >;
+concept action = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T >
-concept chance_outcome = is::hashable< T >;
+concept chance_outcome = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T >
-concept observation = is::hashable< T >;
+concept observation = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T, typename Observation = typename fosg_auto_traits< T >::observation_type >
 // clang-format off

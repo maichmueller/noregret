@@ -148,7 +148,7 @@ std::string observation(const State& state, std::optional< Player > observing_pl
    ss << "Board dims:" << (state.config().game_dims | ranges::views::all) << "\n";
 
    for(auto team : std::set{Team::BLUE, Team::RED}) {
-      ss << "Graveyard " << common::enum_name(team) << ":"
+      ss << "Graveyard " << common::to_string(team) << ":"
          << (state.graveyard(team) | ranges::views::keys) << "|"
          << (state.graveyard(team) | ranges::views::values) << "\n";
    }

@@ -30,18 +30,18 @@ TEST(State, constructor)
 
    for(auto [pos, token] : setup0) {
       //      std::cout << "Given piece from setup:\n";
-      //      std::cout << utils::enum_name(Team::BLUE) << ", " << pos << ", " << token << "\n";
+      //      std::cout << utils::to_string(Team::BLUE) << ", " << pos << ", " << token << "\n";
       //      std::cout << "Board piece:\n";
-      //      std::cout << utils::enum_name(state.board()[pos].value().team()) << ", "
+      //      std::cout << utils::to_string(state.board()[pos].value().team()) << ", "
       //                << state.board()[pos].value().position() << ", "
       //                << state.board()[pos].value().token() << "\n";
       EXPECT_EQ((state.board()[pos].value()), Piece(Team::BLUE, pos, token));
    }
    for(auto [pos, token] : setup1) {
       //      std::cout << "Given piece from setup:\n";
-      //      std::cout << utils::enum_name(Team::RED) << ", " << pos << ", " << token << "\n";
+      //      std::cout << utils::to_string(Team::RED) << ", " << pos << ", " << token << "\n";
       //      std::cout << "Board piece:\n";
-      //      std::cout << utils::enum_name(state.board()[pos].value().team()) << ", "
+      //      std::cout << utils::to_string(state.board()[pos].value().team()) << ", "
       //                << state.board()[pos].value().position() << ", "
       //                << state.board()[pos].value().token() << "\n";
       EXPECT_EQ((state.board()[pos].value()), Piece(Team::RED, pos, token));

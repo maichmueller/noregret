@@ -78,13 +78,13 @@ TEST_P(BattlematrixParamsF, default_battlematrix_outcomes)
 {
    auto [attacker, defender, outcome] = GetParam();
    LOGD2(
-      "Observed outcome for [" + std::string(utils::enum_name(attacker)) + ", "
-         + std::string(utils::enum_name(defender)) + "] = ",
-      utils::enum_name(bm[{attacker, defender}]));
+      "Observed outcome for [" + common::to_string(attacker) + ", "
+         + common::to_string(defender) + "] = ",
+      common::to_string(bm[{attacker, defender}]));
    LOGD2(
-      "Expected outcome for [" + std::string(utils::enum_name(attacker)) + ", "
-         + std::string(utils::enum_name(defender)) + "] = ",
-      utils::enum_name(outcome));
+      "Expected outcome for [" + common::to_string(attacker) + ", "
+         + common::to_string(defender) + "] = ",
+      common::to_string(outcome));
    EXPECT_EQ((bm[{attacker, defender}]), outcome);
 }
 

@@ -195,29 +195,29 @@ constexpr aze::utils::CEBijection< DefinedBoardSizes, std::string_view, 3 >
 namespace common {
 
 template <>
-std::string_view enum_name(stratego::Status e)
+std::string to_string(const stratego::Status& e)
 {
-   return stratego::utils::status_name_bij.at(e);
+   return std::string(stratego::utils::status_name_bij.at(e));
 }
 template <>
-std::string_view enum_name(stratego::Team e)
+std::string to_string(const stratego::Team& e)
 {
-   return stratego::utils::team_name_bij.at(e);
+   return std::string(stratego::utils::team_name_bij.at(e));
 }
 template <>
-std::string_view enum_name(stratego::FightOutcome e)
+std::string to_string(const stratego::FightOutcome& e)
 {
-   return stratego::utils::fightoutcome_name_bij.at(e);
+   return std::string(stratego::utils::fightoutcome_name_bij.at(e));
 }
 template <>
-std::string_view enum_name(stratego::Token e)
+std::string to_string(const stratego::Token& e)
 {
-   return stratego::utils::token_name_bij.at(e);
+   return std::string(stratego::utils::token_name_bij.at(e));
 }
 template <>
-std::string_view enum_name(stratego::DefinedBoardSizes e)
+std::string to_string(const stratego::DefinedBoardSizes& e)
 {
-   return stratego::utils::definedboardsizes_name_bij.at(e);
+   return std::string(stratego::utils::definedboardsizes_name_bij.at(e));
 }
 template <>
 auto from_string(std::string_view str) -> stratego::Status

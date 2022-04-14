@@ -1,12 +1,9 @@
-
-#ifndef NOR_UTILS_HPP
-#define NOR_UTILS_HPP
+#pragma once
 
 #include <execution>
 #include <range/v3/all.hpp>
-
-
 #include <stratego/stratego.hpp>
+
 
 template < typename Range1, typename Range2 >
 bool cmp_equal_rngs(Range1&& rng1, Range2&& rng2)
@@ -38,8 +35,11 @@ bool cmp_equal_rngs_sorted(Range1&& rng1, Range2&& rng2)
 }
 
 struct flattable_sorter {
-   template <typename T, typename U>
-   requires requires(T t) { {t.flatten()};} && requires(U u) { {u.flatten()};}
+   template < typename T, typename U >
+   requires requires(T t) { {t.flatten()}; } && requires(U u)
+   {
+      {u.flatten()};
+   }
    auto operator()(T flattable1, U flattable2)
    {
       std::array< int, 2 > reduces{0, 0};
@@ -82,4 +82,3 @@ struct eq_rng {
    }
 };
 
-#endif  // NOR_UTILS_HPP

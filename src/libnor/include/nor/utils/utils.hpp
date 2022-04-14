@@ -68,20 +68,28 @@ inline std::conditional_t< UnaryPredicate< T >::value, T &&, T & > move_if(T &ob
       return obj;
    }
 }
-template < typename... Args >
-struct what;
 
 template < typename T >
 auto clone_any_way(const T &obj)
 {
    if constexpr(nor::concepts::is::smart_pointer_like< T >) {
-      if constexpr(concepts::has::method::clone_ptr< T >) {
+      if constexpr(concepts::has::method::clone< typename T::element_type >) {
          return obj->clone();
       } else if constexpr(std::is_copy_constructible_v< typename T::element_type >) {
          return std::make_unique< typename T::element_type >(*obj);
       }
-   } else if constexpr(concepts::has::method::clone_self< T >) {
-      return obj.clone();
+   } else if constexpr(std::is_pointer_v< T >) {
+      if constexpr(concepts::has::method::clone< std::remove_pointer_t< T > >) {
+         return std::unique_ptr< T >(obj->clone());
+      } else if constexpr(std::is_copy_constructible_v< std::remove_pointer_t< T > >) {
+         return std::make_unique< std::remove_cvref_t< std::remove_pointer_t< T > > >(
+            std::remove_pointer_t< T >{*obj});
+      } else {
+         static_assert(
+            always_false_v< T >, "No cloning/copying method available in given type via pointer.");
+      }
+   } else if constexpr(concepts::has::method::clone< T >) {
+      return std::unique_ptr< T >(obj.clone());
    } else if constexpr(concepts::has::method::copy< T >) {
       return std::make_unique< T >(obj.copy());
    } else if constexpr(std::is_copy_constructible_v< T >) {
@@ -222,19 +230,19 @@ constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_b
 
 namespace common {
 template <>
-inline std::string_view enum_name(nor::Player e)
+inline std::string to_string(const nor::Player& e)
 {
-   return nor::utils::player_name_bij.at(e);
+   return std::string(nor::utils::player_name_bij.at(e));
 }
 template <>
-inline std::string_view enum_name(nor::TurnDynamic e)
+inline std::string to_string(const nor::TurnDynamic& e)
 {
-   return nor::utils::turndynamic_name_bij.at(e);
+   return std::string(nor::utils::turndynamic_name_bij.at(e));
 }
 template <>
-inline std::string_view enum_name(nor::Stochasticity e)
+inline std::string to_string(const nor::Stochasticity& e)
 {
-   return nor::utils::stochasticity_name_bij.at(e);
+   return std::string(nor::utils::stochasticity_name_bij.at(e));
 }
 
 template <>
@@ -249,29 +257,29 @@ template < nor::concepts::is::enum_ Enum, typename T >
 requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
 inline std::string operator+(const T &other, Enum e)
 {
-   return std::string_view(other) + common::enum_name(e);
+   return std::string_view(other) + common::to_string(e);
 }
 template < nor::concepts::is::enum_ Enum, typename T >
 requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
 inline std::string operator+(Enum e, const T &other)
 {
-   return common::enum_name(e) + std::string_view(other);
+   return common::to_string(e) + std::string_view(other);
 }
 
-template < nor::concepts::is::enum_ Enum >
-requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
-inline auto &operator<<(std::stringstream &os, Enum e)
-{
-   os << common::enum_name(e);
-   return os;
-}
-
-template < nor::concepts::is::enum_ Enum >
-requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
-inline auto &operator<<(std::ostream &os, Enum e)
-{
-   os << common::enum_name(e);
-   return os;
-}
+//template < nor::concepts::is::enum_ Enum >
+//requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+//inline auto &operator<<(std::stringstream &os, Enum e)
+//{
+//   os << common::to_string(e);
+//   return os;
+//}
+//
+//template < nor::concepts::is::enum_ Enum >
+//requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+//inline auto &operator<<(std::ostream &os, Enum e)
+//{
+//   os << common::to_string(e);
+//   return os;
+//}
 
 #endif  // NOR_UTILS_HPP

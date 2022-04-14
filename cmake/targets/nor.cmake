@@ -61,6 +61,7 @@ set(
         WRAPPER_SOURCES
         stratego_env.cpp
         kuhn_env.cpp
+        rps_env.cpp
 )
 list(TRANSFORM WRAPPER_SOURCES PREPEND "${PROJECT_NOR_DIR}/impl/")
 
@@ -82,5 +83,6 @@ if (ENABLE_GAMES)
             ${nor_lib}
             stratego
             kuhn_poker
+            rock_paper_scissors
     )
 endif ()

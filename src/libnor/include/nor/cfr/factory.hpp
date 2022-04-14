@@ -9,11 +9,11 @@ namespace nor::rm {
 struct factory {
   private:
    template < typename ValueType >
-   static std::map< Player, ValueType > to_map(
+   static std::unordered_map< Player, ValueType > to_map(
       std::vector< Player > players,
       const ValueType& value)
    {
-      std::map< Player, ValueType > map;
+      std::unordered_map< Player, ValueType > map;
       for(auto player : players) {
          map[player] = value;
       }
@@ -30,10 +30,10 @@ struct factory {
       typename AveragePolicy >
    static VanillaCFR<
       cfg,
-      std::decay_t< Env >,  // decay_t is necessary to avoid having e.g. Env captured as const Env&
-      std::decay_t< Policy >,
-      std::decay_t< DefaultPolicy >,
-      std::decay_t< AveragePolicy > >
+      std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
+      std::remove_cvref_t< Policy >,
+      std::remove_cvref_t< DefaultPolicy >,
+      std::remove_cvref_t< AveragePolicy > >
    make_vanilla(
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
@@ -56,6 +56,27 @@ struct factory {
             std::forward< AveragePolicy >(avg_policy),
             std::forward< DefaultPolicy >(def_policy)};
       }
+   }
+
+   template <
+      CFRConfig cfg,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy,
+      typename DefaultPolicy >
+   static VanillaCFR< cfg, Env, Policy, DefaultPolicy, AveragePolicy > make_vanilla(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map,
+      DefaultPolicy&& def_policy = DefaultPolicy())
+   {
+      return {
+         std::forward< Env >(env),
+         std::move(root_state),
+         std::move(policy_map),
+         std::move(avg_policy_map),
+         std::forward< DefaultPolicy >(def_policy)};
    }
 
    template < CFRConfig cfg, bool as_map, typename Env, typename Policy, typename DefaultPolicy >

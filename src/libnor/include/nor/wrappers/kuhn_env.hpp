@@ -47,7 +47,7 @@ class Environment {
    using info_state_type = InfoState;
    using public_state_type = PublicState;
    using action_type = Action;
-   using chance_outcome_type = Card;
+   using chance_outcome_type = ChanceOutcome;
    using observation_type = Observation;
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
@@ -81,12 +81,13 @@ class Environment {
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
    void transition(world_state_type& worldstate, const chance_outcome_type& action) const;
-   observation_type private_observation(Player player, const world_state_type& wstate) const;
-   observation_type private_observation(Player player, const action_type& action) const;
-   observation_type private_observation(Player player, const chance_outcome_type& action) const;
+   observation_type private_observation(Player observer, const world_state_type& wstate) const;
+   observation_type private_observation(Player observer, const action_type& action) const;
+   observation_type private_observation(Player observer, const chance_outcome_type& action) const;
    observation_type public_observation(const world_state_type& wstate) const;
    observation_type public_observation(const action_type& action) const;
    observation_type public_observation(const chance_outcome_type& action) const;
+   observation_type tiny_repr(const world_state_type& wstate) const;
 };
 
 }  // namespace nor::games::kuhn

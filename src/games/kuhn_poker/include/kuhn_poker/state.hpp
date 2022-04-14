@@ -14,9 +14,17 @@ enum class Player { chance = -1, one = 0, two = 1 };
 
 enum class Card { jack = 0, queen = 1, king = 2 };
 
-using ChanceAction = Card;
-
 enum class Action { check = 0, bet };
+
+struct ChanceOutcome {
+   Player player;
+   Card card;
+};
+
+inline bool operator==(const ChanceOutcome& outcome1, const ChanceOutcome& outcome2)
+{
+   return outcome1.player == outcome2.player and outcome1.card == outcome2.card;
+}
 
 /**
  * @brief stores the currently commited action sequence
@@ -44,13 +52,13 @@ class State {
    State() = default;
 
    void apply_action(Action action);
-   void apply_action(ChanceAction action);
+   void apply_action(ChanceOutcome action);
    [[nodiscard]] bool is_valid(Action action) const;
-   [[nodiscard]] bool is_valid(ChanceAction action) const;
+   [[nodiscard]] bool is_valid(ChanceOutcome outcome) const;
    [[nodiscard]] bool is_terminal() const;
    [[nodiscard]] std::vector< Action > actions() const;
-   [[nodiscard]] std::vector< ChanceAction > chance_actions() const;
-   [[nodiscard]] double chance_probability(ChanceAction action) const;
+   [[nodiscard]] std::vector< ChanceOutcome > chance_actions() const;
+   [[nodiscard]] double chance_probability(ChanceOutcome action) const;
    [[nodiscard]] int16_t payoff(Player player) const;
 
    [[nodiscard]] auto active_player() const { return m_active_player; }
@@ -67,24 +75,10 @@ class State {
    History m_history{};
 
    static const std::vector< History >& _all_terminal_histories();
-   bool _all_cards_engaged() const;
+   [[nodiscard]] bool _all_cards_engaged() const;
 };
 
 }  // namespace kuhn
 
-namespace std {
-
-template <>
-struct hash< kuhn::History > {
-   size_t operator()(const kuhn::History& history) const
-   {
-      std::stringstream ss;
-      for(auto action : history.sequence) {
-         ss << std::to_string(static_cast< int >(action));
-      }
-      return std::hash< std::string >{}(ss.str());
-   }
-};
-}  // namespace std
 
 #endif  // NOR_STATE_HPP

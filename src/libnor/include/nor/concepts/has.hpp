@@ -296,16 +296,10 @@ concept clone_other = std::is_pointer_v< Ptr< ElemT > > && requires(T&& t, Ptr< 
       } -> std::convertible_to< Ptr< ElemT > >;
 };
 
-template < typename T, typename Output = T >
-concept clone_self = requires(T const t)
+template < typename T >
+concept clone = requires(T const t)
 {
    t.clone();
-};
-
-template < typename Ptr >
-concept clone_ptr = requires(Ptr ptr)
-{
-   ptr->clone();
 };
 
 template < typename T, typename U = T >

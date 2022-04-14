@@ -49,15 +49,15 @@ std::string print_board(
 namespace common {
 
 template <>
-std::string_view enum_name(stratego::Status e);
+std::string to_string(const stratego::Status& e);
 template <>
-std::string_view enum_name(stratego::Team e);
+std::string to_string(const stratego::Team& e);
 template <>
-std::string_view enum_name(stratego::FightOutcome e);
+std::string to_string(const stratego::FightOutcome& e);
 template <>
-std::string_view enum_name(stratego::Token e);
+std::string to_string(const stratego::Token& e);
 template <>
-std::string_view enum_name(stratego::DefinedBoardSizes e);
+std::string to_string(const stratego::DefinedBoardSizes& e);
 
 template <>
 auto from_string(std::string_view str) -> stratego::Status;
@@ -72,23 +72,6 @@ auto from_string(std::string_view str) -> stratego::DefinedBoardSizes;
 
 }  // namespace common
 
-template < aze::utils::is_enum Enum >
-requires aze::utils::
-   is_any_v< Enum, stratego::Token, stratego::Status, stratego::Team, stratego::FightOutcome >
-inline auto &operator<<(std::ostream &os, Enum e)
-{
-   os << common::enum_name(e);
-   return os;
-}
-
-template < aze::utils::is_enum Enum >
-requires aze::utils::
-   is_any_v< Enum, stratego::Token, stratego::Status, stratego::Team, stratego::FightOutcome >
-inline auto &operator<<(std::stringstream &ss, Enum e)
-{
-   ss << common::enum_name(e);
-   return ss;
-}
 
 // these operator<< definitions are specifically made for gtest which cannot handle the lookup in
 // global namespace without throwing multiple template matching errors. As such, the printing
@@ -100,12 +83,12 @@ namespace stratego {
 
 inline auto &operator<<(std::ostream &os, Token e)
 {
-   os << common::enum_name(e);
+   os << common::to_string(e);
    return os;
 }
 inline auto &operator<<(std::ostream &os, FightOutcome e)
 {
-   os << common::enum_name(e);
+   os << common::to_string(e);
    return os;
 }
 }  // namespace stratego
@@ -113,12 +96,12 @@ inline auto &operator<<(std::ostream &os, FightOutcome e)
 namespace aze {
 inline auto &operator<<(std::ostream &os, Status e)
 {
-   os << common::enum_name(e);
+   os << common::to_string(e);
    return os;
 }
 inline auto &operator<<(std::ostream &os, Team e)
 {
-   os << common::enum_name(e);
+   os << common::to_string(e);
    return os;
 }
 }  // namespace aze
