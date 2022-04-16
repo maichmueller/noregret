@@ -12,7 +12,21 @@ namespace kuhn {
 
 enum class Player { chance = -1, one = 0, two = 1 };
 
-enum class Card { jack = 0, queen = 1, king = 2 };
+enum class Card {
+   two = 2,
+   three = 3,
+   four = 4,
+   five = 5,
+   six = 6,
+   seven = 7,
+   eight = 8,
+   nine = 9,
+   ten = 10,
+   jack = 11,
+   queen = 12,
+   king = 13,
+   ace = 14
+};
 
 enum class Action { check = 0, bet };
 
@@ -49,7 +63,10 @@ inline bool operator==(const History& left, const History& right)
 
 class State {
   public:
-   State() = default;
+   State(std::vector< Card > card_pool = {Card::jack, Card::queen, Card::king})
+       : m_card_pool(std::move(card_pool))
+   {
+   }
 
    void apply_action(Action action);
    void apply_action(ChanceOutcome action);
@@ -73,12 +90,12 @@ class State {
    Player m_active_player = Player::chance;
    std::array< std::optional< Card >, 2 > m_player_cards = {std::nullopt, std::nullopt};
    History m_history{};
+   std::vector< Card > m_card_pool;
 
    static const std::vector< History >& _all_terminal_histories();
    [[nodiscard]] bool _all_cards_engaged() const;
 };
 
 }  // namespace kuhn
-
 
 #endif  // NOR_STATE_HPP
