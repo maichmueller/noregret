@@ -81,21 +81,18 @@ std::vector< ChanceOutcome > State::chance_actions() const
       return {};
    }
    Player player = m_player_cards[0].has_value() ? (Player::two) : (Player::one);
-   static const std::vector< Card > all_chance_actions = {Card::jack, Card::queen, Card::king};
+   auto card_pool = m_card_pool;
+   if(m_player_cards[0].has_value()) {
+      card_pool.erase(
+         std::remove(card_pool.begin(), card_pool.end(), m_player_cards[0].value()),
+         card_pool.end());
+   }
    auto to_chance_action = [](const auto& player_card) {
       return ChanceOutcome{std::get< 0 >(player_card), std::get< 1 >(player_card)};
    };
-   auto zip_view = ranges::views::zip(ranges::views::repeat(player), all_chance_actions);
-   if(m_player_cards[0].has_value()) {
-      auto duplicate = [p1_card = m_player_cards[0].value()](auto card) {
-         return std::get< 1 >(card) != p1_card;
-      };
-      return ranges::to< std::vector< ChanceOutcome > >(
-         zip_view | ranges::views::filter(duplicate) | ranges::views::transform(to_chance_action));
-   } else {
-      return ranges::to< std::vector< ChanceOutcome > >(
-         zip_view | ranges::views::transform(to_chance_action));
-   }
+   return ranges::to< std::vector< ChanceOutcome > >(
+      ranges::views::zip(ranges::views::repeat(player), card_pool)
+      | ranges::views::transform(to_chance_action));
 }
 std::vector< Action > State::actions() const
 {
