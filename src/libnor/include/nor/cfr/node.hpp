@@ -5,10 +5,10 @@
 #include <map>
 #include <vector>
 
+#include "common/common.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/utils/utils.hpp"
-#include "common/common.hpp"
 
 namespace nor::rm {
 
@@ -70,98 +70,90 @@ template < typename Action, typename Infostate, typename Worldstate, typename Pu
 struct CFRNodeData:
     public detail::CondPubstate< Publicstate >,
     detail::CondWorldstate< Worldstate > {
+  public:
+   using action_type = Action;
    using info_state_type = Infostate;
    using world_state_type = Worldstate;
    using public_state_type = Publicstate;
    using cond_public_state_base = detail::CondPubstate< public_state_type >;
    using cond_world_state_base = detail::CondWorldstate< world_state_type >;
 
-   template < typename TrueWorldstate >
+   template < typename GivenWorldstate >
    CFRNodeData(
-      Player player,
-      std::unordered_map< Player, info_state_type > info_states,
-      TrueWorldstate* worldstate,
-      public_state_type publicstate,
-      std::unordered_map< Player, double > reach_prob)
+      std::reference_wrapper< Infostate > info_reference,
+      GivenWorldstate* worldstate,
+      public_state_type publicstate)
        : cond_public_state_base{std::move(publicstate)},
          cond_world_state_base{init_wstate(worldstate)},
-         m_player(player),
-         m_infostates(std::move(info_states)),
-         m_compound_reach_prob_contribution(std::move(reach_prob))
+         m_infostate_ref(info_reference)
    {
    }
 
    auto& worldstate() { return cond_world_state_base::worldstate; }
    auto& publicstate() { return cond_public_state_base::publicstate; }
-   auto& infostates() { return m_infostates; }
-   auto& infostate(Player player) { return m_infostates.at(player); }
-   auto& infostate() { return infostate(m_player); }
+   auto& infostate() { return m_infostate_ref.get(); }
    auto& value(Player player) { return m_value[player]; }
    auto& value() { return m_value; }
-   auto& reach_probability(Player player)
-   {
-      return m_compound_reach_prob_contribution[player];
-   }
-   auto& reach_probability() { return m_compound_reach_prob_contribution; }
-   auto& regret(const Action& action) { return m_regret[action]; }
-   auto& regret() { return m_regret; }
 
    [[nodiscard]] auto& worldstate() const { return cond_world_state_base::worldstate; }
    [[nodiscard]] auto& publicstate() const { return cond_public_state_base::publicstate; }
-   [[nodiscard]] auto& infostates() const { return m_infostates; }
-   [[nodiscard]] auto& infostate(Player player) const { return m_infostates.at(player); }
-   [[nodiscard]] auto& infostate() const { return infostate(m_player); }
-   [[nodiscard]] auto player() const { return m_player; }
+   [[nodiscard]] auto& infostate() const { return m_infostate_ref.get(); }
    [[nodiscard]] auto& value(Player player) const { return m_value.at(player); }
    [[nodiscard]] auto& value() const { return m_value; }
-   [[nodiscard]] auto& reach_probability(Player player) const
-   {
-      return m_compound_reach_prob_contribution.at(player);
-   }
-   [[nodiscard]] auto& reach_probability() const
-   {
-      return m_compound_reach_prob_contribution;
-   }
-   [[nodiscard]] auto& regret(const Action& action) const { return m_regret[action]; }
-   [[nodiscard]] auto& regret() const { return m_regret; }
 
   private:
-   /// the active player at this node
-   Player m_player;
    /// the information state of the each player at this node
-   std::unordered_map< Player, Infostate > m_infostates;
-
-   // per-player-based storage
+   /// the reference wrapper indicates non-ownership of the contained value. A raw pointer would be
+   /// ambiguous.
+   std::reference_wrapper< Infostate > m_infostate_ref;
 
    /// the value of each player for this node.
    /// Needs to be updated later during the traversal.
    std::unordered_map< Player, double > m_value;
-   /// the compounding reach probability of each player for this node (i.e. the probability
-   /// contribution of each player along the trajectory to this node multiplied together).
-   /// Needs to be updated during the traversal with the current policy.
-   std::unordered_map< Player, double > m_compound_reach_prob_contribution;
 
-   // action-based storage
-   // these don't need to be on a per player basis, as only the active player of this node has
-   // actions to play.
-
-   /// the cumulative regret the active player amassed with each action. Cumulative with regards to
-   /// the number of CFR iterations. Defaults to 0 and should be updated later during the traversal.
-   std::unordered_map< Action, double > m_regret{};
-
-   template < typename TrueWorldstate >
-   auto init_wstate(const TrueWorldstate* wstate_ptr)
+   template < typename GivenWorldstate >
+   auto init_wstate(const GivenWorldstate* wstate_ptr)
    {
       if constexpr(cond_world_state_base::empty_optimization) {
          return Worldstate{};
       } else {
          static_assert(
-            std::is_same_v< TrueWorldstate, world_state_type >,
+            std::is_same_v< GivenWorldstate, world_state_type >,
             "Passed True worldstate differs from configured node's worldstate type. ");
          return utils::static_unique_ptr_downcast< world_state_type >(
             utils::clone_any_way(wstate_ptr));
       }
    }
+};
+
+template < typename Action >
+class InfostateNodeData {
+  public:
+   template < ranges::range ActionRange >
+   InfostateNodeData(Player player, const ActionRange& actions) : m_player(player), m_regret()
+   {
+      for(const auto& action : actions) {
+         m_regret.emplace(action, 0.);
+      }
+   }
+   InfostateNodeData(Player player, std::unordered_map< Action, double > regret_per_action)
+       : m_player(player), m_regret(std::move(regret_per_action))
+   {
+   }
+
+   auto& regret(const Action& action) { return m_regret[action]; }
+   auto& regret() { return m_regret; }
+
+   [[nodiscard]] auto& regret(const Action& action) const { return m_regret[action]; }
+   [[nodiscard]] auto& regret() const { return m_regret; }
+   [[nodiscard]] auto player() const { return m_player; }
+
+  private:
+   /// the active player at this node
+   Player m_player;
+   /// the cumulative regret the active player amassed with each action. Cumulative with regards to
+   /// the number of CFR iterations. Defaults to 0 and should be updated later during the traversal.
+   std::unordered_map< Action, double > m_regret{};
 };
 
 }  // namespace nor::rm

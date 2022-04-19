@@ -50,14 +50,13 @@ auto normalize_state_policy(const Policy& policy)
    return normalize_state_policy_inplace(copy);
 };
 
-
 template < typename MapLike >
 concept kv_like_over_doubles = requires(MapLike m)
 {
    // has to be key-value-like to iterate over values only
    ranges::views::values(m);
    // value type has to be convertible to double
-   std::is_convertible_v<decltype(*(ranges::views::values(m).begin())), double>;
+   std::is_convertible_v< decltype(*(ranges::views::values(m).begin())), double >;
 };
 /**
  * @brief computes the reach probability of the node.
@@ -85,11 +84,14 @@ template < kv_like_over_doubles KVdouble >
  * @return the counterfactual reach probability
  */
 template < kv_like_over_doubles KVdouble >
-requires requires(KVdouble m) {
+requires requires(KVdouble m)
+{
    // the keys have to of type 'Player' as well
-   std::is_convertible_v<decltype(*(ranges::views::keys(m).begin())), Player>;
+   std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;
 }
-inline double cf_reach_probability(const KVdouble& reach_probability_contributions, const Player& player)
+inline double cf_reach_probability(
+   const KVdouble& reach_probability_contributions,
+   const Player& player)
 {
    auto values_view = reach_probability_contributions
                       | ranges::views::filter([&](const auto& player_rp_pair) {
@@ -235,15 +237,18 @@ class GameTree {
     */
    template <
       typename TraversalStrategy,
+      typename VisitationData = utils::empty,
       typename PreChildVisitHook = common::noop,
       typename ChildVisitHook = common::noop,
       typename PostChildVisitHook = common::noop,
       typename RootVisitHook = common::noop >
    // clang-format off
    requires
-      std::invocable<
+      std::is_invocable_r_v<
+         VisitationData,  // the expected return type
          ChildVisitHook,  // the actual functor
          const node_type&,  // child node input
+         VisitationData&,  // visitation data access
          const typename node_type::action_variant_type*,  // action that led to the child
          world_state_type*,  // current world state
          world_state_type*  // child world state
@@ -251,25 +256,37 @@ class GameTree {
       and std::invocable<
          PreChildVisitHook,  // the actual functor
          const node_type&,  // child node input
+         VisitationData&,  // visitation data access
          world_state_type*  // current world state
       >
       and std::invocable<
          PostChildVisitHook,  // the actual functor
          const node_type&,  // child node input
+         VisitationData&,  // visitation data access
          world_state_type*  // current world state
       >
+      and std::is_move_constructible_v< VisitationData >
    // clang-format on
    inline void traverse(
       TraversalStrategy traversal_strategy = &traverse_all_actions,
+      VisitationData vis_data = {},
       TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook >&&
          hooks = {},
       bool traverse_via_worldstate = true,
       bool single_trajectory = false)
    {
       if(traverse_via_worldstate) {
-         _traverse< true >(std::move(traversal_strategy), std::move(hooks), single_trajectory);
+         _traverse< true >(
+            std::move(traversal_strategy),
+            std::move(vis_data),
+            std::move(hooks),
+            single_trajectory);
       } else {
-         _traverse< false >(std::move(traversal_strategy), std::move(hooks), single_trajectory);
+         _traverse< false >(
+            std::move(traversal_strategy),
+            std::move(vis_data),
+            std::move(hooks),
+            single_trajectory);
       }
    }
 
@@ -332,6 +349,7 @@ class GameTree {
 
    [[nodiscard]] auto size() const { return m_nodes.size(); }
    [[nodiscard]] auto& root_state() const { return *m_root_state; }
+   [[nodiscard]] auto& node(size_t id) const { return m_nodes.at(id); }
    [[nodiscard]] auto& root_node() const { return m_nodes.at(0); }
 
   private:
@@ -358,28 +376,17 @@ class GameTree {
       return NodeCategory::choice;
    };
 
-   template < bool traverse_via_worldstate, typename TraversalStrategy, typename... HookFunctors >
+   template <
+      bool traverse_via_worldstate,
+      typename TraversalStrategy,
+      typename VisitationData,
+      typename... HookFunctors >
    void _traverse(
       TraversalStrategy traversal_strategy,
+      VisitationData&& initial_vis_data,
       TraversalHooks< HookFunctors... >&& hooks,
       bool single_trajectory)
    {
-      //      static_assert(
-      //         // clang-format off
-      //         std::invocable< TraversalStrategy, node_type& >
-      //         and ranges::range< std::invoke_result_t< TraversalStrategy, node_type&,
-      //         world_state_type* > > and std::is_same_v<
-      //            typename node_type::action_variant_type,
-      //            decltype(*(
-      //               std::declval< TraversalStrategy >()(
-      //                  std::declval< node_type >(),
-      //                  std::declval< world_state_type* >()
-      //               )
-      //            ))
-      //         >,
-      //         // clang-format on
-      //         ""
-      //         "Traversal strategy needs to provide a range over action variants.");
 
       // we need to fill the root node's data (if desired) before entering the loop, since the
       // loop assumes all entered nodes to have their data node emplaced already.
@@ -401,24 +408,27 @@ class GameTree {
 
       // the visitation stack. Each node in this stack will be visited once according to the
       // traversal strategy selected.
-      std::stack< std::tuple< node_type*, uptr< world_state_type > > > visit_stack;
+      std::stack< std::tuple< node_type*, uptr< world_state_type > >, VisitationData > visit_stack;
       // emplace the root node into the visitation stack
-      visit_stack.emplace(&root_node(), [&] {
-         if constexpr(traverse_via_worldstate)
-            return utils::static_unique_ptr_downcast< world_state_type >(
-               utils::clone_any_way(m_root_state));
-         else
-            return nullptr;
-      }());
+      visit_stack.emplace(
+         &root_node(),
+         [&] {
+            if constexpr(traverse_via_worldstate)
+               return utils::static_unique_ptr_downcast< world_state_type >(
+                  utils::clone_any_way(m_root_state));
+            else
+               return nullptr;
+         }(),
+         std::move(initial_vis_data));
 
       while(not visit_stack.empty()) {
          // get the top node and world state from the stack and move them into our values.
-         auto [curr_node, curr_wstate_uptr] = std::move(visit_stack.top());
+         auto [curr_node, curr_wstate_uptr, vis_data] = std::move(visit_stack.top());
          // remove those elements from the stack (there is no unified pop-and-return method for
          // stack)
          visit_stack.pop();
 
-         hooks.pre_child_hook(*curr_node, curr_wstate_uptr.get());
+         hooks.pre_child_hook(*curr_node, curr_wstate_uptr.get(), vis_data);
 
          for(const auto& action : traversal_strategy(*curr_node, curr_wstate_uptr.get())) {
             // get the child node pointer related to this action. This could potentially be a
@@ -470,16 +480,18 @@ class GameTree {
             // passing the worldstate ptrs even if we are traversing by states in order to maintain
             // consistency in our call signature
 
-            hooks.child_hook(*child_node, &action, curr_wstate_uptr.get(), next_wstate_uptr.get());
+            auto new_visitation_data = hooks.child_hook(
+               *child_node, vis_data, &action, curr_wstate_uptr.get(), next_wstate_uptr.get());
 
             if(child_node->category != forest::NodeCategory::terminal) {
                // if the newly reached world state is not a terminal state, then we merely append
                // the new child node to the queue. This way we further explore its child states
                // as reachable from the next possible actions.
-               visit_stack.emplace(child_node, std::move(next_wstate_uptr));
+               visit_stack.emplace(
+                  child_node, std::move(next_wstate_uptr), std::move(new_visitation_data));
             }
          }
-         hooks.post_child_hook(*curr_node, curr_wstate_uptr.get());
+         hooks.post_child_hook(*curr_node, curr_wstate_uptr.get(), vis_data);
       }
    }
 };
@@ -488,7 +500,7 @@ class GameTree {
 }  // namespace nor::rm
 
 namespace nor::utils {
-constexpr CEBijection< nor::rm::forest::NodeCategory, std::string_view, 27 > nodecateogry_name_bij =
+constexpr CEBijection< nor::rm::forest::NodeCategory, std::string_view, 3 > nodecateogry_name_bij =
    {std::pair{nor::rm::forest::NodeCategory::chance, "chance"},
     std::pair{nor::rm::forest::NodeCategory::choice, "choice"},
     std::pair{nor::rm::forest::NodeCategory::terminal, "terminal"}};
