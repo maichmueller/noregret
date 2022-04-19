@@ -8,6 +8,7 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <named_type.hpp>
 #include <queue>
 #include <range/v3/all.hpp>
 #include <stack>
@@ -66,17 +67,15 @@ class VanillaCFR {
    using observation_type = typename fosg_auto_traits< Env >::observation_type;
    using chance_outcome_type = typename fosg_auto_traits< Env >::chance_outcome_type;
    using chance_policy_type = typename fosg_auto_traits< Env >::chance_distribution_type;
-   /// the CFR Node type to store in the tree
-   using node_data_type = CFRNodeData<
-      action_type,
-      info_state_type,
-      std::conditional_t< cfr_config.store_world_states, world_state_type, utils::empty >,
-      std::conditional_t< cfr_config.store_public_states, public_state_type, utils::empty > >;
+   /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
-   /// the game tree type specific to our environment
-   using game_tree_type = forest::GameTree< env_type >;
-   /// the node type used within the game tree
-   using node_type = typename game_tree_type::node_type;
+   /// strong-types for player based maps
+   using ValueMap = fluent::
+      NamedType< std::unordered_map< Player, double >, struct value_map_tag >;
+   using ReachProbabilityMap = fluent::
+      NamedType< std::unordered_map< Player, double >, struct reach_prob_tag >;
+   using InfostateMap = fluent::
+      NamedType< std::unordered_map< Player, sptr< info_state_type > >, struct reach_prob_tag >;
 
    ////////////////////
    /// Constructors ///
@@ -97,7 +96,7 @@ class VanillaCFR {
        // clang-format on
        :
        m_env(std::move(game)),
-       m_game_tree(m_env, std::move(root_state)),
+       m_root_state(std::move(root_state)),
        m_curr_policy(),
        m_avg_policy(),
        m_default_policy(std::move(default_policy))
@@ -137,7 +136,7 @@ class VanillaCFR {
       std::unordered_map< Player, AveragePolicy > avg_policy,
       DefaultPolicy default_policy = DefaultPolicy())
        : m_env(std::move(game)),
-         m_game_tree(m_env, std::move(root_state)),
+         m_root_state(std::move(root_state)),
          m_curr_policy(std::move(policy)),
          m_avg_policy(std::move(avg_policy)),
          m_default_policy(std::move(default_policy))
@@ -157,25 +156,7 @@ class VanillaCFR {
     * This method does an immediate full traversal of the entire game tree and initializes the data
     * storage of infostates and terminal values
     */
-   inline void initialize()
-   {
-      auto child_hook = [&]< typename... Args >(Args && ... args)
-      {
-         return _child_node_hook(std::forward< Args >(args)...);
-      };
-      auto root_hook = [&]< typename... Args >(Args && ... args)
-      {
-         return _root_node_hook(std::forward< Args >(args)...);
-      };
-
-      m_game_tree.traverse(
-         [&]< typename... Args >(Args && ... args) {
-            return m_game_tree.traverse_all_actions(std::forward< Args >(args)...);
-         },
-         FirstForwardpassBuffer{.compound_reach_probability = {std::pair{Player::chance, 1.}}},
-         forest::TraversalHooks{
-            .root_hook = std::move(root_hook), .child_hook = std::move(child_hook)});
-   }
+   inline void initialize();
 
    /**
     * @brief executes n iterations of the VanillaCFR algorithm in unrolled form (no recursion).
@@ -222,30 +203,33 @@ class VanillaCFR {
     * @return action_policy_type the player's state policy (distribution) over all actions at this
     * node
     */
-   auto& fetch_policy(bool current_policy, const node_type& node);
+   auto& fetch_policy(bool current_policy, const info_state_type& infostate);
 
    /**
     * The const overload of this function (@see fetch_policy) will not insert or return a default
     * policy if one wasn't found, but throw an error instead.
     */
-   auto& fetch_policy(bool current_policy, const node_type& node) const;
+   auto& fetch_policy(bool current_policy, const info_state_type& infostate) const;
 
    /**
     *
     * @param action the action to select at this node
     * @return
     */
-   inline auto& fetch_policy(bool current_policy, const node_type& node, const action_type& action)
+   inline auto&
+   fetch_policy(bool current_policy, const info_state_type& infostate, const action_type& action)
    {
-      return fetch_policy(current_policy, node)[action];
+      return fetch_policy(current_policy, infostate)[action];
    }
    /**
     * Const overload for action selection at the node.
     */
-   inline auto& fetch_policy(bool current_policy, const node_type& node, const action_type& action)
-      const
+   inline auto& fetch_policy(
+      bool current_policy,
+      const info_state_type& infostate,
+      const action_type& action) const
    {
-      return fetch_policy(current_policy, node)[action];
+      return fetch_policy(current_policy, infostate)[action];
    }
    /**
     * @brief updates the regret and policy tables of the node with the state-values. Then performs
@@ -253,10 +237,9 @@ class VanillaCFR {
     *
     * The method implements lines 21-25 of @cite Neller2013.
     *
-    * @param node the node to update the values at
     * @param player the player whose values are to be updated
     */
-   void update_regret_and_policy(const VanillaCFR::node_type& node);
+   void update_regret_and_policy();
 
    /**
     * @brief Computes the value of either the current or average policy for a player
@@ -268,19 +251,14 @@ class VanillaCFR {
 
    /// getter methods for stored data
 
-   auto& data(const node_type& node) { return m_worldnode_data.at(node.id); }
    auto& infodata(const info_state_type& infostate) { return m_infonode_data.at(infostate); }
-   [[nodiscard]] const auto& data(const node_type& node) const
-   {
-      return m_worldnode_data.at(node.id);
-   }
+
    [[nodiscard]] auto& infodata(const info_state_type& infostate) const
    {
       return m_infonode_data.at(infostate);
    }
-   [[nodiscard]] const auto& root_state() const { return m_game_tree.root_state(); }
+   [[nodiscard]] const auto& root_state() const { return *m_root_state; }
    [[nodiscard]] auto iteration() const { return m_iteration; }
-   [[nodiscard]] const auto& game_tree() const { return m_game_tree; }
    [[nodiscard]] const auto& policy() const { return m_curr_policy; }
    [[nodiscard]] const auto& average_policy() const { return m_avg_policy; }
 
@@ -289,13 +267,6 @@ class VanillaCFR {
    ////////////////////////////////
 
   private:
-   struct ReachProbabilityBuffer {
-      std::unordered_map< Player, double > reach_prob = {};
-   };
-   struct FirstForwardpassBuffer {
-      double chance_reach_prob;
-      std::unordered_map< Player, std::vector< observation_type > > obs_map = {};
-   };
    /**
     * @brief The internal vanilla cfr iteration routine.
     *
@@ -306,26 +277,22 @@ class VanillaCFR {
     * same time (simultaneous updates).
     */
    void _iterate(std::optional< Player > player_to_update);
-   /**
-    * @brief Convenience method to iterate over each child and extract data as per functor.
-    *
-    * The function can be used to e.g. extract the regret values from each child or their state
-    * values. It provides a zip iterator that can be decomposed via structured binding into the
-    * relevant pieces.
-    *
-    * @tparam Functor the callable type that can be invoked with a node pointer. Inferred from
-    * passed functor object.
-    * @param node a reference to the node whose children are to be iterated over.
-    * @param f the functor object to apply on each child node.
-    * @return view over (child, data) pairs
-    */
-   template < std::invocable< node_type* > Functor >
-   auto _child_collector(const node_type& node, Functor f)
+
+
+   auto _traverse_all_actions(world_state_type& wstate)
    {
-      return ranges::views::zip(
-         node.children | ranges::views::keys,
-         node.children | ranges::views::values | ranges::views::transform(f));
+      if constexpr(concepts::deterministic_fosg< Env >) {
+         // if we have a deterministic environment then we don't need to enfore the existence of
+         // a chance action member function
+         return m_env->actions(m_env->active_player(*wstate), *wstate);
+      } else {
+         if(m_env->active_player == Player::chance) {
+            return m_env->chance_actions(*wstate);
+         }
+         return m_env->actions(m_env->active_player(*wstate), *wstate);
+      }
    }
+
    inline void _assert_sequential_game()
    {
       if(m_env.turn_dynamic() != TurnDynamic::sequential) {
@@ -345,83 +312,15 @@ class VanillaCFR {
    }
 
    /**
-    * @brief computes the reach probability of the node's data.
-    *
-    * Ease of access overload for the node data itself
-    * @param node the node whose reach probability to provide
-    * @return the reach probability of the nde
-    */
-   inline double _reach_probability(const node_data_type& node_data) const
-   {
-      return rm::reach_probability(node_data.reach_probability());
-   }
-   /**
-    * @brief computes the counterfactual reach probability of the player for this node's data.
-    *
-    * The method delegates the actual computation to the overload with an already provided reach
-    * probability.
-    * @param node the node at which the counterfactual reach probability is to be computed
-    * @param player the player for which the value is computed
-    * @return the counterfactual reach probability
-    */
-   inline double _cf_reach_probability(const node_data_type& node_data, const Player& player) const
-   {
-      return rm::cf_reach_probability(node_data.reach_probability(), player);
-   }
-   /**
-    * @brief computes the counterfactual reach probability of the player for this node.
-    *
-    * The method overload is useful if the reach probability has already been computed and needs to
-    * be simply scaled by removing the player's contribution.
-    * @param node the node at which the counterfactual reach probability is to be computed
-    * @param player the player for which the value is computed
-    * @return the counterfactual reach probability
-    */
-   inline double _cf_reach_probability(
-      const node_data_type& node_data,
-      double reach_prob,
-      const Player& player) const
-   {  // remove the players contribution to the likelihood
-      return rm::cf_reach_probability(node_data) / node_data.reach_probability(player);
-   }
-
-   node_type* _upstream_player_parent(const node_type& node, Player player)
-   {
-      if(node.parent == nullptr) {
-         // we have reached the root
-         return nullptr;
-      }
-      if(data(*(node.parent)).player() == player) {
-         return node.parent;
-      }
-      return _upstream_player_parent(*(node.parent), player);
-   }
-
-   void _root_node_hook(const node_type& root_node, world_state_type* root_worldstate);
-
-   /**
-    *
-    * @param node
-    * @param parent_worldstate
-    * @param curr_worldstate
-    * @param curr_infostates
-    * @param curr_publicstate
-    * @param action_from_parent
-    */
-   void _child_node_hook(
-      const node_type& node,
-      FirstForwardpassBuffer& forward_buffer,
-      const auto* action_from_parent_ptr,
-      world_state_type* parent_worldstate,
-      world_state_type* curr_worldstate);
-
-   /**
     * @brief traverses the game tree and fills the nodes with current policy weighted value updates.
     *
     * This function is the regular traversal function to call on iteration i > 0, after the nodes
     * have been emplaced by @see _first_traversal.
     */
-   void _traversal();
+   ValueMap _traversal(
+      uptr< world_state_type > curr_worldstate,
+      ReachProbabilityMap reach_probability,
+      InfostateMap infostate_map);
 
    /**
     * @brief updates the value, regret, and strategy of each node
@@ -467,7 +366,7 @@ class VanillaCFR {
    /// the environment object to maneuver the states with.
    env_type m_env;
    /// the game tree mapping information states to the associated game nodes.
-   game_tree_type m_game_tree;
+   uptr< world_state_type > m_root_state;
    /// the current policy $\pi^t$ that each player is following in this iteration (t).
    std::unordered_map< Player, Policy > m_curr_policy;
    /// the average policy table. The values stored in this table are the UNNORMALIZED average state
@@ -476,24 +375,8 @@ class VanillaCFR {
    std::unordered_map< Player, AveragePolicy > m_avg_policy;
    /// the fallback policy to use when the encountered infostate has not been obseved before
    default_policy_type m_default_policy;
-   /// the paired node data vector holds at entry i the data for node i
-   std::unordered_map< size_t, node_data_type > m_worldnode_data{};
    /// the relevant data stored at each infostate
    std::unordered_map< info_state_type, infostate_data_type > m_infonode_data{};
-   /// the terminal node values
-   std::unordered_map< size_t, std::unordered_map< Player, double > > m_terminal_values{};
-   /// the chance node probability values
-   std::unordered_map< size_t, std::unordered_map< chance_outcome_type, double > >
-      m_chance_policy{};
-   /// The update queue to use once the nodes have been filled from a tree traversal.
-   /// We need to arrange a delayed update of tree nodes, since any node's values depend on the
-   /// child values and the reach probabilities. Those values are found once the full traversal
-   /// encounters terminal states (leaf nodes) whose values are then propagated back up with the
-   /// relevant reach probability. The order in which this propragation occurs is crucial and thus
-   /// defined by the update_queue. This queue needs to be a First-In-Last-Out structure, as it
-   /// ensures we are updating the values from the leaves, which are inserted last, to the root of
-   /// the tree, which is inserted first.
-   std::stack< std::tuple< const node_type*, ReachProbabilityBuffer> > m_update_stack{};
    /// the next player to update when doing alternative updates. Otherwise this member will be
    /// unused.
    std::deque< Player > m_player_update_schedule{};
@@ -604,11 +487,13 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_itera
    /// the compounding reach probability of each player for this node (i.e. the probability
    /// contribution of each player along the trajectory to this node multiplied together).
    /// Needs to be updated during the traversal with the current policy.
-   _traversal();
-   if(m_update_stack.empty()) {
-      throw std::logic_error(
-         "The update queue is empty. It should have been filled by previous tree traversals.");
-   }
+   _traversal(m_root_state, [&] {
+      std::unordered_map< Player, double > rp_map;
+      for(auto player : m_env.players()) {
+         rp_map.emplace(player, 1.);
+      }
+      return rp_map;
+   }());
    _update_queued_nodes(player_to_update);
 }
 
@@ -646,18 +531,28 @@ template <
    typename DefaultPolicy,
    typename AveragePolicy >
 requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
-void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_traversal()
+typename VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::ValueMap
+VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_traversal(
+   uptr< world_state_type > state,
+   ReachProbabilityMap reach_probability,
+   InfostateMap infostate_map)
 {
+   if(m_env.is_terminal()) {
+      return _collect_rewards(*state);
+   }
+
+   double state_value = 0.;
+   std::unordered_map< action_type, double> action_value;
+   for(auto&& action : m_env.actions())
+
    auto child_hook = [&](
-                        const node_type& child_node,
-                        ReachProbabilityBuffer& rp_buffer,
                         const typename node_type::action_variant_type* action_from_parent,
                         world_state_type* parent_worldstate,
                         world_state_type* child_worldstate) {
       // allocate the current player here to avoid reallocation for every action.
-      Player parent_player = data(*child_node.parent).player();
-      // we change the values in-place so that the post-child hook can also find the appended reach
-      // probabilities
+      Player parent_player = m_env.active_player(*parent_worldstate);
+      // we change the values in-place so that the post-child hook can also find the appended
+      // reach probabilities
       auto& child_reach_prob = rp_buffer.data;
       if constexpr(concepts::deterministic_fosg< env_type >) {
          // we differentiate here to ensure that any determinstic envs dont need to provide a
@@ -970,8 +865,7 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_child
       m_terminal_values.emplace(node.id, _collect_rewards(*curr_worldstate));
    }
    return FirstForwardpassBuffer{
-      .chance_reach_prob = chance_reach_prob,
-      .obs_map = std::move(buffer.recent_observations)};
+      .chance_reach_prob = chance_reach_prob, .obs_map = std::move(buffer.recent_observations)};
 }
 template <
    CFRConfig cfr_config,
