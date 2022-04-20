@@ -61,15 +61,14 @@ class Environment {
    {
       return wstate.actions();
    }
-   std::vector< chance_outcome_type > chance_actions(const world_state_type& wstate) const
+   inline std::vector< chance_outcome_type > chance_actions(const world_state_type& wstate) const
    {
       return wstate.chance_actions();
    }
 
-   double chance_probability(
-      const std::pair< world_state_type, chance_outcome_type >& wstate_action_pair) const
+   inline double chance_probability(const world_state_type& wstate, const chance_outcome_type& outcome) const
    {
-      return wstate_action_pair.first.chance_probability(wstate_action_pair.second);
+      return wstate.chance_probability(outcome);
    }
    //   std::vector< action_type > actions(const info_state_type& istate) const;
    static inline std::vector< Player > players()

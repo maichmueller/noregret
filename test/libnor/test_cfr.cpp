@@ -18,6 +18,7 @@ void print_policy(Policy policy)
 template < typename CFRRunner, typename Policy >
 void evaluate_policies(
    Player player,
+   std::vector<std::unordered_map< Player, double>> game_values,
    CFRRunner& cfr_runner,
    Policy& prev_policy_profile,
    size_t iteration)
@@ -42,14 +43,13 @@ void evaluate_policies(
    std::cout << "Average policy:\n";
    print_policy(rm::normalize_state_policy(cfr_runner.average_policy().at(Player::alex).table()));
    print_policy(rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table()));
-   //   std::cout << "Current policy:\n";
-   //   print_policy(rm::normalize_state_policy(cfr_runner.policy().at(Player::alex).table()));
-   //   print_policy(rm::normalize_state_policy(cfr_runner.policy().at(Player::bob).table()));
 
    prev_policy_profile = std::move(curr_policy_profile);
-   auto policy_value = cfr_runner.policy_value(false, player);
-   std::cout << "iteration: " << iteration << " - total deviation: " << total_dev
-             << " | game value for player " << player << ": " << policy_value << "\n";
+   for(const auto& [i, value_map] : ranges::views::enumerate(game_values)) {
+      std::cout << "iteration: " << iteration + i
+                << " | game value for player " << player << ": " <<  value_map[player] << "\n";
+   }
+   std::cout << "total deviation: " << total_dev;
 }
 
 TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
@@ -105,7 +105,6 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
       std::unordered_map{
          std::pair{Player::alex, avg_tabular_policy}, std::pair{Player::bob, avg_tabular_policy}},
       std::move(uniform_policy));
-   cfr_runner.initialize();
 
    auto player = Player::alex;
 
@@ -113,8 +112,8 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
       cfr_runner.average_policy().at(player).table());
 
    for(size_t i = 0; i < 20; i++) {
-      cfr_runner.iterate(1);
-      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
+      auto game_values = cfr_runner.iterate(1);
+      evaluate_policies(player, game_values, cfr_runner, initial_policy_profile, i);
    }
 }
 
@@ -136,7 +135,6 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
       std::move(uniform_policy));
-   cfr_runner.initialize();
 
    auto player = Player::alex;
 
@@ -144,8 +142,8 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
       cfr_runner.average_policy().at(player).table());
 
    for(size_t i = 0; i < 1000; i++) {
-      cfr_runner.iterate(1);
-      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
+      auto game_values = cfr_runner.iterate(1);
+      evaluate_policies(player, game_values, cfr_runner, initial_policy_profile, i);
    }
 }
 

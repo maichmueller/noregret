@@ -85,7 +85,7 @@ concept chance_probability = requires(T const t, Worldstate worldstate, Action a
 {
    // legal actions getter for the given player
    {
-      t.chance_probability({worldstate, action})
+      t.chance_probability(worldstate, action)
       } -> std::convertible_to< double >;
 };
 
