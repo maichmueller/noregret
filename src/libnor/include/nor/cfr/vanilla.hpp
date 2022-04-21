@@ -305,7 +305,8 @@ class VanillaCFR {
       uptr< world_state_type > curr_worldstate,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap observation_buffer,
-      InfostateMap infostate_map);
+      InfostateMap infostate_map,
+      bool use_current_policy = true);
 
    template < bool initialize_infonodes >
    void _traverse_player_actions(
@@ -316,7 +317,8 @@ class VanillaCFR {
       const ObservationbufferMap& observation_buffer,
       InfostateMap infostate_map,
       ValueMap& state_value,
-      std::unordered_map< action_variant_type, ValueMap >& action_value);
+      std::unordered_map< action_variant_type, ValueMap >& action_value,
+      bool use_current_policy = true);
 
    template < bool initialize_infonodes >
    void _traverse_chance_actions(
@@ -327,10 +329,10 @@ class VanillaCFR {
       const ObservationbufferMap& observation_buffer,
       InfostateMap infostate_map,
       ValueMap& state_value,
-      std::unordered_map< action_variant_type, ValueMap >& action_value);
+      std::unordered_map< action_variant_type, ValueMap >& action_value,
+      bool use_current_policy = true);
 
    auto _fill_infostate_and_obs_buffers(
-      Player active_player,
       const ObservationbufferMap& observation_buffer,
       const InfostateMap& infostate_map,
       const auto& action_or_outcome,
@@ -383,7 +385,15 @@ class VanillaCFR {
    /// the fallback policy to use when the encountered infostate has not been obseved before
    default_policy_type m_default_policy;
    /// the relevant data stored at each infostate
-   std::unordered_map< sptr< info_state_type >, infostate_data_type > m_infonode_data{};
+   std::unordered_map<
+      sptr< info_state_type >,
+      infostate_data_type,
+      decltype(
+         [](const sptr< info_state_type >& ptr) { return std::hash< info_state_type >{}(*ptr); }),
+      decltype([](const sptr< info_state_type >& ptr1, const sptr< info_state_type >& ptr2) {
+         return *ptr1 == *ptr2;
+      }) >
+      m_infonode_data{};
    /// the next player to update when doing alternative updates. Otherwise this member will be
    /// unused.
    std::deque< Player > m_player_update_schedule{};
@@ -584,7 +594,8 @@ VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_traversal(
    uptr< world_state_type > state,
    ReachProbabilityMap reach_probability,
    ObservationbufferMap observation_buffer,
-   InfostateMap infostates)
+   InfostateMap infostates,
+   bool use_current_policy)
 {
    if(m_env.is_terminal(*state)) {
       return ValueMap{_collect_rewards(*state)};
@@ -600,7 +611,27 @@ VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_traversal(
 
    // traverse all child states from this state. The constexpr check for determinism in the env
    // allows deterministic envs to not provide certain functions that are only needed in the
-   // stochastic case. Code duplication is a side effect from this then.
+   // stochastic case.
+   // First define the default branch for an active non-chance player
+   auto nonchance_player_traversal = [&] {
+      this_infostate = infostates.get().at(active_player);
+      if constexpr(initialize_infonodes) {
+         m_infonode_data.emplace(
+            this_infostate, infostate_data_type{m_env.actions(active_player, *state)});
+      }
+      _traverse_player_actions< initialize_infonodes >(
+         player_to_update,
+         active_player,
+         std::move(state),
+         reach_probability,
+         std::move(observation_buffer),
+         std::move(infostates),
+         state_value,
+         action_value);
+   };
+   // now we check first if we even need to consider a chance player, as the env could be simply
+   // deterministic. In that case we might need to traverse the chance player's actions or an active
+   // player's actions
    if constexpr(not concepts::deterministic_fosg< env_type >) {
       if(active_player == Player::chance) {
          _traverse_chance_actions< initialize_infonodes >(
@@ -613,34 +644,16 @@ VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_traversal(
             state_value,
             action_value);
       } else {
-         this_infostate = infostates.get().at(active_player);
-         _traverse_player_actions< initialize_infonodes >(
-            player_to_update,
-            active_player,
-            std::move(state),
-            reach_probability,
-            std::move(observation_buffer),
-            std::move(infostates),
-            state_value,
-            action_value);
+         nonchance_player_traversal();
       }
    } else {
-      this_infostate = infostates.get().at(active_player);
-      _traverse_player_actions< initialize_infonodes >(
-         player_to_update,
-         active_player,
-         std::move(state),
-         reach_probability,
-         std::move(observation_buffer),
-         std::move(infostates),
-         state_value,
-         action_value);
+      nonchance_player_traversal();
    }
 
-   if constexpr(initialize_infonodes) {
-      m_infonode_data.emplace(
-         this_infostate, infostate_data_type{m_env.actions(active_player, *state)});
-   }
+   //   for(auto [player, value] : state_value.get()) {
+   //      LOGD2("Player", player);
+   //      LOGD2("Value", value);
+   //   }
 
    if(active_player != Player::chance) {
       if constexpr(cfr_config.alternating_updates) {
@@ -676,14 +689,15 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
    const ObservationbufferMap& observation_buffer,
    InfostateMap infostate_map,
    ValueMap& state_value,
-   std::unordered_map< action_variant_type, ValueMap >& action_value)
+   std::unordered_map< action_variant_type, ValueMap >& action_value,
+   bool use_current_policy)
 {
    auto& this_infostate = infostate_map.get().at(active_player);
    if constexpr(initialize_infonodes) {
       m_infonode_data.emplace(
          this_infostate, infostate_data_type{m_env.actions(active_player, *state)});
    }
-   auto& curr_infostate_policy = fetch_policy(true, this_infostate);
+   auto& curr_infostate_policy = fetch_policy(use_current_policy, this_infostate);
 
    for(const action_type& action :
        m_infonode_data.at(this_infostate).regret() | ranges::views::keys) {
@@ -695,19 +709,21 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
       m_env.transition(*next_wstate_uptr, action);
 
       auto child_reach_prob = reach_probability.get();
-      child_reach_prob[active_player] *= curr_infostate_policy[action];
+      auto action_prob = curr_infostate_policy[action];
+      child_reach_prob[active_player] *= action_prob;
 
       auto [observation_buffer_copy, child_infostate_map] = _fill_infostate_and_obs_buffers(
-         active_player, observation_buffer, infostate_map, action, *next_wstate_uptr);
+         observation_buffer, infostate_map, action, *next_wstate_uptr);
 
       ValueMap child_rewards_map = _traversal< initialize_infonodes >(
          player_to_update,
          std::move(next_wstate_uptr),
          ReachProbabilityMap{std::move(child_reach_prob)},
          ObservationbufferMap{std::move(observation_buffer_copy)},
-         InfostateMap{std::move(child_infostate_map)});
+         InfostateMap{std::move(child_infostate_map)},
+         use_current_policy);
       for(auto [player, child_value] : child_rewards_map.get()) {
-         state_value.get()[player] += child_value;
+         state_value.get()[player] += action_prob * child_value;
       }
       action_value.emplace(action, std::move(child_rewards_map));
    }
@@ -729,7 +745,8 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
    const ObservationbufferMap& observation_buffer,
    InfostateMap infostate_map,
    ValueMap& state_value,
-   std::unordered_map< action_variant_type, ValueMap >& action_value)
+   std::unordered_map< action_variant_type, ValueMap >& action_value,
+   bool use_current_policy)
 {
    for(auto&& outcome : m_env.chance_actions(*state)) {
       uptr< world_state_type >
@@ -739,19 +756,21 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
       m_env.transition(*next_wstate_uptr, outcome);
 
       auto child_reach_prob = reach_probability.get();
-      child_reach_prob[active_player] *= m_env.chance_probability(*state, outcome);
+      auto outcome_prob = m_env.chance_probability(*state, outcome);
+      child_reach_prob[active_player] *= outcome_prob;
 
       auto [observation_buffer_copy, child_infostate_map] = _fill_infostate_and_obs_buffers(
-         active_player, observation_buffer, infostate_map, outcome, *next_wstate_uptr);
+         observation_buffer, infostate_map, outcome, *next_wstate_uptr);
 
       ValueMap child_rewards_map = _traversal< initialize_infonodes >(
          player_to_update,
          std::move(next_wstate_uptr),
          ReachProbabilityMap{std::move(child_reach_prob)},
          ObservationbufferMap{std::move(observation_buffer_copy)},
-         InfostateMap{std::move(child_infostate_map)});
+         InfostateMap{std::move(child_infostate_map)},
+         use_current_policy);
       for(auto [player, child_value] : child_rewards_map.get()) {
-         state_value.get()[player] += child_value;
+         state_value.get()[player] += outcome_prob * child_value;
       }
       action_value.emplace(std::move(outcome), std::move(child_rewards_map));
    }
@@ -766,12 +785,12 @@ template <
 requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
 auto VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::
    _fill_infostate_and_obs_buffers(
-      Player active_player,
       const ObservationbufferMap& observation_buffer,
       const InfostateMap& infostate_map,
       const auto& action_or_outcome,
       const world_state_type& state)
 {
+   auto active_player = m_env.active_player(state);
    std::unordered_map< Player, sptr< info_state_type > > child_infostate_map;
    auto observation_buffer_copy = observation_buffer.get();
    for(auto player : m_env.players()) {

@@ -49,7 +49,7 @@ void evaluate_policies(
       std::cout << "iteration: " << iteration + i
                 << " | game value for player " << player << ": " <<  value_map[player] << "\n";
    }
-   std::cout << "total deviation: " << total_dev;
+   std::cout << "total deviation: " << total_dev << "\n";
 }
 
 TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
@@ -111,7 +111,7 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
    auto initial_policy_profile = rm::normalize_state_policy(
       cfr_runner.average_policy().at(player).table());
 
-   for(size_t i = 0; i < 20; i++) {
+   for(size_t i = 0; i < 20000; i++) {
       auto game_values = cfr_runner.iterate(1);
       evaluate_policies(player, game_values, cfr_runner, initial_policy_profile, i);
    }
@@ -141,7 +141,7 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
    auto initial_policy_profile = rm::normalize_state_policy(
       cfr_runner.average_policy().at(player).table());
 
-   for(size_t i = 0; i < 1000; i++) {
+   for(size_t i = 0; i < 100; i++) {
       auto game_values = cfr_runner.iterate(1);
       evaluate_policies(player, game_values, cfr_runner, initial_policy_profile, i);
    }
