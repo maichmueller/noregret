@@ -190,6 +190,8 @@ class VanillaCFR {
    auto iterate(std::optional< Player > player_to_update = std::nullopt) requires(
       cfr_config.alternating_updates);
 
+   ValueMap game_value() const;
+
    /**
     * @brief gets the current or average state policy of a node
     *
@@ -275,40 +277,21 @@ class VanillaCFR {
    template < bool initializing_run >
    auto _iterate(std::optional< Player > player_to_update);
 
-   inline void _assert_sequential_game()
-   {
-      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
-         throw std::invalid_argument(
-            "VanillaCFR can only be performed on a sequential turn-based game.");
-      }
-   }
-   inline void _init_player_update_schedule()
-   {
-      if constexpr(cfr_config.alternating_updates) {
-         for(auto player : m_env.players()) {
-            if(player != Player::chance) {
-               m_player_update_schedule.push_back(player);
-            }
-         }
-      }
-   }
-
    /**
     * @brief traverses the game tree and fills the nodes with current policy weighted value updates.
     *
     * This function is the regular traversal function to call on iteration i > 0, after the nodes
     * have been emplaced by @see _first_traversal.
     */
-   template < bool initialize_infonodes >
+   template < bool initialize_infonodes, bool use_current_policy = true >
    ValueMap _traversal(
       std::optional< Player > player_to_update,
       uptr< world_state_type > curr_worldstate,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap observation_buffer,
-      InfostateMap infostate_map,
-      bool use_current_policy = true);
+      InfostateMap infostate_map);
 
-   template < bool initialize_infonodes >
+   template < bool initialize_infonodes, bool use_current_policy = true >
    void _traverse_player_actions(
       std::optional< Player > player_to_update,
       Player active_player,
@@ -317,10 +300,9 @@ class VanillaCFR {
       const ObservationbufferMap& observation_buffer,
       InfostateMap infostate_map,
       ValueMap& state_value,
-      std::unordered_map< action_variant_type, ValueMap >& action_value,
-      bool use_current_policy = true);
+      std::unordered_map< action_variant_type, ValueMap >& action_value);
 
-   template < bool initialize_infonodes >
+   template < bool initialize_infonodes, bool use_current_policy = true >
    void _traverse_chance_actions(
       std::optional< Player > player_to_update,
       Player active_player,
@@ -329,8 +311,7 @@ class VanillaCFR {
       const ObservationbufferMap& observation_buffer,
       InfostateMap infostate_map,
       ValueMap& state_value,
-      std::unordered_map< action_variant_type, ValueMap >& action_value,
-      bool use_current_policy = true);
+      std::unordered_map< action_variant_type, ValueMap >& action_value);
 
    auto _fill_infostate_and_obs_buffers(
       const ObservationbufferMap& observation_buffer,
@@ -366,6 +347,31 @@ class VanillaCFR {
     * @return the player to update next.
     */
    Player _cycle_player_to_update(std::optional< Player > player_to_update = std::nullopt);
+
+   /**
+    * @brief simple check to see if the environment fulfills the necessary game dynamics
+    */
+   inline void _assert_sequential_game()
+   {
+      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
+         throw std::invalid_argument(
+            "VanillaCFR can only be performed on a sequential turn-based game.");
+      }
+   }
+
+   /**
+    * @brief initializes the player cycle buffer with all available players at the current state
+    */
+   inline void _init_player_update_schedule()
+   {
+      if constexpr(cfr_config.alternating_updates) {
+         for(auto player : m_env.players()) {
+            if(player != Player::chance) {
+               m_player_update_schedule.push_back(player);
+            }
+         }
+      }
+   }
 
    ///////////////////////////////////////////
    /// private member variable definitions ///
@@ -587,38 +593,39 @@ template <
    typename DefaultPolicy,
    typename AveragePolicy >
 requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
-template < bool initialize_infonodes >
+template < bool initialize_infonodes, bool use_current_policy >
 typename VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::ValueMap
 VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_traversal(
    std::optional< Player > player_to_update,
    uptr< world_state_type > state,
    ReachProbabilityMap reach_probability,
    ObservationbufferMap observation_buffer,
-   InfostateMap infostates,
-   bool use_current_policy)
+   InfostateMap infostates)
 {
    if(m_env.is_terminal(*state)) {
       return ValueMap{_collect_rewards(*state)};
    }
 
    Player active_player = m_env.active_player(*state);
+   sptr< info_state_type > this_infostate = nullptr;
+   if(active_player != Player::chance) {
+      this_infostate = infostates.get().at(active_player);
+      if constexpr(initialize_infonodes) {
+         m_infonode_data.emplace(
+            this_infostate, infostate_data_type{m_env.actions(active_player, *state)});
+      }
+   }
    // the state's value for each player. To be filled by the action traversal functions.
    ValueMap state_value{std::unordered_map< Player, double >{}};
    // each actions's value for each player. To be filled by the action traversal functions.
    std::unordered_map< action_variant_type, ValueMap > action_value;
    // copy the current infostate ptr before the infostates are moved into the child traversal funcs
-   sptr< info_state_type > this_infostate = nullptr;
 
    // traverse all child states from this state. The constexpr check for determinism in the env
    // allows deterministic envs to not provide certain functions that are only needed in the
    // stochastic case.
    // First define the default branch for an active non-chance player
    auto nonchance_player_traversal = [&] {
-      this_infostate = infostates.get().at(active_player);
-      if constexpr(initialize_infonodes) {
-         m_infonode_data.emplace(
-            this_infostate, infostate_data_type{m_env.actions(active_player, *state)});
-      }
       _traverse_player_actions< initialize_infonodes >(
          player_to_update,
          active_player,
@@ -680,7 +687,7 @@ template <
    typename DefaultPolicy,
    typename AveragePolicy >
 requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
-template < bool initialize_infonodes >
+template < bool initialize_infonodes, bool use_current_policy >
 void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_traverse_player_actions(
    std::optional< Player > player_to_update,
    Player active_player,
@@ -689,15 +696,34 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
    const ObservationbufferMap& observation_buffer,
    InfostateMap infostate_map,
    ValueMap& state_value,
-   std::unordered_map< action_variant_type, ValueMap >& action_value,
-   bool use_current_policy)
+   std::unordered_map< action_variant_type, ValueMap >& action_value)
 {
    auto& this_infostate = infostate_map.get().at(active_player);
    if constexpr(initialize_infonodes) {
       m_infonode_data.emplace(
          this_infostate, infostate_data_type{m_env.actions(active_player, *state)});
    }
-   auto& curr_infostate_policy = fetch_policy(use_current_policy, this_infostate);
+   auto& infostate_policy = fetch_policy(use_current_policy, this_infostate);
+   double normalizing_factor = 1.;
+   if constexpr(not use_current_policy) {
+      if(std::reduce(
+            infostate_policy.begin(),
+            infostate_policy.end(),
+            0.,
+            std::plus{},
+            [](const auto& key_value) { return std::get< 1 >(key_value); })
+         < 1e-20) {
+         throw std::invalid_argument(
+            "Average policy likelihoods accumulate to 0. Perhaps the values have not been "
+            "previously initialized.");
+      }
+      // the average strategy is not normalized in our table, so we will have to normalize it here
+      // ourselves to use it.
+      normalizing_factor = 0.;
+      for(const auto& prob : infostate_policy | ranges::views::values) {
+         normalizing_factor += prob;
+      }
+   }
 
    for(const action_type& action :
        m_infonode_data.at(this_infostate).regret() | ranges::views::keys) {
@@ -709,19 +735,20 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
       m_env.transition(*next_wstate_uptr, action);
 
       auto child_reach_prob = reach_probability.get();
-      auto action_prob = curr_infostate_policy[action];
+      auto action_prob = infostate_policy[action] / normalizing_factor;
       child_reach_prob[active_player] *= action_prob;
 
       auto [observation_buffer_copy, child_infostate_map] = _fill_infostate_and_obs_buffers(
          observation_buffer, infostate_map, action, *next_wstate_uptr);
 
-      ValueMap child_rewards_map = _traversal< initialize_infonodes >(
+      ValueMap child_rewards_map = _traversal< initialize_infonodes, use_current_policy >(
          player_to_update,
          std::move(next_wstate_uptr),
          ReachProbabilityMap{std::move(child_reach_prob)},
          ObservationbufferMap{std::move(observation_buffer_copy)},
-         InfostateMap{std::move(child_infostate_map)},
-         use_current_policy);
+         InfostateMap{std::move(child_infostate_map)});
+      // add the child state's value to the respective player's value table, multiplied by the
+      // policies likelihood of playing this action
       for(auto [player, child_value] : child_rewards_map.get()) {
          state_value.get()[player] += action_prob * child_value;
       }
@@ -736,7 +763,7 @@ template <
    typename DefaultPolicy,
    typename AveragePolicy >
 requires concepts::vanilla_cfr_requirements< Env, Policy, DefaultPolicy, AveragePolicy >
-template < bool initialize_infonodes >
+template < bool initialize_infonodes, bool use_current_policy >
 void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_traverse_chance_actions(
    std::optional< Player > player_to_update,
    Player active_player,
@@ -745,8 +772,7 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
    const ObservationbufferMap& observation_buffer,
    InfostateMap infostate_map,
    ValueMap& state_value,
-   std::unordered_map< action_variant_type, ValueMap >& action_value,
-   bool use_current_policy)
+   std::unordered_map< action_variant_type, ValueMap >& action_value)
 {
    for(auto&& outcome : m_env.chance_actions(*state)) {
       uptr< world_state_type >
@@ -762,13 +788,14 @@ void VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::_trave
       auto [observation_buffer_copy, child_infostate_map] = _fill_infostate_and_obs_buffers(
          observation_buffer, infostate_map, outcome, *next_wstate_uptr);
 
-      ValueMap child_rewards_map = _traversal< initialize_infonodes >(
+      ValueMap child_rewards_map = _traversal< initialize_infonodes, use_current_policy >(
          player_to_update,
          std::move(next_wstate_uptr),
          ReachProbabilityMap{std::move(child_reach_prob)},
          ObservationbufferMap{std::move(observation_buffer_copy)},
-         InfostateMap{std::move(child_infostate_map)},
-         use_current_policy);
+         InfostateMap{std::move(child_infostate_map)});
+      // add the child state's value to the respective player's value table, multiplied by the
+      // policies likelihood of playing this action
       for(auto [player, child_value] : child_rewards_map.get()) {
          state_value.get()[player] += outcome_prob * child_value;
       }
@@ -801,10 +828,10 @@ auto VanillaCFR< cfr_config, Env, Policy, DefaultPolicy, AveragePolicy >::
          // for all but the active player we simply append action and state observation to the
          // buffer. They will be written to an actual infostate once that player becomes the
          // active player again
+         child_infostate_map.emplace(player, infostate_map.get().at(player));
          auto& player_infostate = observation_buffer_copy.at(player);
          player_infostate.emplace_back(m_env.private_observation(player, action_or_outcome));
          player_infostate.emplace_back(m_env.private_observation(player, state));
-         child_infostate_map.emplace(player, infostate_map.get().at(player));
       } else {
          // for the active player we first append all recent action and state observations to a
          // info state copy, and then follow it up by adding the current action and state
