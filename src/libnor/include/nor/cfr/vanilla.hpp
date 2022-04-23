@@ -478,7 +478,7 @@ template < bool initializing_run, bool use_current_policy >
 auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_iterate(
    std::optional< Player > player_to_update)
 {
-   return _traversal< initializing_run, use_current_policy >(
+   auto root_game_value = _traversal< initializing_run, use_current_policy >(
       player_to_update,
       utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(m_root_state)),
       [&] {
@@ -507,6 +507,35 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_iterate(
          }
          return InfostateMap{std::move(infostates)};
       }());
+
+   if constexpr(use_current_policy) {
+      auto apply_regret_matching = [&](
+                                      const sptr< info_state_type >& infostate_ptr,
+                                      const infostate_data_type& infodata) {
+         regret_matching(
+            fetch_policy< true >(infostate_ptr, infodata.actions()),
+            infodata.regret(),
+            // we provide the accessor to get the underlying referenced action, as the infodata
+            // stores only reference wrappers to the actions
+            [](const std::reference_wrapper< const action_type >& action_ref) -> const action_type {
+               return action_ref.get();
+            });
+      };
+
+      if constexpr(cfr_config.alternating_updates) {
+         Player update_player = player_to_update.value_or(Player::chance);
+         for(auto& [infostate_ptr, infodata] : m_infonode_data) {
+            if(infostate_ptr->player() == update_player) {
+               apply_regret_matching(infostate_ptr, infodata);
+            }
+         }
+      } else {
+         for(auto& [infostate_ptr, infodata] : m_infonode_data) {
+               apply_regret_matching(infostate_ptr, infodata);
+         }
+      }
+   }
+   return root_game_value;
 }
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
@@ -534,14 +563,6 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::update_regret_and_pol
       infodata.regret(action) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
       avg_action_policy[action] += player_reach_prob * curr_action_policy[action];
    }
-   regret_matching(
-      curr_action_policy,
-      infodata.regret(),
-      // we provide the accessor to get the underlying referenced action, as the infodata stores
-      // only reference wrappers to the actions
-      [](const std::reference_wrapper< const action_type >& action_ref) -> const action_type {
-         return action_ref.get();
-      });
 }
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
@@ -658,7 +679,7 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse_player_acti
    auto& action_policy = fetch_policy< use_current_policy >(
       this_infostate, m_infonode_data.at(this_infostate).actions());
    double normalizing_factor = 1.;
-//      LOGD2("Use current policy", use_current_policy);
+   //      LOGD2("Use current policy", use_current_policy);
    if constexpr(not use_current_policy) {
       // we try to normalize only for the average policy, since iterations with the current policy
       // are for the express purpose of updating the average strategy. As such, we should not
