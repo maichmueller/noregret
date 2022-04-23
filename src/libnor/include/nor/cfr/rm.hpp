@@ -51,13 +51,14 @@ auto normalize_state_policy(const Policy& policy)
 };
 
 template < typename MapLike >
-concept kv_like_over_doubles = requires(MapLike m)
-{
-   // has to be key-value-like to iterate over values only
-   ranges::views::values(m);
-   // value type has to be convertible to double
-   std::is_convertible_v< decltype(*(ranges::views::values(m).begin())), double >;
-};
+concept kv_like_over_doubles = requires(MapLike m) {
+                                  // has to be key-value-like to iterate over values only
+                                  ranges::views::values(m);
+                                  // value type has to be convertible to double
+                                  std::is_convertible_v<
+                                     decltype(*(ranges::views::values(m).begin())),
+                                     double >;
+                               };
 /**
  * @brief computes the reach probability of the node.
  *
@@ -84,11 +85,10 @@ template < kv_like_over_doubles KVdouble >
  * @return the counterfactual reach probability
  */
 template < kv_like_over_doubles KVdouble >
-requires requires(KVdouble m)
-{
-   // the keys have to of type 'Player' as well
-   std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;
-}
+   requires requires(KVdouble m) {
+               // the keys have to of type 'Player' as well
+               std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;
+            }
 inline double cf_reach_probability(
    const KVdouble& reach_probability_contributions,
    const Player& player)
@@ -116,6 +116,59 @@ void regret_matching(Policy& policy_map, const std::unordered_map< Action, doubl
    for(const auto& [action, regret] : cumul_regret) {
       double pos_regret = std::max(0., regret);
       pos_regrets.emplace(action, pos_regret);
+      pos_regret_sum += pos_regret;
+   }
+   // apply the new policy to the vector policy
+   auto exec_policy{std::execution::par_unseq};
+   if(pos_regret_sum > 0) {
+      if(cumul_regret.size() != policy_map.size()) {
+         throw std::invalid_argument(
+            "Passed regrets and policy maps do not have the same number of elements");
+      }
+      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+         return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
+                                       / pos_regret_sum;
+      });
+   } else {
+      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+         return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
+      });
+   }
+}
+
+/**
+ * @brief Performs regret-matching on the given policy with respect to the provided regret
+ *
+ * @tparam Action
+ * @tparam Policy
+ */
+template < typename Policy, typename RegretMap, typename ActionAccessor >
+// clang-format off
+requires
+   concepts::map< RegretMap >
+   and std::is_convertible_v< typename RegretMap::mapped_type, double>
+   and std::invocable< ActionAccessor, typename RegretMap::key_type >
+   and concepts::action_policy<
+      Policy,
+      std::remove_cvref_t< std::invoke_result_t< ActionAccessor, typename RegretMap::key_type > >
+   >
+   and concepts::action<
+         std::remove_cvref_t< std::invoke_result_t< ActionAccessor, typename RegretMap::key_type > >
+   >
+// clang-format on
+void regret_matching(
+   Policy& policy_map,
+   const RegretMap& cumul_regret,
+   ActionAccessor accessor = [](const typename RegretMap::key_type& action) { return action; })
+{
+   using action_type = std::remove_cvref_t<
+      std::invoke_result_t< ActionAccessor, typename RegretMap::key_type > >;
+   // sum up the positivized regrets and store them in a new vector
+   std::unordered_map< action_type, double > pos_regrets;
+   double pos_regret_sum{0.};
+   for(const auto& [action, regret] : cumul_regret) {
+      double pos_regret = std::max(0., regret);
+      pos_regrets.emplace(accessor(action), pos_regret);
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy

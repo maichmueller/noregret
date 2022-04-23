@@ -3,6 +3,7 @@
 #define NOR_FOSG_TRAITS_HPP
 
 #include "nor/concepts/has.hpp"
+#include "common/common.hpp"
 
 namespace nor {
 
@@ -72,12 +73,14 @@ requires(concepts::has::trait::chance_distribution_type<
 };
 
 template < typename T >
-requires(not concepts::has::trait::chance_distribution_type< T >) struct chance_distribution_type_trait< T > {
+requires(not concepts::has::trait::chance_distribution_type<
+         T >) struct chance_distribution_type_trait< T > {
    using type = void;
 };
 
 template < typename T >
-requires(concepts::has::trait::chance_distribution_type< T >) struct chance_distribution_type_trait< T > {
+requires(
+   concepts::has::trait::chance_distribution_type< T >) struct chance_distribution_type_trait< T > {
    using type = typename T::chance_distribution_type;
 };
 
@@ -251,7 +254,8 @@ struct fosg_traits_partial_match {
             if constexpr(not std::is_same_v<
                             typename nor::fosg_auto_traits< SubsetType >::action_type,
                             typename nor::fosg_auto_traits< SupersetType >::action_type >) {
-               static_assert(always_false< SubsetType, SupersetType >, "Action types do not match");
+               static_assert(
+                  always_false< SubsetType, SupersetType >, "Action types do not match");
                return false;
             }
          }

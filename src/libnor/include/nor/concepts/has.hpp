@@ -328,22 +328,16 @@ concept at = requires(T t, InputT inp)
       } -> std::same_as< OutputT >;
 };
 
-template < typename T, typename U = typename T::iterator >
+template < typename T >
 concept begin = requires(T t)
 {
-   {
-      t.begin()
-      }
-      -> std::same_as< std::conditional_t< std::is_const_v< T >, typename T::const_iterator, U > >;
+   t.begin();
 };
 
-template < typename T, typename U = typename T::iterator >
+template < typename T >
 concept end = requires(T&& t)
 {
-   {
-      t.end()
-      }
-      -> std::same_as< std::conditional_t< std::is_const_v< T >, typename T::const_iterator, U > >;
+   t.end();
 };
 
 template < typename T, typename MapLikePolicy, typename Action >

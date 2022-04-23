@@ -16,16 +16,13 @@ inline T _zero()
    return T(0);
 }
 
-///**
-// * @brief Adaptor class for using std::unordered_map as a valid type of an action policy.
-// *
-// *
-// * @tparam Action
-// */
-template <
-   concepts::action Action,
-   //           std::invocable default_value_generator = decltype([]() { return 0.; })
-   typename default_value_generator = decltype(&_zero< double >) >
+/**
+ * @brief Adaptor class for using std::unordered_map as a valid type of an action policy.
+ *
+ *
+ * @tparam Action
+ */
+template < concepts::action Action, typename default_value_generator = decltype(&_zero< double >) >
 requires std::is_invocable_r_v< double, default_value_generator >
 class HashmapActionPolicy {
   public:
@@ -37,7 +34,7 @@ class HashmapActionPolicy {
 
    HashmapActionPolicy(default_value_generator dvg = &_zero< double >) : m_def_value_gen(dvg) {}
    HashmapActionPolicy(
-      ranges::span< const action_type > actions,
+      ranges::range auto const& actions,
       double value,
       default_value_generator dvg = &_zero< double >)
        : m_map(), m_def_value_gen(dvg)
@@ -55,9 +52,8 @@ class HashmapActionPolicy {
          emplace(a, m_def_value_gen());
       }
    }
-   HashmapActionPolicy(map_type map, default_value_generator dvg = &_zero< double >) :
-       m_map(std::move(map)),
-       m_def_value_gen(dvg)
+   HashmapActionPolicy(map_type map, default_value_generator dvg = &_zero< double >)
+       : m_map(std::move(map)), m_def_value_gen(dvg)
    {
    }
 
@@ -127,7 +123,7 @@ constexpr size_t placeholder_filter([[maybe_unused]] Player player, const State&
  * @tparam Infostate, the state type. This is the key type for 'lookup' (not actually a lookup here)
  * in the state_policy.
  * @tparam extent, the number of legal actions at any given time. If std::dynamic_extent, then the
- * legal action filter has to be supplied.
+ * legal actions have to be supplied.
  * @tparam LegalActionFunctor, type of callable that provides the legal actions in the case of
  * dynamic_extent.
  */
@@ -148,7 +144,7 @@ class UniformPolicy {
       if constexpr(extent == std::dynamic_extent) {
          const auto& [info_state, legal_actions] = infostate_legalactions;
          double uniform_p = 1. / static_cast< double >(legal_actions.size());
-         return action_policy_type(ranges::span(legal_actions), uniform_p);
+         return action_policy_type(legal_actions, uniform_p);
       } else {
          // Otherwise we can compute directly the uniform probability vector
          constexpr double uniform_p = 1. / static_cast< double >(extent);
@@ -157,24 +153,70 @@ class UniformPolicy {
    }
 };
 
+/**
+ * @brief Creates a state_policy with 0 as the probability value for any new states.
+
+ * @tparam Infostate, the state type. This is the key type for 'lookup' (not actually a lookup here)
+ * in the state_policy.
+ * @tparam extent, the number of legal actions at any given time. If std::dynamic_extent, then the
+ * legal actions have to be supplied.
+ * @tparam LegalActionFunctor, type of callable that provides the legal actions in the case of
+ * dynamic_extent.
+ */
+template < typename Infostate, typename ActionPolicy, std::size_t extent = std::dynamic_extent >
+requires concepts::info_state< Infostate > && concepts::action_policy< ActionPolicy >
+class ZeroDefaultPolicy {
+  public:
+   using info_state_type = Infostate;
+   using action_policy_type = ActionPolicy;
+
+   ZeroDefaultPolicy() = default;
+
+   auto operator[](const std::pair<
+                   info_state_type,
+                   std::vector< typename fosg_auto_traits< action_policy_type >::action_type > >&
+                      infostate_legalactions) const
+   {
+      if constexpr(extent == std::dynamic_extent) {
+         const auto& [info_state, legal_actions] = infostate_legalactions;
+         return action_policy_type(legal_actions, 0.);
+      } else {
+         return action_policy_type(extent, 0.);
+      }
+   }
+};
+
 template <
    typename Infostate,
    typename ActionPolicy,
+   typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy >,
    typename Table = std::unordered_map< Infostate, ActionPolicy > >
 // clang-format off
 requires
    concepts::map< Table >
+   && concepts::default_state_policy<
+         DefaultPolicy,
+         Infostate,
+         ActionPolicy
+      >
    && concepts::action_policy< ActionPolicy >
 // clang-format on
 class TabularPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
+   using action_type = typename fosg_auto_traits< action_policy_type >::action_type;
+   using default_policy_type = DefaultPolicy;
    using table_type = Table;
 
-   TabularPolicy() requires std::is_default_constructible_v< table_type >
+   TabularPolicy() requires
+      all_predicate_v< std::is_default_constructible, table_type, default_policy_type >
    = default;
-   TabularPolicy(table_type&& table) : m_table(std::forward< table_type >(table)) {}
+   TabularPolicy(table_type table) : m_table(std::move(table)) {}
+   TabularPolicy(table_type table, default_policy_type default_policy)
+       : m_table(std::move(table)), m_default_policy(std::move(default_policy))
+   {
+   }
 
    auto begin() { return m_table.begin(); }
    auto end() { return m_table.end(); }
@@ -187,14 +229,29 @@ class TabularPolicy {
       return m_table.emplace(std::forward< Args >(args)...);
    }
 
-   inline auto find(const info_state_type& action) { return m_table.find(action); }
-   [[nodiscard]] inline auto find(const info_state_type& action) const
+   inline auto find(const info_state_type& infostate) { return m_table.find(infostate); }
+   [[nodiscard]] inline auto find(const info_state_type& infostate) const
    {
-      return m_table.find(action);
+      return m_table.find(infostate);
    }
 
-   inline auto& operator[](const info_state_type& state) { return m_table[state]; }
-   inline const auto& operator[](const info_state_type& state) const { return m_table.at(state); }
+   auto& operator[](
+      const std::pair< info_state_type, std::vector< action_type > >& state_action_pair)
+   {
+      const auto& [infostate, actions] = state_action_pair;
+      auto found_action_policy = find(infostate);
+      if(found_action_policy == m_table.end()) {
+         return m_table.emplace(infostate, m_default_policy[{infostate, actions}]).first->second;
+      }
+      return found_action_policy->second;
+   }
+
+   template < typename T >
+   const auto& operator[](const std::pair< info_state_type, T >& state_any_pair) const
+   {
+      const auto& [infostate, any] = state_any_pair;
+      return m_table.at(infostate);
+   }
 
    [[nodiscard]] auto size() const requires(concepts::is::sized< table_type >)
    {
@@ -205,6 +262,8 @@ class TabularPolicy {
 
   private:
    table_type m_table;
+   /// the fallback policy to use when the encountered infostate has not been obseved before
+   default_policy_type m_default_policy{};
 };
 
 template < concepts::world_state Worldstate, concepts::action Action >
@@ -235,7 +294,8 @@ requires
    concepts::state_policy<
       TabularOpponentPolicy,
       Infostate,
-      typename fosg_auto_traits< Infostate >::observation_type >
+      typename fosg_auto_traits< Infostate >::observation_type,
+      Action>
    && concepts::map< Table, Infostate, Action >
 // clang-format on
 class TabularBestResponse {

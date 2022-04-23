@@ -93,33 +93,32 @@ concept action_policy =
 template <
    typename T,
    typename Infostate,
-   typename Observation,
+   typename Action,
    typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
 concept state_policy =
-/**/  info_state< Infostate, Observation >
+/**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
    && action_policy< ActionPolicy >
    && has::trait::action_policy_type< T >
    && has::method::getitem<
          T,
          ActionPolicy&,
-         Infostate
+         std::pair<Infostate, std::vector< Action > >
       >
    && has::method::getitem<
          T const,
          const ActionPolicy&,
-         Infostate
+         std::pair<Infostate, std::vector< Action > >
       >;
 // clang-format on
 
 template <
    typename T,
    typename Infostate,
-   typename Observation,
    typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
 concept default_state_policy =
-/**/  info_state< Infostate, Observation >
+/**/  info_state< Infostate, typename fosg_auto_traits< Infostate >::observation_type >
    && action_policy< ActionPolicy >
    && has::trait::action_policy_type< T >
    && has::method::getitem<
@@ -213,25 +212,21 @@ concept deterministic_fosg =
       };
 // clang-format on
 
-template < typename Env, typename Policy, typename DefaultPolicy, typename AveragePolicy >
+template < typename Env, typename Policy, typename AveragePolicy >
 // clang-format off
 concept vanilla_cfr_requirements =
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
+   && fosg_traits_partial_match< AveragePolicy, Env >::value
    && concepts::state_policy<
        Policy,
        typename fosg_auto_traits< Env >::info_state_type,
-       typename fosg_auto_traits< Env >::observation_type
+       typename fosg_auto_traits< Env >::action_type
       >
    && concepts::state_policy<
          AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::observation_type
-      >
-   && concepts::default_state_policy<
-       DefaultPolicy,
-       typename fosg_auto_traits< Env >::info_state_type,
-       typename fosg_auto_traits< Env >::observation_type
+         typename fosg_auto_traits< Env >::action_type
       >;
 
 // clang-format on

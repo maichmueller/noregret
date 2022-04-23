@@ -2,8 +2,8 @@
 
 #include "dummy_classes.hpp"
 #include "nor/concepts.hpp"
-#include "nor/wrappers.hpp"
 #include "nor/policy.hpp"
+#include "nor/wrappers.hpp"
 
 TEST(concrete, iterable)
 {
@@ -46,7 +46,10 @@ TEST(concrete, state_policy)
    //      typename nor::fosg_auto_traits< dummy::Infostate >::observation_type >();
 
    EXPECT_TRUE((nor::concepts::state_policy<
-                nor::TabularPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
+                nor::TabularPolicy<
+                   dummy::Infostate,
+                   nor::HashmapActionPolicy< int >,
+                   nor::UniformPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > > >,
                 dummy::Infostate,
                 typename nor::fosg_auto_traits< dummy::Infostate >::observation_type >) );
 }
@@ -85,12 +88,8 @@ TEST(concrete, fosg_stratego)
 
 TEST(concrete, fosg_kuhn)
 {
-
    EXPECT_TRUE((nor::concepts::fosg< nor::games::kuhn::Environment >) );
    EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::kuhn::Environment >) );
 }
 
-TEST(concrete, vanilla_requirements)
-{
-
-}
+TEST(concrete, vanilla_requirements) {}

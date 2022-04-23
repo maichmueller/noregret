@@ -109,6 +109,18 @@ inline std::string center(const std::string& str, int width, const char* fillcha
           + std::string(static_cast< unsigned long >(pad1), *fillchar);
 }
 
+inline std::string left(const std::string& str, int width, const char* fillchar)
+{
+   size_t len = str.length();
+   if(std::cmp_less(width, len)) {
+      return str;
+   }
+
+   int diff = static_cast< int >(static_cast< unsigned long >(width) - len);
+   int pad1 = diff;
+   return str + std::string(static_cast< unsigned long >(pad1), *fillchar);
+}
+
 inline std::string operator*(std::string str, std::size_t n)
 {
    return repeat(std::move(str), n);

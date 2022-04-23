@@ -27,6 +27,9 @@ struct Hint {
 
 namespace nor::utils {
 
+constexpr auto nonchance_player_filter = ranges::views::filter(
+   [](Player player) { return player != Player::chance; });
+
 struct empty {
 };
 
@@ -230,17 +233,17 @@ constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_b
 
 namespace common {
 template <>
-inline std::string to_string(const nor::Player& e)
+inline std::string to_string(const nor::Player &e)
 {
    return std::string(nor::utils::player_name_bij.at(e));
 }
 template <>
-inline std::string to_string(const nor::TurnDynamic& e)
+inline std::string to_string(const nor::TurnDynamic &e)
 {
    return std::string(nor::utils::turndynamic_name_bij.at(e));
 }
 template <>
-inline std::string to_string(const nor::Stochasticity& e)
+inline std::string to_string(const nor::Stochasticity &e)
 {
    return std::string(nor::utils::stochasticity_name_bij.at(e));
 }
@@ -266,20 +269,20 @@ inline std::string operator+(Enum e, const T &other)
    return common::to_string(e) + std::string_view(other);
 }
 
-//template < nor::concepts::is::enum_ Enum >
-//requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
-//inline auto &operator<<(std::stringstream &os, Enum e)
+// template < nor::concepts::is::enum_ Enum >
+// requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+// inline auto &operator<<(std::stringstream &os, Enum e)
 //{
-//   os << common::to_string(e);
-//   return os;
-//}
+//    os << common::to_string(e);
+//    return os;
+// }
 //
-//template < nor::concepts::is::enum_ Enum >
-//requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
-//inline auto &operator<<(std::ostream &os, Enum e)
+// template < nor::concepts::is::enum_ Enum >
+// requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+// inline auto &operator<<(std::ostream &os, Enum e)
 //{
-//   os << common::to_string(e);
-//   return os;
-//}
+//    os << common::to_string(e);
+//    return os;
+// }
 
 #endif  // NOR_UTILS_HPP

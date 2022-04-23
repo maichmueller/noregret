@@ -7,18 +7,62 @@
 using namespace nor;
 
 template < typename Policy >
-void print_policy(Policy policy)
+void print_policy(const Policy& policy)
 {
-   for(const auto& [istate, action_policy] : policy) {
-      std::cout << istate.to_string() << ranges::views::keys(action_policy) << "\n"
-                << ranges::views::values(action_policy) << "\n";
+   auto policy_vec = ranges::to_vector(policy | ranges::views::transform([](const auto& kv) {
+                                          return std::pair{std::get< 0 >(kv), std::get< 1 >(kv)};
+                                       }));
+   std::sort(policy_vec.begin(), policy_vec.end(), [](const auto& kv, const auto& other_kv) {
+      return std::get< 0 >(kv).history().back().size() < std::get< 0 >(other_kv).history().back().size();
+   });
+   auto action_policy_printer = [&](const auto& action_policy) {
+      std::stringstream ss;
+      ss << "[ ";
+      for(const auto& [key, value] : action_policy) {
+         ss << std::setw(5) << common::to_string(key) + ": " << std::setw(6) << std::setprecision(3)
+            << value << " ";
+      }
+      ss << "]";
+      return ss.str();
+   };
+   for(const auto& [istate, action_policy] : policy_vec) {
+      std::cout << std::setw(5) << istate.player() << " | " << std::setw(8)
+                << common::left(istate.history().back(), 5, " ") << " -> ";
+      std::cout << action_policy_printer(action_policy) << "\n";
    }
 }
+
+//
+// template <typename Policy>
+// void print_kuhn_policy(const Policy& policy) {
+//   std::string first = common::center(" ", 6, " ");
+//   std::string second = common::center("c", 6, " ");
+//   std::string third = common::center("b", 6, " ");
+//   std::string fourth = common::center("cb", 6, " ");
+//
+//
+//   std::vector< std::string > lines{first, second, third, fourth};
+//   for(auto& line : lines) {
+//      line += "|";
+//   }
+//
+//   for(const auto& [istate, action_policy] : policy) {
+//      auto action_seq = common::split(istate.back(), "|").back();
+//      if(action_seq == first) {
+//
+//         lines[0] += common::center()
+//      }
+//
+//      std::cout << istate.player() << "\n"
+//                << istate.history().back() << "\n"
+//                << ranges::views::keys(action_policy) << "\n"
+//                << ranges::views::values(action_policy) << "\n";
+//   }
+//}
 
 template < typename CFRRunner, typename Policy >
 void evaluate_policies(
    Player player,
-   std::vector<std::unordered_map< Player, double>> game_values,
    CFRRunner& cfr_runner,
    Policy& prev_policy_profile,
    size_t iteration)
@@ -45,26 +89,33 @@ void evaluate_policies(
    print_policy(rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table()));
 
    prev_policy_profile = std::move(curr_policy_profile);
-   for(const auto& [i, value_map] : ranges::views::enumerate(game_values)) {
-      std::cout << "iteration: " << iteration + i
-                << " | game value for player " << player << ": " <<  value_map[player] << "\n";
+   if(cfr_runner.iteration() > 1) {
+   auto game_value_map = cfr_runner.game_value();
+   std::cout << "iteration: " << iteration << " | game value for player " << player << ": "
+             << game_value_map.get()[player] << "\n";
    }
-   std::cout << "total deviation: " << total_dev << "\n";
+   //   std::cout << "total deviation: " << total_dev << "\n";
 }
 
 TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
 {
    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
    games::rps::Environment env{};
-   UniformPolicy uniform_policy = rm::factory::
-      make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >();
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{});
+      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+      rm::factory::
+         make_zero_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+
    auto tabular_policy_alex = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{});
+      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+      rm::factory::
+         make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+
    auto tabular_policy_bob = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{});
+      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+      rm::factory::
+         make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
 
    auto infostate_alex = games::rps::InfoState{Player::alex};
    auto infostate_bob = games::rps::InfoState{Player::alex};
@@ -72,7 +123,9 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
    infostate_alex.append(env.private_observation(Player::alex, init_state));
    infostate_bob.append(env.private_observation(Player::bob, init_state));
    auto action_alex = games::rps::Action{games::rps::Team::one, games::rps::Hand::rock};
+
    env.transition(init_state, action_alex);
+
    infostate_bob.append(env.private_observation(Player::bob, action_alex));
    infostate_bob.append(env.private_observation(Player::bob, init_state));
 
@@ -103,8 +156,7 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
-         std::pair{Player::alex, avg_tabular_policy}, std::pair{Player::bob, avg_tabular_policy}},
-      std::move(uniform_policy));
+         std::pair{Player::alex, avg_tabular_policy}, std::pair{Player::bob, avg_tabular_policy}});
 
    auto player = Player::alex;
 
@@ -112,29 +164,31 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
       cfr_runner.average_policy().at(player).table());
 
    for(size_t i = 0; i < 20000; i++) {
-      auto game_values = cfr_runner.iterate(1);
-      evaluate_policies(player, game_values, cfr_runner, initial_policy_profile, i);
+      cfr_runner.iterate(1);
+      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
    }
 }
 
- TEST(KuhnPoker, vanilla_cfr_usage_kuhnpoker)
+TEST(KuhnPoker, vanilla_cfr_usage_kuhnpoker)
 {
-   //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
    games::kuhn::Environment env{};
-   UniformPolicy uniform_policy = rm::factory::
-      make_uniform_policy< games::kuhn::InfoState, HashmapActionPolicy< games::kuhn::Action > >();
+
+   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::InfoState, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::
+         make_zero_policy< games::kuhn::InfoState, HashmapActionPolicy< games::kuhn::Action > >());
 
    auto tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::InfoState, HashmapActionPolicy< games::kuhn::Action > >{});
+      std::unordered_map< games::kuhn::InfoState, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::make_uniform_policy<
+         games::kuhn::InfoState,
+         HashmapActionPolicy< games::kuhn::Action > >());
 
    constexpr rm::CFRConfig cfr_config{
       .alternating_updates = true, .store_public_states = false, .store_world_states = true};
 
    auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
-      std::move(env),
-      std::make_unique< games::kuhn::State >(),
-      tabular_policy,
-      std::move(uniform_policy));
+      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
    auto player = Player::alex;
 
@@ -142,8 +196,8 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
       cfr_runner.average_policy().at(player).table());
 
    for(size_t i = 0; i < 100; i++) {
-      auto game_values = cfr_runner.iterate(1);
-      evaluate_policies(player, game_values, cfr_runner, initial_policy_profile, i);
+      cfr_runner.iterate(1);
+      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
    }
 }
 

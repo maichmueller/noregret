@@ -44,9 +44,10 @@ inline std::string to_string(const rps::Action& value)
 }  // namespace common
 
 namespace std {
-template <>
-struct hash< rps::Action > {
-   size_t operator()(const rps::Action& action) const noexcept
+template <typename ActionType>
+requires common::is_any_v< ActionType, rps::Action, const rps::Action>
+struct hash< ActionType > {
+   size_t operator()(const ActionType& action) const noexcept
    {
       return hash< std::string >{}(
          common::to_string(action.team) + "-" + common::to_string(action.hand));

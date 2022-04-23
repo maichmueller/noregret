@@ -200,7 +200,6 @@ struct first_convertible_to< T, HeadType > {
 template < typename T, typename... Ts >
 using first_convertible_to_t = typename first_convertible_to< T, Ts... >::type;
 
-
 template < template < typename > class condition, typename First, typename... Rest >
 struct all_predicate {
   private:
@@ -212,6 +211,7 @@ struct all_predicate {
          return condition< First >::value && all_predicate< condition, Rest... >::value;
       }
    }
+
   public:
    static constexpr bool value = eval();
 };
@@ -232,12 +232,28 @@ struct any_predicate {
          return condition< First >::value;
       }
    }
+
   public:
    static constexpr bool value = eval();
 };
 template < template < typename > class condition, typename... Types >
 inline constexpr bool any_predicate_v = any_predicate< condition, Types... >::value;
 
+template < bool condition, typename T >
+struct const_ref_if;
+
+template < typename T >
+struct const_ref_if< true, T > {
+   using type = const std::remove_cvref_t< T >&;
+};
+
+template < typename T >
+struct const_ref_if< false, T > {
+   using type = std::remove_cvref_t< T >&;
+};
+
+template < bool condition, typename T >
+using const_ref_if_t = typename const_ref_if< condition, T >::type;
 
 }  // namespace nor
 #endif  // NOR_TYPE_TRAITS_HPP

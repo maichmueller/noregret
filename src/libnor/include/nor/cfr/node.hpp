@@ -29,27 +29,40 @@ template < typename Action >
 class InfostateNodeData {
   public:
    template < ranges::range ActionRange >
-   InfostateNodeData(const ActionRange& actions) : m_regret()
+   InfostateNodeData(ActionRange actions) : m_regret()
    {
-      for(const auto& action : actions) {
-         m_regret.emplace(action, 0.);
+      if constexpr(concepts::is::sized< ActionRange >) {
+         m_legal_actions.reserve(actions.size());
+      }
+      for(auto& action : actions) {
+         auto& action_in_vec = m_legal_actions.emplace_back(std::move(action));
+         m_regret.emplace(std::ref(action_in_vec), 0.);
       }
    }
-   InfostateNodeData(std::unordered_map< Action, double > regret_per_action)
-       : m_regret(std::move(regret_per_action))
-   {
-   }
 
-   auto& regret(const Action& action) { return m_regret[action]; }
+   auto& actions() { return m_legal_actions; }
+   auto& regret(const Action& action) { return m_regret[std::ref(action)]; }
    auto& regret() { return m_regret; }
 
+   [[nodiscard]] auto& actions() const { return m_legal_actions; }
    [[nodiscard]] auto& regret(const Action& action) const { return m_regret[action]; }
    [[nodiscard]] auto& regret() const { return m_regret; }
 
   private:
+   std::vector< Action > m_legal_actions;
    /// the cumulative regret the active player amassed with each action. Cumulative with regards to
    /// the number of CFR iterations. Defaults to 0 and should be updated later during the traversal.
-   std::unordered_map< Action, double > m_regret{};
+   std::unordered_map<
+      std::reference_wrapper< const Action >,
+      double,
+      decltype([](const std::reference_wrapper< const Action >& action_ref) {
+         return std::hash< Action >{}(action_ref.get());
+      }),
+      decltype([](const std::reference_wrapper< const Action >& ref1,
+                  const std::reference_wrapper< const Action >& ref2) {
+         return ref1.get() == ref2.get();
+      }) >
+      m_regret{};
 };
 
 }  // namespace nor::rm

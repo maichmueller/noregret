@@ -50,6 +50,11 @@ concept any_of = ::std::disjunction_v< ::std::is_same< T, Ts >... >;
 template < class T, class... Ts >
 concept same_as_all = ::std::conjunction_v< ::std::is_same< T, Ts >... >;
 
+template <typename T>
+concept dereferencable = requires(T t) {
+   *t;
+};
+
 template < typename T >
 concept iterator = requires(T t)
 {
