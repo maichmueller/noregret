@@ -559,7 +559,7 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::update_regret_and_pol
       const auto& action = std::get< action_type >(action_variant);
       // update the cumulative regret according to the formula:
       // let I be the infostate, p be the player, r the cumulative regret
-      //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I, a) - value_{p}(I))
+      //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
       infodata.regret(action) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
       avg_action_policy[action] += player_reach_prob * curr_action_policy[action];
    }

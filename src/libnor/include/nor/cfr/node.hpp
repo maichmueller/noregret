@@ -52,16 +52,18 @@ class InfostateNodeData {
    std::vector< Action > m_legal_actions;
    /// the cumulative regret the active player amassed with each action. Cumulative with regards to
    /// the number of CFR iterations. Defaults to 0 and should be updated later during the traversal.
+   using action_ref_hasher = decltype([](const std::reference_wrapper< const Action >& action_ref) {
+      return std::hash< Action >{}(action_ref.get());
+   });
+   using action_ref_comparator = decltype([](const std::reference_wrapper< const Action >& ref1,
+                                             const std::reference_wrapper< const Action >& ref2) {
+      return ref1.get() == ref2.get();
+   });
    std::unordered_map<
       std::reference_wrapper< const Action >,
       double,
-      decltype([](const std::reference_wrapper< const Action >& action_ref) {
-         return std::hash< Action >{}(action_ref.get());
-      }),
-      decltype([](const std::reference_wrapper< const Action >& ref1,
-                  const std::reference_wrapper< const Action >& ref2) {
-         return ref1.get() == ref2.get();
-      }) >
+      action_ref_hasher,
+      action_ref_comparator >
       m_regret{};
 };
 
