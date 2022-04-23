@@ -289,6 +289,8 @@ class VanillaCFR {
       const auto& action_or_outcome,
       const world_state_type& state);
 
+   void _apply_regret_matching(const std::optional< Player >& player_to_update);
+
    /**
     * @brief emplaces the environment rewards for a terminal state and stores them in the node.
     *
@@ -509,33 +511,40 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_iterate(
       }());
 
    if constexpr(use_current_policy) {
-      auto apply_regret_matching = [&](
-                                      const sptr< info_state_type >& infostate_ptr,
-                                      const infostate_data_type& infodata) {
-         regret_matching(
+      _apply_regret_matching(player_to_update);
+   }
+   return root_game_value;
+}
+
+template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
+   requires concepts::vanilla_cfr_requirements< Env, Policy, AveragePolicy >
+void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_apply_regret_matching(
+   const std::optional< Player >& player_to_update)
+{
+   auto call_regret_matching =
+      [&](const sptr< info_state_type >& infostate_ptr, const infostate_data_type& infodata) {
+         rm::regret_matching(
             fetch_policy< true >(infostate_ptr, infodata.actions()),
             infodata.regret(),
             // we provide the accessor to get the underlying referenced action, as the infodata
             // stores only reference wrappers to the actions
-            [](const std::reference_wrapper< const action_type >& action_ref) -> const action_type {
+            [](const std::reference_wrapper< const action_type >& action_ref) {
                return action_ref.get();
             });
       };
 
-      if constexpr(cfr_config.alternating_updates) {
-         Player update_player = player_to_update.value_or(Player::chance);
-         for(auto& [infostate_ptr, infodata] : m_infonode_data) {
-            if(infostate_ptr->player() == update_player) {
-               apply_regret_matching(infostate_ptr, infodata);
-            }
-         }
-      } else {
-         for(auto& [infostate_ptr, infodata] : m_infonode_data) {
-               apply_regret_matching(infostate_ptr, infodata);
+   if constexpr(cfr_config.alternating_updates) {
+      Player update_player = player_to_update.value_or(Player::chance);
+      for(auto& [infostate_ptr, infodata] : m_infonode_data) {
+         if(infostate_ptr->player() == update_player) {
+            call_regret_matching(infostate_ptr, infodata);
          }
       }
+   } else {
+      for(auto& [infostate_ptr, infodata] : m_infonode_data) {
+         call_regret_matching(infostate_ptr, infodata);
+      }
    }
-   return root_game_value;
 }
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
@@ -624,6 +633,9 @@ VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traversal(
             std::move(infostates),
             state_value,
             action_value);
+         // if this is a chance node then we dont need to update any regret or average policy after
+         // the traversal
+         return state_value;
       } else {
          nonchance_player_traversal();
       }
@@ -631,28 +643,20 @@ VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traversal(
       nonchance_player_traversal();
    }
 
-   //   for(auto [player, value] : state_value.get()) {
-   //      LOGD2("Player", player);
-   //      LOGD2("Value", value);
-   //   }
    if constexpr(use_current_policy) {
       // we can only update our regrets and policies if we are traversing with the current policy,
       // since the average policy is not to be changed directly (but through averaging up all
       // current policies)
-      if(active_player != Player::chance) {
-         assert(this_infostate->player() == active_player);
-         if constexpr(cfr_config.alternating_updates) {
-            // in alternating updates, we only update the regret and strategy if the current
-            // player is the chosen player to update.
-            if(active_player == player_to_update.value_or(Player::chance)) {
-               update_regret_and_policy(
-                  this_infostate, reach_probability, state_value, action_value);
-            }
-         } else {
-            // if we do simultaenous updates, then we always update the regret and strategy
-            // values of the node's active player.
+      if constexpr(cfr_config.alternating_updates) {
+         // in alternating updates, we only update the regret and strategy if the current
+         // player is the chosen player to update.
+         if(active_player == player_to_update.value_or(Player::chance)) {
             update_regret_and_policy(this_infostate, reach_probability, state_value, action_value);
          }
+      } else {
+         // if we do simultaenous updates, then we always update the regret and strategy
+         // values of the node's active player.
+         update_regret_and_policy(this_infostate, reach_probability, state_value, action_value);
       }
    }
    return ValueMap{state_value};
