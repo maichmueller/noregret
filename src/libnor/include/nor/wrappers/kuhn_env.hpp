@@ -31,12 +31,12 @@ std::string observation(
    const State& state,
    std::optional< Player > observing_player = std::nullopt);
 
-class PublicState: public DefaultPublicstate< PublicState, Observation > {
-   using base = DefaultPublicstate< PublicState, Observation >;
+class Publicstate: public DefaultPublicstate< Publicstate, Observation > {
+   using base = DefaultPublicstate< Publicstate, Observation >;
    using base::base;
 };
-class InfoState: public nor::DefaultInfostate< InfoState, Observation > {
-   using base = DefaultInfostate< InfoState, Observation >;
+class Infostate: public nor::DefaultInfostate< Infostate, Observation > {
+   using base = DefaultInfostate< Infostate, Observation >;
    using base::base;
 };
 
@@ -44,8 +44,8 @@ class Environment {
   public:
    // nor fosg typedefs
    using world_state_type = State;
-   using info_state_type = InfoState;
-   using public_state_type = PublicState;
+   using info_state_type = Infostate;
+   using public_state_type = Publicstate;
    using action_type = Action;
    using chance_outcome_type = ChanceOutcome;
    using observation_type = Observation;
@@ -94,15 +94,15 @@ class Environment {
 namespace nor {
 
 template <>
-struct fosg_traits< games::kuhn::InfoState > {
+struct fosg_traits< games::kuhn::Infostate > {
    using observation_type = nor::games::kuhn::Observation;
 };
 
 template <>
 struct fosg_traits< games::kuhn::Environment > {
    using world_state_type = nor::games::kuhn::State;
-   using info_state_type = nor::games::kuhn::InfoState;
-   using public_state_type = nor::games::kuhn::PublicState;
+   using info_state_type = nor::games::kuhn::Infostate;
+   using public_state_type = nor::games::kuhn::Publicstate;
    using action_type = nor::games::kuhn::Action;
    using chance_outcome_type = nor::games::kuhn::Card;
    using observation_type = nor::games::kuhn::Observation;
@@ -116,7 +116,7 @@ struct fosg_traits< games::kuhn::Environment > {
 
 namespace std {
 template < typename StateType >
-requires common::is_any_v< StateType, nor::games::kuhn::PublicState, nor::games::kuhn::InfoState >
+requires common::is_any_v< StateType, nor::games::kuhn::Publicstate, nor::games::kuhn::Infostate >
 struct hash< StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };

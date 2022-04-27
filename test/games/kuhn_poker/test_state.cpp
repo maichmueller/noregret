@@ -178,6 +178,18 @@ INSTANTIATE_TEST_SUITE_P(
          std::vector{Action::check, Action::bet, Action::bet},
          std::array{2, -2}},
       std::tuple{
+         std::array{Card::king, Card::jack},
+         std::vector{Action::check, Action::bet, Action::check},
+         std::array{-1, 1}},
+      std::tuple{
+         std::array{Card::king, Card::jack},
+         std::vector{Action::bet, Action::check},
+         std::array{1, -1}},
+      std::tuple{
+         std::array{Card::king, Card::jack},
+         std::vector{Action::bet, Action::bet},
+         std::array{2, -2}},
+      std::tuple{
          std::array{Card::queen, Card::king},
          std::vector{Action::check, Action::bet, Action::check},
          std::array{-1, 1}}));

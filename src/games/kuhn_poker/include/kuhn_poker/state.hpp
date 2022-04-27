@@ -94,6 +94,7 @@ class State {
 
    static const std::vector< History >& _all_terminal_histories();
    [[nodiscard]] bool _all_cards_engaged() const;
+   bool _has_higher_card(Player player) const;
 };
 
 }  // namespace kuhn

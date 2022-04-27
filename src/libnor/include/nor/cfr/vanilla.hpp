@@ -98,7 +98,7 @@ class VanillaCFR {
    : m_env(std::move(game)), m_root_state(std::move(root_state)), m_curr_policy(), m_avg_policy()
    {
       _assert_sequential_game();
-      for(auto player : game.players() | utils::nonchance_player_filter) {
+      for(auto player : game.players() | utils::is_nonchance_player_filter) {
          m_curr_policy.emplace(player, policy);
          m_avg_policy.emplace(player, avg_policy);
       }
@@ -493,7 +493,7 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_iterate(
       [&] {
          std::unordered_map< Player, std::vector< observation_type > > obs_map;
          auto players = m_env.players();
-         for(auto player : players | utils::nonchance_player_filter) {
+         for(auto player : players | utils::is_nonchance_player_filter) {
             obs_map.emplace(player, std::vector< observation_type >{});
          }
          return ObservationbufferMap{std::move(obs_map)};
@@ -501,7 +501,7 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_iterate(
       [&] {
          std::unordered_map< Player, sptr< info_state_type > > infostates;
          auto players = m_env.players();
-         for(auto player : players | utils::nonchance_player_filter) {
+         for(auto player : players | utils::is_nonchance_player_filter) {
             auto& infostate = infostates
                                  .emplace(player, std::make_shared< info_state_type >(player))
                                  .first->second;
@@ -528,8 +528,8 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_apply_regret_matchin
             infodata.regret(),
             // we provide the accessor to get the underlying referenced action, as the infodata
             // stores only reference wrappers to the actions
-            [](const std::reference_wrapper< const action_type >& action_ref) {
-               return action_ref.get();
+            [](const action_type& action) {
+               return std::ref(action);
             });
       };
 
@@ -544,33 +544,6 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_apply_regret_matchin
       for(auto& [infostate_ptr, infodata] : m_infonode_data) {
          call_regret_matching(infostate_ptr, infodata);
       }
-   }
-}
-
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::vanilla_cfr_requirements< Env, Policy, AveragePolicy >
-void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::update_regret_and_policy(
-   const sptr< info_state_type >& infostate,
-   const ReachProbabilityMap& reach_probability,
-   const ValueMap& state_value,
-   const std::unordered_map< action_variant_type, ValueMap >& action_value)
-{
-   auto& infodata = m_infonode_data.at(infostate);
-   auto& curr_action_policy = fetch_policy< true >(infostate, infodata.actions());
-   auto& avg_action_policy = fetch_policy< false >(infostate, infodata.actions());
-   auto player = infostate->player();
-   double cf_reach_prob = rm::cf_reach_probability(reach_probability.get(), player);
-   double player_reach_prob = reach_probability.get().at(player);
-   double player_state_value = state_value.get().at(player);
-   for(const auto& [action_variant, q_value] : action_value) {
-      // we only call this function with action values from a non-chance player, so we can safely
-      // assume that the action is of action_type
-      const auto& action = std::get< action_type >(action_variant);
-      // update the cumulative regret according to the formula:
-      // let I be the infostate, p be the player, r the cumulative regret
-      //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
-      infodata.regret(action) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
-      avg_action_policy[action] += player_reach_prob * curr_action_policy[action];
    }
 }
 
@@ -591,24 +564,20 @@ VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traversal(
 
    Player active_player = m_env.active_player(*state);
    sptr< info_state_type > this_infostate = nullptr;
-   if(active_player != Player::chance) {
-      this_infostate = infostates.get().at(active_player);
-      if constexpr(initialize_infonodes) {
-         m_infonode_data.emplace(
-            this_infostate, infostate_data_type{m_env.actions(active_player, *state)});
-      }
-   }
    // the state's value for each player. To be filled by the action traversal functions.
-   ValueMap state_value{std::unordered_map< Player, double >{}};
+   ValueMap state_value{{}};
    // each actions's value for each player. To be filled by the action traversal functions.
    std::unordered_map< action_variant_type, ValueMap > action_value;
-   // copy the current infostate ptr before the infostates are moved into the child traversal funcs
-
    // traverse all child states from this state. The constexpr check for determinism in the env
    // allows deterministic envs to not provide certain functions that are only needed in the
    // stochastic case.
    // First define the default branch for an active non-chance player
    auto nonchance_player_traversal = [&] {
+      this_infostate = infostates.get().at(active_player);
+      if constexpr(initialize_infonodes) {
+         m_infonode_data.emplace(
+            this_infostate, infostate_data_type{m_env.actions(active_player, *state)});
+      }
       _traverse_player_actions< initialize_infonodes, use_current_policy >(
          player_to_update,
          active_player,
@@ -683,7 +652,6 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse_player_acti
    auto& action_policy = fetch_policy< use_current_policy >(
       this_infostate, m_infonode_data.at(this_infostate).actions());
    double normalizing_factor = 1.;
-   //      LOGD2("Use current policy", use_current_policy);
    if constexpr(not use_current_policy) {
       // we try to normalize only for the average policy, since iterations with the current policy
       // are for the express purpose of updating the average strategy. As such, we should not
@@ -700,7 +668,7 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse_player_acti
 
    for(const action_type& action :
        m_infonode_data.at(this_infostate).regret() | ranges::views::keys) {
-      // clone the current world state to transition it uniquely in this action transition
+      // clone the current world state first before transitioniong it with this action
       uptr< world_state_type >
          next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
             utils::clone_any_way(state));
@@ -798,8 +766,7 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_fill_infostate_and_o
          // for the active player we first append all recent action and state observations to a
          // info state copy, and then follow it up by adding the current action and state
          // observations
-         auto cloned_infostate_ptr = sptr< info_state_type >(
-            utils::clone_any_way(infostate_map.get().at(active_player)));
+         auto cloned_infostate_ptr = utils::clone_any_way(infostate_map.get().at(active_player));
          auto& obs_history = observation_buffer_copy[active_player];
          for(auto& obs : obs_history) {
             cloned_infostate_ptr->append(std::move(obs));
@@ -815,35 +782,57 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_fill_infostate_and_o
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
    requires concepts::vanilla_cfr_requirements< Env, Policy, AveragePolicy >
+void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::update_regret_and_policy(
+   const sptr< info_state_type >& infostate,
+   const ReachProbabilityMap& reach_probability,
+   const ValueMap& state_value,
+   const std::unordered_map< action_variant_type, ValueMap >& action_value)
+{
+   auto& infodata = m_infonode_data.at(infostate);
+   auto& curr_action_policy = fetch_policy< true >(infostate, infodata.actions());
+   auto& avg_action_policy = fetch_policy< false >(infostate, infodata.actions());
+   auto player = infostate->player();
+   double cf_reach_prob = rm::cf_reach_probability(reach_probability.get(), player);
+   double player_reach_prob = reach_probability.get().at(player);
+   double player_state_value = state_value.get().at(player);
+
+   for(const auto& [action_variant, q_value] : action_value) {
+      // we only call this function with action values from a non-chance player, so we can safely
+      // assume that the action is of action_type
+      const auto& action = std::get< action_type >(action_variant);
+      // update the cumulative regret according to the formula:
+      // let I be the infostate, p be the player, r the cumulative regret
+      //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
+      infodata.regret(action) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
+      avg_action_policy[action] += player_reach_prob * curr_action_policy[action];
+   }
+}
+
+template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
+   requires concepts::vanilla_cfr_requirements< Env, Policy, AveragePolicy >
 auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_collect_rewards(
    const_ref_if_t<
       concepts::has::method::reward< env_type, const world_state_type& >,
       world_state_type > terminal_wstate) const
 {
    std::unordered_map< Player, double > rewards;
+   auto players = m_env.players();
    if constexpr(nor::concepts::has::method::reward_multi< Env >) {
       // if the environment has a method for returning all rewards for given players at
       // once, then we will assume this is a more performant alternative and use it
       // instead (e.g. when it is costly to compute the reward of each player
       // individually).
-      auto non_chance_filter = [](Player player) { return player != Player::chance; };
-      auto all_rewards = m_env.reward(m_env.players(), terminal_wstate);
+      std::erase(std::remove_if(players.begin(), players.end(), utils::is_chance_player_pred));
+      auto all_rewards = m_env.reward(players, terminal_wstate);
       ranges::views::for_each(
-         m_env.players() | ranges::views::filter(non_chance_filter)
-            | ranges::views::transform([&](Player player) {
-                 return std::pair{player, all_rewards[player]};
-              }),
-         [&](const auto& player_reward) {
-            rewards.emplace(std::get< 0 >(player_reward), std::get< 1 >(player_reward));
-         });
+         players, [&](Player player) { rewards.emplace(player, all_rewards[player]); });
    } else {
       // otherwise we just loop over the per player reward method
-      for(auto player : m_env.players()) {
-         if(player != Player::chance)
-            rewards.emplace(player, m_env.reward(player, terminal_wstate));
+      for(auto player : players | utils::is_nonchance_player_filter) {
+         rewards.emplace(player, m_env.reward(player, terminal_wstate));
       }
+      return rewards;
    }
-   return rewards;
 }
 
 template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >

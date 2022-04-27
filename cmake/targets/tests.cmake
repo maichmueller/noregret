@@ -68,6 +68,7 @@ set(
         NOR_TEST_SOURCES
         test_rm.cpp
         test_cfr.cpp
+        test_policy.cpp
 )
 list(TRANSFORM NOR_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
 

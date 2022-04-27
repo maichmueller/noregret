@@ -142,33 +142,28 @@ void regret_matching(Policy& policy_map, const std::unordered_map< Action, doubl
  * @tparam Action
  * @tparam Policy
  */
-template < typename Policy, typename RegretMap, typename ActionAccessor >
+template < typename Policy, typename RegretMap, typename ActionWrapper >
 // clang-format off
 requires
    concepts::map< RegretMap >
    and std::is_convertible_v< typename RegretMap::mapped_type, double>
-   and std::invocable< ActionAccessor, typename RegretMap::key_type >
+   and std::invocable< ActionWrapper, typename fosg_auto_traits<Policy>::action_type >
    and concepts::action_policy<
-      Policy,
-      std::remove_cvref_t< std::invoke_result_t< ActionAccessor, typename RegretMap::key_type > >
-   >
-   and concepts::action<
-         std::remove_cvref_t< std::invoke_result_t< ActionAccessor, typename RegretMap::key_type > >
+      Policy
    >
 // clang-format on
 void regret_matching(
    Policy& policy_map,
    const RegretMap& cumul_regret,
-   ActionAccessor accessor = [](const typename RegretMap::key_type& action) { return action; })
+   ActionWrapper action_wrapper =
+      [](const typename fosg_auto_traits< Policy >::action_type& action) { return action; })
 {
-   using action_type = std::remove_cvref_t<
-      std::invoke_result_t< ActionAccessor, typename RegretMap::key_type > >;
    // sum up the positivized regrets and store them in a new vector
-   std::unordered_map< action_type, double > pos_regrets;
+   RegretMap pos_regrets;
    double pos_regret_sum{0.};
    for(const auto& [action, regret] : cumul_regret) {
       double pos_regret = std::max(0., regret);
-      pos_regrets.emplace(accessor(action), pos_regret);
+      pos_regrets.emplace(action, pos_regret);
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy
@@ -179,7 +174,7 @@ void regret_matching(
             "Passed regrets and policy maps do not have the same number of elements");
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
+         return std::get< 1 >(entry) = std::max(0., cumul_regret.at(action_wrapper(std::get< 0 >(entry))))
                                        / pos_regret_sum;
       });
    } else {

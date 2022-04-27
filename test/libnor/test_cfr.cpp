@@ -1,10 +1,73 @@
 #include <gtest/gtest.h>
 
+#include <unordered_map>
+
 #include "../games/stratego/fixtures.hpp"
 #include "nor/nor.hpp"
 #include "nor/wrappers.hpp"
 
 using namespace nor;
+
+TEST(InfostateNode, storage_correctness)
+{
+   std::unordered_map<
+      sptr< nor::games::kuhn::Infostate >,
+      rm::InfostateNodeData< nor::games::kuhn::Action >,
+      decltype([](const sptr< nor::games::kuhn::Infostate >& ptr) {
+         return std::hash< nor::games::kuhn::Infostate >{}(*ptr);
+      }),
+      decltype([](const sptr< nor::games::kuhn::Infostate >& ptr1,
+                  const sptr< nor::games::kuhn::Infostate >& ptr2) { return *ptr1 == *ptr2; }) >
+      infonode_map{};
+
+   nor::games::kuhn::Environment env{};
+   nor::games::kuhn::State state{};
+   auto first_istate_alex = std::make_shared< nor::games::kuhn::Infostate >(nor::Player::alex);
+   auto istate_bob = std::make_shared< nor::games::kuhn::Infostate >(nor::Player::bob);
+   state.apply_action(nor::games::kuhn::ChanceOutcome{
+      nor::games::kuhn::Player::one, nor::games::kuhn::Card::queen});
+   state.apply_action(
+      nor::games::kuhn::ChanceOutcome{nor::games::kuhn::Player::two, nor::games::kuhn::Card::king});
+   first_istate_alex->append(env.private_observation(nor::Player::alex, state));
+
+   auto& first_alex_node_data = infonode_map
+                                   .emplace(
+                                      first_istate_alex,
+                                      rm::InfostateNodeData< nor::games::kuhn::Action >{
+                                         env.actions(Player::alex, state)})
+                                   .first->second;
+
+   state.apply_action(nor::games::kuhn::Action::check);
+   istate_bob->append(env.private_observation(nor::Player::bob, state));
+   auto& bob_node_data = infonode_map
+                            .emplace(
+                               istate_bob,
+                               rm::InfostateNodeData< nor::games::kuhn::Action >{
+                                  env.actions(Player::bob, state)})
+                            .first->second;
+
+   state.apply_action(nor::games::kuhn::Action::bet);
+   auto second_istate_alex = std::make_shared< nor::games::kuhn::Infostate >(*first_istate_alex);
+   second_istate_alex->append(env.private_observation(nor::Player::alex, state));
+   auto& second_alex_node_data = infonode_map
+                                    .emplace(
+                                       second_istate_alex,
+                                       rm::InfostateNodeData< nor::games::kuhn::Action >{
+                                          env.actions(Player::alex, state)})
+                                    .first->second;
+   second_alex_node_data.regret(games::kuhn::Action::check) += 5;
+   second_alex_node_data.regret(games::kuhn::Action::bet) -= 10;
+
+   auto& second_alex_node_data_other_ref = infonode_map.at(
+      std::make_shared< games::kuhn::Infostate >(*second_istate_alex));
+
+   ASSERT_EQ(
+      second_alex_node_data.regret(games::kuhn::Action::check),
+      second_alex_node_data_other_ref.regret(games::kuhn::Action::check));
+   ASSERT_EQ(
+      second_alex_node_data.regret(games::kuhn::Action::bet),
+      second_alex_node_data_other_ref.regret(games::kuhn::Action::bet));
+}
 
 template < typename Policy >
 void print_policy(const Policy& policy)
@@ -13,7 +76,8 @@ void print_policy(const Policy& policy)
                                           return std::pair{std::get< 0 >(kv), std::get< 1 >(kv)};
                                        }));
    std::sort(policy_vec.begin(), policy_vec.end(), [](const auto& kv, const auto& other_kv) {
-      return std::get< 0 >(kv).history().back().size() < std::get< 0 >(other_kv).history().back().size();
+      return std::get< 0 >(kv).history().back().size()
+             < std::get< 0 >(other_kv).history().back().size();
    });
    auto action_policy_printer = [&](const auto& action_policy) {
       std::stringstream ss;
@@ -31,34 +95,6 @@ void print_policy(const Policy& policy)
       std::cout << action_policy_printer(action_policy) << "\n";
    }
 }
-
-//
-// template <typename Policy>
-// void print_kuhn_policy(const Policy& policy) {
-//   std::string first = common::center(" ", 6, " ");
-//   std::string second = common::center("c", 6, " ");
-//   std::string third = common::center("b", 6, " ");
-//   std::string fourth = common::center("cb", 6, " ");
-//
-//
-//   std::vector< std::string > lines{first, second, third, fourth};
-//   for(auto& line : lines) {
-//      line += "|";
-//   }
-//
-//   for(const auto& [istate, action_policy] : policy) {
-//      auto action_seq = common::split(istate.back(), "|").back();
-//      if(action_seq == first) {
-//
-//         lines[0] += common::center()
-//      }
-//
-//      std::cout << istate.player() << "\n"
-//                << istate.history().back() << "\n"
-//                << ranges::views::keys(action_policy) << "\n"
-//                << ranges::views::values(action_policy) << "\n";
-//   }
-//}
 
 template < typename CFRRunner, typename Policy >
 void evaluate_policies(
@@ -90,9 +126,9 @@ void evaluate_policies(
 
    prev_policy_profile = std::move(curr_policy_profile);
    if(cfr_runner.iteration() > 1) {
-   auto game_value_map = cfr_runner.game_value();
-   std::cout << "iteration: " << iteration << " | game value for player " << player << ": "
-             << game_value_map.get()[player] << "\n";
+      auto game_value_map = cfr_runner.game_value();
+      std::cout << "iteration: " << iteration << " | game value for player " << player << ": "
+                << game_value_map.get()[player] << "\n";
    }
    //   std::cout << "total deviation: " << total_dev << "\n";
 }
@@ -174,14 +210,14 @@ TEST(KuhnPoker, vanilla_cfr_usage_kuhnpoker)
    games::kuhn::Environment env{};
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::InfoState, HashmapActionPolicy< games::kuhn::Action > >{},
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
       rm::factory::
-         make_zero_policy< games::kuhn::InfoState, HashmapActionPolicy< games::kuhn::Action > >());
+         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
    auto tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::InfoState, HashmapActionPolicy< games::kuhn::Action > >{},
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
       rm::factory::make_uniform_policy<
-         games::kuhn::InfoState,
+         games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
    constexpr rm::CFRConfig cfr_config{

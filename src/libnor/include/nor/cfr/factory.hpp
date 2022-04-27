@@ -38,8 +38,8 @@ struct factory {
          return {
             std::forward< Env >(env),
             std::move(root_state),
-            to_map(players | utils::nonchance_player_filter, std::forward< Policy >(policy)),
-            to_map(players | utils::nonchance_player_filter, std::forward< AveragePolicy >(avg_policy))};
+            to_map(players | utils::is_nonchance_player_filter, std::forward< Policy >(policy)),
+            to_map(players | utils::is_nonchance_player_filter, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
             std::forward< Env >(env),
