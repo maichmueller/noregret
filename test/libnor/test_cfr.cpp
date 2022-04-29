@@ -133,6 +133,150 @@ void evaluate_policies(
    //   std::cout << "total deviation: " << total_dev << "\n";
 }
 
+auto kuhn_optimal(double alpha)
+{
+   using namespace nor::games::kuhn;
+   std::unordered_map< std::string, HashmapActionPolicy< Action > > alex_policy;
+   alex_policy.emplace(
+      "j?",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}});
+   alex_policy.emplace(
+      "j?|cb",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+   alex_policy.emplace(
+      "q?",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+   alex_policy.emplace(
+      "q?|cb",
+      HashmapActionPolicy{std::unordered_map{
+         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}});
+   alex_policy.emplace(
+      "k?",
+      HashmapActionPolicy{std::unordered_map{
+         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}});
+   alex_policy.emplace(
+      "k?|cb",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+
+   std::unordered_map< std::string, HashmapActionPolicy< Action > > bob_policy;
+   bob_policy.emplace(
+      "?j|c",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}});
+   bob_policy.emplace(
+      "?j|b",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+   bob_policy.emplace(
+      "?q|c",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+   bob_policy.emplace(
+      "?q|b",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}});
+   bob_policy.emplace(
+      "?k|c",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+   bob_policy.emplace(
+      "?k|b",
+      HashmapActionPolicy{
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+
+   return std::tuple{alex_policy, bob_policy};
+}
+
+void assert_optimal_policy_kuhn(const auto& cfr_runner, auto& env) {
+
+   games::kuhn::State state;
+
+   games::kuhn::Infostate infostate_alex{Player::alex};
+   games::kuhn::Infostate infostate_bob{Player::bob};
+
+   infostate_alex.append(env.private_observation(Player::alex, state));
+   infostate_bob.append(env.private_observation(Player::bob, state));
+
+   auto chance_action = games::kuhn::ChanceOutcome{kuhn::Player::one, kuhn::Card::jack};
+   env.transition(state, chance_action);
+
+   infostate_alex.append(env.private_observation(Player::alex, chance_action));
+   infostate_alex.append(env.private_observation(Player::alex, state));
+   infostate_bob.append(env.private_observation(Player::bob, chance_action));
+   infostate_bob.append(env.private_observation(Player::bob, state));
+
+   chance_action = games::kuhn::ChanceOutcome{kuhn::Player::two, kuhn::Card::queen};
+   env.transition(state, chance_action);
+
+   infostate_alex.append(env.private_observation(Player::alex, chance_action));
+   infostate_alex.append(env.private_observation(Player::alex, state));
+   infostate_bob.append(env.private_observation(Player::bob, chance_action));
+   infostate_bob.append(env.private_observation(Player::bob, state));
+
+   auto policy_tables = std::vector{
+      cfr_runner.average_policy().at(Player::alex).table(),
+      cfr_runner.average_policy().at(Player::bob).table()};
+   double alpha = rm::normalize_action_policy(
+      policy_tables[0].at(infostate_alex))[kuhn::Action::bet];
+   auto [alex_optimal_table, bob_optimal_table] = kuhn_optimal(alpha);
+   auto optimal_tables = std::vector{std::move(alex_optimal_table), std::move(bob_optimal_table)};
+
+   for(const auto& [computed_table, optimal_table] :
+       ranges::views::zip(policy_tables, optimal_tables)) {
+      for(const auto& computed_state_policy : computed_table) {
+         const auto& [istate, action_policy] = computed_state_policy;
+         auto normalized_ap = rm::normalize_action_policy(action_policy);
+         for(const auto& [optim_action_and_prob, action_and_prob] :
+             ranges::views::zip(optimal_table.at(istate.history().back()), normalized_ap)) {
+            auto action_prob = std::get< 1 >(action_and_prob);
+            auto optim_action_prob = std::get< 1 >(optim_action_and_prob);
+            ASSERT_NEAR(action_prob, optim_action_prob, 1e-2);
+         }
+      }
+   }
+}
+
+TEST(KuhnPoker, vanilla_cfr_usage_kuhnpoker)
+{
+   games::kuhn::Environment env{};
+
+   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::
+         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+
+   auto tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::make_uniform_policy<
+         games::kuhn::Infostate,
+         HashmapActionPolicy< games::kuhn::Action > >());
+
+   constexpr rm::CFRConfig cfr_config{
+      .alternating_updates = true, .store_public_states = false, .store_world_states = true};
+
+   auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
+      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
+
+   auto player = Player::alex;
+
+   auto initial_policy_profile = rm::normalize_state_policy(
+      cfr_runner.average_policy().at(player).table());
+
+   auto n_iters = 10000;
+   for(size_t i = 0; i < n_iters; i++) {
+      cfr_runner.iterate(1);
+      //      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
+   }
+   auto game_value_map = cfr_runner.game_value();
+   double alex_true_game_value = -1. / 18.;
+   ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
+   assert_optimal_policy_kuhn(cfr_runner, env);
+}
+
 TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
 {
    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
@@ -200,38 +344,6 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
       cfr_runner.average_policy().at(player).table());
 
    for(size_t i = 0; i < 20000; i++) {
-      cfr_runner.iterate(1);
-      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
-   }
-}
-
-TEST(KuhnPoker, vanilla_cfr_usage_kuhnpoker)
-{
-   games::kuhn::Environment env{};
-
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
-
-   auto tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
-
-   constexpr rm::CFRConfig cfr_config{
-      .alternating_updates = true, .store_public_states = false, .store_world_states = true};
-
-   auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
-      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
-
-   auto player = Player::alex;
-
-   auto initial_policy_profile = rm::normalize_state_policy(
-      cfr_runner.average_policy().at(player).table());
-
-   for(size_t i = 0; i < 100; i++) {
       cfr_runner.iterate(1);
       evaluate_policies(player, cfr_runner, initial_policy_profile, i);
    }
