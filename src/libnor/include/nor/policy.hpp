@@ -23,7 +23,8 @@ inline T _zero()
  * @tparam Action
  */
 template < concepts::action Action, typename default_value_generator = decltype(&_zero< double >) >
-requires std::is_invocable_r_v< double, default_value_generator > class HashmapActionPolicy {
+   requires std::is_invocable_r_v< double, default_value_generator >
+class HashmapActionPolicy {
   public:
    using action_type = Action;
    using map_type = std::unordered_map< Action, double >;
@@ -42,11 +43,9 @@ requires std::is_invocable_r_v< double, default_value_generator > class HashmapA
          emplace(action, value);
       }
    }
-   HashmapActionPolicy(
-      size_t n_actions,
-      default_value_generator dvg = &_zero< double >) requires std::is_integral_v< action_type >:
-       m_map(),
-       m_def_value_gen(dvg)
+   HashmapActionPolicy(size_t n_actions, default_value_generator dvg = &_zero< double >)
+      requires std::is_integral_v< action_type >
+   : m_map(), m_def_value_gen(dvg)
    {
       for(auto a : ranges::views::iota(size_t(0), n_actions)) {
          emplace(a, m_def_value_gen());
@@ -128,8 +127,8 @@ constexpr size_t placeholder_filter([[maybe_unused]] Player player, const State&
  * dynamic_extent.
  */
 template < typename Infostate, typename ActionPolicy, std::size_t extent = std::dynamic_extent >
-requires concepts::info_state< Infostate >&&
-   concepts::action_policy< ActionPolicy > class UniformPolicy {
+   requires concepts::info_state< Infostate > && concepts::action_policy< ActionPolicy >
+class UniformPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
@@ -164,8 +163,8 @@ requires concepts::info_state< Infostate >&&
  * dynamic_extent.
  */
 template < typename Infostate, typename ActionPolicy, std::size_t extent = std::dynamic_extent >
-requires concepts::info_state< Infostate >&&
-   concepts::action_policy< ActionPolicy > class ZeroDefaultPolicy {
+   requires concepts::info_state< Infostate > && concepts::action_policy< ActionPolicy >
+class ZeroDefaultPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
@@ -200,8 +199,8 @@ requires
          ActionPolicy
       >
    && concepts::action_policy< ActionPolicy >
-   // clang-format on
-   class TabularPolicy {
+// clang-format on
+class TabularPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
@@ -209,10 +208,9 @@ requires
    using default_policy_type = DefaultPolicy;
    using table_type = Table;
 
-   TabularPolicy() requires all_predicate_v<
-      std::is_default_constructible,
-      table_type,
-      default_policy_type > = default;
+   TabularPolicy()
+      requires all_predicate_v< std::is_default_constructible, table_type, default_policy_type >
+   = default;
    TabularPolicy(table_type table) : m_table(std::move(table)) {}
    TabularPolicy(table_type table, default_policy_type default_policy)
        : m_table(std::move(table)), m_default_policy(std::move(default_policy))
@@ -239,22 +237,23 @@ requires
    template < typename T >
    const action_policy_type& operator[](const std::pair< info_state_type, T >& state_any_pair) const
    {
-      const auto& [infostate, any] = state_any_pair;
+      const auto& infostate = std::get< 0 >(state_any_pair);
       return m_table.at(infostate);
    }
 
    action_policy_type& operator[](
       const std::pair< info_state_type, std::vector< action_type > >& state_action_pair)
    {
-      const auto& [infostate, actions] = state_action_pair;
+      const auto& infostate = std::get< 0 >(state_action_pair);
       auto found_action_policy = find(infostate);
       if(found_action_policy == m_table.end()) {
-         return m_table.emplace(infostate, m_default_policy[{infostate, actions}]).first->second;
+         return m_table.emplace(infostate, m_default_policy[state_action_pair]).first->second;
       }
       return found_action_policy->second;
    }
 
-   [[nodiscard]] auto size() const requires(concepts::is::sized< table_type >)
+   [[nodiscard]] auto size() const
+      requires(concepts::is::sized< table_type >)
    {
       return m_table.size();
    }
