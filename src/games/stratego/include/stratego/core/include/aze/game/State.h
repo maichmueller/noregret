@@ -45,14 +45,12 @@ class State {
       const history_type &history = {},
       std::optional< std::variant< size_t, utils::random::RNG > > seed = std::nullopt);
 
-   State(
-      board_type board,
-      std::optional< std::variant< size_t, utils::random::RNG > > seed);
+   State(board_type board, std::optional< std::variant< size_t, utils::random::RNG > > seed);
 
-   State(const State&) = default;
-   State& operator=(const State&) = default;
-   State(State&&)  noexcept = default;
-   State& operator=(State&&)  noexcept = default;
+   State(const State &) = default;
+   State &operator=(const State &) = default;
+   State(State &&) noexcept = default;
+   State &operator=(State &&) noexcept = default;
    virtual ~State() = default;
 
    virtual void transition(const action_type &action) = 0;
@@ -91,7 +89,8 @@ class State {
       return status;
    }
    [[nodiscard]] virtual std::string to_string() const = 0;
-   [[nodiscard]] virtual std::string to_string(std::optional< Team > team, bool hide_unknowns) const = 0;
+   [[nodiscard]] virtual std::string to_string(std::optional< Team > team, bool hide_unknowns)
+      const = 0;
 };
 
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >
@@ -99,8 +98,8 @@ void State< BoardType, HistoryType, PieceType, Action >::undo_last_rounds(size_t
 {
    for(size_t i = 0; i < n; ++i) {
       auto [turn, team, move, pieces] = m_move_history.pop_last();
-      m_board[move[1]] = std::move(std::get<1>(pieces));
-      m_board[move[0]] = std::move(std::get<0>(pieces));
+      m_board[move[1]] = std::move(std::get< 1 >(pieces));
+      m_board[move[0]] = std::move(std::get< 0 >(pieces));
    }
    m_turn_count -= n;
 }
@@ -108,9 +107,12 @@ void State< BoardType, HistoryType, PieceType, Action >::undo_last_rounds(size_t
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >
 void State< BoardType, HistoryType, PieceType, Action >::restore_to_round(size_t round)
 {
-   if(round > m_turn_count) [[unlikely]] {
-      throw std::invalid_argument("Given round is greater than current turn count.");
-   } else {
+   if(round > m_turn_count)
+      [[unlikely]]
+      {
+         throw std::invalid_argument("Given round is greater than current turn count.");
+      }
+   else {
       undo_last_rounds(m_turn_count - round);
    }
 }

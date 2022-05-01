@@ -441,7 +441,6 @@ Config::Config(
       hole_positions(_init_hole_positions(hole_positions_, game_dims_)),
       move_ranges(std::move(move_ranges_))
 {
-
    for(int i = 0; i < 2; ++i) {
       if(utils::flatten_counter(token_counters[aze::Team(i)]).size()
          != start_fields[aze::Team(i)].size()) {

@@ -98,7 +98,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    using graveyard_type = std::map< Team, std::map< Token, unsigned int > >;
 
    template < typename... Params >
-   State(Config config, graveyard_type graveyard, uptr< Logic > logic, Params &&...params)
+   State(Config config, graveyard_type graveyard, uptr< Logic > logic, Params &&... params)
        : base_type(std::forward< Params >(params)...),
          m_config(std::move(config)),
          m_graveyard(std::move(graveyard)),

@@ -3,8 +3,8 @@
 #define NOR_COMMON_TYPES_HPP
 
 #include <iostream>
-#include <vector>
 #include <range/v3/all.hpp>
+#include <vector>
 
 namespace common {
 
@@ -76,7 +76,6 @@ struct Overload: Ts... {
 template < typename... Ts >
 Overload(Ts...) -> Overload< Ts... >;
 
-
 template < class T, class... Ts >
 struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {
 };
@@ -88,7 +87,6 @@ struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {
 };
 template < class T, class... Ts >
 inline constexpr bool is_same_v = is_same< T, Ts... >::value;
-
 
 template < typename Key, typename Value, std::size_t Size >
 struct CEMap {
@@ -111,8 +109,7 @@ struct CEBijection {
    std::array< std::pair< Key, Value >, Size > data;
 
    template < typename T >
-   requires is_any_v< T, Key, Value >
-   [[nodiscard]] constexpr auto at(const T& elem) const
+   requires is_any_v< T, Key, Value >[[nodiscard]] constexpr auto at(const T& elem) const
    {
       const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
          if constexpr(std::is_same_v< T, Key >) {

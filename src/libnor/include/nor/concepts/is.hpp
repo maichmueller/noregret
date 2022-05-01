@@ -14,7 +14,8 @@ concept sized = requires(T const t)
 {
    {
       t.size()
-      } -> std::same_as< size_t >;
+   }
+   ->std::same_as< size_t >;
 };
 
 template < typename Iter >
@@ -26,7 +27,8 @@ concept hashable = requires(T t)
 {
    {
       std::hash< T >{}(t)
-      } -> std::convertible_to< std::size_t >;
+   }
+   ->std::convertible_to< std::size_t >;
 };
 
 template < typename T >
@@ -50,8 +52,9 @@ concept any_of = ::std::disjunction_v< ::std::is_same< T, Ts >... >;
 template < class T, class... Ts >
 concept same_as_all = ::std::conjunction_v< ::std::is_same< T, Ts >... >;
 
-template <typename T>
-concept dereferencable = requires(T t) {
+template < typename T >
+concept dereferencable = requires(T t)
+{
    *t;
 };
 

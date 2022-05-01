@@ -2,8 +2,6 @@
 #ifndef NOR_VANILLA_HPP
 #define NOR_VANILLA_HPP
 
-//#include <cppitertools/enumerate.hpp>
-//#include <cppitertools/reversed.hpp>
 #include <execution>
 #include <iostream>
 #include <list>
@@ -17,13 +15,14 @@
 #include <vector>
 
 #include "common/common.hpp"
+#include "forest.hpp"
+#include "algorithms.hpp"
 #include "node.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/policy.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
-#include "rm.hpp"
 
 namespace nor::rm {
 

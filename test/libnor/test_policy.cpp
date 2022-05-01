@@ -2,13 +2,14 @@
 
 #include <string>
 
-#include "nor/cfr/factory.hpp"
 #include "nor/fosg_states.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/policy.hpp"
+#include "nor/rm/factory.hpp"
 #include "nor/wrappers.hpp"
 
-class TestInfostate: public nor::DefaultInfostate< TestInfostate, std::string > {};
+class TestInfostate: public nor::DefaultInfostate< TestInfostate, std::string > {
+};
 
 namespace std {
 template <>
@@ -47,14 +48,17 @@ TEST(TabularPolicy, kuhn_poker_states)
 {
    auto tabular_policy = nor::rm::factory::make_tabular_policy(
       std::unordered_map< nor::games::kuhn::Infostate, nor::HashmapActionPolicy< int > >{},
-      nor::rm::factory::make_uniform_policy< nor::games::kuhn::Infostate, nor::HashmapActionPolicy< int > >());
+      nor::rm::factory::
+         make_uniform_policy< nor::games::kuhn::Infostate, nor::HashmapActionPolicy< int > >());
 
    nor::games::kuhn::Environment env{};
    nor::games::kuhn::State state{};
    auto istate_alex = nor::games::kuhn::Infostate{nor::Player::alex};
    auto istate_bob = nor::games::kuhn::Infostate{nor::Player::bob};
-   state.apply_action(nor::games::kuhn::ChanceOutcome{nor::games::kuhn::Player::one, nor::games::kuhn::Card::queen});
-   state.apply_action(nor::games::kuhn::ChanceOutcome{nor::games::kuhn::Player::two, nor::games::kuhn::Card::king});
+   state.apply_action(nor::games::kuhn::ChanceOutcome{
+      nor::games::kuhn::Player::one, nor::games::kuhn::Card::queen});
+   state.apply_action(
+      nor::games::kuhn::ChanceOutcome{nor::games::kuhn::Player::two, nor::games::kuhn::Card::king});
    state.apply_action(nor::games::kuhn::Action::check);
    state.apply_action(nor::games::kuhn::Action::bet);
 

@@ -4,7 +4,7 @@
 namespace stratego {
 class sandbox {
 };
-}
+}  // namespace stratego
 
 namespace nor::games::stratego {
 

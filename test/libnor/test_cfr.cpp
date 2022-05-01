@@ -30,21 +30,19 @@ TEST(InfostateNode, storage_correctness)
       nor::games::kuhn::ChanceOutcome{nor::games::kuhn::Player::two, nor::games::kuhn::Card::king});
    first_istate_alex->append(env.private_observation(nor::Player::alex, state));
 
-   auto& first_alex_node_data = infonode_map
-                                   .emplace(
-                                      first_istate_alex,
-                                      rm::InfostateNodeData< nor::games::kuhn::Action >{
-                                         env.actions(Player::alex, state)})
-                                   .first->second;
+   infonode_map
+      .emplace(
+         first_istate_alex,
+         rm::InfostateNodeData< nor::games::kuhn::Action >{env.actions(Player::alex, state)})
+      .first->second;
 
    state.apply_action(nor::games::kuhn::Action::check);
    istate_bob->append(env.private_observation(nor::Player::bob, state));
-   auto& bob_node_data = infonode_map
-                            .emplace(
-                               istate_bob,
-                               rm::InfostateNodeData< nor::games::kuhn::Action >{
-                                  env.actions(Player::bob, state)})
-                            .first->second;
+   infonode_map
+      .emplace(
+         istate_bob,
+         rm::InfostateNodeData< nor::games::kuhn::Action >{env.actions(Player::bob, state)})
+      .first->second;
 
    state.apply_action(nor::games::kuhn::Action::bet);
    auto second_istate_alex = std::make_shared< nor::games::kuhn::Infostate >(*first_istate_alex);
@@ -191,8 +189,8 @@ auto kuhn_optimal(double alpha)
    return std::tuple{alex_policy, bob_policy};
 }
 
-void assert_optimal_policy_kuhn(const auto& cfr_runner, auto& env) {
-
+void assert_optimal_policy_kuhn(const auto& cfr_runner, auto& env)
+{
    games::kuhn::State state;
 
    games::kuhn::Infostate infostate_alex{Player::alex};

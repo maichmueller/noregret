@@ -1,5 +1,6 @@
 
 #include "stratego/Game.hpp"
+
 #include "common/common.hpp"
 #include "stratego/Logic.hpp"
 
@@ -27,8 +28,7 @@ Status Game::run(const sptr< utils::Plotter< State > >& plotter)
                           state(), state().logic()->valid_actions(state(), active_team));
       LOGD2(
          "Possible Moves",
-         aze::utils::VectorPrinter{
-            state().logic()->valid_actions(state(), active_team)});
+         aze::utils::VectorPrinter{state().logic()->valid_actions(state(), active_team)});
       LOGD2("Selected Action by team " + std::string(common::to_string(active_team)), action);
 
       m_state->transition(action);

@@ -2,7 +2,7 @@
 
 namespace stratego::utils {
 
-std::string print_board(const Board &board, std::optional< aze::Team > team, bool hide_unknowns)
+std::string print_board(const Board& board, std::optional< aze::Team > team, bool hide_unknowns)
 {
    using Team = aze::Team;
 #if defined(_MSC_VER)
@@ -32,11 +32,11 @@ std::string print_board(const Board &board, std::optional< aze::Team > team, boo
    // 10.1 \n
    //   1"
    auto create_piece_str = [&H_SIZE_PER_PIECE, &team, &mid, &hide_unknowns](
-                              const std::optional< Piece > &piece_opt, int line) {
+                              const std::optional< Piece >& piece_opt, int line) {
       if(not piece_opt.has_value()) {
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
       }
-      const auto &piece = piece_opt.value();
+      const auto& piece = piece_opt.value();
       std::string color;
       if(piece.token() == Token::hole) {
 #if defined(_MSC_VER)
@@ -62,7 +62,7 @@ std::string print_board(const Board &board, std::optional< aze::Team > team, boo
             and piece.team() != team.value()) {
             return color + std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ') + RESET;
          }
-         const auto &token = piece.token();
+         const auto& token = piece.token();
          return color
                 + aze::utils::center(
                    std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " ")
@@ -138,7 +138,7 @@ std::string print_board(const Board &board, std::optional< aze::Team > team, boo
             line_streams[i] << curr_stream.str();
          }
       }
-      for(auto &stream : line_streams) {
+      for(auto& stream : line_streams) {
          board_print << stream.str() << VERT_BAR << "\n";
       }
       board_print << init_space << VERT_BAR << h_border << VERT_BAR << "\n";

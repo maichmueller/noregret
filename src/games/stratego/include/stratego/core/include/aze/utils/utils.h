@@ -22,7 +22,6 @@ using sptr = std::shared_ptr< T >;
 template < typename T >
 using wptr = std::weak_ptr< T >;
 
-
 namespace aze::utils {
 
 template < std::string_view const&... Strs >
@@ -109,8 +108,6 @@ struct SpanPrinter {
       return os;
    }
 };
-
-
 
 template < typename... Ts >
 struct Overload: Ts... {
@@ -306,8 +303,7 @@ struct CEBijection {
    std::array< std::pair< Key, Value >, Size > data;
 
    template < typename T >
-   requires is_any_v< T, Key, Value >
-   [[nodiscard]] constexpr auto at(const T& elem) const
+   requires is_any_v< T, Key, Value >[[nodiscard]] constexpr auto at(const T& elem) const
    {
       const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
          if constexpr(std::is_same_v< T, Key >) {

@@ -100,8 +100,9 @@ struct fosg_traits< games::rps::Environment > {
 
 namespace std {
 template < typename StateType >
-requires common::is_any_v< StateType, nor::games::rps::PublicState, nor::games::rps::InfoState >
-struct hash< StateType > {
+requires common::
+   is_any_v< StateType, nor::games::rps::PublicState, nor::games::rps::InfoState > struct hash<
+      StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };
 

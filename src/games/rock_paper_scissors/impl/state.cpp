@@ -1,5 +1,6 @@
 
 #include "rock_paper_scissors/state.hpp"
+
 #include "common/common.hpp"
 
 namespace rps {
@@ -12,7 +13,7 @@ void State::apply_action(Action action)
       }
    }
    m_active_team = Team::two;
-   m_picks[static_cast<uint8_t>(action.team)] = action;
+   m_picks[static_cast< uint8_t >(action.team)] = action;
 }
 
 double State::payoff(Team team) const

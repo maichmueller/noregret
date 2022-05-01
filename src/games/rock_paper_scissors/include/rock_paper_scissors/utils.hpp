@@ -37,16 +37,15 @@ inline std::string to_string(const rps::Team& value)
 template <>
 inline std::string to_string(const rps::Action& value)
 {
-   return std::string(rps::team_name_bij.at(value.team))
-          + "-" + std::string(rps::hand_name_bij.at((value.hand)));
+   return std::string(rps::team_name_bij.at(value.team)) + "-"
+          + std::string(rps::hand_name_bij.at((value.hand)));
 }
 
 }  // namespace common
 
 namespace std {
-template <typename ActionType>
-requires common::is_any_v< ActionType, rps::Action, const rps::Action>
-struct hash< ActionType > {
+template < typename ActionType >
+requires common::is_any_v< ActionType, rps::Action, const rps::Action > struct hash< ActionType > {
    size_t operator()(const ActionType& action) const noexcept
    {
       return hash< std::string >{}(

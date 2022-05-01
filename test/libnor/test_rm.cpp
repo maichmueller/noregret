@@ -1,8 +1,8 @@
 
 #include <gtest/gtest.h>
 
-#include "nor/cfr/rm.hpp"
 #include "nor/policy.hpp"
+#include "nor/rm/algorithms.hpp"
 
 class RegretMatchingParamsF:
     public ::testing::TestWithParam< std::tuple<

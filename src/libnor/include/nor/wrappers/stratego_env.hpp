@@ -101,7 +101,6 @@ class InfoState: public nor::DefaultInfostate< InfoState, Observation > {
    using base::base;
 };
 
-
 class Environment {
   public:
    // nor fosg typedefs
@@ -164,9 +163,10 @@ struct fosg_traits< games::stratego::Environment > {
 namespace std {
 
 template < typename StateType >
-requires common::
-   is_any_v< StateType, nor::games::stratego::PublicState, nor::games::stratego::InfoState >
-struct hash< StateType > {
+requires common::is_any_v<
+   StateType,
+   nor::games::stratego::PublicState,
+   nor::games::stratego::InfoState > struct hash< StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };
 

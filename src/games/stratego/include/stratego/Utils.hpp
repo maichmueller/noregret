@@ -49,15 +49,15 @@ std::string print_board(
 namespace common {
 
 template <>
-std::string to_string(const stratego::Status& e);
+std::string to_string(const stratego::Status &e);
 template <>
-std::string to_string(const stratego::Team& e);
+std::string to_string(const stratego::Team &e);
 template <>
-std::string to_string(const stratego::FightOutcome& e);
+std::string to_string(const stratego::FightOutcome &e);
 template <>
-std::string to_string(const stratego::Token& e);
+std::string to_string(const stratego::Token &e);
 template <>
-std::string to_string(const stratego::DefinedBoardSizes& e);
+std::string to_string(const stratego::DefinedBoardSizes &e);
 
 template <>
 auto from_string(std::string_view str) -> stratego::Status;
@@ -71,7 +71,6 @@ template <>
 auto from_string(std::string_view str) -> stratego::DefinedBoardSizes;
 
 }  // namespace common
-
 
 // these operator<< definitions are specifically made for gtest which cannot handle the lookup in
 // global namespace without throwing multiple template matching errors. As such, the printing

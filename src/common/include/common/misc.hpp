@@ -21,10 +21,10 @@ using wptr = std::weak_ptr< T >;
 
 namespace common {
 
-template <typename...Args>
+template < typename... Args >
 struct debug;
 
-using noop = decltype([](auto&& ...) { return; });
+using noop = decltype([](auto&&...) { return; });
 
 namespace random {
 

@@ -66,7 +66,9 @@ class Environment {
       return wstate.chance_actions();
    }
 
-   inline double chance_probability(const world_state_type& wstate, const chance_outcome_type& outcome) const
+   inline double chance_probability(
+      const world_state_type& wstate,
+      const chance_outcome_type& outcome) const
    {
       return wstate.chance_probability(outcome);
    }
@@ -116,8 +118,9 @@ struct fosg_traits< games::kuhn::Environment > {
 
 namespace std {
 template < typename StateType >
-requires common::is_any_v< StateType, nor::games::kuhn::Publicstate, nor::games::kuhn::Infostate >
-struct hash< StateType > {
+requires common::
+   is_any_v< StateType, nor::games::kuhn::Publicstate, nor::games::kuhn::Infostate > struct hash<
+      StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };
 

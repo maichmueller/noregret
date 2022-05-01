@@ -23,8 +23,7 @@ inline T _zero()
  * @tparam Action
  */
 template < concepts::action Action, typename default_value_generator = decltype(&_zero< double >) >
-requires std::is_invocable_r_v< double, default_value_generator >
-class HashmapActionPolicy {
+requires std::is_invocable_r_v< double, default_value_generator > class HashmapActionPolicy {
   public:
    using action_type = Action;
    using map_type = std::unordered_map< Action, double >;
@@ -43,8 +42,9 @@ class HashmapActionPolicy {
          emplace(action, value);
       }
    }
-   HashmapActionPolicy(size_t n_actions, default_value_generator dvg = &_zero< double >) requires
-      std::is_integral_v< action_type >:
+   HashmapActionPolicy(
+      size_t n_actions,
+      default_value_generator dvg = &_zero< double >) requires std::is_integral_v< action_type >:
        m_map(),
        m_def_value_gen(dvg)
    {
@@ -128,8 +128,8 @@ constexpr size_t placeholder_filter([[maybe_unused]] Player player, const State&
  * dynamic_extent.
  */
 template < typename Infostate, typename ActionPolicy, std::size_t extent = std::dynamic_extent >
-requires concepts::info_state< Infostate > && concepts::action_policy< ActionPolicy >
-class UniformPolicy {
+requires concepts::info_state< Infostate >&&
+   concepts::action_policy< ActionPolicy > class UniformPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
@@ -164,8 +164,8 @@ class UniformPolicy {
  * dynamic_extent.
  */
 template < typename Infostate, typename ActionPolicy, std::size_t extent = std::dynamic_extent >
-requires concepts::info_state< Infostate > && concepts::action_policy< ActionPolicy >
-class ZeroDefaultPolicy {
+requires concepts::info_state< Infostate >&&
+   concepts::action_policy< ActionPolicy > class ZeroDefaultPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
@@ -200,8 +200,8 @@ requires
          ActionPolicy
       >
    && concepts::action_policy< ActionPolicy >
-// clang-format on
-class TabularPolicy {
+   // clang-format on
+   class TabularPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
@@ -209,9 +209,10 @@ class TabularPolicy {
    using default_policy_type = DefaultPolicy;
    using table_type = Table;
 
-   TabularPolicy() requires
-      all_predicate_v< std::is_default_constructible, table_type, default_policy_type >
-   = default;
+   TabularPolicy() requires all_predicate_v<
+      std::is_default_constructible,
+      table_type,
+      default_policy_type > = default;
    TabularPolicy(table_type table) : m_table(std::move(table)) {}
    TabularPolicy(table_type table, default_policy_type default_policy)
        : m_table(std::move(table)), m_default_policy(std::move(default_policy))
@@ -235,7 +236,14 @@ class TabularPolicy {
       return m_table.find(infostate);
    }
 
-   auto& operator[](
+   template < typename T >
+   const action_policy_type& operator[](const std::pair< info_state_type, T >& state_any_pair) const
+   {
+      const auto& [infostate, any] = state_any_pair;
+      return m_table.at(infostate);
+   }
+
+   action_policy_type& operator[](
       const std::pair< info_state_type, std::vector< action_type > >& state_action_pair)
    {
       const auto& [infostate, actions] = state_action_pair;
@@ -244,13 +252,6 @@ class TabularPolicy {
          return m_table.emplace(infostate, m_default_policy[{infostate, actions}]).first->second;
       }
       return found_action_policy->second;
-   }
-
-   template < typename T >
-   const auto& operator[](const std::pair< info_state_type, T >& state_any_pair) const
-   {
-      const auto& [infostate, any] = state_any_pair;
-      return m_table.at(infostate);
    }
 
    [[nodiscard]] auto size() const requires(concepts::is::sized< table_type >)
@@ -297,8 +298,8 @@ requires
       typename fosg_auto_traits< Infostate >::observation_type,
       Action>
    && concepts::map< Table, Infostate, Action >
-// clang-format on
-class TabularBestResponse {
+   // clang-format on
+   class TabularBestResponse {
    TabularBestResponse(
       Player best_responding_player,
       const TabularOpponentPolicy& opponent_policy,

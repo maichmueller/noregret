@@ -4,8 +4,8 @@
 #include <type_traits>
 
 #include "dummy_classes.hpp"
-#include "nor/cfr/factory.hpp"
 #include "nor/fosg_traits.hpp"
+#include "nor/rm/factory.hpp"
 #include "nor/wrappers/rps_env.hpp"
 
 TEST(fosg_traits, auto_traits)
@@ -32,8 +32,7 @@ TEST(fosg_traits, partial_match)
 }
 
 template < typename Sub, typename Super >
-requires nor::fosg_traits_partial_match_v< Sub, Super >
-void trait_fosg_partial_match_check();
+requires nor::fosg_traits_partial_match_v< Sub, Super > void trait_fosg_partial_match_check();
 
 TEST(fosg_traits, partial_match_rps)
 {
@@ -46,7 +45,7 @@ TEST(fosg_traits, partial_match_rps)
          nor::games::rps::InfoState,
          nor::HashmapActionPolicy< nor::games::rps::Action > >());
 
-//   trait_fosg_partial_match_check< nor::games::rps::Environment, decltype(tabular_policy) >();
+   //   trait_fosg_partial_match_check< nor::games::rps::Environment, decltype(tabular_policy) >();
 
    EXPECT_TRUE((
       nor::fosg_traits_partial_match_v< decltype(tabular_policy), nor::games::rps::Environment >) );

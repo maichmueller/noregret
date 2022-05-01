@@ -27,29 +27,32 @@ template <
    typename Map,
    typename KeyType = typename Map::key_type,
    typename MappedType = typename Map::mapped_type >
-concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
+concept map = iterable< Map >&& requires(Map m, KeyType key, MappedType mapped)
 {
    typename Map::key_type;
    typename Map::mapped_type;
    {
       m.find(key)
-      } -> std::same_as< typename Map::iterator >;
+   }
+   ->std::same_as< typename Map::iterator >;
    {
       m.at(key)
-      } -> std::same_as< MappedType& >;
+   }
+   ->std::same_as< MappedType& >;
    {
       std::as_const(m).at(key)
-      } -> std::same_as< const MappedType& >;
+   }
+   ->std::same_as< const MappedType& >;
 };
 
 template < typename T >
-concept action = is::hashable< T > && std::equality_comparable< T >;
+concept action = is::hashable< T >&& std::equality_comparable< T >;
 
 template < typename T >
-concept chance_outcome = is::hashable< T > && std::equality_comparable< T >;
+concept chance_outcome = is::hashable< T >&& std::equality_comparable< T >;
 
 template < typename T >
-concept observation = is::hashable< T > && std::equality_comparable< T >;
+concept observation = is::hashable< T >&& std::equality_comparable< T >;
 
 template < typename T, typename Observation = typename fosg_auto_traits< T >::observation_type >
 // clang-format off
@@ -64,7 +67,7 @@ concept public_state =
          Observation&,
          Observation
       >
-   && has::method::getitem<
+   && has::method::getitem_r<
          T,
          Observation&,
          size_t
@@ -79,15 +82,61 @@ concept info_state =
 // clang-format on
 
 template < typename T >
-concept world_state = std::is_move_constructible_v< T > and is::copyable_someway< T >;
+concept world_state = std::is_move_constructible_v< T >and is::copyable_someway< T >;
 
 template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
 // clang-format off
 concept action_policy =
       is::sized< T >
    && iterable< T >
-   && has::method::getitem< T, double&, Action >
-   && has::method::at< const T, double, Action >;
+   && has::method::getitem_r< T, double&, Action >
+   && has::method::at_r< const T, double, Action >;
+// clang-format on
+
+namespace detail {
+
+template <
+   typename T,
+   typename Infostate,
+   typename Action,
+   typename ActionPolicy = typename T::action_policy_type >
+// clang-format off
+concept state_policy_base =
+/**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
+   && action_policy< ActionPolicy >
+   && has::trait::action_policy_type< T >;
+// clang-format on
+
+}  // namespace detail
+
+template <
+   typename T,
+   typename Infostate,
+   typename Action,
+   typename ActionPolicy = typename T::action_policy_type >
+// clang-format off
+concept memorizing_state_policy =
+/**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
+   && has::method::getitem_r<
+         T,
+         ActionPolicy&,
+         const std::pair<Infostate, std::vector< Action > >&
+      >;
+// clang-format on
+
+template <
+   typename T,
+   typename Infostate,
+   typename Action,
+   typename ActionPolicy = typename T::action_policy_type >
+// clang-format off
+concept evaluating_state_policy =
+/**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
+   && has::method::getitem_r<
+         T,
+         ActionPolicy,
+         const std::pair<Infostate, std::vector< Action > >&
+      >;
 // clang-format on
 
 template <
@@ -97,40 +146,18 @@ template <
    typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
 concept state_policy =
-/**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
-   && action_policy< ActionPolicy >
-   && has::trait::action_policy_type< T >
-   && has::method::getitem<
-         T,
-         ActionPolicy&,
-         std::pair<Infostate, std::vector< Action > >
-      >
-   && has::method::getitem<
-         T const,
-         const ActionPolicy&,
-         std::pair<Infostate, std::vector< Action > >
-      >;
+/**/  memorizing_state_policy< T, Infostate, Action, ActionPolicy >
+   or evaluating_state_policy< T, Infostate, Action, ActionPolicy >;
 // clang-format on
 
-template <
-   typename T,
-   typename Infostate,
-   typename ActionPolicy = typename T::action_policy_type >
+template < typename T, typename Infostate, typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
 concept default_state_policy =
 /**/  info_state< Infostate, typename fosg_auto_traits< Infostate >::observation_type >
    && action_policy< ActionPolicy >
    && has::trait::action_policy_type< T >
-   && has::method::getitem<
+   && has::method::getitem_r<
          T,
-         ActionPolicy,
-         const std::pair<
-            Infostate,
-            std::vector<typename fosg_auto_traits<ActionPolicy>::action_type>
-         >&
-      >
-   && has::method::getitem<
-         T const,
          ActionPolicy,
          const std::pair<
             Infostate,
@@ -143,15 +170,7 @@ template < typename T, typename Worldstate, typename Action >
 // clang-format off
 concept chance_distribution =
 /**/  world_state< Worldstate >
-   && has::method::getitem<
-         T,
-         double,
-         const std::pair<
-            Worldstate,
-            Action
-         >&
-      >
-   && has::method::getitem<
+   && has::method::getitem_r<
          T,
          double,
          const std::pair<
@@ -218,12 +237,12 @@ concept vanilla_cfr_requirements =
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && fosg_traits_partial_match< AveragePolicy, Env >::value
-   && concepts::state_policy<
+   && concepts::memorizing_state_policy<
        Policy,
        typename fosg_auto_traits< Env >::info_state_type,
        typename fosg_auto_traits< Env >::action_type
       >
-   && concepts::state_policy<
+   && concepts::memorizing_state_policy<
          AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::action_type

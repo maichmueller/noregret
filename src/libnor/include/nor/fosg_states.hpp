@@ -109,7 +109,8 @@ class DefaultInfostate: public DefaultPublicstate< Derived, Observation > {
       return ss.str();
    };
 
-  private: Player m_player;
+  private:
+   Player m_player;
 };
 
 }  // namespace nor

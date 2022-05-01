@@ -17,15 +17,13 @@ To from_string(std::string_view str);
 }  // namespace common
 
 template < typename T >
-requires std::is_enum_v< T >
-inline auto& operator<<(std::ostream& os, const T& value)
+requires std::is_enum_v< T > inline auto& operator<<(std::ostream& os, const T& value)
 {
    return os << common::to_string(value);
 }
 
 template < typename T >
-requires std::is_enum_v< T >
-inline auto& operator<<(std::stringstream& os, const T& value)
+requires std::is_enum_v< T > inline auto& operator<<(std::stringstream& os, const T& value)
 {
    return os << common::to_string(value);
 }

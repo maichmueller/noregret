@@ -23,8 +23,8 @@ class Game {
        : m_state(std::move(state)), m_agents{ag0, ag1}
    {
    }
-   Game(Game&&) noexcept = default;
-   Game& operator=(Game&&) noexcept = default;
+   Game(Game &&) noexcept = default;
+   Game &operator=(Game &&) noexcept = default;
    ~Game() = default;
 
    aze::Status run(const sptr< utils::Plotter< State > > &plotter);
