@@ -4,6 +4,7 @@
 #include <range/v3/all.hpp>
 #include <vector>
 
+#include "aze/utils.h"
 #include "aze/game/Defs.h"
 
 namespace aze {
