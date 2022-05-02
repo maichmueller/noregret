@@ -2,7 +2,7 @@
 #ifndef NOR_FACTORY_HPP
 #define NOR_FACTORY_HPP
 
-#include "vanilla.hpp"
+#include "vcfr.hpp"
 
 namespace nor::rm {
 

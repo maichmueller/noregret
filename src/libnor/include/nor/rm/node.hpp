@@ -45,7 +45,7 @@ class InfostateNodeData {
    auto& regret() { return m_regret; }
 
    [[nodiscard]] auto& actions() const { return m_legal_actions; }
-   [[nodiscard]] auto& regret(const Action& action) const { return m_regret[action]; }
+   [[nodiscard]] auto& regret(const Action& action) const { return m_regret.at(std::ref(action)); }
    [[nodiscard]] auto& regret() const { return m_regret; }
 
   private:

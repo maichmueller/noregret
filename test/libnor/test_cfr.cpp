@@ -254,7 +254,7 @@ TEST(KuhnPoker, vanilla_cfr_usage_kuhnpoker)
          HashmapActionPolicy< games::kuhn::Action > >());
 
    constexpr rm::CFRConfig cfr_config{
-      .alternating_updates = true, .store_public_states = false, .store_world_states = true};
+      .alternating_updates = true};
 
    auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
@@ -264,7 +264,7 @@ TEST(KuhnPoker, vanilla_cfr_usage_kuhnpoker)
    auto initial_policy_profile = rm::normalize_state_policy(
       cfr_runner.average_policy().at(player).table());
 
-   auto n_iters = 10000;
+   size_t n_iters = 10000;
    for(size_t i = 0; i < n_iters; i++) {
       cfr_runner.iterate(1);
       //      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
@@ -326,7 +326,7 @@ TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
             games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, 1. / 10.}}});
 
    constexpr rm::CFRConfig cfr_config{
-      .alternating_updates = false, .store_public_states = false, .store_world_states = true};
+      .alternating_updates = false};
 
    auto cfr_runner = rm::factory::make_vanilla< cfr_config >(
       std::move(env),

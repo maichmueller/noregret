@@ -247,7 +247,7 @@ class TabularPolicy {
       const auto& infostate = std::get< 0 >(state_action_pair);
       auto found_action_policy = find(infostate);
       if(found_action_policy == m_table.end()) {
-         return m_table.emplace(found_action_policy, infostate, m_default_policy[state_action_pair])
+         return m_table.emplace(infostate, m_default_policy[state_action_pair])
             .first->second;
       }
       return found_action_policy->second;

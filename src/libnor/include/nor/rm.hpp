@@ -5,6 +5,7 @@
 #include "rm/algorithms.hpp"
 #include "rm/factory.hpp"
 #include "rm/forest.hpp"
-#include "rm/vanilla.hpp"
+#include "rm/vcfr.hpp"
+#include "rm/mccfr.hpp"
 
 #endif  // NOR_RM_HPP
