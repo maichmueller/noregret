@@ -234,8 +234,8 @@ class TabularPolicy {
       return m_table.find(infostate);
    }
 
-   template < typename T >
-   const action_policy_type& operator[](const std::pair< info_state_type, T >& state_any_pair) const
+   const action_policy_type& operator[](
+      const std::pair< info_state_type, std::vector< action_type > >& state_any_pair) const
    {
       const auto& infostate = std::get< 0 >(state_any_pair);
       return m_table.at(infostate);
@@ -247,7 +247,8 @@ class TabularPolicy {
       const auto& infostate = std::get< 0 >(state_action_pair);
       auto found_action_policy = find(infostate);
       if(found_action_policy == m_table.end()) {
-         return m_table.emplace(infostate, m_default_policy[state_action_pair]).first->second;
+         return m_table.emplace(found_action_policy, infostate, m_default_policy[state_action_pair])
+            .first->second;
       }
       return found_action_policy->second;
    }

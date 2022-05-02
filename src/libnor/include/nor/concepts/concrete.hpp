@@ -120,7 +120,7 @@ concept memorizing_state_policy =
    && has::method::getitem_r<
          T,
          ActionPolicy&,
-         const std::pair<Infostate, std::vector< Action > >&
+         const std::pair< Infostate, std::vector< Action > >&
       >;
 // clang-format on
 
@@ -156,14 +156,22 @@ concept default_state_policy =
 /**/  info_state< Infostate, typename fosg_auto_traits< Infostate >::observation_type >
    && action_policy< ActionPolicy >
    && has::trait::action_policy_type< T >
-   && has::method::getitem_r<
+   && (has::method::getitem_r<
          T,
          ActionPolicy,
          const std::pair<
             Infostate,
             std::vector<typename fosg_auto_traits<ActionPolicy>::action_type>
          >&
-      >;
+      >
+      or has::method::getitem_r<
+         T const,
+         ActionPolicy,
+         const std::pair<
+            Infostate,
+            std::vector<typename fosg_auto_traits<ActionPolicy>::action_type>
+         >&
+      >);
 // clang-format on
 
 template < typename T, typename Worldstate, typename Action >
