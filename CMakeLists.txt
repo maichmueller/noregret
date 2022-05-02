@@ -118,6 +118,7 @@ set(
 target_compile_options(
         project_options
         INTERFACE
+        $<$<CXX_COMPILER_ID:Clang>:-stdlib=libstdc++>
         "${_options}"
         "${_extra_options}"
 )

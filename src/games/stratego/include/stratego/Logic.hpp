@@ -33,10 +33,7 @@ class Logic {
       const Action &action,
       std::optional< Team > team_opt = std::nullopt);
 
-   bool is_valid(
-      const State &state,
-      Move move,
-      Team team_opt);
+   bool is_valid(const State &state, Move move, Team team_opt);
 
    template < ranges::contiguous_range Range >
    auto _valid_vectors(Position pos, Range shape, int distance = 1);
@@ -107,9 +104,10 @@ class Logic {
     * @return
     */
    template < typename Range >
-   requires ranges::sized_range< Range > && ranges::bidirectional_range< Range > && std::integral<
-      typename Range::value_type >
-   static inline bool check_bounds(const Board &board, Range values)
+   requires ranges::sized_range< Range > &&ranges::bidirectional_range< Range >
+      &&std::integral< typename Range::value_type > static inline bool check_bounds(
+         const Board &board,
+         Range values)
    {
       auto shape = board.shape();
       if(values.size() > shape.size()) {
@@ -122,9 +120,10 @@ class Logic {
    }
 
    template < typename Range >
-   requires ranges::sized_range< Range > && ranges::bidirectional_range< Range > && std::integral<
-      typename Range::value_type >
-   static inline void throw_if_out_of_bounds(const Board &board, Range values)
+   requires ranges::sized_range< Range > &&ranges::bidirectional_range< Range >
+      &&std::integral< typename Range::value_type > static inline void throw_if_out_of_bounds(
+         const Board &board,
+         Range values)
    {
       if(not check_bounds(board, values)) {
          throw std::out_of_range(

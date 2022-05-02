@@ -101,10 +101,10 @@ TEST_F(StrategoState5x5, valid_action_list)
 
    for(int i = 0; i < 2; ++i) {
       //      LOGD2(
-      //         "Valid actions Team: " + utils::enum_name(Team(i)),
+      //         "Valid actions Team: " + utils::to_string(Team(i)),
       //         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
       //      LOGD2(
-      //         "Valid actions expected Team: " + utils::enum_name(Team(i)),
+      //         "Valid actions expected Team: " + utils::to_string(Team(i)),
       //         aze::utils::VectorPrinter(expected[Team(i)]));
 
       EXPECT_EQ(
@@ -133,10 +133,10 @@ TEST_F(StrategoState5x5, valid_action_list)
 
    for(int i = 0; i < 2; ++i) {
       //      LOGD2(
-      //         "Valid actions Team: " + utils::enum_name(Team(i)),
+      //         "Valid actions Team: " + utils::to_string(Team(i)),
       //         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
       //      LOGD2(
-      //         "Valid actions expected Team: " + utils::enum_name(Team(i)),
+      //         "Valid actions expected Team: " + utils::to_string(Team(i)),
       //         aze::utils::VectorPrinter(expected[Team(i)]));
 
       EXPECT_EQ(
@@ -166,8 +166,8 @@ TEST_P(CheckTerminalParamsF, check_terminal)
       s.config(), s.graveyard(), s.logic()->clone(), s.board(), turn_counter, s.history(), s.rng());
 
    LOGD2("State to test", s_to_test.to_string());
-   LOGD2("Observed Outcome", utils::enum_name(s_to_test.logic()->check_terminal(s_to_test)));
-   LOGD2("Expected Outcome", utils::enum_name(status));
+   LOGD2("Observed Outcome", common::to_string(s_to_test.logic()->check_terminal(s_to_test)));
+   LOGD2("Expected Outcome", common::to_string(status));
 
    EXPECT_EQ(s_to_test.logic()->check_terminal(s_to_test), status);
 }

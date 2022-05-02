@@ -50,11 +50,11 @@ consteval uintmax_t cabs(T num)
 }
 }  // namespace detail
 
-template<typename Integer, Integer num>
-struct string_from : detail::explode<(num < 0), detail::cabs(num)> {};
+template < typename Integer, Integer num >
+struct string_from: detail::explode< (num < 0), detail::cabs(num) > {
+};
 
 int main(int argc, char** argv)
 {
-   std::cout << string_from< int, 45 >::value << '\n'
-             << string_from< int, -1 >::value << '\n';
+   std::cout << string_from< int, 45 >::value << '\n' << string_from< int, -1 >::value << '\n';
 }

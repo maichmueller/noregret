@@ -14,7 +14,6 @@ class TinyConfig: public ::testing::Test {
    using Config = stratego::Config;
    using State = stratego::State;
 
-
    std::map< Position, Token > setup0;
    std::map< Position, Token > setup1;
    Config cfg;
@@ -46,7 +45,7 @@ class TinyConfig: public ::testing::Test {
          std::map{
             std::pair{Team::BLUE, std::make_optional(setup0)},
             std::pair{Team::RED, std::make_optional(setup1)}},
-         std::vector<Position>{},
+         std::vector< Position >{},
          true,
          true,
          10};
@@ -63,7 +62,6 @@ class StrategoState3x3: public TinyConfig {
    ~StrategoState3x3() override = default;
 };
 
-
 class SmallConfig: public ::testing::Test {
   public:
    using Token = stratego::Token;
@@ -71,7 +69,6 @@ class SmallConfig: public ::testing::Test {
    using Position = stratego::Position;
    using Config = stratego::Config;
    using State = stratego::State;
-
 
    std::map< Position, Token > setup0;
    std::map< Position, Token > setup1;
@@ -127,7 +124,8 @@ class StrategoState5x5: public SmallConfig {
 };
 
 class BattlematrixParamsF:
-    public ::testing::TestWithParam< std::tuple< stratego::Token, stratego::Token, stratego::FightOutcome > > {
+    public ::testing::TestWithParam<
+       std::tuple< stratego::Token, stratego::Token, stratego::FightOutcome > > {
   protected:
    std::decay_t< decltype(stratego::default_battlematrix()) > bm = stratego::default_battlematrix();
 };
@@ -139,7 +137,7 @@ class CheckTerminalParamsF:
        std::array< size_t, 2 >,
        std::map< stratego::Team, std::optional< stratego::Config::setup_t > >,
        std::map< stratego::Team, std::optional< stratego::Config::token_variant_t > >,
-       std::map< stratego::Team, std::optional< std::vector<stratego::Position> > >,
+       std::map< stratego::Team, std::optional< std::vector< stratego::Position > > >,
        stratego::Status > > {
   protected:
    stratego::Team starting_team = stratego::Team::BLUE;

@@ -2,10 +2,10 @@
 #ifndef NOR_FOSG_TRAITS_HPP
 #define NOR_FOSG_TRAITS_HPP
 
+#include "common/common.hpp"
 #include "nor/concepts/has.hpp"
 
 namespace nor {
-
 
 template < typename Env >
 struct fosg_traits;
@@ -32,6 +32,60 @@ requires(concepts::has::trait::action_type< T >) struct action_type_trait< T > {
 
 template < typename... Ts >
 using action_type_trait_t = typename action_type_trait< Ts... >::type;
+
+////
+
+template < typename HeadT, typename... TailTs >
+struct chance_outcome_type_trait {
+   using type = typename chance_outcome_type_trait< TailTs... >::type;
+};
+
+template < typename HeadT, typename... TailTs >
+requires(concepts::has::trait::chance_outcome_type<
+         HeadT >) struct chance_outcome_type_trait< HeadT, TailTs... > {
+   using type = typename HeadT::chance_outcome_type;
+};
+
+template < typename T >
+requires(not concepts::has::trait::chance_outcome_type< T >) struct chance_outcome_type_trait< T > {
+   using type = void;
+};
+
+template < typename T >
+requires(concepts::has::trait::chance_outcome_type< T >) struct chance_outcome_type_trait< T > {
+   using type = typename T::chance_outcome_type;
+};
+
+template < typename... Ts >
+using chance_outcome_type_trait_t = typename chance_outcome_type_trait< Ts... >::type;
+
+////
+
+template < typename HeadT, typename... TailTs >
+struct chance_distribution_type_trait {
+   using type = typename chance_distribution_type_trait< TailTs... >::type;
+};
+
+template < typename HeadT, typename... TailTs >
+requires(concepts::has::trait::chance_distribution_type<
+         HeadT >) struct chance_distribution_type_trait< HeadT, TailTs... > {
+   using type = typename HeadT::chance_distribution_type;
+};
+
+template < typename T >
+requires(not concepts::has::trait::chance_distribution_type<
+         T >) struct chance_distribution_type_trait< T > {
+   using type = void;
+};
+
+template < typename T >
+requires(
+   concepts::has::trait::chance_distribution_type< T >) struct chance_distribution_type_trait< T > {
+   using type = typename T::chance_distribution_type;
+};
+
+template < typename... Ts >
+using chance_distribution_type_trait_t = typename chance_distribution_type_trait< Ts... >::type;
 
 ////
 
@@ -145,6 +199,8 @@ struct fosg_auto_traits {
    // for a trait definiton within fosg_traits< T >. If the trait class is also not specialized/does
    // not hold the type either, then 'void' is the assigned type.
    using action_type = action_type_trait_t< T, fosg_traits< T > >;
+   using chance_outcome_type = chance_outcome_type_trait_t< T, fosg_traits< T > >;
+   using chance_distribution_type = chance_distribution_type_trait_t< T, fosg_traits< T > >;
    using observation_type = observation_type_trait_t< T, fosg_traits< T > >;
    using info_state_type = info_state_type_trait_t< T, fosg_traits< T > >;
    using public_state_type = public_state_type_trait_t< T, fosg_traits< T > >;
