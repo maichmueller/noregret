@@ -162,6 +162,7 @@ class VanillaCFR:
    using base::_infonodes;
    using base::_infonode;
    using base::_cycle_player_to_update;
+   using base::_collect_rewards;
 
    /// define the implementation details of the API
 
@@ -221,20 +222,6 @@ class VanillaCFR:
 
    void _apply_regret_matching(const std::optional< Player >& player_to_update);
 
-   /**
-    * @brief emplaces the environment rewards for a terminal state and stores them in the node.
-    *
-    * No terminality checking is done within this method! Hence only call this method if you are
-    * already certain that the node is a terminal one. Whether the environment rewards for
-    * non-terminal states would be problematic is dependant on the environment.
-    * @param[in] terminal_wstate the terminal state to collect rewards for.
-    * @param[out] node the terminal node in which to store the reward values.
-    */
-   auto _collect_rewards(
-      const_ref_if_t<  // the fosg concept asserts a reward function taking world_state_type.
-                       // But if it can be passed a const world state then do so instead
-         concepts::has::method::reward< env_type, const world_state_type& >,
-         world_state_type > terminal_wstate) const;
 };
 ///
 //////
@@ -328,8 +315,6 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::iterate(
    }();
    // and increment our iteration counter
    _iteration()++;
-   // we always return the current policy. This way the user can decide whether to store the n-th
-   // iteraton's policies user-side or not.
    return std::vector{std::move(values.get())};
 }
 
@@ -658,31 +643,6 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::update_regret_and_pol
    }
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
-auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_collect_rewards(
-   const_ref_if_t<
-      concepts::has::method::reward< env_type, const world_state_type& >,
-      world_state_type > terminal_wstate) const
-{
-   std::unordered_map< Player, double > rewards;
-   auto players = env().players();
-   if constexpr(nor::concepts::has::method::reward_multi< Env >) {
-      // if the environment has a method for returning all rewards for given players at
-      // once, then we will assume this is a more performant alternative and use it
-      // instead (e.g. when it is costly to compute the reward of each player
-      // individually).
-      std::erase(std::remove_if(players.begin(), players.end(), utils::is_chance_player_pred));
-      auto all_rewards = env().reward(players, terminal_wstate);
-      ranges::views::for_each(
-         players, [&](Player player) { rewards.emplace(player, all_rewards[player]); });
-   } else {
-      // otherwise we just loop over the per player reward method
-      for(auto player : players | utils::is_nonchance_player_filter) {
-         rewards.emplace(player, env().reward(player, terminal_wstate));
-      }
-      return rewards;
-   }
-}
 
 }  // namespace nor::rm
 

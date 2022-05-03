@@ -155,15 +155,15 @@ class TabularCFRBase {
 
    /// getter methods for stored data
 
-   [[nodiscard]] auto& infonode(const sptr< info_state_type >& infostate) const
+   [[nodiscard]] inline const auto& root_state() const { return *m_root_state; }
+   [[nodiscard]] inline auto iteration() const { return m_iteration; }
+   [[nodiscard]] inline const auto& policy() const { return m_curr_policy; }
+   [[nodiscard]] inline const auto& average_policy() const { return m_avg_policy; }
+   [[nodiscard]] inline const auto& env() const { return m_env; }
+   [[nodiscard]] inline auto& infonode(const sptr< info_state_type >& infostate) const
    {
       return m_infonode.at(infostate);
    }
-   [[nodiscard]] const auto& root_state() const { return *m_root_state; }
-   [[nodiscard]] auto iteration() const { return m_iteration; }
-   [[nodiscard]] const auto& policy() const { return m_curr_policy; }
-   [[nodiscard]] const auto& average_policy() const { return m_avg_policy; }
-   [[nodiscard]] const auto& env() const { return m_env; }
 
    //////////////////////////////////
    /// protected member functions ///
@@ -171,14 +171,14 @@ class TabularCFRBase {
 
   protected:
    /// protected member access for derived classes
-   [[nodiscard]] auto& _env() { return m_env; }
-   [[nodiscard]] const auto& _root_state_uptr() const { return m_root_state; }
-   [[nodiscard]] auto& _iteration() { return m_iteration; }
-   [[nodiscard]] auto& _policy() { return m_curr_policy; }
-   [[nodiscard]] auto& _average_policy() { return m_avg_policy; }
-   [[nodiscard]] auto& _player_update_schedule() { return m_player_update_schedule; }
-   [[nodiscard]] auto& _infonodes() { return m_infonode; }
-   [[nodiscard]] auto& _infonode(const sptr< info_state_type >& infostate)
+   [[nodiscard]] inline auto& _env() { return m_env; }
+   [[nodiscard]] inline const auto& _root_state_uptr() const { return m_root_state; }
+   [[nodiscard]] inline auto& _iteration() { return m_iteration; }
+   [[nodiscard]] inline auto& _policy() { return m_curr_policy; }
+   [[nodiscard]] inline auto& _average_policy() { return m_avg_policy; }
+   [[nodiscard]] inline auto& _player_update_schedule() { return m_player_update_schedule; }
+   [[nodiscard]] inline auto& _infonodes() { return m_infonode; }
+   [[nodiscard]] inline auto& _infonode(const sptr< info_state_type >& infostate)
    {
       return m_infonode.at(infostate);
    }
@@ -220,6 +220,20 @@ class TabularCFRBase {
          }
       }
    }
+
+   /**
+    * @brief emplaces the environment rewards for a terminal state and stores them in the node.
+    *
+    * No terminality checking is done within this method! Hence only call this method if you are
+    * already certain that the node is a terminal one. Whether the environment rewards for
+    * non-terminal states would be problematic is dependant on the environment.
+    * @param[in] terminal_wstate the terminal state to collect rewards for.
+    */
+   auto _collect_rewards(
+      const_ref_if_t<  // the fosg concept asserts a reward function taking world_state_type.
+                       // But if it can be passed a const world state then do so instead
+         concepts::has::method::reward< env_type, const world_state_type& >,
+         world_state_type > terminal_wstate) const;
 
    ///////////////////////////////////////////
    /// private member variable definitions ///
@@ -281,6 +295,33 @@ auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_p
    } else {
       auto& player_policy = m_avg_policy[infostate->player()];
       return player_policy[std::pair{*infostate, actions}];
+   }
+}
+
+template < bool altenating_updates, typename Env, typename Policy, typename AveragePolicy >
+   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+auto TabularCFRBase< altenating_updates, Env, Policy, AveragePolicy >::_collect_rewards(
+   const_ref_if_t<
+      concepts::has::method::reward< env_type, const world_state_type& >,
+      world_state_type > terminal_wstate) const
+{
+   std::unordered_map< Player, double > rewards;
+   auto players = env().players();
+   if constexpr(nor::concepts::has::method::reward_multi< Env >) {
+      // if the environment has a method for returning all rewards for given players at
+      // once, then we will assume this is a more performant alternative and use it
+      // instead (e.g. when it is costly to compute the reward of each player
+      // individually).
+      std::erase(std::remove_if(players.begin(), players.end(), utils::is_chance_player_pred));
+      auto all_rewards = env().reward(players, terminal_wstate);
+      ranges::views::for_each(
+         players, [&](Player player) { rewards.emplace(player, all_rewards[player]); });
+   } else {
+      // otherwise we just loop over the per player reward method
+      for(auto player : players | utils::is_nonchance_player_filter) {
+         rewards.emplace(player, env().reward(player, terminal_wstate));
+      }
+      return rewards;
    }
 }
 
