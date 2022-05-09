@@ -14,6 +14,23 @@
 
 namespace nor::rm {
 
+/// strong-types for player based maps
+using Probability = fluent::NamedType< double, struct reach_prob_tag >;
+using Weight = fluent::NamedType< double, struct weight_tag >;
+using StateValue = fluent::NamedType< double, struct state_value_tag >;
+using ValueMap = fluent::NamedType< std::unordered_map< Player, double >, struct value_map_tag >;
+using ReachProbabilityMap = fluent::
+   NamedType< std::unordered_map< Player, double >, struct reach_prob_map_tag >;
+
+template < typename Infostate >
+using InfostateMap = fluent::
+   NamedType< std::unordered_map< Player, sptr< Infostate > >, struct reach_prob_tag >;
+
+template < typename Observation >
+using ObservationbufferMap = fluent::NamedType<
+   std::unordered_map< Player, std::vector< Observation > >,
+   struct observation_buffer_tag >;
+
 template < ranges::range Policy >
 auto& normalize_action_policy_inplace(Policy& policy)
 {

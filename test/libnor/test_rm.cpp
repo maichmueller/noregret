@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "nor/policy.hpp"
-#include "nor/rm/algorithms.hpp"
+#include "nor/rm/cfr_utils.hpp"
 
 class RegretMatchingParamsF:
     public ::testing::TestWithParam< std::tuple<

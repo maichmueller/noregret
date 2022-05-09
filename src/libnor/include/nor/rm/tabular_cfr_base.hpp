@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#include "algorithms.hpp"
+#include "cfr_utils.hpp"
 #include "common/common.hpp"
 #include "forest.hpp"
 #include "node.hpp"
@@ -235,6 +235,23 @@ class TabularCFRBase {
          concepts::has::method::reward< env_type, const world_state_type& >,
          world_state_type > terminal_wstate) const;
 
+   uptr< world_state_type > _child_state(const uptr< world_state_type >& state, const auto& action)
+   {
+      // clone the current world state first before transitioniong it with this action
+      uptr< world_state_type >
+         next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
+            utils::clone_any_way(state));
+      // move the new world state forward by the current action
+      _env().transition(*next_wstate_uptr, action);
+      return next_wstate_uptr;
+   }
+
+   auto _fill_infostate_and_obs_buffers(
+      const ObservationbufferMap& observation_buffer,
+      const InfostateMap& infostate_map,
+      const auto& action_or_outcome,
+      const world_state_type& state);
+
    ///////////////////////////////////////////
    /// private member variable definitions ///
    ///////////////////////////////////////////
@@ -323,6 +340,46 @@ auto TabularCFRBase< altenating_updates, Env, Policy, AveragePolicy >::_collect_
       }
       return rewards;
    }
+}
+
+template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
+auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_fill_infostate_and_obs_buffers(
+   const ObservationbufferMap& observation_buffer,
+   const InfostateMap& infostate_map,
+   const auto& action_or_outcome,
+   const world_state_type& state)
+{
+   auto active_player = _env().active_player(state);
+   std::unordered_map< Player, sptr< info_state_type > > child_infostate_map;
+   auto observation_buffer_copy = observation_buffer.get();
+   for(auto player : _env().players()) {
+      if(player == Player::chance) {
+         continue;
+      }
+      if(player != active_player) {
+         // for all but the active player we simply append action and state observation to the
+         // buffer. They will be written to an actual infostate once that player becomes the
+         // active player again
+         child_infostate_map.emplace(player, infostate_map.get().at(player));
+         auto& player_infostate = observation_buffer_copy.at(player);
+         player_infostate.emplace_back(_env().private_observation(player, action_or_outcome));
+         player_infostate.emplace_back(_env().private_observation(player, state));
+      } else {
+         // for the active player we first append all recent action and state observations to a
+         // info state copy, and then follow it up by adding the current action and state
+         // observations
+         auto cloned_infostate_ptr = utils::clone_any_way(infostate_map.get().at(active_player));
+         auto& obs_history = observation_buffer_copy[active_player];
+         for(auto& obs : obs_history) {
+            cloned_infostate_ptr->append(std::move(obs));
+         }
+         obs_history.clear();
+         cloned_infostate_ptr->append(_env().private_observation(player, action_or_outcome));
+         cloned_infostate_ptr->append(_env().private_observation(player, state));
+         child_infostate_map.emplace(player, std::move(cloned_infostate_ptr));
+      }
+   }
+   return std::tuple{observation_buffer_copy, child_infostate_map};
 }
 
 }  // namespace nor::rm

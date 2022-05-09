@@ -47,16 +47,58 @@ inline auto create_rng(RNG rng)
    return rng;
 }
 
-template < typename Container >
-auto choose(const Container& cont, RNG& rng)
+template < typename RAContainer >
+   requires ranges::range< RAContainer >
+inline auto& choose(const RAContainer& cont, RNG& rng)
 {
-   return cont[std::uniform_int_distribution(0ul, cont.size())(rng)];
+   constexpr auto chooser = [&](const auto& actual_ra_container) {
+      return actual_ra_container[std::uniform_int_distribution(
+         0ul, actual_ra_container.size())(rng)];
+   };
+   if constexpr(
+      std::random_access_iterator<
+         decltype(std::declval< RAContainer >().begin()) > and requires { cont.size(); }) {
+      return chooser(cont);
+   } else {
+      auto cont_as_vec = ranges::to_vector(
+         cont | ranges::views::transform([](const auto& elem) { return std::ref(elem); }));
+      return chooser(cont_as_vec).get();
+   }
 }
-template < typename Container >
-auto choose(const Container& cont)
+
+template < typename RAContainer, typename Policy >
+   requires ranges::range< RAContainer > and requires(Policy p) {
+                                                {
+                                                   // policy has to be have a getitem accessor
+                                                   // returning the probability of the input
+                                                   // matching the container's contained type
+                                                   p[std::declval< decltype(*(
+                                                      std::declval< RAContainer >().begin())) >()]
+                                                   } -> std::convertible_to< double >;
+                                             }
+inline auto& choose(const RAContainer& cont, Policy& policy, RNG& rng)
 {
-   auto dev = std::random_device{};
-   return cont[std::uniform_int_distribution(0ul, cont.size())(dev)];
+   if constexpr(
+      std::random_access_iterator<
+         decltype(std::declval< RAContainer >().begin()) > and requires { cont.size(); }) {
+      auto weights = ranges::to_vector(
+         cont | ranges::views::transform([&](const auto& elem) { return policy[elem]; }));
+      return cont[std::discrete_distribution< size_t >(weights)(rng)];
+   } else {
+      std::vector< double > weights;
+      auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([&](const auto& elem) {
+                                              weights.emplace_back(policy[elem]);
+                                              return std::ref(elem);
+                                           }));
+      return cont_as_vec[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)]
+         .get();
+   }
+}
+template < typename RAContainer >
+inline auto choose(const RAContainer& cont)
+{
+   auto rng = create_rng(std::random_device{}());
+   return choose(cont, rng);
 }
 
 }  // namespace random

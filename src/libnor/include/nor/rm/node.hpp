@@ -28,9 +28,16 @@ namespace nor::rm {
 template < typename Action >
 class InfostateNodeData {
   public:
+   InfostateNodeData() = default;
+
    template < ranges::range ActionRange >
    InfostateNodeData(ActionRange actions) : m_regret()
    {
+      emplace(std::move(actions));
+   }
+
+   template < ranges::range ActionRange >
+   void emplace(ActionRange actions) {
       if constexpr(concepts::is::sized< ActionRange >) {
          m_legal_actions.reserve(actions.size());
       }
