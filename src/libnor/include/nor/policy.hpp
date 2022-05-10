@@ -98,7 +98,14 @@ class HashmapActionPolicy {
          return m_def_value_gen();
       }
    }
-
+   inline auto& operator[](const action_type& action) const
+   {
+      if(auto found = find(action); found != end()) {
+         return found->second;
+      } else {
+         return m_def_value_gen();
+      }
+   }
   private:
    map_type m_map;
    default_value_generator m_def_value_gen;

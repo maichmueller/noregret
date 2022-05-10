@@ -3,6 +3,7 @@
 #define NOR_RM_ALGORITHMS_HPP
 
 #include <execution>
+#include <named_type.hpp>
 #include <range/v3/all.hpp>
 
 #include "common/common.hpp"
@@ -14,22 +15,14 @@
 
 namespace nor::rm {
 
-/// strong-types for player based maps
+/// strong-types for passing arguments around with intent
 using Probability = fluent::NamedType< double, struct reach_prob_tag >;
 using Weight = fluent::NamedType< double, struct weight_tag >;
 using StateValue = fluent::NamedType< double, struct state_value_tag >;
-using ValueMap = fluent::NamedType< std::unordered_map< Player, double >, struct value_map_tag >;
+using StateValueMap = fluent::
+   NamedType< std::unordered_map< Player, double >, struct value_map_tag >;
 using ReachProbabilityMap = fluent::
    NamedType< std::unordered_map< Player, double >, struct reach_prob_map_tag >;
-
-template < typename Infostate >
-using InfostateMap = fluent::
-   NamedType< std::unordered_map< Player, sptr< Infostate > >, struct reach_prob_tag >;
-
-template < typename Observation >
-using ObservationbufferMap = fluent::NamedType<
-   std::unordered_map< Player, std::vector< Observation > >,
-   struct observation_buffer_tag >;
 
 template < ranges::range Policy >
 auto& normalize_action_policy_inplace(Policy& policy)
@@ -107,8 +100,8 @@ template < kv_like_over_doubles KVdouble >
                std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;
             }
 inline double cf_reach_probability(
-   const KVdouble& reach_probability_contributions,
-   const Player& player)
+   const Player& player,
+   const KVdouble& reach_probability_contributions)
 {
    auto values_view = reach_probability_contributions
                       | ranges::views::filter([&](const auto& player_rp_pair) {
@@ -201,6 +194,7 @@ void regret_matching(
       });
    }
 }
+
 }  // namespace nor::rm
 
 #endif  // NOR_RM_ALGORITHMS_HPP

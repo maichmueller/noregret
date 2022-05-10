@@ -8,6 +8,22 @@
 
 namespace common {
 
+template < typename T >
+struct default_ref_hasher {
+   auto operator()(const std::reference_wrapper< T >& value) const
+   {
+      return std::hash< std::remove_cvref_t< T > >{}(value.get());
+   }
+};
+template < typename T >
+struct default_ref_comparator {
+   auto operator()(const std::reference_wrapper< T >& ref1, const std::reference_wrapper< T >& ref2)
+      const
+   {
+      return ref1.get() == ref2.get();
+   }
+};
+
 /**
  * Literal class type that wraps a constant expression string.
  * Can be used as template parameter to differentiate via 'strings'

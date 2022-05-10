@@ -58,6 +58,13 @@ class TabularCFRBase {
 
    /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
+   /// strong-types for argument passing
+   using InfostateMap = fluent::
+      NamedType< std::unordered_map< Player, sptr< info_state_type > >, struct reach_prob_tag >;
+
+   using ObservationbufferMap = fluent::NamedType<
+      std::unordered_map< Player, std::vector< observation_type > >,
+      struct observation_buffer_tag >;
 
    ////////////////////
    /// Constructors ///
@@ -247,8 +254,14 @@ class TabularCFRBase {
    }
 
    auto _fill_infostate_and_obs_buffers(
-      const ObservationbufferMap& observation_buffer,
-      const InfostateMap& infostate_map,
+      ObservationbufferMap observation_buffer,
+      InfostateMap infostate_map,
+      const auto& action_or_outcome,
+      const world_state_type& state);
+
+   void _fill_infostate_and_obs_buffers_inplace(
+      ObservationbufferMap& observation_buffer,
+      InfostateMap& infostate_map,
       const auto& action_or_outcome,
       const world_state_type& state);
 
@@ -342,16 +355,30 @@ auto TabularCFRBase< altenating_updates, Env, Policy, AveragePolicy >::_collect_
    }
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
-auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_fill_infostate_and_obs_buffers(
-   const ObservationbufferMap& observation_buffer,
-   const InfostateMap& infostate_map,
-   const auto& action_or_outcome,
-   const world_state_type& state)
+template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
+   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+auto TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
+   _fill_infostate_and_obs_buffers(
+      ObservationbufferMap observation_buffer,
+      InfostateMap infostate_map,
+      const auto& action_or_outcome,
+      const world_state_type& state)
+{
+   _fill_infostate_and_obs_buffers_inplace(
+      observation_buffer, infostate_map, action_or_outcome, state);
+   return std::tuple{observation_buffer, infostate_map};
+}
+
+template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
+   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+void TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
+   _fill_infostate_and_obs_buffers_inplace(
+      ObservationbufferMap& observation_buffer,
+      InfostateMap& infostate_map,
+      const auto& action_or_outcome,
+      const world_state_type& state)
 {
    auto active_player = _env().active_player(state);
-   std::unordered_map< Player, sptr< info_state_type > > child_infostate_map;
-   auto observation_buffer_copy = observation_buffer.get();
    for(auto player : _env().players()) {
       if(player == Player::chance) {
          continue;
@@ -360,26 +387,25 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_fill_infostate_and_o
          // for all but the active player we simply append action and state observation to the
          // buffer. They will be written to an actual infostate once that player becomes the
          // active player again
-         child_infostate_map.emplace(player, infostate_map.get().at(player));
-         auto& player_infostate = observation_buffer_copy.at(player);
+         auto& player_infostate = observation_buffer.get().at(player);
          player_infostate.emplace_back(_env().private_observation(player, action_or_outcome));
          player_infostate.emplace_back(_env().private_observation(player, state));
       } else {
          // for the active player we first append all recent action and state observations to a
          // info state copy, and then follow it up by adding the current action and state
          // observations
-         auto cloned_infostate_ptr = utils::clone_any_way(infostate_map.get().at(active_player));
-         auto& obs_history = observation_buffer_copy[active_player];
+         auto& infostate_ptr_slot = infostate_map.get().at(active_player);
+         auto cloned_infostate_ptr = utils::clone_any_way(infostate_ptr_slot);
+         auto& obs_history = observation_buffer.get()[active_player];
          for(auto& obs : obs_history) {
             cloned_infostate_ptr->append(std::move(obs));
          }
          obs_history.clear();
          cloned_infostate_ptr->append(_env().private_observation(player, action_or_outcome));
          cloned_infostate_ptr->append(_env().private_observation(player, state));
-         child_infostate_map.emplace(player, std::move(cloned_infostate_ptr));
+         infostate_ptr_slot = std::move(cloned_infostate_ptr);
       }
    }
-   return std::tuple{observation_buffer_copy, child_infostate_map};
 }
 
 }  // namespace nor::rm

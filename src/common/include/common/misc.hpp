@@ -21,6 +21,7 @@ using wptr = std::weak_ptr< T >;
 
 namespace common {
 
+
 template < typename... Args >
 struct debug;
 
@@ -69,25 +70,25 @@ inline auto& choose(const RAContainer& cont, RNG& rng)
 template < typename RAContainer, typename Policy >
    requires ranges::range< RAContainer > and requires(Policy p) {
                                                 {
-                                                   // policy has to be have a getitem accessor
-                                                   // returning the probability of the input
-                                                   // matching the container's contained type
-                                                   p[std::declval< decltype(*(
-                                                      std::declval< RAContainer >().begin())) >()]
+                                                   // policy has to be a callable returning the
+                                                   // probability of the input matching the
+                                                   // container's contained type
+                                                   p(std::declval< decltype(*(
+                                                        std::declval< RAContainer >().begin())) >())
                                                    } -> std::convertible_to< double >;
                                              }
-inline auto& choose(const RAContainer& cont, Policy& policy, RNG& rng)
+inline auto& choose(const RAContainer& cont, Policy policy, RNG& rng)
 {
    if constexpr(
       std::random_access_iterator<
          decltype(std::declval< RAContainer >().begin()) > and requires { cont.size(); }) {
       auto weights = ranges::to_vector(
-         cont | ranges::views::transform([&](const auto& elem) { return policy[elem]; }));
+         cont | ranges::views::transform([&](const auto& elem) { return policy(elem); }));
       return cont[std::discrete_distribution< size_t >(weights)(rng)];
    } else {
       std::vector< double > weights;
       auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([&](const auto& elem) {
-                                              weights.emplace_back(policy[elem]);
+                                              weights.emplace_back(policy(elem));
                                               return std::ref(elem);
                                            }));
       return cont_as_vec[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)]

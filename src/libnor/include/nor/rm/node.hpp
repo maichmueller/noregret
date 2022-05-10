@@ -12,32 +12,56 @@
 
 namespace nor::rm {
 
+namespace detail {
+
+/// In order to avoid any storage overhead we don't let the empty type have unique storage. This
+/// way there won't be individual storage of empty structs in the node, but rather a single address
+/// for all. This reduces the memory footprint of each node by a potentially significant amount,
+/// depending on compiler struct padding
+
+template < typename Weight >
+struct CondWeight {
+   constexpr static bool empty_optimization = false;
+   Weight weight;
+};
+
 /**
- * @brief the node type to represent game states in the game tree built by CFR.
+ * @brief Empty Publicstate optimization for when its storage is not required.
+ */
+template < concepts::is::empty Weight >
+struct CondWeight< Weight > {
+   constexpr static bool empty_optimization = true;
+   [[no_unique_address]] Weight weight;
+};
+
+}  // namespace detail
+
+/**
+ * @brief the node type to represent information states in the information tree built by CFR.
  *
  * There is no concept checking for this class as any of the template types are supposed to be
- * checked within the CFR class for concept fulfillment and thus allow some flexibility in data
- * storage (e.g. not store the public states, by setting them as empty class - the minimal storage
- * cost)
+ * checked within the CFR class for concept fulfillment
+ *
  * @tparam Action
- * @tparam Infostate
- * @tparam Publicstate
- * @tparam Worldstate
  */
 
-template < typename Action >
-class InfostateNodeData {
+template < typename Action, typename Weight = utils::empty >
+class InfostateNodeData: public detail::CondWeight< Weight > {
   public:
-   InfostateNodeData() = default;
+   using cond_weight_base = detail::CondWeight< Weight >;
+
+   InfostateNodeData(Weight weight = {}) : cond_weight_base(std::move(weight)), m_regret(){};
 
    template < ranges::range ActionRange >
-   InfostateNodeData(ActionRange actions) : m_regret()
+   InfostateNodeData(ActionRange actions, Weight weight = {})
+       : cond_weight_base(std::move(weight)), m_regret()
    {
       emplace(std::move(actions));
    }
 
    template < ranges::range ActionRange >
-   void emplace(ActionRange actions) {
+   void emplace(ActionRange actions)
+   {
       if constexpr(concepts::is::sized< ActionRange >) {
          m_legal_actions.reserve(actions.size());
       }
@@ -50,27 +74,22 @@ class InfostateNodeData {
    auto& actions() { return m_legal_actions; }
    auto& regret(const Action& action) { return m_regret[std::ref(action)]; }
    auto& regret() { return m_regret; }
+   auto& weight() { return cond_weight_base::weight; }
 
    [[nodiscard]] auto& actions() const { return m_legal_actions; }
    [[nodiscard]] auto& regret(const Action& action) const { return m_regret.at(std::ref(action)); }
    [[nodiscard]] auto& regret() const { return m_regret; }
+   [[nodiscard]] auto& weight() const { return cond_weight_base::weight; }
 
   private:
    std::vector< Action > m_legal_actions;
    /// the cumulative regret the active player amassed with each action. Cumulative with regards to
    /// the number of CFR iterations. Defaults to 0 and should be updated later during the traversal.
-   using action_ref_hasher = decltype([](const std::reference_wrapper< const Action >& action_ref) {
-      return std::hash< Action >{}(action_ref.get());
-   });
-   using action_ref_comparator = decltype([](const std::reference_wrapper< const Action >& ref1,
-                                             const std::reference_wrapper< const Action >& ref2) {
-      return ref1.get() == ref2.get();
-   });
    std::unordered_map<
       std::reference_wrapper< const Action >,
       double,
-      action_ref_hasher,
-      action_ref_comparator >
+      common::default_ref_hasher< const Action >,
+      common::default_ref_comparator< const Action > >
       m_regret{};
 };
 
