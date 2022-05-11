@@ -9,7 +9,7 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, vanilla_cfr)
+TEST(KuhnPoker, mccfr_outcome_sampling_lazy_weighting)
 {
    games::kuhn::Environment env{};
 
@@ -24,10 +24,17 @@ TEST(KuhnPoker, vanilla_cfr)
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
-   constexpr rm::CFRConfig cfr_config{.alternating_updates = true};
+   constexpr rm::MCCFRConfig cfr_config{
+      .alternating_updates = true,
+      .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
+      .weighting = rm::MCCFRWeightingMode::lazy};
 
-   auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
-      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
+   auto mccfr_runner = rm::factory::make_mccfr< cfr_config, true >(
+      std::move(env),
+      std::make_unique< games::kuhn::State >(),
+      tabular_policy,
+      avg_tabular_policy,
+      0.6);
 
    auto player = Player::alex;
 
@@ -36,16 +43,16 @@ TEST(KuhnPoker, vanilla_cfr)
 
    size_t n_iters = 10000;
    for(size_t i = 0; i < n_iters; i++) {
-      cfr_runner.iterate(1);
+      mccfr_runner.iterate(1);
       //      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
    }
    auto game_value_map = cfr_runner.game_value();
    double alex_true_game_value = -1. / 18.;
    ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
-   assert_optimal_policy_kuhn(cfr_runner, env);
+   assert_optimal_policy_kuhn(mccfr_runner, env);
 }
 
-TEST(RockPaperScissors, vanilla_cfr)
+TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
 {
    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
    games::rps::Environment env{};
@@ -116,7 +123,7 @@ TEST(RockPaperScissors, vanilla_cfr)
    }
 }
 
-// TEST_F(StrategoState3x3, vanilla_cfr)
+// TEST_F(StrategoState3x3, vanilla_cfr_usage_stratego)
 //{
 //    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //    games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};

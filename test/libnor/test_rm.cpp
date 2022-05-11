@@ -1,8 +1,71 @@
 
 #include <gtest/gtest.h>
 
+#include "nor/nor.hpp"
 #include "nor/policy.hpp"
 #include "nor/rm/cfr_utils.hpp"
+#include "nor/wrappers.hpp"
+
+using namespace nor;
+
+TEST(InfostateNode, storage_correctness)
+{
+   std::unordered_map<
+      sptr< nor::games::kuhn::Infostate >,
+      rm::InfostateNodeData< nor::games::kuhn::Action >,
+      decltype([](const sptr< nor::games::kuhn::Infostate >& ptr) {
+         return std::hash< nor::games::kuhn::Infostate >{}(*ptr);
+      }),
+      decltype([](const sptr< nor::games::kuhn::Infostate >& ptr1,
+                  const sptr< nor::games::kuhn::Infostate >& ptr2) { return *ptr1 == *ptr2; }) >
+      infonode_map{};
+
+   nor::games::kuhn::Environment env{};
+   nor::games::kuhn::State state{};
+   auto first_istate_alex = std::make_shared< nor::games::kuhn::Infostate >(nor::Player::alex);
+   auto istate_bob = std::make_shared< nor::games::kuhn::Infostate >(nor::Player::bob);
+   state.apply_action(nor::games::kuhn::ChanceOutcome{
+      nor::games::kuhn::Player::one, nor::games::kuhn::Card::queen});
+   state.apply_action(
+      nor::games::kuhn::ChanceOutcome{nor::games::kuhn::Player::two, nor::games::kuhn::Card::king});
+   first_istate_alex->append(env.private_observation(nor::Player::alex, state));
+
+   infonode_map
+      .emplace(
+         first_istate_alex,
+         rm::InfostateNodeData< nor::games::kuhn::Action >{env.actions(Player::alex, state)})
+      .first->second;
+
+   state.apply_action(nor::games::kuhn::Action::check);
+   istate_bob->append(env.private_observation(nor::Player::bob, state));
+   infonode_map
+      .emplace(
+         istate_bob,
+         rm::InfostateNodeData< nor::games::kuhn::Action >{env.actions(Player::bob, state)})
+      .first->second;
+
+   state.apply_action(nor::games::kuhn::Action::bet);
+   auto second_istate_alex = std::make_shared< nor::games::kuhn::Infostate >(*first_istate_alex);
+   second_istate_alex->append(env.private_observation(nor::Player::alex, state));
+   auto& second_alex_node_data = infonode_map
+                                    .emplace(
+                                       second_istate_alex,
+                                       rm::InfostateNodeData< nor::games::kuhn::Action >{
+                                          env.actions(Player::alex, state)})
+                                    .first->second;
+   second_alex_node_data.regret(games::kuhn::Action::check) += 5;
+   second_alex_node_data.regret(games::kuhn::Action::bet) -= 10;
+
+   auto& second_alex_node_data_other_ref = infonode_map.at(
+      std::make_shared< games::kuhn::Infostate >(*second_istate_alex));
+
+   ASSERT_EQ(
+      second_alex_node_data.regret(games::kuhn::Action::check),
+      second_alex_node_data_other_ref.regret(games::kuhn::Action::check));
+   ASSERT_EQ(
+      second_alex_node_data.regret(games::kuhn::Action::bet),
+      second_alex_node_data_other_ref.regret(games::kuhn::Action::bet));
+}
 
 class RegretMatchingParamsF:
     public ::testing::TestWithParam< std::tuple<
@@ -14,7 +77,6 @@ class RegretMatchingParamsF:
    std::vector< int > actions{1, 2, 3, 4, 5};
 };
 
-using namespace nor;
 
 TEST_P(RegretMatchingParamsF, integer_actions)
 {
