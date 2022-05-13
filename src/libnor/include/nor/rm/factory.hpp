@@ -82,17 +82,18 @@ struct factory {
    ////////////////// Monte-Carlo Counterfactual Regret Minimizer Factory //////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
-   template < MCCFRConfig cfg, bool as_map, typename Env, typename Policy, typename AveragePolicy >
+   template < MCCFRConfig cfg, bool as_map, typename Env, typename Policy, typename AvgPolicy >
    static MCCFR<
       cfg,
-      std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
+      // remove_cvref_t necessary to avoid e.g. Env captured as const Env&
+      std::remove_cvref_t< Env >,
       std::remove_cvref_t< Policy >,
-      std::remove_cvref_t< AveragePolicy > >
+      std::remove_cvref_t< AvgPolicy > >
    make_mccfr(
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       Policy&& policy,
-      AveragePolicy&& avg_policy,
+      AvgPolicy&& avg_policy,
       double epsilon,
       size_t seed = 0)
    {
@@ -103,8 +104,7 @@ struct factory {
             std::move(root_state),
             to_map(players | utils::is_nonchance_player_filter, std::forward< Policy >(policy)),
             to_map(
-               players | utils::is_nonchance_player_filter,
-               std::forward< AveragePolicy >(avg_policy)),
+               players | utils::is_nonchance_player_filter, std::forward< AvgPolicy >(avg_policy)),
             epsilon,
             seed};
       } else {
@@ -112,7 +112,7 @@ struct factory {
             std::forward< Env >(env),
             std::move(root_state),
             std::forward< Policy >(policy),
-            std::forward< AveragePolicy >(avg_policy),
+            std::forward< AvgPolicy >(avg_policy),
             epsilon,
             seed};
       }

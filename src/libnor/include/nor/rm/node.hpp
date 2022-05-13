@@ -26,7 +26,7 @@ struct CondWeight {
 };
 
 /**
- * @brief Empty Publicstate optimization for when its storage is not required.
+ * @brief Empty Weight optimization for when its storage is not required.
  */
 template < concepts::is::empty Weight >
 struct CondWeight< Weight > {
@@ -74,12 +74,12 @@ class InfostateNodeData: public detail::CondWeight< Weight > {
    auto& actions() { return m_legal_actions; }
    auto& regret(const Action& action) { return m_regret[std::ref(action)]; }
    auto& regret() { return m_regret; }
-   auto& weight() { return cond_weight_base::weight; }
+   auto& weight() requires(not concepts::is::empty< Weight >) { return cond_weight_base::weight; }
 
    [[nodiscard]] auto& actions() const { return m_legal_actions; }
    [[nodiscard]] auto& regret(const Action& action) const { return m_regret.at(std::ref(action)); }
    [[nodiscard]] auto& regret() const { return m_regret; }
-   [[nodiscard]] auto& weight() const { return cond_weight_base::weight; }
+   [[nodiscard]] auto& weight() const requires(not concepts::is::empty< Weight >) { return cond_weight_base::weight; }
 
   private:
    std::vector< Action > m_legal_actions;

@@ -170,6 +170,7 @@ else ()
     find_package(Python3 COMPONENTS Interpreter Development)
 endif ()
 find_package(pybind11 REQUIRED)
+find_package(range-v3 REQUIRED)
 
 include(${_cmake_DIR}/targets/nor.cmake)
 if (ENABLE_BUILD_PYTHON_EXTENSION)

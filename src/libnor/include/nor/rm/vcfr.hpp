@@ -145,6 +145,16 @@ class VanillaCFR:
    /// private member functions ///
    ////////////////////////////////
 
+   [[nodiscard]] inline auto& _infonodes() { return m_infonode; }
+   [[nodiscard]] inline auto& infonode(const sptr< info_state_type >& infostate) const
+   {
+      return m_infonode.at(infostate);
+   }
+   [[nodiscard]] inline auto& _infonode(const sptr< info_state_type >& infostate)
+   {
+      return m_infonode.at(infostate);
+   }
+
   private:
    /// import the parent's member variable accessors
    using base::_env;
@@ -153,12 +163,21 @@ class VanillaCFR:
    using base::_policy;
    using base::_average_policy;
    using base::_player_update_schedule;
-   using base::_infonodes;
-   using base::_infonode;
    using base::_cycle_player_to_update;
    using base::_collect_rewards;
    using base::_child_state;
    using base::_fill_infostate_and_obs_buffers;
+
+   /// the relevant data stored at each infostate
+   std::unordered_map<
+      sptr< info_state_type >,
+      infostate_data_type,
+      decltype(
+         [](const sptr< info_state_type >& ptr) { return std::hash< info_state_type >{}(*ptr); }),
+      decltype([](const sptr< info_state_type >& ptr1, const sptr< info_state_type >& ptr2) {
+         return *ptr1 == *ptr2;
+      }) >
+      m_infonode{};
 
    /// define the implementation details of the API
 

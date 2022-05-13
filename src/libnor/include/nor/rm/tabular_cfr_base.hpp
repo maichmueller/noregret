@@ -167,10 +167,6 @@ class TabularCFRBase {
    [[nodiscard]] inline const auto& policy() const { return m_curr_policy; }
    [[nodiscard]] inline const auto& average_policy() const { return m_avg_policy; }
    [[nodiscard]] inline const auto& env() const { return m_env; }
-   [[nodiscard]] inline auto& infonode(const sptr< info_state_type >& infostate) const
-   {
-      return m_infonode.at(infostate);
-   }
 
    //////////////////////////////////
    /// protected member functions ///
@@ -184,11 +180,7 @@ class TabularCFRBase {
    [[nodiscard]] inline auto& _policy() { return m_curr_policy; }
    [[nodiscard]] inline auto& _average_policy() { return m_avg_policy; }
    [[nodiscard]] inline auto& _player_update_schedule() { return m_player_update_schedule; }
-   [[nodiscard]] inline auto& _infonodes() { return m_infonode; }
-   [[nodiscard]] inline auto& _infonode(const sptr< info_state_type >& infostate)
-   {
-      return m_infonode.at(infostate);
-   }
+
 
    /**
     * @brief Cycles the update schedule by popping the next player to update and requeueing them as
@@ -280,16 +272,6 @@ class TabularCFRBase {
    /// policies. This means that the state policy p(s, . ) for a given info state s needs to
    /// normalize its probabilities p(s, . ) by \sum_a p(s,a) when used for evaluation.
    std::unordered_map< Player, AveragePolicy > m_avg_policy;
-   /// the relevant data stored at each infostate
-   std::unordered_map<
-      sptr< info_state_type >,
-      infostate_data_type,
-      decltype(
-         [](const sptr< info_state_type >& ptr) { return std::hash< info_state_type >{}(*ptr); }),
-      decltype([](const sptr< info_state_type >& ptr1, const sptr< info_state_type >& ptr2) {
-         return *ptr1 == *ptr2;
-      }) >
-      m_infonode{};
    /// the next player to update when doing alternative updates. Otherwise this member will be
    /// unused.
    std::deque< Player > m_player_update_schedule{};

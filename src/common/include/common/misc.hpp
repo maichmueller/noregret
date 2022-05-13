@@ -52,7 +52,7 @@ template < typename RAContainer >
    requires ranges::range< RAContainer >
 inline auto& choose(const RAContainer& cont, RNG& rng)
 {
-   constexpr auto chooser = [&](const auto& actual_ra_container) {
+   auto chooser = [&](const auto& actual_ra_container) -> auto& {
       return actual_ra_container[std::uniform_int_distribution(
          0ul, actual_ra_container.size())(rng)];
    };
@@ -77,14 +77,14 @@ template < typename RAContainer, typename Policy >
                                                         std::declval< RAContainer >().begin())) >())
                                                    } -> std::convertible_to< double >;
                                              }
-inline auto& choose(const RAContainer& cont, Policy policy, RNG& rng)
+inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
 {
    if constexpr(
       std::random_access_iterator<
          decltype(std::declval< RAContainer >().begin()) > and requires { cont.size(); }) {
       auto weights = ranges::to_vector(
          cont | ranges::views::transform([&](const auto& elem) { return policy(elem); }));
-      return cont[std::discrete_distribution< size_t >(weights)(rng)];
+      return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
    } else {
       std::vector< double > weights;
       auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([&](const auto& elem) {
