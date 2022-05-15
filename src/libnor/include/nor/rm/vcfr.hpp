@@ -77,7 +77,14 @@ class VanillaCFR:
    ////////////////////
 
    /// inherit all constructors from base
-   VanillaCFR(auto... args) : base(std::forward< decltype(args) >(args)...) {}
+   VanillaCFR(const VanillaCFR&) = delete;
+   VanillaCFR(VanillaCFR&&) = default;
+   ~VanillaCFR() = default;
+   VanillaCFR& operator=(const VanillaCFR&) = delete;
+   VanillaCFR& operator=(VanillaCFR&&) = default;
+
+   template <typename... Args>
+   VanillaCFR(Args&&... args) : base(std::forward< Args >(args)...) {}
 
    ////////////////////////////////////
    /// API: public member functions ///

@@ -99,12 +99,19 @@ struct factory {
    {
       if constexpr(as_map) {
          auto players = env.players();
-         return {
+         auto each_player_current_policy_map = to_map(utils::is_nonchance_player_filter(players), std::forward< Policy >(policy));
+         auto each_player_avg_policy_map = to_map(
+            utils::is_nonchance_player_filter(players), std::forward< AvgPolicy >(avg_policy));
+         return MCCFR<
+            cfg,
+            // remove_cvref_t necessary to avoid e.g. Env captured as const Env&
+            std::remove_cvref_t< Env >,
+            std::remove_cvref_t< Policy >,
+            std::remove_cvref_t< AvgPolicy > >{
             std::forward< Env >(env),
             std::move(root_state),
-            to_map(players | utils::is_nonchance_player_filter, std::forward< Policy >(policy)),
-            to_map(
-               players | utils::is_nonchance_player_filter, std::forward< AvgPolicy >(avg_policy)),
+            std::move(each_player_current_policy_map),
+            std::move(each_player_avg_policy_map),
             epsilon,
             seed};
       } else {

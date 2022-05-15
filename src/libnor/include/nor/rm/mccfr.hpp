@@ -124,12 +124,48 @@ class MCCFR: public TabularCFRBase< config.alternating_updates, Env, Policy, Ave
    /// Constructors ///
    ////////////////////
 
-   /// inherit all constructors from base
-   template < typename... BaseArgs >
-   MCCFR(BaseArgs&&... base_args, double epsilon, size_t seed = std::random_device{}())
-       : base(std::forward< BaseArgs >(base_args)...), m_epsilon(epsilon), m_rng(seed)
+   MCCFR(
+      Env env_,
+      uptr< world_state_type > root_state_,
+      Policy policy_ = Policy(),
+      AveragePolicy avg_policy_ = AveragePolicy(),
+      double epsilon = 0.6,
+      size_t seed = std::random_device{}())
+       : base(std::move(env_), std::move(root_state_), std::move(policy_), std::move(avg_policy_)),
+         m_epsilon(epsilon),
+         m_rng(seed)
    {
-      static_assert(_sanity_check_config(), "Config did not pass the check for correctiveness.");
+      _sanity_check_config();
+   }
+
+   MCCFR(
+      Env env_,
+      Policy policy_ = Policy(),
+      AveragePolicy avg_policy_ = AveragePolicy(),
+      double epsilon = 0.6,
+      size_t seed = std::random_device{}())
+       : MCCFR(
+          std::move(env_),
+          std::make_unique< world_state_type >(env.initial_world_state()),
+          std::move(policy_),
+          std::move(avg_policy_),
+          epsilon,
+          seed)
+   {
+   }
+
+   MCCFR(
+      Env env_,
+      uptr< world_state_type > root_state_,
+      std::unordered_map< Player, Policy > policy_,
+      std::unordered_map< Player, AveragePolicy > avg_policy_,
+      double epsilon = 0.6,
+      size_t seed = std::random_device{}())
+       : base(std::move(env_), std::move(root_state_), std::move(policy_), std::move(avg_policy_)),
+         m_epsilon(epsilon),
+         m_rng(seed)
+   {
+      _sanity_check_config();
    }
 
    ////////////////////////////////////
@@ -282,7 +318,7 @@ class MCCFR: public TabularCFRBase< config.alternating_updates, Env, Policy, Ave
 
    void apply_regret_matching();
 
-   constexpr bool _sanity_check_config();
+   constexpr void _sanity_check_config();
 };
 ///
 //////
@@ -319,7 +355,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
    root_values_per_iteration.reserve(n_iters);
    for([[maybe_unused]] auto _ : ranges::views::iota(size_t(0), n_iters)) {
       LOGD2("Iteration number: ", _iteration());
-      root_values_per_iteration.emplace_back(std::get< 0 >(_iterate(_cycle_player_to_update())));
+      root_values_per_iteration.emplace_back(
+         std::get< 0 >(_iterate(_cycle_player_to_update())).get());
       _iteration()++;
    }
    return root_values_per_iteration;
@@ -603,14 +640,17 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
 }
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-constexpr bool MCCFR< config, Env, Policy, AveragePolicy >::_sanity_check_config()
+constexpr void MCCFR< config, Env, Policy, AveragePolicy >::_sanity_check_config()
 {
-   if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-      if constexpr(not config.alternating_updates) {
-         return false;
+   constexpr bool eval = [&] {
+      if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
+         if constexpr(not config.alternating_updates) {
+            return false;
+         }
       }
-   }
-   return true;
+      return true;
+   }();
+   static_assert(eval, "Config did not pass the check for correctness.");
 };
 
 }  // namespace nor::rm
