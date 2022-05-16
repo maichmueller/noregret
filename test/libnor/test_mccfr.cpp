@@ -43,7 +43,7 @@ TEST(KuhnPoker, mccfr_outcome_sampling_lazy_weighting)
 
    size_t n_iters = 10000;
    for(size_t i = 0; i < n_iters; i++) {
-//      mccfr_runner.iterate(1);
+      mccfr_runner.iterate(1);
       //      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
    }
 //   auto game_value_map = mccfr_runner.game_value();

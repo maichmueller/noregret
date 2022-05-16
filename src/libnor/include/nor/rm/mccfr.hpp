@@ -351,12 +351,13 @@ class MCCFR: public TabularCFRBase< config.alternating_updates, Env, Policy, Ave
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
 {
-   std::vector< std::unordered_map< Player, double > > root_values_per_iteration;
+   std::vector< std::pair< Player, double > > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
    for([[maybe_unused]] auto _ : ranges::views::iota(size_t(0), n_iters)) {
       LOGD2("Iteration number: ", _iteration());
-      root_values_per_iteration.emplace_back(
-         std::get< 0 >(_iterate(_cycle_player_to_update())).get());
+      auto player_to_update = _cycle_player_to_update();
+      auto value_estim = std::get< 0 >(_iterate(player_to_update)).get();
+      root_values_per_iteration.emplace_back(std::pair{player_to_update, std::move(value_estim)});
       _iteration()++;
    }
    return root_values_per_iteration;
@@ -388,8 +389,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(std::optional< Player 
    }
    LOGD2("Iteration number: ", _iteration());
    // run the iteration
-   auto value = std::vector{
-      std::get< 0 >(_iterate(_cycle_player_to_update(player_to_update))).get()};
+   auto updated_player = _cycle_player_to_update(player_to_update);
+   auto value = std::vector{std::pair{updated_player, std::get< 0 >(_iterate()).get()}};
    // and increment our iteration counter
    _iteration()++;
    return value;
@@ -505,12 +506,20 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
    if constexpr(not concepts::deterministic_fosg< env_type >) {
       if(active_player == Player::chance) {
          auto chance_actions = _env().chance_actions(*state);
-         auto& chosen_action = common::random::choose(chance_actions, m_rng);
-         double chance_prob = 1. / static_cast< double >(chance_actions.size());
+         auto
+            chance_probabilities = ranges::to< std::unordered_map< chance_outcome_type, double > >(
+               chance_actions | ranges::views::transform([this, &state](const auto& outcome) {
+                  return std::pair{outcome, _env().chance_probability(*state, outcome)};
+               }));
+         auto& chosen_outcome = common::random::choose(
+            chance_actions,
+            [&](const auto& outcome) { return chance_probabilities[outcome]; },
+            m_rng);
+         double chance_prob = chance_probabilities[chosen_outcome];
          reach_probability.get()[active_player] *= chance_prob;
          return _traverse(
             player_to_update,
-            _child_state(state, chosen_action),
+            _child_state(state, chosen_outcome),
             std::move(reach_probability),
             std::move(observation_buffer),
             std::move(infostates),
