@@ -152,12 +152,16 @@ void regret_matching(Policy& policy_map, const std::unordered_map< Action, doubl
  * @tparam Action
  * @tparam Policy
  */
-template < typename Policy, typename RegretMap, typename ActionWrapper >
+template <
+   typename Policy,
+   typename RegretMap,
+   typename ActionWrapper,
+   typename Action = typename fosg_auto_traits< Policy >::action_type >
 // clang-format off
 requires
    concepts::map< RegretMap >
    and std::is_convertible_v< typename RegretMap::mapped_type, double>
-   and std::invocable< ActionWrapper, typename fosg_auto_traits<Policy>::action_type >
+   and std::invocable< ActionWrapper, Action >
    and concepts::action_policy<
       Policy
    >
@@ -165,8 +169,7 @@ requires
 void regret_matching(
    Policy& policy_map,
    const RegretMap& cumul_regret,
-   ActionWrapper action_wrapper =
-      [](const typename fosg_auto_traits< Policy >::action_type& action) { return action; })
+   ActionWrapper action_wrapper = [](const Action& action) { return action; })
 {
    // sum up the positivized regrets and store them in a new vector
    RegretMap pos_regrets;

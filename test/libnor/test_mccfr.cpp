@@ -27,7 +27,7 @@ TEST(KuhnPoker, mccfr_outcome_sampling_lazy_weighting)
    constexpr rm::MCCFRConfig cfr_config{
       .alternating_updates = true,
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
-      .weighting = rm::MCCFRWeightingMode::lazy};
+      .weighting = rm::MCCFRWeightingMode::optimistic};
 
    auto mccfr_runner = rm::factory::make_mccfr< cfr_config, true >(
       std::move(env),
@@ -41,87 +41,91 @@ TEST(KuhnPoker, mccfr_outcome_sampling_lazy_weighting)
    auto initial_policy_profile = rm::normalize_state_policy(
       mccfr_runner.average_policy().at(player).table());
 
-   size_t n_iters = 10000;
+   size_t n_iters = 100;
    for(size_t i = 0; i < n_iters; i++) {
       mccfr_runner.iterate(1);
-      //      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
+      evaluate_policies(player, mccfr_runner, initial_policy_profile, i);
    }
-//   auto game_value_map = mccfr_runner.game_value();
-//   double alex_true_game_value = -1. / 18.;
-//   ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
-//   assert_optimal_policy_kuhn(mccfr_runner, env);
+   //   auto game_value_map = mccfr_runner.game_value();
+   //   double alex_true_game_value = -1. / 18.;
+   //   ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
+   //   assert_optimal_policy_kuhn(mccfr_runner, env);
 }
 
-//TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
+// TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)
 //{
-//   //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
-//   games::rps::Environment env{};
+//    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
+//    games::rps::Environment env{};
 //
-//   auto avg_tabular_policy = rm::factory::make_tabular_policy(
-//      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
-//      rm::factory::
-//         make_zero_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+//    auto avg_tabular_policy = rm::factory::make_tabular_policy(
+//       std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+//       rm::factory::
+//          make_zero_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
 //
-//   auto tabular_policy_alex = rm::factory::make_tabular_policy(
-//      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
-//      rm::factory::
-//         make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+//    auto tabular_policy_alex = rm::factory::make_tabular_policy(
+//       std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+//       rm::factory::
+//          make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action >
+//          >());
 //
-//   auto tabular_policy_bob = rm::factory::make_tabular_policy(
-//      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
-//      rm::factory::
-//         make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+//    auto tabular_policy_bob = rm::factory::make_tabular_policy(
+//       std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+//       rm::factory::
+//          make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action >
+//          >());
 //
-//   auto infostate_alex = games::rps::InfoState{Player::alex};
-//   auto infostate_bob = games::rps::InfoState{Player::alex};
-//   auto init_state = games::rps::State();
-//   infostate_alex.append(env.private_observation(Player::alex, init_state));
-//   infostate_bob.append(env.private_observation(Player::bob, init_state));
-//   auto action_alex = games::rps::Action{games::rps::Team::one, games::rps::Hand::rock};
+//    auto infostate_alex = games::rps::InfoState{Player::alex};
+//    auto infostate_bob = games::rps::InfoState{Player::alex};
+//    auto init_state = games::rps::State();
+//    infostate_alex.append(env.private_observation(Player::alex, init_state));
+//    infostate_bob.append(env.private_observation(Player::bob, init_state));
+//    auto action_alex = games::rps::Action{games::rps::Team::one, games::rps::Hand::rock};
 //
-//   env.transition(init_state, action_alex);
+//    env.transition(init_state, action_alex);
 //
-//   infostate_bob.append(env.private_observation(Player::bob, action_alex));
-//   infostate_bob.append(env.private_observation(Player::bob, init_state));
+//    infostate_bob.append(env.private_observation(Player::bob, action_alex));
+//    infostate_bob.append(env.private_observation(Player::bob, init_state));
 //
-//   // off-set the given policy by very bad initial values to test the algorithm bouncing back
-//   tabular_policy_alex.emplace(
-//      infostate_alex,
-//      HashmapActionPolicy< games::rps::Action >{std::unordered_map{
-//         std::pair{games::rps::Action{games::rps::Team::one, games::rps::Hand::rock}, 1. / 10.},
-//         std::pair{games::rps::Action{games::rps::Team::one, games::rps::Hand::paper}, 2. / 10.},
-//         std::pair{
-//            games::rps::Action{games::rps::Team::one, games::rps::Hand::scissors}, 7. / 10.}}});
+//    // off-set the given policy by very bad initial values to test the algorithm bouncing back
+//    tabular_policy_alex.emplace(
+//       infostate_alex,
+//       HashmapActionPolicy< games::rps::Action >{std::unordered_map{
+//          std::pair{games::rps::Action{games::rps::Team::one, games::rps::Hand::rock}, 1. / 10.},
+//          std::pair{games::rps::Action{games::rps::Team::one, games::rps::Hand::paper}, 2. / 10.},
+//          std::pair{
+//             games::rps::Action{games::rps::Team::one, games::rps::Hand::scissors}, 7. / 10.}}});
 //
-//   // off-set the given policy by very bad initial values to test the algorithm bouncing back
-//   tabular_policy_bob.emplace(
-//      infostate_bob,
-//      HashmapActionPolicy< games::rps::Action >{std::unordered_map{
-//         std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::rock}, 5. / 10.},
-//         std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::paper}, 4. / 10.},
-//         std::pair{
-//            games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, 1. / 10.}}});
+//    // off-set the given policy by very bad initial values to test the algorithm bouncing back
+//    tabular_policy_bob.emplace(
+//       infostate_bob,
+//       HashmapActionPolicy< games::rps::Action >{std::unordered_map{
+//          std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::rock}, 5. / 10.},
+//          std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::paper}, 4. / 10.},
+//          std::pair{
+//             games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, 1. / 10.}}});
 //
-//   constexpr rm::CFRConfig cfr_config{.alternating_updates = false};
+//    constexpr rm::CFRConfig cfr_config{.alternating_updates = false};
 //
-//   auto cfr_runner = rm::factory::make_vanilla< cfr_config >(
-//      std::move(env),
-//      std::make_unique< games::rps::State >(),
-//      std::unordered_map{
-//         std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
-//      std::unordered_map{
-//         std::pair{Player::alex, avg_tabular_policy}, std::pair{Player::bob, avg_tabular_policy}});
+//    auto cfr_runner = rm::factory::make_vanilla< cfr_config >(
+//       std::move(env),
+//       std::make_unique< games::rps::State >(),
+//       std::unordered_map{
+//          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob,
+//          tabular_policy_bob}},
+//       std::unordered_map{
+//          std::pair{Player::alex, avg_tabular_policy}, std::pair{Player::bob,
+//          avg_tabular_policy}});
 //
-//   auto player = Player::alex;
+//    auto player = Player::alex;
 //
-//   auto initial_policy_profile = rm::normalize_state_policy(
-//      cfr_runner.average_policy().at(player).table());
+//    auto initial_policy_profile = rm::normalize_state_policy(
+//       cfr_runner.average_policy().at(player).table());
 //
-//   for(size_t i = 0; i < 20000; i++) {
-//      cfr_runner.iterate(1);
-//      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
-//   }
-//}
+//    for(size_t i = 0; i < 20000; i++) {
+//       cfr_runner.iterate(1);
+//       evaluate_policies(player, cfr_runner, initial_policy_profile, i);
+//    }
+// }
 
 // TEST_F(StrategoState3x3, vanilla_cfr_usage_stratego)
 //{
