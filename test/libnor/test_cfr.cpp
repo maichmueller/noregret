@@ -24,7 +24,7 @@ TEST(KuhnPoker, vanilla_cfr)
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
-   constexpr rm::CFRConfig cfr_config{.alternating_updates = true};
+   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 
    auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
@@ -37,7 +37,9 @@ TEST(KuhnPoker, vanilla_cfr)
    size_t n_iters = 10000;
    for(size_t i = 0; i < n_iters; i++) {
       cfr_runner.iterate(1);
-      //      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
+#ifndef NDEBUG
+      evaluate_policies(player, cfr_runner, initial_policy_profile, i);
+#endif
    }
    auto game_value_map = cfr_runner.game_value();
    double alex_true_game_value = -1. / 18.;
@@ -95,7 +97,7 @@ TEST(RockPaperScissors, vanilla_cfr)
          std::pair{
             games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, 1. / 10.}}});
 
-   constexpr rm::CFRConfig cfr_config{.alternating_updates = false};
+   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 
    auto cfr_runner = rm::factory::make_vanilla< cfr_config >(
       std::move(env),
@@ -112,7 +114,22 @@ TEST(RockPaperScissors, vanilla_cfr)
 
    for(size_t i = 0; i < 20000; i++) {
       cfr_runner.iterate(1);
+#ifndef NDEBUG
       evaluate_policies(player, cfr_runner, initial_policy_profile, i);
+#endif
+   }
+   ASSERT_NEAR(cfr_runner.game_value().get()[Player::alex], 0., 1e-3);
+   auto final_policy = cfr_runner.average_policy().at(Player::alex).table();
+   for(const auto& [state, action_policy] : final_policy) {
+      for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
+         ASSERT_NEAR(prob, 1. / 3., 1e-3);
+      }
+   }
+   final_policy = cfr_runner.average_policy().at(Player::bob).table();
+   for(const auto& [state, action_policy] : final_policy) {
+      for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
+         ASSERT_NEAR(prob, 1. / 3., 1e-3);
+      }
    }
 }
 
@@ -129,8 +146,7 @@ TEST(RockPaperScissors, vanilla_cfr)
 //          games::stratego::InfoState,
 //          HashmapActionPolicy< games::stratego::Action > >{});
 //
-//    constexpr rm::CFRConfig cfr_config{.alternating_updates = false, .store_public_states =
-//    false};
+//    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 //
 //    auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
 //       std::move(env),

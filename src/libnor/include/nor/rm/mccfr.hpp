@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "cfr_config.hpp"
 #include "cfr_utils.hpp"
 #include "common/common.hpp"
 #include "forest.hpp"
@@ -26,19 +27,6 @@
 #include "tabular_cfr_base.hpp"
 
 namespace nor::rm {
-
-enum class MCCFRAlgorithmMode { outcome_sampling = 0, external_sampling = 1 };
-
-enum class MCCFRWeightingMode { lazy = 0, optimistic = 1, stochastic = 2 };
-
-enum class MCCFRExplorationMode { epsilon_on_policy = 0, sampling_policy = 1 };
-
-struct MCCFRConfig {
-   bool alternating_updates = true;
-   MCCFRAlgorithmMode algorithm = MCCFRAlgorithmMode::outcome_sampling;
-   MCCFRExplorationMode exploration = MCCFRExplorationMode::epsilon_on_policy;
-   MCCFRWeightingMode weighting = MCCFRWeightingMode::lazy;
-};
 
 namespace detail {
 
@@ -79,13 +67,19 @@ struct MCCFRNodeDataSelector {
  *
  */
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-class MCCFR: public TabularCFRBase< config.alternating_updates, Env, Policy, AveragePolicy > {
+class MCCFR:
+    public TabularCFRBase<
+       config.update_mode == UpdateMode::alternating,
+       Env,
+       Policy,
+       AveragePolicy > {
    ////////////////////////////
    /// API: public typedefs ///
    ////////////////////////////
   public:
    /// aliases for the template types
-   using base = TabularCFRBase< config.alternating_updates, Env, Policy, AveragePolicy >;
+   using base =
+      TabularCFRBase< config.update_mode == UpdateMode::alternating, Env, Policy, AveragePolicy >;
    using env_type = Env;
    using policy_type = Policy;
    /// import all fosg aliases to be used in this class from the env type.
@@ -209,7 +203,7 @@ class MCCFR: public TabularCFRBase< config.alternating_updates, Env, Policy, Ave
     * @return a pointer to the constant current policy after the update
     */
    auto iterate(std::optional< Player > player_to_update = std::nullopt)
-      requires(config.alternating_updates)
+      requires(config.update_mode == UpdateMode::alternating)
    ;
 
    StateValue game_value(Player player) { return _iterate< false >(player); }
@@ -369,11 +363,11 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy >::_sanity_check_config
 {
    constexpr bool eval = [&] {
       if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-         if constexpr(not config.alternating_updates) {
+         if constexpr(config.update_mode != UpdateMode::alternating) {
             return false;
          }
       } else if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
-         if constexpr(not config.alternating_updates) {
+         if constexpr(config.update_mode != UpdateMode::alternating) {
             return false;
          }
          if constexpr(config.weighting != MCCFRWeightingMode::stochastic) {
@@ -434,7 +428,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(std::optional< Player > player_to_update)
-   requires(config.alternating_updates)
+   requires(config.update_mode == UpdateMode::alternating)
 {
    // we assert here that the chosen player to update is not the chance player as is defined
    // by default. Seeing the chance player here inidcates that the player forgot to set the
@@ -683,7 +677,8 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
          }
       };
 
-      if(not config.alternating_updates or active_player == player_to_update.value()) {
+      if(config.update_mode == UpdateMode::simultaneous
+         or active_player == player_to_update.value()) {
          // we update the regret only when the current (info)state has the player_to_update as the
          // active player OR always if we do simultaneous updates
          _update_regrets(
@@ -840,8 +835,9 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
             LOGD2("Active Player", active_player);
             LOGD2("Policy incr", last_visit_difference * reach_prob.get() * action_player_prob);
             avg_policy[action] += last_visit_difference * reach_prob.get() * action_player_prob;
-            infostate_last_visit = current_iter;
          }
+         // mark this infostate as submitted during the current iteration
+         infostate_last_visit = current_iter;
       };
 
       if(active_player == player_to_update.value()) {

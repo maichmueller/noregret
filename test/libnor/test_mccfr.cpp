@@ -24,12 +24,12 @@ TEST(KuhnPoker, mccfr_outcome_sampling_lazy_weighting)
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
-   constexpr rm::MCCFRConfig cfr_config{
-      .alternating_updates = true,
+   constexpr rm::MCCFRConfig config{
+      .update_mode = rm::UpdateMode::alternating,
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::optimistic};
 
-   auto mccfr_runner = rm::factory::make_mccfr< cfr_config, true >(
+   auto mccfr_runner = rm::factory::make_mccfr< config, true >(
       std::move(env),
       std::make_unique< games::kuhn::State >(),
       tabular_policy,

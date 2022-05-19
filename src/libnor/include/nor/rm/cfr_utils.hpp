@@ -198,6 +198,98 @@ void regret_matching(
    }
 }
 
+/**
+ * @brief Performs regret-matching on the given policy with respect to the provided regret
+ *
+ * @tparam Action
+ * @tparam Policy
+ */
+template <
+   typename Policy,
+   typename RegretMap,
+   typename Action = typename fosg_auto_traits< Policy >::action_type >
+// clang-format off
+requires
+   concepts::map< RegretMap >
+   and std::is_convertible_v< typename RegretMap::mapped_type, double>
+   and concepts::action_policy< Policy >
+// clang-format on
+void regret_matching_plus(
+   Policy& policy_map,
+   RegretMap& cumul_regret)
+{
+   double pos_regret_sum{0.};
+   for(auto& [action, regret] : cumul_regret) {
+      regret = std::max(0., regret);
+      pos_regret_sum += regret;
+   }
+   // apply the new policy to the vector policy
+   auto exec_policy{std::execution::par_unseq};
+   if(pos_regret_sum > 0) {
+      if(cumul_regret.size() != policy_map.size()) {
+         throw std::invalid_argument(
+            "Passed regrets and policy maps do not have the same number of elements");
+      }
+      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+         return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
+                                       / pos_regret_sum;
+      });
+   } else {
+      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+         return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
+      });
+   }
+}
+
+/**
+ * @brief Performs regret-matching on the given policy with respect to the provided regret
+ *
+ * @tparam Action
+ * @tparam Policy
+ */
+template <
+   typename Policy,
+   typename RegretMap,
+   typename ActionWrapper,
+   typename Action = typename fosg_auto_traits< Policy >::action_type >
+// clang-format off
+requires
+   concepts::map< RegretMap >
+   and std::is_convertible_v< typename RegretMap::mapped_type, double>
+   and std::invocable< ActionWrapper, Action >
+   and concepts::action_policy<
+      Policy
+   >
+// clang-format on
+void regret_matching_plus(
+   Policy& policy_map,
+   RegretMap& cumul_regret,
+   ActionWrapper action_wrapper = [](const Action& action) { return action; })
+{
+   double pos_regret_sum{0.};
+   for(auto& [action, regret] : cumul_regret) {
+      regret = std::max(0., regret);
+      pos_regret_sum += regret;
+   }
+   // apply the new policy to the vector policy
+   auto exec_policy{std::execution::par_unseq};
+   if(pos_regret_sum > 0) {
+      if(cumul_regret.size() != policy_map.size()) {
+         throw std::invalid_argument(
+            "Passed regrets and policy maps do not have the same number of elements");
+      }
+      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+         return std::get< 1 >(entry) = std::max(
+                                          0., cumul_regret.at(action_wrapper(std::get< 0 >(entry))))
+                                       / pos_regret_sum;
+      });
+   } else {
+      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+         return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
+      });
+   }
+}
+
 }  // namespace nor::rm
 
 #endif  // NOR_RM_ALGORITHMS_HPP

@@ -24,32 +24,47 @@
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 #include "tabular_cfr_base.hpp"
+#include "cfr_config.hpp"
 
 namespace nor::rm {
 
-struct CFRConfig {
-   bool alternating_updates = true;
+namespace detail {
+
+template < CFRConfig config, typename Env >
+struct VCFRNodeDataSelector {
+  private:
+   using action_type = typename fosg_auto_traits< Env >::action_type;
+   /// for vanilla cfr we need no extra weight data stored
+   using default_data_type = InfostateNodeData< action_type >;
+
+  public:
+   using type = default_data_type;
 };
+}  // namespace detail
 
 /**
  * A (Vanilla) Counterfactual Regret Minimization algorithm class following the
  * terminology of the Factored-Observation Stochastic Games (FOSG) formulation.
  *
- * The implementation follows the algorithm detail of @cite Neller2013
- *
- *
- * @tparam Env, the environment/game type to run VanillaCFR on.
+ * @tparam Env, the environment type to run VanillaCFR on.
+ * @tparam Policy, the policy type to store a player's current policy in.
+ * @tparam AveragePolicy, the policy type to store a player's average policy in.
  *
  */
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 class VanillaCFR:
-    public TabularCFRBase< cfr_config.alternating_updates, Env, Policy, AveragePolicy > {
+    public TabularCFRBase<
+       config.update_mode == UpdateMode::alternating,
+       Env,
+       Policy,
+       AveragePolicy > {
    ////////////////////////////
    /// API: public typedefs ///
    ////////////////////////////
   public:
    /// aliases for the template types
-   using base = TabularCFRBase< cfr_config.alternating_updates, Env, Policy, AveragePolicy >;
+   using base =
+      TabularCFRBase< config.update_mode == UpdateMode::alternating, Env, Policy, AveragePolicy >;
    using env_type = Env;
    using policy_type = Policy;
    /// import all fosg aliases to be used in this class from the env type.
@@ -67,7 +82,7 @@ class VanillaCFR:
          std::monostate,
          chance_outcome_type > >;
    /// the data to store per infostate entry
-   using infostate_data_type = InfostateNodeData< action_type >;
+   using infostate_data_type = typename detail::VCFRNodeDataSelector< config, env_type >::type;
    /// strong-types for player based maps
    using InfostateMap = typename base::InfostateMap;
    using ObservationbufferMap = typename base::ObservationbufferMap;
@@ -83,8 +98,10 @@ class VanillaCFR:
    VanillaCFR& operator=(const VanillaCFR&) = delete;
    VanillaCFR& operator=(VanillaCFR&&) = default;
 
-   template <typename... Args>
-   VanillaCFR(Args&&... args) : base(std::forward< Args >(args)...) {}
+   template < typename... Args >
+   VanillaCFR(Args&&... args) : base(std::forward< Args >(args)...)
+   {
+   }
 
    ////////////////////////////////////
    /// API: public member functions ///
@@ -129,18 +146,13 @@ class VanillaCFR:
     * @return a pointer to the constant current policy after the update
     */
    auto iterate(std::optional< Player > player_to_update = std::nullopt)
-      requires(cfr_config.alternating_updates)
+      requires(config.update_mode == UpdateMode::alternating)
    ;
 
    StateValueMap game_value() { return _iterate< false, false >(std::nullopt); }
 
    /**
-    * @brief updates the regret and policy tables of the node with the state-values. Then performs
-    * regret-matching.
-    *
-    * The method implements lines 21-25 of @cite Neller2013.
-    *
-    * @param player the player whose values are to be updated
+    * @brief updates the regret and policy tables of the infostate with the state-values.
     */
    void update_regret_and_policy(
       const sptr< info_state_type >& infostate,
@@ -263,15 +275,15 @@ class VanillaCFR:
 //////
 ///
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
-auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
 {
    std::vector< std::unordered_map< Player, double > > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
    for([[maybe_unused]] auto _ : ranges::views::iota(size_t(0), n_iters)) {
       LOGD2("Iteration number: ", _iteration());
       StateValueMap value = [&] {
-         if constexpr(cfr_config.alternating_updates) {
+         if constexpr(config.update_mode == UpdateMode::alternating) {
             auto player_to_update = _cycle_player_to_update();
             if(_iteration() < _env().players().size() - 1) {
                return _iterate< true >(player_to_update);
@@ -292,10 +304,10 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::iterate(size_t n_iter
    return root_values_per_iteration;
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
-auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::iterate(
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(
    std::optional< Player > player_to_update)
-   requires(cfr_config.alternating_updates)
+   requires(config.update_mode == UpdateMode::alternating)
 {
    // we assert here that the chosen player to update is not the chance player as is defined
    // by default. Seeing the chance player here inidcates that the player forgot to set the
@@ -330,9 +342,9 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::iterate(
    return std::vector{std::move(values.get())};
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 template < bool initializing_run, bool use_current_policy >
-auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_iterate(
+auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
    std::optional< Player > player_to_update)
 {
    auto root_game_value = _traverse< initializing_run, use_current_policy >(
@@ -372,21 +384,31 @@ auto VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_iterate(
    return root_game_value;
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
-void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_apply_regret_matching(
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
    const std::optional< Player >& player_to_update)
 {
    auto call_regret_matching =
       [&](const sptr< info_state_type >& infostate_ptr, const infostate_data_type& istate_data) {
-         rm::regret_matching(
-            fetch_policy< true >(infostate_ptr, istate_data.actions()),
-            istate_data.regret(),
-            // we provide the accessor to get the underlying referenced action, as the infodata
-            // stores only reference wrappers to the actions
-            [](const action_type& action) { return std::ref(action); });
+         if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
+            rm::regret_matching(
+               fetch_policy< true >(infostate_ptr, istate_data.actions()),
+               istate_data.regret(),
+               // we provide the accessor to get the underlying referenced action, as the infodata
+               // stores only reference wrappers to the actions
+               [](const action_type& action) { return std::ref(action); });
+         } else if constexpr(
+            config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
+            rm::regret_matching_plus(
+               fetch_policy< true >(infostate_ptr, istate_data.actions()),
+               istate_data.regret(),
+               // we provide the accessor to get the underlying referenced action, as the infodata
+               // stores only reference wrappers to the actions
+               [](const action_type& action) { return std::ref(action); });
+         }
       };
 
-   if constexpr(cfr_config.alternating_updates) {
+   if constexpr(config.update_mode == UpdateMode::alternating) {
       Player update_player = player_to_update.value_or(Player::chance);
       for(auto& [infostate_ptr, data] : _infonodes()) {
          if(infostate_ptr->player() == update_player) {
@@ -400,9 +422,9 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_apply_regret_matchin
    }
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 template < bool initialize_infonodes, bool use_current_policy >
-StateValueMap VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse(
+StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    std::optional< Player > player_to_update,
    uptr< world_state_type > state,
    ReachProbabilityMap reach_probability,
@@ -467,7 +489,7 @@ StateValueMap VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse(
       // we can only update our regrets and policies if we are traversing with the current policy,
       // since the average policy is not to be changed directly (but through averaging up all
       // current policies)
-      if constexpr(cfr_config.alternating_updates) {
+      if constexpr(config.update_mode == UpdateMode::alternating) {
          // in alternating updates, we only update the regret and strategy if the current
          // player is the chosen player to update.
          if(active_player == player_to_update.value_or(Player::chance)) {
@@ -482,9 +504,9 @@ StateValueMap VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse(
    return StateValueMap{state_value};
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 template < bool initialize_infonodes, bool use_current_policy >
-void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse_player_actions(
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    std::optional< Player > player_to_update,
    Player active_player,
    uptr< world_state_type > state,
@@ -541,9 +563,9 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse_player_acti
    }
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 template < bool initialize_infonodes, bool use_current_policy >
-void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
    std::optional< Player > player_to_update,
    Player active_player,
    uptr< world_state_type > state,
@@ -578,16 +600,17 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::_traverse_chance_acti
    }
 }
 
-template < CFRConfig cfr_config, typename Env, typename Policy, typename AveragePolicy >
-void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::update_regret_and_policy(
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    const sptr< info_state_type >& infostate,
    const ReachProbabilityMap& reach_probability,
    const StateValueMap& state_value,
    const std::unordered_map< action_variant_type, StateValueMap >& action_value)
 {
    auto& istatedata = _infonode(infostate);
-   auto& curr_action_policy = fetch_policy< true >(infostate, istatedata.actions());
-   auto& avg_action_policy = fetch_policy< false >(infostate, istatedata.actions());
+   const auto& actions = istatedata.actions();
+   auto& curr_action_policy = fetch_policy< true >(infostate, actions);
+   auto& avg_action_policy = fetch_policy< false >(infostate, actions);
    auto player = infostate->player();
    double cf_reach_prob = rm::cf_reach_probability(player, reach_probability.get());
    double player_reach_prob = reach_probability.get().at(player);
@@ -601,7 +624,17 @@ void VanillaCFR< cfr_config, Env, Policy, AveragePolicy >::update_regret_and_pol
       // let I be the infostate, p be the player, r the cumulative regret
       //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
       istatedata.regret(action) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
-      avg_action_policy[action] += player_reach_prob * curr_action_policy[action];
+      avg_action_policy[action] += [&] {
+         if constexpr(config.weighting_mode == CFRWeightingMode::uniform) {
+            return player_reach_prob * curr_action_policy[action];
+         } else if constexpr(config.weighting_mode == CFRWeightingMode::linear) {
+            return (player_reach_prob * curr_action_policy[action]) * double(_iteration());
+         } else {
+            static_assert(
+               utils::always_false_v< action_type >,
+               "Weighting Mode has to be either uniform or linear.");
+         }
+      }();
    }
 }
 
