@@ -9,7 +9,7 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, vanilla_cfr_alternating)
+TEST(KuhnPoker, cfr_plus)
 {
    games::kuhn::Environment env{};
 
@@ -24,9 +24,7 @@ TEST(KuhnPoker, vanilla_cfr_alternating)
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
-   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
-
-   auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
+   auto cfr_runner = rm::factory::make_cfrplus< true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
    auto player = Player::alex;
@@ -47,45 +45,7 @@ TEST(KuhnPoker, vanilla_cfr_alternating)
    assert_optimal_policy_kuhn(cfr_runner, env);
 }
 
-TEST(KuhnPoker, vanilla_cfr_simultaneous)
-{
-   games::kuhn::Environment env{};
-
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
-
-   auto tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
-
-   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
-
-   auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
-      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
-
-   auto player = Player::alex;
-
-   auto initial_policy_profile = rm::normalize_state_policy(
-      cfr_runner.average_policy().at(player).table());
-
-   size_t n_iters = 15000;
-   for(size_t i = 0; i < n_iters; i++) {
-      cfr_runner.iterate(1);
-#ifndef NDEBUG
-      evaluate_policies< false >(player, cfr_runner, initial_policy_profile, i);
-#endif
-   }
-   auto game_value_map = cfr_runner.game_value();
-   double alex_true_game_value = -1. / 18.;
-   ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
-   assert_optimal_policy_kuhn(cfr_runner, env);
-}
-
-TEST(RockPaperScissors, vanilla_cfr)
+TEST(RockPaperScissors, cfr_plus)
 {
    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
    games::rps::Environment env{};
@@ -135,9 +95,7 @@ TEST(RockPaperScissors, vanilla_cfr)
          std::pair{
             games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, 1. / 10.}}});
 
-   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
-
-   auto cfr_runner = rm::factory::make_vanilla< cfr_config >(
+   auto cfr_runner = rm::factory::make_cfrplus(
       std::move(env),
       std::make_unique< games::rps::State >(),
       std::unordered_map{

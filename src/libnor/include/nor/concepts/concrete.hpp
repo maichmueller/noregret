@@ -27,32 +27,31 @@ template <
    typename Map,
    typename KeyType = typename Map::key_type,
    typename MappedType = typename Map::mapped_type >
-concept map = iterable< Map >&& requires(Map m, KeyType key, MappedType mapped)
-{
-   typename Map::key_type;
-   typename Map::mapped_type;
-   {
-      m.find(key)
-   }
-   ->std::same_as< typename Map::iterator >;
-   {
-      m.at(key)
-   }
-   ->std::same_as< MappedType& >;
-   {
-      std::as_const(m).at(key)
-   }
-   ->std::same_as< const MappedType& >;
-};
+concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped) {
+                                    typename Map::key_type;
+                                    typename Map::mapped_type;
+
+                                    m.find(key);
+                                    {
+                                       m[key]
+                                       } -> std::same_as< MappedType& >;
+                                    {
+                                       m.at(key)
+                                       } -> std::same_as< MappedType& >;
+                                 } and requires(const Map m, KeyType key, MappedType mapped) {
+                                          {
+                                             m.at(key)
+                                             } -> std::same_as< const MappedType& >;
+                                       };
 
 template < typename T >
-concept action = is::hashable< T >&& std::equality_comparable< T >;
+concept action = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T >
-concept chance_outcome = is::hashable< T >&& std::equality_comparable< T >;
+concept chance_outcome = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T >
-concept observation = is::hashable< T >&& std::equality_comparable< T >;
+concept observation = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T, typename Observation = typename fosg_auto_traits< T >::observation_type >
 // clang-format off
@@ -82,7 +81,7 @@ concept info_state =
 // clang-format on
 
 template < typename T >
-concept world_state = std::is_move_constructible_v< T >and is::copyable_someway< T >;
+concept world_state = std::is_move_constructible_v< T > and is::copyable_someway< T >;
 
 template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
 // clang-format off

@@ -87,6 +87,10 @@ inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
       return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
    } else {
       std::vector< double > weights;
+      if constexpr(requires { cont.size(); }) {
+         // if we can know how many elements are in the container, then reserve that amount.
+         weights.reserve(cont.size());
+      }
       auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([&](const auto& elem) {
                                               weights.emplace_back(policy(elem));
                                               return std::ref(elem);

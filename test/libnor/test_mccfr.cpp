@@ -34,17 +34,21 @@ TEST(KuhnPoker, mccfr_outcome_sampling_lazy_weighting)
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
       avg_tabular_policy,
-      0.6);
+      0.6,
+      0);
 
    auto player = Player::alex;
 
-   auto initial_policy_profile = rm::normalize_state_policy(
-      mccfr_runner.average_policy().at(player).table());
+      auto initial_policy_profile = rm::normalize_state_policy(
+         mccfr_runner.average_policy().at(player).table());
+      auto initial_curr_policy_profile = rm::normalize_state_policy(
+         mccfr_runner.policy().at(player).table());
 
    size_t n_iters = 100;
    for(size_t i = 0; i < n_iters; i++) {
       mccfr_runner.iterate(1);
-      evaluate_policies(player, mccfr_runner, initial_policy_profile, i);
+      evaluate_policies< true >(player, mccfr_runner, initial_curr_policy_profile, i, "Current Policy");
+      evaluate_policies< false >(player, mccfr_runner, initial_policy_profile, i);
    }
    //   auto game_value_map = mccfr_runner.game_value();
    //   double alex_true_game_value = -1. / 18.;

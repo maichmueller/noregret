@@ -16,6 +16,10 @@ struct CFRConfig {
    CFRWeightingMode weighting_mode = CFRWeightingMode::uniform;
 };
 
+struct CFRPlusConfig {
+   UpdateMode update_mode = UpdateMode::alternating;
+};
+
 enum class MCCFRAlgorithmMode { outcome_sampling = 0, external_sampling = 1 };
 
 enum class MCCFRWeightingMode { lazy = 0, optimistic = 1, stochastic = 2 };

@@ -68,6 +68,7 @@ set(
         NOR_TEST_SOURCES
         test_rm.cpp
         test_cfr.cpp
+        test_cfr_plus.cpp
         test_mccfr.cpp
         test_policy.cpp
 )

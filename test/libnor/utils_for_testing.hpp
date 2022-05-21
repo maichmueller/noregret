@@ -8,7 +8,6 @@
 #include "nor/nor.hpp"
 #include "nor/wrappers.hpp"
 
-
 template < typename Policy >
 inline void print_policy(const Policy& policy)
 {
@@ -36,20 +35,28 @@ inline void print_policy(const Policy& policy)
    }
 }
 
-template < typename CFRRunner, typename Policy >
+template < bool current_policy, typename CFRRunner, typename Policy >
 inline void evaluate_policies(
    nor::Player player,
    CFRRunner& cfr_runner,
    Policy& prev_policy_profile,
-   size_t iteration)
+   size_t iteration,
+   std::string policy_name = "Average Policy")
 {
    using namespace nor;
-   auto curr_policy_profile = rm::normalize_state_policy(
-      cfr_runner.average_policy().at(player).table());
+   auto policy_fetcher = [&](Player this_player) {
+      if(current_policy) {
+         return rm::normalize_state_policy(cfr_runner.policy().at(this_player).table());
+      } else {
+         return rm::normalize_state_policy(cfr_runner.average_policy().at(this_player).table());
+      }
+   };
+
+   auto policy_profile_this_iter = policy_fetcher(player);
 
    double total_dev = 0.;
    for(const auto& [curr_pol, prev_pol] :
-       ranges::views::zip(curr_policy_profile, prev_policy_profile)) {
+       ranges::views::zip(policy_profile_this_iter, prev_policy_profile)) {
       const auto& [curr_istate, curr_istate_pol] = curr_pol;
       const auto& [prev_istate, prev_istate_pol] = prev_pol;
       for(const auto& [curr_pol_state_pol, prev_pol_state_pol] :
@@ -61,17 +68,17 @@ inline void evaluate_policies(
    auto normalized_current_policy = rm::normalize_state_policy(
       cfr_runner.policy().at(player).table());
 
-   std::cout << "Average policy:\n";
-   print_policy(rm::normalize_state_policy(cfr_runner.average_policy().at(Player::alex).table()));
-   print_policy(rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table()));
+   std::cout << policy_name + ":\n";
+   print_policy(policy_fetcher(Player::alex));
+   print_policy(policy_fetcher(Player::bob));
 
-   prev_policy_profile = std::move(curr_policy_profile);
+   prev_policy_profile = std::move(policy_profile_this_iter);
    if(cfr_runner.iteration() > 1) {
       auto game_value_map = cfr_runner.game_value();
       std::cout << "iteration: " << iteration << " | game value for player " << player << ": "
                 << game_value_map.get()[player] << "\n";
    }
-   //   std::cout << "total deviation: " << total_dev << "\n";
+   std::cout << "total policy change to previous policy: " << total_dev << "\n";
 }
 
 inline auto kuhn_optimal(double alpha)

@@ -5,6 +5,20 @@
 #include <concepts>
 
 namespace nor {
+
+template <bool condition, typename T>
+struct const_if {
+   using type = T;
+};
+
+template < typename T >
+struct const_if<true, T> {
+   using type = const T;
+};
+
+template <bool condition, typename T>
+using const_if_t = typename const_if<condition, T>::type;
+
 //
 // template < typename T, typename U >
 // struct add_const_if {

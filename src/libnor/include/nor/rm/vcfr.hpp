@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "cfr_config.hpp"
 #include "cfr_utils.hpp"
 #include "common/common.hpp"
 #include "forest.hpp"
@@ -24,7 +25,6 @@
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 #include "tabular_cfr_base.hpp"
-#include "cfr_config.hpp"
 
 namespace nor::rm {
 
@@ -389,7 +389,11 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
    const std::optional< Player >& player_to_update)
 {
    auto call_regret_matching =
-      [&](const sptr< info_state_type >& infostate_ptr, const infostate_data_type& istate_data) {
+      [&](
+         const sptr< info_state_type >& infostate_ptr,
+         const_if_t<
+            config.regret_minimizing_mode == RegretMinimizingMode::regret_matching,
+            infostate_data_type >& istate_data) {
          if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
             rm::regret_matching(
                fetch_policy< true >(infostate_ptr, istate_data.actions()),
@@ -626,8 +630,13 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       istatedata.regret(action) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
       avg_action_policy[action] += [&] {
          if constexpr(config.weighting_mode == CFRWeightingMode::uniform) {
+            // uniform weighting simply means that every update (old and new) is treated with the
+            // same priority.
             return player_reach_prob * curr_action_policy[action];
          } else if constexpr(config.weighting_mode == CFRWeightingMode::linear) {
+            // linear weighting simply multiplies the current iteration onto the increment. The
+            // normalization factor from the papers is irrelevant, as it is absorbed by the
+            // normalization constant of each action policy individually afterwards.
             return (player_reach_prob * curr_action_policy[action]) * double(_iteration());
          } else {
             static_assert(

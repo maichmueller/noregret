@@ -7,5 +7,6 @@
 #include "rm/forest.hpp"
 #include "rm/mccfr.hpp"
 #include "rm/vcfr.hpp"
+#include "rm/pluscfr.hpp"
 
 #endif  // NOR_RM_HPP

@@ -3,6 +3,7 @@
 #define NOR_FACTORY_HPP
 
 #include "mccfr.hpp"
+#include "pluscfr.hpp"
 #include "vcfr.hpp"
 
 namespace nor::rm {
@@ -75,9 +76,70 @@ struct factory {
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       const Policy& policy)
    {
-      return make_vanilla< cfg, as_map >(
+      return make_cfrplus< cfg, as_map >(
          std::forward< Env >(env), std::move(root_state), policy, policy);
    }
+
+   /////////////////////////////////////////////////////////////////////////////////////////////
+   ///////////////// Vanilla Counterfactual Regret PLUS Minimizer Factory //////////////////////
+   /////////////////////////////////////////////////////////////////////////////////////////////
+   template <
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
+   static CFRPlus<
+      std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
+      std::remove_cvref_t< Policy >,
+      std::remove_cvref_t< AveragePolicy > >
+   make_cfrplus(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      Policy&& policy,
+      AveragePolicy&& avg_policy)
+   {
+      if constexpr(as_map) {
+         auto players = env.players();
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            to_map(players | utils::is_nonchance_player_filter, std::forward< Policy >(policy)),
+            to_map(
+               players | utils::is_nonchance_player_filter,
+               std::forward< AveragePolicy >(avg_policy))};
+      } else {
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::forward< Policy >(policy),
+            std::forward< AveragePolicy >(avg_policy)};
+      }
+   }
+
+   template < typename Env, typename Policy, typename AveragePolicy >
+   static CFRPlus< Env, Policy, AveragePolicy > make_cfrplus(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map)
+   {
+      return {
+         std::forward< Env >(env),
+         std::move(root_state),
+         std::move(policy_map),
+         std::move(avg_policy_map)};
+   }
+
+   template < bool as_map, typename Env, typename Policy >
+   static CFRPlus< Env, Policy, Policy > make_cfrplus(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      const Policy& policy)
+   {
+      return make_cfrplus< as_map >(
+         std::forward< Env >(env), std::move(root_state), policy, policy);
+   }
+
    /////////////////////////////////////////////////////////////////////////////////////////////
    ////////////////// Monte-Carlo Counterfactual Regret Minimizer Factory //////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +161,8 @@ struct factory {
    {
       if constexpr(as_map) {
          auto players = env.players();
-         auto each_player_current_policy_map = to_map(utils::is_nonchance_player_filter(players), std::forward< Policy >(policy));
+         auto each_player_current_policy_map = to_map(
+            utils::is_nonchance_player_filter(players), std::forward< Policy >(policy));
          auto each_player_avg_policy_map = to_map(
             utils::is_nonchance_player_filter(players), std::forward< AvgPolicy >(avg_policy));
          return MCCFR<
