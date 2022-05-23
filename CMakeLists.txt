@@ -49,6 +49,7 @@ set(nor_test nor_tests)
 
 set(CONANFILE conanfile.txt)
 set(DEPENDENCY_DIR deps)  # has to be relative to CMAKE_CURRENT_SOURCE_DIR
+set(PROJECT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(PROJECT_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(PROJECT_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test")
 set(PROJECT_NOR_DIR "${PROJECT_SRC_DIR}/libnor")

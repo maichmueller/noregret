@@ -34,7 +34,7 @@ TEST(KuhnPoker, vanilla_cfr_alternating)
    auto initial_policy_profile = rm::normalize_state_policy(
       cfr_runner.average_policy().at(player).table());
 
-   size_t n_iters = 10000;
+   size_t n_iters = 15000;
    for(size_t i = 0; i < n_iters; i++) {
       cfr_runner.iterate(1);
 #ifndef NDEBUG

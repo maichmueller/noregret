@@ -740,7 +740,6 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
 }
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-
 void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
    const sptr< info_state_type >& infostate,
    infostate_data_type& infonode_data,
