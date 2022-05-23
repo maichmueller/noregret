@@ -29,16 +29,19 @@ TEST(KuhnPoker, vanilla_cfr_alternating)
    auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
-   auto player = Player::alex;
-
-   auto initial_policy_profile = rm::normalize_state_policy(
-      cfr_runner.average_policy().at(player).table());
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table())}};
 
    size_t n_iters = 15000;
    for(size_t i = 0; i < n_iters; i++) {
       cfr_runner.iterate(1);
 #ifndef NDEBUG
-      evaluate_policies< false >(player, cfr_runner, initial_policy_profile, i);
+      evaluate_policies< false >(cfr_runner, initial_policy_profile, i);
 #endif
    }
    auto game_value_map = cfr_runner.game_value();
@@ -67,16 +70,19 @@ TEST(KuhnPoker, vanilla_cfr_simultaneous)
    auto cfr_runner = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
-   auto player = Player::alex;
-
-   auto initial_policy_profile = rm::normalize_state_policy(
-      cfr_runner.average_policy().at(player).table());
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table())}};
 
    size_t n_iters = 15000;
    for(size_t i = 0; i < n_iters; i++) {
       cfr_runner.iterate(1);
 #ifndef NDEBUG
-      evaluate_policies< false >(player, cfr_runner, initial_policy_profile, i);
+      evaluate_policies< false >(cfr_runner, initial_policy_profile, i);
 #endif
    }
    auto game_value_map = cfr_runner.game_value();
@@ -85,9 +91,8 @@ TEST(KuhnPoker, vanilla_cfr_simultaneous)
    assert_optimal_policy_kuhn(cfr_runner, env);
 }
 
-TEST(RockPaperScissors, vanilla_cfr)
+auto setup_rps_test()
 {
-   //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
    games::rps::Environment env{};
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
@@ -106,10 +111,11 @@ TEST(RockPaperScissors, vanilla_cfr)
          make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
 
    auto infostate_alex = games::rps::InfoState{Player::alex};
-   auto infostate_bob = games::rps::InfoState{Player::alex};
+   auto infostate_bob = games::rps::InfoState{Player::bob};
    auto init_state = games::rps::State();
    infostate_alex.append(env.private_observation(Player::alex, init_state));
    infostate_bob.append(env.private_observation(Player::bob, init_state));
+
    auto action_alex = games::rps::Action{games::rps::Team::one, games::rps::Hand::rock};
 
    env.transition(init_state, action_alex);
@@ -130,10 +136,33 @@ TEST(RockPaperScissors, vanilla_cfr)
    tabular_policy_bob.emplace(
       infostate_bob,
       HashmapActionPolicy< games::rps::Action >{std::unordered_map{
-         std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::rock}, 5. / 10.},
-         std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::paper}, 4. / 10.},
+         std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::rock}, 9. / 10.},
+         std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::paper}, .5 / 10.},
          std::pair{
-            games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, 1. / 10.}}});
+            games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, .5 / 10.}}});
+
+   return std::tuple{
+      std::move(env),
+      avg_tabular_policy,
+      avg_tabular_policy,
+      std::move(tabular_policy_alex),
+      std::move(tabular_policy_bob),
+      std::move(infostate_alex),
+      std::move(infostate_bob),
+      std::move(init_state)};
+}
+
+TEST(RockPaperScissors, vanilla_cfr_alternating)
+{
+   auto
+      [env,
+       avg_tabular_policy_alex,
+       avg_tabular_policy_bob,
+       tabular_policy_alex,
+       tabular_policy_bob,
+       infostate_alex,
+       infostate_bob,
+       init_state] = setup_rps_test();
 
    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 
@@ -143,30 +172,86 @@ TEST(RockPaperScissors, vanilla_cfr)
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
-         std::pair{Player::alex, avg_tabular_policy}, std::pair{Player::bob, avg_tabular_policy}});
+         std::pair{Player::alex, avg_tabular_policy_alex},
+         std::pair{Player::bob, avg_tabular_policy_bob}});
 
-   auto player = Player::alex;
-
-   auto initial_policy_profile = rm::normalize_state_policy(
-      cfr_runner.average_policy().at(player).table());
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table())}};
 
    for(size_t i = 0; i < 20000; i++) {
       cfr_runner.iterate(1);
 #ifndef NDEBUG
-      evaluate_policies< false >(player, cfr_runner, initial_policy_profile, i);
+      evaluate_policies< false >(cfr_runner, initial_policy_profile, i);
 #endif
    }
-   ASSERT_NEAR(cfr_runner.game_value().get()[Player::alex], 0., 1e-3);
+   ASSERT_NEAR(cfr_runner.game_value().get()[Player::alex], 0., 1e-4);
    auto final_policy = cfr_runner.average_policy().at(Player::alex).table();
    for(const auto& [state, action_policy] : final_policy) {
       for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
-         ASSERT_NEAR(prob, 1. / 3., 1e-3);
+         ASSERT_NEAR(prob, 1. / 3., 1e-2);
       }
    }
    final_policy = cfr_runner.average_policy().at(Player::bob).table();
    for(const auto& [state, action_policy] : final_policy) {
       for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
-         ASSERT_NEAR(prob, 1. / 3., 1e-3);
+         ASSERT_NEAR(prob, 1. / 3., 1e-2);
+      }
+   }
+}
+
+TEST(RockPaperScissors, vanilla_cfr_simultaneous)
+{
+   auto
+      [env,
+       avg_tabular_policy_alex,
+       avg_tabular_policy_bob,
+       tabular_policy_alex,
+       tabular_policy_bob,
+       infostate_alex,
+       infostate_bob,
+       init_state] = setup_rps_test();
+
+   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
+
+   auto cfr_runner = rm::factory::make_vanilla< cfr_config >(
+      std::move(env),
+      std::make_unique< games::rps::State >(),
+      std::unordered_map{
+         std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
+      std::unordered_map{
+         std::pair{Player::alex, avg_tabular_policy_alex},
+         std::pair{Player::bob, avg_tabular_policy_bob}});
+
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table())}};
+
+   for(size_t i = 0; i < 20000; i++) {
+      cfr_runner.iterate(1);
+#ifndef NDEBUG
+      evaluate_policies< false >(cfr_runner, initial_policy_profile, i);
+#endif
+   }
+   ASSERT_NEAR(cfr_runner.game_value().get()[Player::alex], 0., 1e-4);
+   auto final_policy = cfr_runner.average_policy().at(Player::alex).table();
+   for(const auto& [state, action_policy] : final_policy) {
+      for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
+         ASSERT_NEAR(prob, 1. / 3., 1e-2);
+      }
+   }
+   final_policy = cfr_runner.average_policy().at(Player::bob).table();
+   for(const auto& [state, action_policy] : final_policy) {
+      for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
+         ASSERT_NEAR(prob, 1. / 3., 1e-2);
       }
    }
 }

@@ -37,9 +37,8 @@ inline void print_policy(const Policy& policy)
 
 template < bool current_policy, typename CFRRunner, typename Policy >
 inline void evaluate_policies(
-   nor::Player player,
    CFRRunner& cfr_runner,
-   Policy& prev_policy_profile,
+   std::unordered_map< nor::Player, Policy >& prev_policy_profile,
    size_t iteration,
    std::string policy_name = "Average Policy")
 {
@@ -52,21 +51,24 @@ inline void evaluate_policies(
       }
    };
 
-   auto policy_profile_this_iter = policy_fetcher(player);
+   std::unordered_map< Player, Policy > policy_profile_this_iter;
+   for(const auto& [p, policy] : prev_policy_profile) {
+      policy_profile_this_iter[p] = policy_fetcher(p);
+   }
 
    double total_dev = 0.;
-   for(const auto& [curr_pol, prev_pol] :
-       ranges::views::zip(policy_profile_this_iter, prev_policy_profile)) {
-      const auto& [curr_istate, curr_istate_pol] = curr_pol;
-      const auto& [prev_istate, prev_istate_pol] = prev_pol;
-      for(const auto& [curr_pol_state_pol, prev_pol_state_pol] :
-          ranges::views::zip(curr_istate_pol, prev_istate_pol)) {
-         total_dev = std::abs(
-            std::get< 1 >(curr_pol_state_pol) - std::get< 1 >(prev_pol_state_pol));
+   for(auto p : prev_policy_profile | ranges::views::keys) {
+      for(const auto& [curr_pol, prev_pol] :
+          ranges::views::zip(policy_profile_this_iter[p], prev_policy_profile[p])) {
+         const auto& [curr_istate, curr_istate_pol] = curr_pol;
+         const auto& [prev_istate, prev_istate_pol] = prev_pol;
+         for(const auto& [curr_pol_state_pol, prev_pol_state_pol] :
+             ranges::views::zip(curr_istate_pol, prev_istate_pol)) {
+            total_dev = std::abs(
+               std::get< 1 >(curr_pol_state_pol) - std::get< 1 >(prev_pol_state_pol));
+         }
       }
    }
-   auto normalized_current_policy = rm::normalize_state_policy(
-      cfr_runner.policy().at(player).table());
 
    std::cout << policy_name + ":\n";
    print_policy(policy_fetcher(Player::alex));
@@ -75,8 +77,10 @@ inline void evaluate_policies(
    prev_policy_profile = std::move(policy_profile_this_iter);
    if(cfr_runner.iteration() > 1) {
       auto game_value_map = cfr_runner.game_value();
-      std::cout << "iteration: " << iteration << " | game value for player " << player << ": "
-                << game_value_map.get()[player] << "\n";
+      for(auto [p, value] : game_value_map.get()) {
+         std::cout << "iteration: " << iteration << " | game value for player " << p << ": "
+                   << value << "\n";
+      }
    }
    std::cout << "total policy change to previous policy: " << total_dev << "\n";
 }

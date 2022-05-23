@@ -27,16 +27,19 @@ TEST(KuhnPoker, cfr_plus)
    auto cfr_runner = rm::factory::make_cfrplus< true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
-   auto player = Player::alex;
-
-   auto initial_policy_profile = rm::normalize_state_policy(
-      cfr_runner.average_policy().at(player).table());
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table())}};
 
    size_t n_iters = 10000;
    for(size_t i = 0; i < n_iters; i++) {
       cfr_runner.iterate(1);
 #ifndef NDEBUG
-      evaluate_policies< false >(player, cfr_runner, initial_policy_profile, i);
+      evaluate_policies< false >(cfr_runner, initial_policy_profile, i);
 #endif
    }
    auto game_value_map = cfr_runner.game_value();
@@ -103,15 +106,18 @@ TEST(RockPaperScissors, cfr_plus)
       std::unordered_map{
          std::pair{Player::alex, avg_tabular_policy}, std::pair{Player::bob, avg_tabular_policy}});
 
-   auto player = Player::alex;
-
-   auto initial_policy_profile = rm::normalize_state_policy(
-      cfr_runner.average_policy().at(player).table());
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(cfr_runner.average_policy().at(Player::bob).table())}};
 
    for(size_t i = 0; i < 20000; i++) {
       cfr_runner.iterate(1);
 #ifndef NDEBUG
-      evaluate_policies< false >(player, cfr_runner, initial_policy_profile, i);
+      evaluate_policies< false >(cfr_runner, initial_policy_profile, i);
 #endif
    }
    ASSERT_NEAR(cfr_runner.game_value().get()[Player::alex], 0., 1e-3);

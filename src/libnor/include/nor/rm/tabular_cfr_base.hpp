@@ -145,6 +145,19 @@ class TabularCFRBase {
    auto& fetch_policy(
       const sptr< info_state_type >& infostate,
       const std::vector< action_type >& actions);
+   /**
+    * @brief Policy fetching overload for explicit naming of the policy.
+    */
+   template < PolicyLabel label >
+   decltype(auto) fetch_policy(
+      const sptr< info_state_type >& infostate,
+      const std::vector< action_type >& actions)
+   {
+      static_assert(
+         label == PolicyLabel::current or label == PolicyLabel::average,
+         "Policy label has to be either 'current' or 'average'.");
+      return fetch_policy< label == PolicyLabel::current >(infostate, actions);
+   }
 
    /**
     *
@@ -180,7 +193,6 @@ class TabularCFRBase {
    [[nodiscard]] inline auto& _policy() { return m_curr_policy; }
    [[nodiscard]] inline auto& _average_policy() { return m_avg_policy; }
    [[nodiscard]] inline auto& _player_update_schedule() { return m_player_update_schedule; }
-
 
    /**
     * @brief Cycles the update schedule by popping the next player to update and requeueing them as

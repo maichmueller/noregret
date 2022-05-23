@@ -396,7 +396,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
             infostate_data_type >& istate_data) {
          if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
             rm::regret_matching(
-               fetch_policy< true >(infostate_ptr, istate_data.actions()),
+               fetch_policy< PolicyLabel::current >(infostate_ptr, istate_data.actions()),
                istate_data.regret(),
                // we provide the accessor to get the underlying referenced action, as the infodata
                // stores only reference wrappers to the actions
@@ -525,8 +525,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       _infonodes().emplace(
          this_infostate, infostate_data_type{_env().actions(active_player, *state)});
    }
+   const auto& actions = _infonode(this_infostate).actions();
    auto& action_policy = fetch_policy< use_current_policy >(
-      this_infostate, _infonode(this_infostate).actions());
+      this_infostate, actions);
    double normalizing_factor = 1.;
    if constexpr(not use_current_policy) {
       // we try to normalize only for the average policy, since iterations with the current policy
@@ -542,7 +543,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       }
    }
 
-   for(const action_type& action : _infonode(this_infostate).regret() | ranges::views::keys) {
+   for(const action_type& action : actions) {
       uptr< world_state_type > next_wstate_uptr = _child_state(state, action);
 
       auto child_reach_prob = reach_probability.get();
@@ -613,8 +614,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
 {
    auto& istatedata = _infonode(infostate);
    const auto& actions = istatedata.actions();
-   auto& curr_action_policy = fetch_policy< true >(infostate, actions);
-   auto& avg_action_policy = fetch_policy< false >(infostate, actions);
+   auto& curr_action_policy = fetch_policy< PolicyLabel::current >(infostate, actions);
+   auto& avg_action_policy = fetch_policy< PolicyLabel::average >(infostate, actions);
    auto player = infostate->player();
    double cf_reach_prob = rm::cf_reach_probability(player, reach_probability.get());
    double player_reach_prob = reach_probability.get().at(player);

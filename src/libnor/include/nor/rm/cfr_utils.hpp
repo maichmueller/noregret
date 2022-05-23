@@ -15,6 +15,7 @@
 
 namespace nor::rm {
 
+enum class PolicyLabel { current = 0, average = 1 };
 /// strong-types for passing arguments around with intent
 using Probability = fluent::NamedType< double, struct reach_prob_tag >;
 using Weight = fluent::NamedType< double, struct weight_tag >;
@@ -214,9 +215,7 @@ requires
    and std::is_convertible_v< typename RegretMap::mapped_type, double>
    and concepts::action_policy< Policy >
 // clang-format on
-void regret_matching_plus(
-   Policy& policy_map,
-   RegretMap& cumul_regret)
+void regret_matching_plus(Policy& policy_map, RegretMap& cumul_regret)
 {
    double pos_regret_sum{0.};
    for(auto& [action, regret] : cumul_regret) {
