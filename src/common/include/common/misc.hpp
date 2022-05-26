@@ -21,7 +21,6 @@ using wptr = std::weak_ptr< T >;
 
 namespace common {
 
-
 template < typename... Args >
 struct debug;
 
@@ -52,7 +51,8 @@ template < typename RAContainer >
    requires ranges::range< RAContainer >
 inline auto& choose(const RAContainer& cont, RNG& rng)
 {
-   auto chooser = [&](const auto& actual_ra_container) -> auto& {
+   auto chooser = [&](const auto& actual_ra_container) -> auto&
+   {
       return actual_ra_container[std::uniform_int_distribution(
          0ul, actual_ra_container.size())(rng)];
    };
@@ -82,8 +82,13 @@ inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
    if constexpr(
       std::random_access_iterator<
          decltype(std::declval< RAContainer >().begin()) > and requires { cont.size(); }) {
-      auto weights = ranges::to_vector(
-         cont | ranges::views::transform([&](const auto& elem) { return policy(elem); }));
+      std::vector< double > weights;
+      weights.reserve(cont.size());
+      for(const auto& elem : cont) {
+         weights.emplace_back(policy(elem));
+      }
+      // the ranges::to_vector method here fails with a segmentation fault for no apparent reason
+      //      auto weights = ranges::to_vector(cont | ranges::views::transform(policy));
       return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
    } else {
       std::vector< double > weights;
