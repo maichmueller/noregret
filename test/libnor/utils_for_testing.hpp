@@ -144,7 +144,7 @@ inline auto kuhn_optimal(double alpha)
    return std::tuple{alex_policy, bob_policy};
 }
 
-inline void assert_optimal_policy_kuhn(const auto& cfr_runner, auto& env)
+inline void assert_optimal_policy_kuhn(const auto& cfr_runner, auto& env, double precision = 1e-2)
 {
    using namespace nor;
 
@@ -189,7 +189,7 @@ inline void assert_optimal_policy_kuhn(const auto& cfr_runner, auto& env)
              ranges::views::zip(optimal_table.at(istate.history().back()), normalized_ap)) {
             auto action_prob = std::get< 1 >(action_and_prob);
             auto optim_action_prob = std::get< 1 >(optim_action_and_prob);
-            ASSERT_NEAR(action_prob, optim_action_prob, 1e-2);
+            ASSERT_NEAR(action_prob, optim_action_prob, precision);
          }
       }
    }

@@ -39,11 +39,9 @@ TEST(KuhnPoker, mccfr_outcome_sampling_optimistic_weighting)
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{
-         Player::alex,
-         rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
+         Player::alex, rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
       std::pair{
-         Player::bob,
-         rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
+         Player::bob, rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
 
    auto initial_policy_profile = std::unordered_map{
       std::pair{
@@ -64,7 +62,6 @@ TEST(KuhnPoker, mccfr_outcome_sampling_optimistic_weighting)
    //   ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
    //   assert_optimal_policy_kuhn(mccfr_runner, env);
 }
-
 
 TEST(KuhnPoker, mccfr_outcome_sampling_lazy_weighting)
 {
@@ -96,11 +93,9 @@ TEST(KuhnPoker, mccfr_outcome_sampling_lazy_weighting)
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{
-         Player::alex,
-         rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
+         Player::alex, rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
       std::pair{
-         Player::bob,
-         rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
+         Player::bob, rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
 
    auto initial_policy_profile = std::unordered_map{
       std::pair{
@@ -152,11 +147,9 @@ TEST(KuhnPoker, mccfr_external_sampling_stochastic_weighting)
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{
-         Player::alex,
-         rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
+         Player::alex, rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
       std::pair{
-         Player::bob,
-         rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
+         Player::bob, rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
 
    auto initial_policy_profile = std::unordered_map{
       std::pair{
@@ -166,16 +159,14 @@ TEST(KuhnPoker, mccfr_external_sampling_stochastic_weighting)
          Player::bob,
          rm::normalize_state_policy(mccfr_runner.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 10000;
+   size_t n_iters = 1000000;
    for(size_t i = 0; i < n_iters; i++) {
       mccfr_runner.iterate(1);
-      evaluate_policies< true >(mccfr_runner, initial_curr_policy_profile, i, "Current Policy");
-      evaluate_policies< false >(mccfr_runner, initial_policy_profile, i);
+//      evaluate_policies< true >(mccfr_runner, initial_curr_policy_profile, i, "CurrentPolicy");
+//      evaluate_policies< false >(mccfr_runner, initial_policy_profile, i);
    }
-   //   auto game_value_map = mccfr_runner.game_value();
-   //   double alex_true_game_value = -1. / 18.;
-   //   ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
-   //   assert_optimal_policy_kuhn(mccfr_runner, env);
+   evaluate_policies< false >(mccfr_runner, initial_policy_profile, n_iters);
+   assert_optimal_policy_kuhn(mccfr_runner, env, 0.05);
 }
 
 // TEST(RockPaperScissors, vanilla_cfr_usage_rockpaperscissors)

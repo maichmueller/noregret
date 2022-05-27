@@ -550,14 +550,14 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       auto action_prob = action_policy[action] / normalizing_factor;
       child_reach_prob[active_player] *= action_prob;
 
-      auto [observation_buffer_copy, child_infostate_map] = _fill_infostate_and_obs_buffers(
+      auto [child_observation_buffer, child_infostate_map] = _fill_infostate_and_obs_buffers(
          observation_buffer, infostate_map, action, *next_wstate_uptr);
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
          player_to_update,
          std::move(next_wstate_uptr),
          ReachProbabilityMap{std::move(child_reach_prob)},
-         ObservationbufferMap{std::move(observation_buffer_copy)},
+         ObservationbufferMap{std::move(child_observation_buffer)},
          InfostateMap{std::move(child_infostate_map)});
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action
@@ -587,14 +587,14 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
       auto outcome_prob = _env().chance_probability(*state, outcome);
       child_reach_prob[active_player] *= outcome_prob;
 
-      auto [observation_buffer_copy, child_infostate_map] = _fill_infostate_and_obs_buffers(
+      auto [child_observation_buffer, child_infostate_map] = _fill_infostate_and_obs_buffers(
          observation_buffer, infostate_map, outcome, *next_wstate_uptr);
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
          player_to_update,
          std::move(next_wstate_uptr),
          ReachProbabilityMap{std::move(child_reach_prob)},
-         ObservationbufferMap{std::move(observation_buffer_copy)},
+         ObservationbufferMap{std::move(child_observation_buffer)},
          InfostateMap{std::move(child_infostate_map)});
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action

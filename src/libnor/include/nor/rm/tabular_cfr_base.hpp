@@ -207,6 +207,8 @@ class TabularCFRBase {
     */
    Player _cycle_player_to_update(std::optional< Player > player_to_update = std::nullopt);
 
+   Player _preview_next_player_to_update() const { return m_player_update_schedule.front(); }
+
    /**
     * @brief simple check to see if the environment fulfills the necessary game dynamics
     */
