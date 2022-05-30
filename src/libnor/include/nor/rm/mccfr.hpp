@@ -327,7 +327,7 @@ class MCCFR:
       Player active_player,
       infostate_data_type& infostate_data,
       const action_type& sampled_action,
-      auto& infostate_policy,
+      Probability sample_prob,
       StateValue action_value,
       Probability tail_prob) const
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
@@ -562,10 +562,17 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
    Player active_player = _env().active_player(state);
 
    if(_env().is_terminal(state)) {
-      // TODO: The reward needs to be for the UPDATING PLAYER and not the active player? What does this mean for parallel updates exactly?
-      return std::pair{
-         StateValue{_env().reward(active_player, state) / sample_probability.get()},
-         Probability{1.}};
+      if constexpr(config.update_mode == UpdateMode::alternating) {
+         return std::pair{
+            StateValue{_env().reward(player_to_update.value(), state) / sample_probability.get()},
+            Probability{1.}};
+      } else if constexpr(config.update_mode == UpdateMode::simultaneous) {
+         // TODO: The reward needs to be for the UPDATING PLAYER, but What does this mean for
+         //  parallel updates exactly?
+         return std::pair{
+            StateValue{_env().reward(player_to_update.value(), state) / sample_probability.get()},
+            Probability{1.}};
+      }
    }
 
    // now we check first if we even need to consider a chance player, as the env could be
@@ -658,7 +665,7 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
          active_player,
          infonode_data,
          sampled_action,
-         player_policy,
+         Probability{action_policy_prob},
          action_value,
          tail_prob);
 
@@ -700,7 +707,8 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
    Player active_player = _env().active_player(state);
 
    if(_env().is_terminal(state)) {
-      // TODO: The reward needs to be for the UPDATING PLAYER and not the active player? What does this mean for parallel updates exactly?
+      // TODO: The reward needs to be for the UPDATING PLAYER and not the active player? What does
+      // this mean for parallel updates exactly?
       return std::pair{
          StateValue{_env().reward(active_player, state) / sample_probability.get()},
          Probability{1.}};
@@ -776,7 +784,7 @@ std::pair< StateValue, Probability > MCCFR< config, Env, Policy, AveragePolicy >
          active_player,
          infonode_data,
          sampled_action,
-         player_policy,
+         Probability{action_policy_prob},
          action_value,
          tail_prob);
       // In simultaneous updates we also update the average policy! This is referred to as the
@@ -800,7 +808,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
    Player active_player,
    infostate_data_type& infostate_data,  // = -->r(I) and A(I)
    const action_type& sampled_action,  // = a', the sampled action
-   auto& infostate_policy,  // = sigma^t(I, *) for each a
+   Probability sample_prob,  // = sigma'(a) for the sampled action
    StateValue action_value,  // = u(z[I]a)
    Probability tail_prob  // = pi^sigma(z[I]a, z)
 ) const
@@ -814,13 +822,15 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
          if(action == sampled_action) {
             // note that tail_prob = pi^sigma(z[I]a, z)
             // the probability pi^sigma(z[I]a, z) - pi^sigma(z[I], z) can also be expressed as
-            // pi^sigma(z[I]a, z) * (1 - sigma(I, a)), since pi(h, z) = pi(z) / pi(h) and
-            // pi(ha) = pi(h) * sigma(I, a)
-            // --> pi(ha, z) - pi(h, z) = pi(ha, z) * ( 1 - sigma(I, a))
-            return cf_value_weight * tail_prob.get() * (1. - infostate_policy[action]);
+            // pi^sigma(z[I]a, z) * (1 - sigma(I, a)), since
+            //    pi(h, z) = pi(z) / pi(h)   and    pi(ha) = pi(h) * sigma(I[h], a)
+            // --> pi(ha, z) - pi(h, z) = pi(z) / (pi(h) * sigma(I, a)) - pi(z) / pi(h)
+            //                          = pi(z) / (pi(h) * sigma(I, a)) * ( 1 - sigma(I, a))
+            //                          = pi(ha, z) * ( 1 - sigma(I, a))
+            return cf_value_weight * tail_prob.get() * (1. - sample_prob.get());
          } else {
             // we are returning here the formula: -W * pi(z[I], z)
-            return -cf_value_weight * tail_prob.get() * infostate_policy[action];
+            return -cf_value_weight * tail_prob.get() * sample_prob.get();
          }
       }();
    }
@@ -963,8 +973,8 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    // or an active player's actions
    if constexpr(not concepts::deterministic_fosg< env_type >) {
       if(active_player == Player::chance) {
-                  auto chosen_outcome = _sample_outcome< false >(*state);
-//         auto chosen_outcome = _env().chance_actions(*state)[0];
+         auto chosen_outcome = _sample_outcome< false >(*state);
+         //         auto chosen_outcome = _env().chance_actions(*state)[0];
 
          _env().transition(*state, chosen_outcome);
 
@@ -1015,9 +1025,9 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          auto [next_observation_buffer, next_infostates] = _fill_infostate_and_obs_buffers(
             observation_buffer, infostates, action, *next_state);
 
-                  LOGD2("Active Player", active_player);
-                  LOGD2("Infostate", infostate->history().back());
-                  LOGD2("Action", action);
+         LOGD2("Active Player", active_player);
+         LOGD2("Infostate", infostate->history().back());
+         LOGD2("Action", action);
          double action_value_estimate = _traverse(
                                            player_to_update,
                                            std::move(next_state),
@@ -1045,10 +1055,9 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
    } else {
       // for the non-traversing player we sample a single action and continue
-            auto& sampled_action = common::random::choose(
-               infonode_data.actions(), [&](const auto& act) { return player_policy[act]; },
-               m_rng);
-//      auto& sampled_action = infonode_data.actions()[0];
+      auto& sampled_action = common::random::choose(
+         infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng);
+      //      auto& sampled_action = infonode_data.actions()[0];
 
       _env().transition(*state, sampled_action);
 

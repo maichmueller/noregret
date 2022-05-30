@@ -289,6 +289,47 @@ void regret_matching_plus(
    }
 }
 
+
+/**
+ * @brief emplaces the environment rewards for a terminal state and stores them in the node.
+ *
+ * No terminality checking is done within this method! Hence only call this method if you are
+ * already certain that the node is a terminal one. Whether the environment rewards for
+ * non-terminal states would be problematic is dependant on the environment.
+ * @param[in] terminal_wstate the terminal state to collect rewards for.
+ */
+template < typename Env, typename Worldstate = typename fosg_auto_traits< Env >::world_state_type >
+   requires concepts::fosg< Env >
+// clang-format off
+auto collect_rewards(
+   Env& env,
+   const_ref_if_t<   // the fosg concept asserts a reward function taking world_state_type.
+                     // But if it can be passed a const world state then do so instead
+      nor::concepts::has::method::reward_multi< Env, const Worldstate& >
+         or concepts::has::method::reward< Env, const Worldstate& >,
+      Worldstate > terminal_wstate)
+// clang-format on
+{
+   std::unordered_map< Player, double > rewards;
+   auto players = env.players();
+   if constexpr(nor::concepts::has::method::reward_multi< Env >) {
+      // if the environment has a method for returning all rewards for given players at
+      // once, then we will assume this is a more performant alternative and use it
+      // instead (e.g. when it is costly to compute the reward of each player
+      // individually).
+      std::erase(std::remove_if(players.begin(), players.end(), utils::is_chance_player_pred));
+      auto all_rewards = env.reward(players, terminal_wstate);
+      ranges::views::for_each(
+         players, [&](Player player) { rewards.emplace(player, all_rewards[player]); });
+   } else {
+      // otherwise we just loop over the per player reward method
+      for(auto player : players | utils::is_nonchance_player_filter) {
+         rewards.emplace(player, env.reward(player, terminal_wstate));
+      }
+      return rewards;
+   }
+}
+
 }  // namespace nor::rm
 
 #endif  // NOR_RM_ALGORITHMS_HPP

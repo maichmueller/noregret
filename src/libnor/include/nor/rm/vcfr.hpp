@@ -183,7 +183,6 @@ class VanillaCFR:
    using base::_average_policy;
    using base::_player_update_schedule;
    using base::_cycle_player_to_update;
-   using base::_collect_rewards;
    using base::_child_state;
    using base::_fill_infostate_and_obs_buffers;
 
@@ -436,7 +435,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    InfostateMap infostates)
 {
    if(_env().is_terminal(*state)) {
-      return StateValueMap{_collect_rewards(*state)};
+      return StateValueMap{collect_rewards(_env(), *state)};
    }
 
    Player active_player = _env().active_player(*state);
