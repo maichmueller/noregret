@@ -9,7 +9,7 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, vanilla_cfr_alternating)
+TEST(KuhnPoker, VANILLA_CFR_alternating)
 {
    games::kuhn::Environment env{};
 
@@ -50,7 +50,7 @@ TEST(KuhnPoker, vanilla_cfr_alternating)
    assert_optimal_policy_kuhn(cfr_runner, env);
 }
 
-TEST(KuhnPoker, vanilla_cfr_simultaneous)
+TEST(KuhnPoker, VANILLA_CFR_simultaneous)
 {
    games::kuhn::Environment env{};
 

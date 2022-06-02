@@ -53,8 +53,12 @@ inline auto& choose(const RAContainer& cont, RNG& rng)
 {
    auto chooser = [&](const auto& actual_ra_container) -> auto&
    {
+//      auto choice = std::uniform_int_distribution(
+//         0ul, actual_ra_container.size())(rng);
+//      LOGD2("Choice", choice);
+//      return cont[choice];
       return actual_ra_container[std::uniform_int_distribution(
-         0ul, actual_ra_container.size())(rng)];
+         0ul, actual_ra_container.size() - 1)(rng)];
    };
    if constexpr(
       std::random_access_iterator<
@@ -89,6 +93,9 @@ inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
       }
       // the ranges::to_vector method here fails with a segmentation fault for no apparent reason
       //      auto weights = ranges::to_vector(cont | ranges::views::transform(policy));
+//      auto choice = std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng);
+//      LOGD2("Choice", choice);
+//      return cont[choice];
       return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
    } else {
       std::vector< double > weights;

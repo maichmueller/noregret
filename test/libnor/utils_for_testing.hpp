@@ -187,9 +187,9 @@ inline void assert_optimal_policy_kuhn(const auto& cfr_runner, auto& env, double
          auto normalized_ap = rm::normalize_action_policy(action_policy);
          for(const auto& [optim_action_and_prob, action_and_prob] :
              ranges::views::zip(optimal_table.at(istate.history().back()), normalized_ap)) {
-            auto action_prob = std::get< 1 >(action_and_prob);
-            auto optim_action_prob = std::get< 1 >(optim_action_and_prob);
-            ASSERT_NEAR(action_prob, optim_action_prob, precision);
+            auto found_action_prob = std::get< 1 >(action_and_prob);
+            auto optimal_action_prob = std::get< 1 >(optim_action_and_prob);
+            ASSERT_NEAR(found_action_prob, optimal_action_prob, precision);
          }
       }
    }

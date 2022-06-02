@@ -9,7 +9,7 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, cfr_plus)
+TEST(KuhnPoker, CFR_PLUS)
 {
    games::kuhn::Environment env{};
 
