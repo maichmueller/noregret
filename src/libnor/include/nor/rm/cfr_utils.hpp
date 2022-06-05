@@ -289,7 +289,6 @@ void regret_matching_plus(
    }
 }
 
-
 /**
  * @brief emplaces the environment rewards for a terminal state and stores them in the node.
  *

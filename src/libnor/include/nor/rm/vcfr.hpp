@@ -190,11 +190,8 @@ class VanillaCFR:
    std::unordered_map<
       sptr< info_state_type >,
       infostate_data_type,
-      decltype(
-         [](const sptr< info_state_type >& ptr) { return std::hash< info_state_type >{}(*ptr); }),
-      decltype([](const sptr< info_state_type >& ptr1, const sptr< info_state_type >& ptr2) {
-         return *ptr1 == *ptr2;
-      }) >
+      common::sptr_value_hasher< info_state_type >,
+      common::sptr_value_comparator< info_state_type > >
       m_infonode{};
 
    /// define the implementation details of the API
@@ -525,8 +522,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          this_infostate, infostate_data_type{_env().actions(active_player, *state)});
    }
    const auto& actions = _infonode(this_infostate).actions();
-   auto& action_policy = fetch_policy< use_current_policy >(
-      this_infostate, actions);
+   auto& action_policy = fetch_policy< use_current_policy >(this_infostate, actions);
    double normalizing_factor = 1.;
    if constexpr(not use_current_policy) {
       // we try to normalize only for the average policy, since iterations with the current policy

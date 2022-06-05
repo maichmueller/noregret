@@ -88,8 +88,8 @@ class InfostateNodeData: public detail::CondWeight< Weight > {
    std::unordered_map<
       std::reference_wrapper< const Action >,
       double,
-      common::default_ref_hasher< const Action >,
-      common::default_ref_comparator< const Action > >
+      common::ref_wrapper_hasher< const Action >,
+      common::ref_wrapper_comparator< const Action > >
       m_regret{};
 };
 

@@ -23,6 +23,13 @@ template < typename... Ts >
 struct Hint {
 };
 
+template <
+   typename Key,
+   typename Value,
+   template < typename... > class Map = std::unordered_map,
+   typename... Args >
+using DefaultPlayerMap = Map< Key, Value, Args... >;
+
 }  // namespace nor
 
 namespace nor::utils {

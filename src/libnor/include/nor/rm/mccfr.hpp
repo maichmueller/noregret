@@ -40,8 +40,8 @@ struct MCCFRNodeDataSelector {
       std::unordered_map<
          std::reference_wrapper< const action_type >,
          double,
-         common::default_ref_hasher< const action_type >,
-         common::default_ref_comparator< const action_type > > >;
+         common::ref_wrapper_hasher< const action_type >,
+         common::ref_wrapper_comparator< const action_type > > >;
    /// for optimistic weghting we merely need a counter for each infostate
    using optimistic_node_type = InfostateNodeData< action_type, size_t >;
    /// for eg external sampling or stochastic weighetd outcome sampling we merely need the regret
@@ -256,11 +256,8 @@ class MCCFR:
    std::unordered_map<
       sptr< info_state_type >,
       infostate_data_type,
-      decltype(
-         [](const sptr< info_state_type >& ptr) { return std::hash< info_state_type >{}(*ptr); }),
-      decltype([](const sptr< info_state_type >& ptr1, const sptr< info_state_type >& ptr2) {
-         return *ptr1 == *ptr2;
-      }) >
+      common::sptr_value_hasher< info_state_type >,
+      common::sptr_value_comparator< info_state_type > >
       m_infonode{};
    /// the parameter to control the epsilon-on-policy epxloration
    double m_epsilon;
@@ -400,10 +397,9 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy >::_sanity_check_config
 {
    constexpr bool eval = [&] {
       if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-         if constexpr(config.update_mode != UpdateMode::alternating) {
-            return false;
-         }
-      } else if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
+         return true;
+      }
+      if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
          if constexpr(config.update_mode != UpdateMode::alternating) {
             return false;
          }

@@ -8,19 +8,34 @@
 
 namespace common {
 
-template < typename T >
-struct default_ref_hasher {
+template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
+struct ref_wrapper_hasher {
    auto operator()(const std::reference_wrapper< T >& value) const
    {
-      return std::hash< std::remove_cvref_t< T > >{}(value.get());
+      return Hasher{}(value.get());
    }
 };
 template < typename T >
-struct default_ref_comparator {
+struct ref_wrapper_comparator {
    auto operator()(const std::reference_wrapper< T >& ref1, const std::reference_wrapper< T >& ref2)
       const
    {
       return ref1.get() == ref2.get();
+   }
+};
+template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
+struct sptr_value_hasher {
+   auto operator()(const sptr< T >& ptr) const
+   {
+      return Hasher{}(*ptr);
+   }
+};
+template < typename T >
+struct sptr_value_comparator {
+   auto operator()(const sptr< T >& ptr1, const sptr< T >& ptr2)
+      const
+   {
+      return *ptr1 == *ptr2;
    }
 };
 
