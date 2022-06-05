@@ -9,7 +9,7 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, OS_MCCFR_optimistic)
+TEST(KuhnPoker, OS_MCCFR_optimistic_alternating)
 {
    games::kuhn::Environment env{};
 
@@ -63,7 +63,61 @@ TEST(KuhnPoker, OS_MCCFR_optimistic)
    assert_optimal_policy_kuhn(mccfr_runner, env, 0.05);
 }
 
-TEST(KuhnPoker, OS_MCCFR_lazy)
+TEST(KuhnPoker, OS_MCCFR_optimistic_simultaneous)
+{
+   games::kuhn::Environment env{};
+
+   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::
+         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+
+   auto tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::make_uniform_policy<
+         games::kuhn::Infostate,
+         HashmapActionPolicy< games::kuhn::Action > >());
+
+   constexpr rm::MCCFRConfig config{
+      .update_mode = rm::UpdateMode::simultaneous,
+      .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
+      .weighting = rm::MCCFRWeightingMode::optimistic};
+
+   auto mccfr_runner = rm::factory::make_mccfr< config, true >(
+      std::move(env),
+      std::make_unique< games::kuhn::State >(),
+      tabular_policy,
+      avg_tabular_policy,
+      0.6,
+      0);
+
+   auto initial_curr_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex, rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob, rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
+
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(mccfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(mccfr_runner.average_policy().at(Player::bob).table())}};
+
+   size_t n_iters = 200000;
+   for(size_t i = 0; i < n_iters; i++) {
+      mccfr_runner.iterate(1);
+#ifndef NDEBUG
+      evaluate_policies< true >(mccfr_runner, initial_curr_policy_profile, i, "Current Policy");
+      evaluate_policies< false >(mccfr_runner, initial_policy_profile, i);
+#endif
+   }
+   evaluate_policies< false >(mccfr_runner, initial_policy_profile, n_iters);
+   assert_optimal_policy_kuhn(mccfr_runner, env, 0.05);
+}
+
+TEST(KuhnPoker, OS_MCCFR_lazy_alternating)
 {
    games::kuhn::Environment env{};
 
@@ -117,7 +171,61 @@ TEST(KuhnPoker, OS_MCCFR_lazy)
    assert_optimal_policy_kuhn(mccfr_runner, env, 0.05);
 }
 
-TEST(KuhnPoker, OS_MCCFR_stochastic)
+TEST(KuhnPoker, OS_MCCFR_lazy_simultaneous)
+{
+   games::kuhn::Environment env{};
+
+   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::
+         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+
+   auto tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::make_uniform_policy<
+         games::kuhn::Infostate,
+         HashmapActionPolicy< games::kuhn::Action > >());
+
+   constexpr rm::MCCFRConfig config{
+      .update_mode = rm::UpdateMode::simultaneous,
+      .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
+      .weighting = rm::MCCFRWeightingMode::lazy};
+
+   auto mccfr_runner = rm::factory::make_mccfr< config, true >(
+      std::move(env),
+      std::make_unique< games::kuhn::State >(),
+      tabular_policy,
+      avg_tabular_policy,
+      0.6,
+      0);
+
+   auto initial_curr_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex, rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob, rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
+
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(mccfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(mccfr_runner.average_policy().at(Player::bob).table())}};
+
+   size_t n_iters = 200000;
+   for(size_t i = 0; i < n_iters; i++) {
+      mccfr_runner.iterate(1);
+#ifndef NDEBUG
+      evaluate_policies< true >(mccfr_runner, initial_curr_policy_profile, i, "Current Policy");
+      evaluate_policies< false >(mccfr_runner, initial_policy_profile, i);
+#endif
+   }
+   evaluate_policies< false >(mccfr_runner, initial_policy_profile, n_iters);
+   assert_optimal_policy_kuhn(mccfr_runner, env, 0.05);
+}
+
+TEST(KuhnPoker, OS_MCCFR_stochastic_alternating)
 {
    games::kuhn::Environment env{};
 
@@ -171,6 +279,60 @@ TEST(KuhnPoker, OS_MCCFR_stochastic)
    assert_optimal_policy_kuhn(mccfr_runner, env, 0.05);
 }
 
+
+TEST(KuhnPoker, OS_MCCFR_stochastic_simultaneous)
+{
+   games::kuhn::Environment env{};
+
+   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::
+         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+
+   auto tabular_policy = rm::factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
+      rm::factory::make_uniform_policy<
+         games::kuhn::Infostate,
+         HashmapActionPolicy< games::kuhn::Action > >());
+
+   constexpr rm::MCCFRConfig config{
+      .update_mode = rm::UpdateMode::simultaneous,
+      .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
+      .weighting = rm::MCCFRWeightingMode::stochastic};
+
+   auto mccfr_runner = rm::factory::make_mccfr< config, true >(
+      std::move(env),
+      std::make_unique< games::kuhn::State >(),
+      tabular_policy,
+      avg_tabular_policy,
+      0.6,
+      0);
+
+   auto initial_curr_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex, rm::normalize_state_policy(mccfr_runner.policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob, rm::normalize_state_policy(mccfr_runner.policy().at(Player::bob).table())}};
+
+   auto initial_policy_profile = std::unordered_map{
+      std::pair{
+         Player::alex,
+         rm::normalize_state_policy(mccfr_runner.average_policy().at(Player::alex).table())},
+      std::pair{
+         Player::bob,
+         rm::normalize_state_policy(mccfr_runner.average_policy().at(Player::bob).table())}};
+
+   size_t n_iters = 200000;
+   for(size_t i = 0; i < n_iters; i++) {
+      mccfr_runner.iterate(1);
+#ifndef NDEBUG
+      evaluate_policies< true >(mccfr_runner, initial_curr_policy_profile, i, "Current Policy");
+      evaluate_policies< false >(mccfr_runner, initial_policy_profile, i);
+#endif
+   }
+   evaluate_policies< false >(mccfr_runner, initial_policy_profile, n_iters);
+   assert_optimal_policy_kuhn(mccfr_runner, env, 0.05);
+}
 
 TEST(KuhnPoker, ES_MCCFR_stochastic)
 {

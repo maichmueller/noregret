@@ -284,10 +284,30 @@ template < bool alternating_updates, typename Env, typename Policy, typename Ave
 Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle_player_to_update(
    std::optional< Player > player_to_update)
 {
+   // we assert here that the chosen player to update is not the chance player.
+   if(player_to_update.value_or(Player::alex) == Player::chance) {
+      std::stringstream ssout;
+      ssout << "Given combination of '";
+      ssout << Player::chance;
+      ssout << "' and '";
+      ssout << "alternating updates'";
+      ssout << "is incompatible. Did you forget to pass the correct player parameter?";
+      throw std::invalid_argument(ssout.str());
+   }
+
    auto player_q_iter = std::find(
       m_player_update_schedule.begin(),
       m_player_update_schedule.end(),
       player_to_update.value_or(m_player_update_schedule.front()));
+
+   if(player_q_iter == m_player_update_schedule.end()) {
+      std::stringstream ssout;
+      ssout << "Given player to update ";
+      ssout << player_to_update.value();
+      ssout << " is not a member of the update schedule.";
+      ssout << ranges::views::all(m_player_update_schedule) << ".";
+      throw std::invalid_argument(ssout.str());
+   }
    Player next_to_update = *player_q_iter;
    m_player_update_schedule.erase(player_q_iter);
    m_player_update_schedule.push_back(next_to_update);

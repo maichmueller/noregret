@@ -305,26 +305,6 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(
    std::optional< Player > player_to_update)
    requires(config.update_mode == UpdateMode::alternating)
 {
-   // we assert here that the chosen player to update is not the chance player as is defined
-   // by default. Seeing the chance player here inidcates that the player forgot to set the
-   // player parameter with this rm config.
-   if(player_to_update.value_or(Player::alex) == Player::chance) {
-      std::stringstream ssout;
-      ssout << "Given combination of '";
-      ssout << Player::chance;
-      ssout << "' and '";
-      ssout << "alternating updates'";
-      ssout << "is incompatible. Did you forget to pass the correct player parameter?";
-      throw std::invalid_argument(ssout.str());
-   } else if(auto env_players = _env().players();
-             ranges::find(env_players, player_to_update) == env_players.end()) {
-      std::stringstream ssout;
-      ssout << "Given player to update ";
-      ssout << player_to_update.value();
-      ssout << " is not a member of the game's player list ";
-      ssout << ranges::views::all(env_players) << ".";
-      throw std::invalid_argument(ssout.str());
-   }
    LOGD2("Iteration number: ", _iteration());
    // run the iteration
    StateValueMap values = [&] {
