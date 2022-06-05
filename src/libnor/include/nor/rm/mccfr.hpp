@@ -213,17 +213,6 @@ class MCCFR:
       requires(config.update_mode == UpdateMode::alternating)
    ;
 
-   StateValue game_value(Player player) { return StateValue{0.}; }
-   StateValueMap game_value()
-   {
-      StateValueMap values{{}};
-      auto players = _env().players();
-      for(auto player : players | utils::is_nonchance_player_filter) {
-         values.get()[player] = 0.;
-      }
-      return values;
-   }
-
    ////////////////////////////////
    /// private member functions ///
    ////////////////////////////////
