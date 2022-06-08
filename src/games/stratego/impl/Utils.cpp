@@ -1,5 +1,7 @@
 #include "stratego/Utils.hpp"
 
+#include "stratego/Action.hpp"
+
 namespace stratego::utils {
 
 std::string print_board(const Board& board, std::optional< aze::Team > team, bool hide_unknowns)
@@ -218,6 +220,11 @@ template <>
 std::string to_string(const stratego::DefinedBoardSizes& e)
 {
    return std::string(stratego::utils::definedboardsizes_name_bij.at(e));
+}
+template <>
+std::string to_string(const stratego::Action& e)
+{
+   return e.to_string();
 }
 template <>
 auto from_string(std::string_view str) -> stratego::Status

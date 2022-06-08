@@ -174,7 +174,9 @@ class GameTree {
          // stack)
          visit_stack.pop();
 
-         hooks.pre_child_hook(curr_wstate_uptr.get(), vis_data);
+         auto curr_wstate_raw_ptr = curr_wstate_uptr.get();
+
+         hooks.pre_child_hook(curr_wstate_raw_ptr, vis_data);
 
          for(const auto& action : traversal_strategy(curr_wstate_uptr.get())) {
             uptr< world_state_type > next_wstate_uptr = nullptr;
@@ -183,7 +185,6 @@ class GameTree {
                // we cannot check the semantic correctness of the traversal strategy providing
                // only a single action to iterate over a single trajectory
                next_wstate_uptr = std::move(curr_wstate_uptr);
-               curr_wstate_uptr = nullptr;
             } else {
                next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
                   utils::clone_any_way(curr_wstate_uptr));
@@ -204,7 +205,7 @@ class GameTree {
             // consistency in our call signature
 
             auto new_visitation_data = hooks.child_hook(
-               vis_data, &action, curr_wstate_uptr.get(), next_wstate_uptr.get());
+               vis_data, &action, curr_wstate_raw_ptr, next_wstate_uptr.get());
 
             if(not m_env->is_terminal(*next_wstate_uptr)) {
                // if the newly reached world state is not a terminal state, then we merely append
@@ -213,7 +214,7 @@ class GameTree {
                visit_stack.emplace(std::move(next_wstate_uptr));
             }
          }
-         hooks.post_child_hook(curr_wstate_uptr.get());
+         hooks.post_child_hook(curr_wstate_raw_ptr);
       }
    }
 };

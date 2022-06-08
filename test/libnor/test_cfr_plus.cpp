@@ -46,7 +46,8 @@ TEST(KuhnPoker, CFR_PLUS)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    auto game_value_map = solver.game_value();
    double alex_true_game_value = -1. / 18.;
    ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
@@ -95,7 +96,8 @@ TEST(RockPaperScissors, CFR_PLUS)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    ASSERT_NEAR(solver.game_value().get()[Player::alex], 0., 1e-3);
    auto final_policy = solver.average_policy().at(Player::alex).table();
    for(const auto& [state, action_policy] : final_policy) {

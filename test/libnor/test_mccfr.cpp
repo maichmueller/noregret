@@ -57,7 +57,8 @@ TEST(KuhnPoker, OS_MCCFR_optimistic_alternating)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
@@ -109,7 +110,8 @@ TEST(KuhnPoker, OS_MCCFR_optimistic_simultaneous)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
@@ -161,7 +163,8 @@ TEST(KuhnPoker, OS_MCCFR_lazy_alternating)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
@@ -213,7 +216,8 @@ TEST(KuhnPoker, OS_MCCFR_lazy_simultaneous)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
@@ -265,7 +269,8 @@ TEST(KuhnPoker, OS_MCCFR_stochastic_alternating)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
@@ -317,7 +322,8 @@ TEST(KuhnPoker, OS_MCCFR_stochastic_simultaneous)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
@@ -325,7 +331,7 @@ TEST(KuhnPoker, ES_MCCFR_stochastic)
 {
    games::kuhn::Environment env{};
 
-      auto players = env.players();
+   auto players = env.players();
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -370,7 +376,8 @@ TEST(KuhnPoker, ES_MCCFR_stochastic)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
@@ -423,7 +430,8 @@ TEST(RockPaperScissors, OS_MCCFR_optimistic_alternating)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
@@ -476,7 +484,8 @@ TEST(RockPaperScissors, OS_MCCFR_optimistic_simultaneous)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
@@ -529,7 +538,8 @@ TEST(RockPaperScissors, OS_MCCFR_lazy_alternating)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
@@ -582,7 +592,8 @@ TEST(RockPaperScissors, OS_MCCFR_lazy_simultaneous)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
@@ -635,7 +646,8 @@ TEST(RockPaperScissors, OS_MCCFR_stochastic_alternating)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
@@ -688,7 +700,8 @@ TEST(RockPaperScissors, OS_MCCFR_stochastic_simultaneous)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
@@ -741,7 +754,8 @@ TEST(RockPaperScissors, ES_MCCFR_stochastic)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 

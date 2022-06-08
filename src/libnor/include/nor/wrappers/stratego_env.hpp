@@ -92,12 +92,12 @@ std::string observation(
 //    }
 // };
 
-class PublicState: public DefaultPublicstate< PublicState, Observation > {
-   using base = DefaultPublicstate< PublicState, Observation >;
+class Publicstate: public DefaultPublicstate< Publicstate, Observation > {
+   using base = DefaultPublicstate< Publicstate, Observation >;
    using base::base;
 };
-class InfoState: public nor::DefaultInfostate< InfoState, Observation > {
-   using base = DefaultInfostate< InfoState, Observation >;
+class Infostate: public nor::DefaultInfostate< Infostate, Observation > {
+   using base = DefaultInfostate< Infostate, Observation >;
    using base::base;
 };
 
@@ -105,8 +105,8 @@ class Environment {
   public:
    // nor fosg typedefs
    using world_state_type = State;
-   using info_state_type = InfoState;
-   using public_state_type = PublicState;
+   using info_state_type = Infostate;
+   using public_state_type = Publicstate;
    using action_type = Action;
    using observation_type = Observation;
    // nor fosg traits
@@ -141,15 +141,15 @@ class Environment {
 namespace nor {
 
 template <>
-struct fosg_traits< games::stratego::InfoState > {
+struct fosg_traits< games::stratego::Infostate > {
    using observation_type = nor::games::stratego::Observation;
 };
 
 template <>
 struct fosg_traits< games::stratego::Environment > {
    using world_state_type = nor::games::stratego::State;
-   using info_state_type = nor::games::stratego::InfoState;
-   using public_state_type = nor::games::stratego::PublicState;
+   using info_state_type = nor::games::stratego::Infostate;
+   using public_state_type = nor::games::stratego::Publicstate;
    using action_type = nor::games::stratego::Action;
    using observation_type = nor::games::stratego::Observation;
 
@@ -165,8 +165,8 @@ namespace std {
 template < typename StateType >
 requires common::is_any_v<
    StateType,
-   nor::games::stratego::PublicState,
-   nor::games::stratego::InfoState > struct hash< StateType > {
+   nor::games::stratego::Publicstate,
+   nor::games::stratego::Infostate > struct hash< StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };
 

@@ -30,9 +30,9 @@ TEST(KuhnPoker, VANILLA_CFR_alternating)
    auto solver = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
-      auto initial_curr_policy_profile = std::unordered_map{
-         std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
-         std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+   auto initial_curr_policy_profile = std::unordered_map{
+      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
 
    auto initial_policy_profile = std::unordered_map{
       std::pair{
@@ -49,7 +49,8 @@ TEST(KuhnPoker, VANILLA_CFR_alternating)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    auto game_value_map = solver.game_value();
    double alex_true_game_value = -1. / 18.;
    ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
@@ -77,9 +78,9 @@ TEST(KuhnPoker, VANILLA_CFR_simultaneous)
    auto solver = rm::factory::make_vanilla< cfr_config, true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
-      auto initial_curr_policy_profile = std::unordered_map{
-         std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
-         std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+   auto initial_curr_policy_profile = std::unordered_map{
+      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
    auto initial_policy_profile = std::unordered_map{
       std::pair{
          Player::alex,
@@ -95,7 +96,8 @@ TEST(KuhnPoker, VANILLA_CFR_simultaneous)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    auto game_value_map = solver.game_value();
    double alex_true_game_value = -1. / 18.;
    ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
@@ -127,9 +129,9 @@ TEST(RockPaperScissors, VANILLA_CFR_alternating)
          std::pair{Player::alex, avg_tabular_policy_alex},
          std::pair{Player::bob, avg_tabular_policy_bob}});
 
-      auto initial_curr_policy_profile = std::unordered_map{
-         std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
-         std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+   auto initial_curr_policy_profile = std::unordered_map{
+      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
    auto initial_policy_profile = std::unordered_map{
       std::pair{
          Player::alex,
@@ -145,7 +147,8 @@ TEST(RockPaperScissors, VANILLA_CFR_alternating)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
@@ -174,9 +177,9 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
          std::pair{Player::alex, avg_tabular_policy_alex},
          std::pair{Player::bob, avg_tabular_policy_bob}});
 
-      auto initial_curr_policy_profile = std::unordered_map{
-         std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
-         std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+   auto initial_curr_policy_profile = std::unordered_map{
+      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
    auto initial_policy_profile = std::unordered_map{
       std::pair{
          Player::alex,
@@ -192,32 +195,119 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
    }
-   evaluate_policies< false >(solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+   evaluate_policies< false >(
+      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
-// TEST_F(StrategoState3x3, vanilla_cfr)
+//TEST_F(StrategoState3x3, vanilla_cfr)
 //{
-//    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
-//    games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
-//    UniformPolicy uniform_policy = rm::factory::make_uniform_policy<
-//       games::stratego::InfoState,
-//       HashmapActionPolicy< games::stratego::Action > >();
 //
-//    auto tabular_policy = rm::factory::make_tabular_policy(
-//       std::unordered_map<
-//          games::stratego::InfoState,
-//          HashmapActionPolicy< games::stratego::Action > >{});
+//   std::cout << "Before anything...\n" << std::endl;
+//   //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
+//   games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
+//   auto players = env.players();
 //
-//    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+//   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+//      std::unordered_map<
+//         games::stratego::Infostate,
+//         HashmapActionPolicy< games::stratego::Action > >{},
+//      rm::factory::make_zero_policy<
+//         games::stratego::Infostate,
+//         HashmapActionPolicy< games::stratego::Action > >());
 //
-//    auto solver = rm::factory::make_vanilla< cfr_config, true >(
-//       std::move(env),
-//       std::make_unique< State >(std::move(state)),
-//       tabular_policy,
-//       std::move(uniform_policy));
-//    solver.initialize();
-//    const auto& curr_policy = *solver.iterate(100);
-//    std::cout << curr_policy.at(Player::alex).table().size();
-//    LOGD2("Table size", curr_policy.at(Player::alex).table().size());
-// }
+//   auto tabular_policy = rm::factory::make_tabular_policy(
+//      std::unordered_map<
+//         games::stratego::Infostate,
+//         HashmapActionPolicy< games::stratego::Action > >{},
+//      rm::factory::make_uniform_policy<
+//         games::stratego::Infostate,
+//         HashmapActionPolicy< games::stratego::Action > >());
+//
+//   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+//
+//   auto solver = rm::factory::make_vanilla< cfr_config, true >(
+//      std::move(env),
+//      std::make_unique< games::stratego::State >(std::move(state)),
+//      tabular_policy,
+//      avg_tabular_policy);
+//
+//   auto initial_curr_policy_profile = std::unordered_map{
+//      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+//      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+//
+//   auto initial_policy_profile = std::unordered_map{
+//      std::pair{
+//         Player::alex,
+//         rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+//      std::pair{
+//         Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+//
+//      std::cout << "Before Iterations\n";
+//   size_t n_iters = 15000;
+//   for(size_t i = 0; i < n_iters; i++) {
+//      std::cout << "Iteration " << i << std::endl;
+//      solver.iterate(1);
+//#ifndef NDEBUG
+//      evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
+//      evaluate_policies< false >(solver, initial_policy_profile, i);
+//#endif
+//   }
+//   evaluate_policies< false >(
+//      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+//}
+//
+//
+//TEST_F(StrategoState5x5, vanilla_cfr)
+//{
+//   //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
+//   games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
+//   auto players = env.players();
+//
+//   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+//      std::unordered_map<
+//         games::stratego::Infostate,
+//         HashmapActionPolicy< games::stratego::Action > >{},
+//      rm::factory::make_zero_policy<
+//         games::stratego::Infostate,
+//         HashmapActionPolicy< games::stratego::Action > >());
+//
+//   auto tabular_policy = rm::factory::make_tabular_policy(
+//      std::unordered_map<
+//         games::stratego::Infostate,
+//         HashmapActionPolicy< games::stratego::Action > >{},
+//      rm::factory::make_uniform_policy<
+//         games::stratego::Infostate,
+//         HashmapActionPolicy< games::stratego::Action > >());
+//
+//   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+//
+//   auto solver = rm::factory::make_vanilla< cfr_config, true >(
+//      std::move(env),
+//      std::make_unique< games::stratego::State >(std::move(state)),
+//      tabular_policy,
+//      avg_tabular_policy);
+//
+//   auto initial_curr_policy_profile = std::unordered_map{
+//      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+//      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+//
+//   auto initial_policy_profile = std::unordered_map{
+//      std::pair{
+//         Player::alex,
+//         rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+//      std::pair{
+//         Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+//
+//   size_t n_iters = 15000;
+//   for(size_t i = 0; i < n_iters; i++) {
+//      std::cout << "Iteration " << i << std::endl;
+//      solver.iterate(1);
+//#ifndef NDEBUG
+//      evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
+//      evaluate_policies< false >(solver, initial_policy_profile, i);
+//#endif
+//   }
+//   evaluate_policies< false >(
+//      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+//}

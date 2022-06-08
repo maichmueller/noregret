@@ -46,7 +46,13 @@ std::string print_board(
 
 }  // namespace stratego::utils
 
+namespace stratego {
+// forward-declare the action class here
+class Action;
+}
+
 namespace common {
+
 
 template <>
 std::string to_string(const stratego::Status &e);
@@ -58,6 +64,8 @@ template <>
 std::string to_string(const stratego::Token &e);
 template <>
 std::string to_string(const stratego::DefinedBoardSizes &e);
+template <>
+std::string to_string(const stratego::Action &e);
 
 template <>
 auto from_string(std::string_view str) -> stratego::Status;
