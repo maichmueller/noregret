@@ -98,7 +98,14 @@ class HashmapActionPolicy {
          return m_def_value_gen();
       }
    }
-
+   inline auto operator[](const action_type& action) const
+   {
+      if(auto found = find(action); found != end()) {
+         return found->second;
+      } else {
+         return m_def_value_gen();
+      }
+   }
   private:
    map_type m_map;
    default_value_generator m_def_value_gen;
@@ -247,7 +254,7 @@ class TabularPolicy {
       const auto& infostate = std::get< 0 >(state_action_pair);
       auto found_action_policy = find(infostate);
       if(found_action_policy == m_table.end()) {
-         return m_table.emplace(found_action_policy, infostate, m_default_policy[state_action_pair])
+         return m_table.emplace(infostate, m_default_policy[state_action_pair])
             .first->second;
       }
       return found_action_policy->second;

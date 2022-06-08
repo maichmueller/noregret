@@ -27,32 +27,31 @@ template <
    typename Map,
    typename KeyType = typename Map::key_type,
    typename MappedType = typename Map::mapped_type >
-concept map = iterable< Map >&& requires(Map m, KeyType key, MappedType mapped)
-{
-   typename Map::key_type;
-   typename Map::mapped_type;
-   {
-      m.find(key)
-   }
-   ->std::same_as< typename Map::iterator >;
-   {
-      m.at(key)
-   }
-   ->std::same_as< MappedType& >;
-   {
-      std::as_const(m).at(key)
-   }
-   ->std::same_as< const MappedType& >;
-};
+concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped) {
+                                    typename Map::key_type;
+                                    typename Map::mapped_type;
+
+                                    m.find(key);
+                                    {
+                                       m[key]
+                                       } -> std::same_as< MappedType& >;
+                                    {
+                                       m.at(key)
+                                       } -> std::same_as< MappedType& >;
+                                 } and requires(const Map m, KeyType key, MappedType mapped) {
+                                          {
+                                             m.at(key)
+                                             } -> std::same_as< const MappedType& >;
+                                       };
 
 template < typename T >
-concept action = is::hashable< T >&& std::equality_comparable< T >;
+concept action = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T >
-concept chance_outcome = is::hashable< T >&& std::equality_comparable< T >;
+concept chance_outcome = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T >
-concept observation = is::hashable< T >&& std::equality_comparable< T >;
+concept observation = is::hashable< T > && std::equality_comparable< T >;
 
 template < typename T, typename Observation = typename fosg_auto_traits< T >::observation_type >
 // clang-format off
@@ -82,7 +81,7 @@ concept info_state =
 // clang-format on
 
 template < typename T >
-concept world_state = std::is_move_constructible_v< T >and is::copyable_someway< T >;
+concept world_state = std::is_move_constructible_v< T > and is::copyable_someway< T >;
 
 template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
 // clang-format off
@@ -241,7 +240,7 @@ concept deterministic_fosg =
 
 template < typename Env, typename Policy, typename AveragePolicy >
 // clang-format off
-concept vanilla_cfr_requirements =
+concept tabular_cfr_requirements =
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && fosg_traits_partial_match< AveragePolicy, Env >::value
@@ -255,71 +254,6 @@ concept vanilla_cfr_requirements =
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::action_type
       >;
-
-// clang-format on
-
-//
-// template <
-//   typename T,
-//   typename Game,
-//   typename Policy,
-//   typename Action = typename Game::action_type,
-//   typename Infostate = typename Game::info_state_type,
-//   typename Publicstate = typename Game::public_state_type,
-//   typename Worldstate = typename Game::world_state_type,
-//   typename Observation = typename Game::observation_type,
-//   typename... PolicyUpdateArgs,
-//   typename... ReachProbabilityArgs >
-//// clang-format off
-// concept cfr_variant =
-///**/  fosg< Game >
-//   && concepts::state_policy< Policy, Infostate, Action >
-//   && has::method::current_policy< T, Policy >
-//   && has::method::current_policy< const T, Policy >
-//   && has::method::avg_policy< T, Policy >
-//   && has::method::avg_policy< const T, Policy >
-//   && has::method::iteration< T >
-//   && has::method::iteration< const T >
-//   && has::method::game_tree< T >
-//   && has::method::game_tree< const T >
-//   && requires(T t, int n_iterations, Player player_to_update) {
-//   /// Method to iterate over the current policy and improve it by rolling out the game.
-//   { t.iterate(n_iterations) } ->std::same_as<const Policy*>;
-//    /// Alternating updates version of iterating.
-//   { t.iterate(player_to_update, n_iterations) } ->std::same_as<const Policy*>;
-//} && requires(
-//      T t,
-//      typename Policy::action_policy_type& policy,
-//      PolicyUpdateArgs&&...policy_update_args
-//) {
-//   /// Method to update the currently stored policy in-place with incoming (probably) regret
-//   values.
-//   /// This would be, in the vanilla rm case, the regret-matching procedure.
-//   { t.policy_update(
-//         policy,
-//         std::forward<PolicyUpdateArgs>(policy_update_args)...
-//     )
-//   } -> std::same_as< typename Policy::action_policy_type& >;
-//} && requires(
-//      T t,
-//      typename Policy::action_policy_type& policy,
-//      const typename T::cfr_node_type& node,
-//      ReachProbabilityArgs&&...reach_prob_args
-//) {
-//    /// the factual reach probability of the given node
-//   { t.m_reach_prob(
-//         node,
-//         std::forward<ReachProbabilityArgs>(reach_prob_args)...
-//     )
-//   } -> std::same_as< double >;
-//    /// the counterfactual reach probability of the given node.
-//   { t.cf_reach_probability(
-//         node,
-//         std::forward<ReachProbabilityArgs>(reach_prob_args)...
-//      )
-//   } -> std::same_as< double >;
-//};
-//// clang-format on
 
 }  // namespace nor::concepts
 

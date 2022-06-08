@@ -29,7 +29,7 @@ TEST(TabularPolicy, uniform_default)
 
    auto istate1 = TestInfostate{nor::Player::alex};
    istate1.append("case1");
-   auto actions = std::vector{1, 2, 3, 4, 5};
+   auto actions = std::vector<int>{1, 2, 3, 4, 5};
    auto& initial_policy = tabular_policy[std::pair{istate1, actions}];
    for(auto i : actions) {
       ASSERT_NEAR(initial_policy[i], .2, 1e-10);

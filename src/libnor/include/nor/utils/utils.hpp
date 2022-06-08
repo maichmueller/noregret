@@ -23,6 +23,13 @@ template < typename... Ts >
 struct Hint {
 };
 
+template <
+   typename Key,
+   typename Value,
+   template < typename... > class Map = std::unordered_map,
+   typename... Args >
+using DefaultPlayerMap = Map< Key, Value, Args... >;
+
 }  // namespace nor
 
 namespace nor::utils {
@@ -105,10 +112,10 @@ auto clone_any_way(const T &obj)
 
 template < typename Derived, typename Base, typename Deleter >
 requires std::is_same_v< Deleter, std::default_delete< Base > > std::unique_ptr< Derived >
-static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p)
+static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p) noexcept
 {
    if constexpr(std::is_same_v< Derived, Base >) {
-      return std::move(p);
+      return p;
    } else {
       auto d = static_cast< Derived * >(p.release());
       return std::unique_ptr< Derived >(d);
@@ -117,10 +124,10 @@ static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p)
 
 template < typename Derived, typename DerivedDeleter, typename Base, typename Deleter >
 requires std::convertible_to< Deleter, DerivedDeleter > std::unique_ptr< Derived, DerivedDeleter >
-static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p)
+static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p) noexcept
 {
    if constexpr(std::is_same_v< Derived, Base >) {
-      return std::move(p);
+      return p;
    } else {
       auto d = static_cast< Derived * >(p.release());
       return std::unique_ptr< Derived, DerivedDeleter >(d, std::move(p.get_deleter()));

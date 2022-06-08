@@ -2,59 +2,80 @@
 
 #include "sandbox.hpp"
 
-#include <cppitertools/enumerate.hpp>
-#include <cppitertools/reversed.hpp>
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <range/v3/all.hpp>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <utility>
 
 #include "nor/nor.hpp"
 
-namespace detail {
-template < uint8_t... digits >
-struct positive_to_chars {
-   static const char value[];
-};
-template < uint8_t... digits >
-const char positive_to_chars< digits... >::value[] = {('0' + digits)..., 0};
-
-template < uint8_t... digits >
-struct negative_to_chars {
-   static const char value[];
-};
-template < uint8_t... digits >
-const char negative_to_chars< digits... >::value[] = {'-', ('0' + digits)..., 0};
-
-template < bool neg, uint8_t... digits >
-struct to_chars: positive_to_chars< digits... > {
-};
-
-template < uint8_t... digits >
-struct to_chars< true, digits... >: negative_to_chars< digits... > {
-};
-
-template < bool neg, uintmax_t rem, uint8_t... digits >
-struct explode: explode< neg, rem / 10, rem % 10, digits... > {
-};
-
-template < bool neg, uint8_t... digits >
-struct explode< neg, 0, digits... >: to_chars< neg, digits... > {
-};
-
-template < typename T >
-consteval uintmax_t cabs(T num)
+template < typename RAContainer, typename Policy >
+   requires ranges::range< RAContainer > and requires(Policy p) {
+                                                {
+                                                   // policy has to be a callable returning the
+                                                   // probability of the input matching the
+                                                   // container's contained type
+                                                   p(std::declval< decltype(*(
+                                                        std::declval< RAContainer >().begin())) >())
+                                                   } -> std::convertible_to< double >;
+                                             }
+inline auto& choose(const RAContainer& cont, const Policy& policy, std::mt19937_64& rng)
 {
-   return (num < 0) ? -num : num;
+   if constexpr(
+      std::random_access_iterator<
+         decltype(std::declval< RAContainer >().begin()) > and requires { cont.size(); }) {
+      std::vector< double > weights;
+      weights.reserve(cont.size());
+      for(const auto& elem : cont) {
+         weights.emplace_back(policy(elem));
+      }
+      // the ranges::to_vector method here fails with a segmentation fault for no apparent reason
+      //      auto weights = ranges::to_vector(cont | ranges::views::transform(policy));
+      return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
+   } else {
+      std::vector< double > weights;
+      if constexpr(requires { cont.size(); }) {
+         // if we can know how many elements are in the container, then reserve that amount.
+         weights.reserve(cont.size());
+      }
+      auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([&](const auto& elem) {
+                                              weights.emplace_back(policy(elem));
+                                              return std::ref(elem);
+                                           }));
+      return cont_as_vec[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)]
+         .get();
+   }
 }
-}  // namespace detail
 
-template < typename Integer, Integer num >
-struct string_from: detail::explode< (num < 0), detail::cabs(num) > {
-};
-
-int main(int argc, char** argv)
+int main()
 {
-   std::cout << string_from< int, 45 >::value << '\n' << string_from< int, -1 >::value << '\n';
+   std::vector< int > choices{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+   std::vector< double > weights{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+   double sum = 0.;
+   for(auto& weight : weights) {
+      sum += weight;
+   }
+   for(auto& weight : weights) {
+      weight /= sum;
+   }
+
+   auto policy = [&](int i) { return weights[i]; };
+   for(auto [value, weight] : ranges::views::zip(choices, weights)) {
+      std::cout << "Choice: " << value << ", weight: " << weight << "\n";
+   }
+
+   std::unordered_map< int, size_t > counter;
+   auto engine = std::mt19937_64{std::random_device{}()};
+   size_t n = 10000000;
+   for(auto i : ranges::views::iota(size_t(0), n)) {
+      counter[choose(choices, policy, engine)] += 1;
+   }
+   for(auto [value, count] : counter) {
+      std::cout << "Value: " << value << ", freq: " << static_cast<double>(count) / n << "\n";
+   }
 }
