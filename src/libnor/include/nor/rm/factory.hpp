@@ -2,9 +2,9 @@
 #ifndef NOR_FACTORY_HPP
 #define NOR_FACTORY_HPP
 
-#include "mccfr.hpp"
-#include "pluscfr.hpp"
-#include "vcfr.hpp"
+#include "cfr_monte_carlo.hpp"
+#include "cfr_plus.hpp"
+#include "cfr_vanilla.hpp"
 
 namespace nor::rm {
 

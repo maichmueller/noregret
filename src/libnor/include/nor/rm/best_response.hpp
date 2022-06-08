@@ -1,8 +1,13 @@
-//
-// Created by michael on 08.06.22.
-//
 
 #ifndef NOR_BEST_RESPONSE_HPP
 #define NOR_BEST_RESPONSE_HPP
+
+namespace nor::rm {
+
+class TabularBestResponse {
+
+};
+
+}
 
 #endif  // NOR_BEST_RESPONSE_HPP

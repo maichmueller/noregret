@@ -1,7 +1,7 @@
 
 
-#ifndef NOR_TABULAR_CFR_BASE_HPP
-#define NOR_TABULAR_CFR_BASE_HPP
+#ifndef NOR_CFR_BASE_TABULAR_HPP
+#define NOR_CFR_BASE_TABULAR_HPP
 
 #include <execution>
 #include <iostream>
@@ -15,7 +15,6 @@
 #include <utility>
 #include <vector>
 
-#include "cfr_utils.hpp"
 #include "common/common.hpp"
 #include "forest.hpp"
 #include "node.hpp"
@@ -24,6 +23,7 @@
 #include "nor/policy.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
+#include "rm_utils.hpp"
 
 namespace nor::rm {
 
@@ -385,4 +385,4 @@ void TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
 
 }  // namespace nor::rm
 
-#endif  // NOR_TABULAR_CFR_BASE_HPP
+#endif  // NOR_CFR_BASE_TABULAR_HPP
