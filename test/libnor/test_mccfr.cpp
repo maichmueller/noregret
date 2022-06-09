@@ -775,7 +775,7 @@ TEST(RockPaperScissors, ES_MCCFR_stochastic)
 //    constexpr rm::CFRConfig cfr_config{.alternating_updates = false, .store_public_states =
 //    false};
 //
-//    auto solver = rm::factory::make_vanilla< cfr_config, true >(
+//    auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
 //       std::move(env),
 //       std::make_unique< State >(std::move(state)),
 //       tabular_policy,

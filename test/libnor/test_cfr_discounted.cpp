@@ -9,7 +9,7 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, VANILLA_CFR_alternating)
+TEST(KuhnPoker, CFR_DISCOUNTED_alternating)
 {
    games::kuhn::Environment env{};
    auto players = env.players();
@@ -25,9 +25,9 @@ TEST(KuhnPoker, VANILLA_CFR_alternating)
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
-   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 
-   auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
+   auto solver = rm::factory::make_cfr_discounted< cfr_config, true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
@@ -41,7 +41,7 @@ TEST(KuhnPoker, VANILLA_CFR_alternating)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 15000;
+   size_t n_iters = 500;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -57,7 +57,7 @@ TEST(KuhnPoker, VANILLA_CFR_alternating)
    assert_optimal_policy_kuhn(solver, env);
 }
 
-TEST(KuhnPoker, VANILLA_CFR_simultaneous)
+TEST(KuhnPoker, CFR_DISCOUNTED_simultaneous)
 {
    games::kuhn::Environment env{};
    auto players = env.players();
@@ -73,9 +73,9 @@ TEST(KuhnPoker, VANILLA_CFR_simultaneous)
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
-   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
+   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
 
-   auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
+   auto solver = rm::factory::make_cfr_discounted< cfr_config, true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
@@ -88,7 +88,7 @@ TEST(KuhnPoker, VANILLA_CFR_simultaneous)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 15000;
+   size_t n_iters = 200000;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -104,7 +104,7 @@ TEST(KuhnPoker, VANILLA_CFR_simultaneous)
    assert_optimal_policy_kuhn(solver, env);
 }
 
-TEST(RockPaperScissors, VANILLA_CFR_alternating)
+TEST(RockPaperScissors, CFR_DISCOUNTED_alternating)
 {
    auto
       [env,
@@ -118,9 +118,9 @@ TEST(RockPaperScissors, VANILLA_CFR_alternating)
 
    auto players = env.players();
 
-   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 
-   auto solver = rm::factory::make_cfr_vanilla< cfr_config >(
+   auto solver = rm::factory::make_cfr_discounted< cfr_config >(
       std::move(env),
       std::make_unique< games::rps::State >(),
       std::unordered_map{
@@ -139,7 +139,7 @@ TEST(RockPaperScissors, VANILLA_CFR_alternating)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 20000;
+   size_t n_iters = 70;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -152,7 +152,7 @@ TEST(RockPaperScissors, VANILLA_CFR_alternating)
    assert_optimal_policy_rps(solver);
 }
 
-TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
+TEST(RockPaperScissors, CFR_DISCOUNTED_simultaneous)
 {
    auto
       [env,
@@ -166,9 +166,9 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
 
    auto players = env.players();
 
-   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
+   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
 
-   auto solver = rm::factory::make_cfr_vanilla< cfr_config >(
+   auto solver = rm::factory::make_cfr_discounted< cfr_config >(
       std::move(env),
       std::make_unique< games::rps::State >(),
       std::unordered_map{
@@ -187,7 +187,7 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 20000;
+   size_t n_iters = 70;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -200,7 +200,7 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
    assert_optimal_policy_rps(solver);
 }
 
-//TEST_F(StrategoState3x3, vanilla_cfr)
+//TEST_F(StrategoState3x3, CFR_DISCOUNTED)
 //{
 //
 //   std::cout << "Before anything...\n" << std::endl;
@@ -224,9 +224,9 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
 //         games::stratego::Infostate,
 //         HashmapActionPolicy< games::stratego::Action > >());
 //
-//   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+//   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 //
-//   auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
+//   auto solver = rm::factory::make_cfr_discounted< cfr_config, true >(
 //      std::move(env),
 //      std::make_unique< games::stratego::State >(std::move(state)),
 //      tabular_policy,
@@ -258,7 +258,7 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
 //}
 //
 //
-//TEST_F(StrategoState5x5, vanilla_cfr)
+//TEST_F(StrategoState5x5, CFR_DISCOUNTED)
 //{
 //   //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //   games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
@@ -280,9 +280,9 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
 //         games::stratego::Infostate,
 //         HashmapActionPolicy< games::stratego::Action > >());
 //
-//   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+//   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 //
-//   auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
+//   auto solver = rm::factory::make_cfr_discounted< cfr_config, true >(
 //      std::move(env),
 //      std::make_unique< games::stratego::State >(std::move(state)),
 //      tabular_policy,
