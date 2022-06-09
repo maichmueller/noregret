@@ -17,6 +17,7 @@ option(ENABLE_CACHE "Enable cache if available" ON)
 option(ENABLE_CLANG_TIDY "Enable static analysis with clang-tidy" OFF)
 option(ENABLE_COVERAGE "Enable coverage reporting for gcc/clang" OFF)
 option(ENABLE_CPPCHECK "Enable static analysis with cppcheck" OFF)
+option(ENABLE_FAST_MATH "Enable Compiler specific breakway from IEEE compliance to speed up math computations" OFF)
 option(ENABLE_INCLUDE_WHAT_YOU_USE "Enable static analysis with include-what-you-use" OFF)
 option(ENABLE_IPO "Enable Interprocedural Optimization, aka Link Time Optimization (LTO)" OFF)
 option(ENABLE_PCH "Enable Precompiled Headers" ON)
@@ -72,6 +73,7 @@ message(STATUS "NOR bindings directory: ${PROJECT_NOR_BINDING_DIR}")
 message(STATUS "NOR c++ library name: ${nor_lib}")
 message(STATUS "NOR python extension name: ${nor_pymodule}")
 message(STATUS "BUILD_SHARED_LIBS: ${BUILD_SHARED_LIBS}")
+message(STATUS "FAST MATH SWITCH: ${ENABLE_FAST_MATH}")
 
 message(STATUS "C++ Compiler: ${CMAKE_CXX_COMPILER}")
 message(STATUS "C++ Compiler Info: ${CMAKE_CXX_COMPILER_ID}, version ${CMAKE_CXX_COMPILER_VERSION}")
@@ -97,6 +99,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang" AND ENABLE_BUILD_WITH_TIME_TRACE)
 endif ()
 # string APPEND is needed for options in order to concatenate these strings AS IS,
 # i.e. avoid the semicolon between every code line
+
 string(
         APPEND _options
         "$<$<CXX_COMPILER_ID:MSVC>:"
@@ -105,10 +108,12 @@ string(
         ">"
         "$<$<CXX_COMPILER_ID:Clang>:"
         "$<$<CONFIG:RELEASE>:-O3>"
+        "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
         "$<$<PLATFORM_ID:Darwin>:-stdlib=libc++>"
         ">"
         "$<$<CXX_COMPILER_ID:GNU>:"
         "$<$<CONFIG:RELEASE>:-O3>"
+        "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
         ">"
 )
 set(
