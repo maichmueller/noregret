@@ -9,7 +9,7 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, OS_MCCFR_optimistic_alternating)
+TEST(KuhnPoker, MCCFR_OS_optimistic_alternating)
 {
    games::kuhn::Environment env{};
    auto players = env.players();
@@ -62,7 +62,7 @@ TEST(KuhnPoker, OS_MCCFR_optimistic_alternating)
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
-TEST(KuhnPoker, OS_MCCFR_optimistic_simultaneous)
+TEST(KuhnPoker, MCCFR_OS_optimistic_simultaneous)
 {
    games::kuhn::Environment env{};
    auto players = env.players();
@@ -115,7 +115,7 @@ TEST(KuhnPoker, OS_MCCFR_optimistic_simultaneous)
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
-TEST(KuhnPoker, OS_MCCFR_lazy_alternating)
+TEST(KuhnPoker, MCCFR_OS_lazy_alternating)
 {
    games::kuhn::Environment env{};
    auto players = env.players();
@@ -168,7 +168,7 @@ TEST(KuhnPoker, OS_MCCFR_lazy_alternating)
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
-TEST(KuhnPoker, OS_MCCFR_lazy_simultaneous)
+TEST(KuhnPoker, MCCFR_OS_lazy_simultaneous)
 {
    games::kuhn::Environment env{};
    auto players = env.players();
@@ -221,7 +221,7 @@ TEST(KuhnPoker, OS_MCCFR_lazy_simultaneous)
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
-TEST(KuhnPoker, OS_MCCFR_stochastic_alternating)
+TEST(KuhnPoker, MCCFR_OS_stochastic_alternating)
 {
    games::kuhn::Environment env{};
    auto players = env.players();
@@ -274,7 +274,7 @@ TEST(KuhnPoker, OS_MCCFR_stochastic_alternating)
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
-TEST(KuhnPoker, OS_MCCFR_stochastic_simultaneous)
+TEST(KuhnPoker, MCCFR_OS_stochastic_simultaneous)
 {
    games::kuhn::Environment env{};
    auto players = env.players();
@@ -327,7 +327,7 @@ TEST(KuhnPoker, OS_MCCFR_stochastic_simultaneous)
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
-TEST(KuhnPoker, ES_MCCFR_stochastic)
+TEST(KuhnPoker, MCCFR_ES_stochastic)
 {
    games::kuhn::Environment env{};
 
@@ -381,7 +381,7 @@ TEST(KuhnPoker, ES_MCCFR_stochastic)
    assert_optimal_policy_kuhn(solver, env, 0.05);
 }
 
-TEST(RockPaperScissors, OS_MCCFR_optimistic_alternating)
+TEST(RockPaperScissors, MCCFR_OS_optimistic_alternating)
 {
    auto
       [env,
@@ -435,7 +435,7 @@ TEST(RockPaperScissors, OS_MCCFR_optimistic_alternating)
    assert_optimal_policy_rps(solver);
 }
 
-TEST(RockPaperScissors, OS_MCCFR_optimistic_simultaneous)
+TEST(RockPaperScissors, MCCFR_OS_optimistic_simultaneous)
 {
    auto
       [env,
@@ -489,7 +489,7 @@ TEST(RockPaperScissors, OS_MCCFR_optimistic_simultaneous)
    assert_optimal_policy_rps(solver);
 }
 
-TEST(RockPaperScissors, OS_MCCFR_lazy_alternating)
+TEST(RockPaperScissors, MCCFR_OS_lazy_alternating)
 {
    auto
       [env,
@@ -543,7 +543,7 @@ TEST(RockPaperScissors, OS_MCCFR_lazy_alternating)
    assert_optimal_policy_rps(solver);
 }
 
-TEST(RockPaperScissors, OS_MCCFR_lazy_simultaneous)
+TEST(RockPaperScissors, MCCFR_OS_lazy_simultaneous)
 {
    auto
       [env,
@@ -597,7 +597,7 @@ TEST(RockPaperScissors, OS_MCCFR_lazy_simultaneous)
    assert_optimal_policy_rps(solver);
 }
 
-TEST(RockPaperScissors, OS_MCCFR_stochastic_alternating)
+TEST(RockPaperScissors, MCCFR_OS_stochastic_alternating)
 {
    auto
       [env,
@@ -651,7 +651,7 @@ TEST(RockPaperScissors, OS_MCCFR_stochastic_alternating)
    assert_optimal_policy_rps(solver);
 }
 
-TEST(RockPaperScissors, OS_MCCFR_stochastic_simultaneous)
+TEST(RockPaperScissors, MCCFR_OS_stochastic_simultaneous)
 {
    auto
       [env,
@@ -705,7 +705,7 @@ TEST(RockPaperScissors, OS_MCCFR_stochastic_simultaneous)
    assert_optimal_policy_rps(solver);
 }
 
-TEST(RockPaperScissors, ES_MCCFR_stochastic)
+TEST(RockPaperScissors, MCCFR_ES_stochastic)
 {
    auto
       [env,

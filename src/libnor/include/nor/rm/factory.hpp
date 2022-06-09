@@ -218,6 +218,72 @@ struct factory {
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
+   ///////////////////// LINEAR Counterfactual Regret Minimizer Factory ////////////////////////
+   /////////////////////////////////////////////////////////////////////////////////////////////
+
+   template <
+      CFRDiscountedConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
+   static CFRDiscounted<
+      cfg,
+      std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
+      std::remove_cvref_t< Policy >,
+      std::remove_cvref_t< AveragePolicy > >
+   make_cfr_linear(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      Policy&& policy,
+      AveragePolicy&& avg_policy)
+   {
+      if constexpr(as_map) {
+         auto players = env.players();
+         return {
+            CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
+            std::forward< Env >(env),
+            std::move(root_state),
+            to_map(players, std::forward< Policy >(policy)),
+            to_map(players, std::forward< AveragePolicy >(avg_policy))
+         };
+      } else {
+         return {
+            CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::forward< Policy >(policy),
+            std::forward< AveragePolicy >(avg_policy)};
+      }
+   }
+
+   template < CFRDiscountedConfig cfg, typename Env, typename Policy, typename AveragePolicy >
+   static CFRDiscounted< cfg, Env, Policy, AveragePolicy > make_cfr_linear(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map)
+   {
+      return {
+         CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
+         std::forward< Env >(env),
+         std::move(root_state),
+         std::move(policy_map),
+         std::move(avg_policy_map)};
+   }
+
+   template < CFRDiscountedConfig cfg, bool as_map, typename Env, typename Policy >
+   static CFRDiscounted< cfg, Env, Policy, Policy > make_cfr_linear(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      const Policy& policy)
+   {
+      return make_cfr_linear< cfg, as_map >(
+         CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
+         std::forward< Env >(env), std::move(root_state), policy, policy);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////////////////////
    ////////////////// Monte-Carlo Counterfactual Regret Minimizer Factory //////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 

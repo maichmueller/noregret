@@ -70,6 +70,7 @@ set(
         test_cfr.cpp
         test_cfr_plus.cpp
         test_cfr_discounted.cpp
+        test_cfr_linear.cpp
         test_mccfr.cpp
         test_policy.cpp
 )
