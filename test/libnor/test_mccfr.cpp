@@ -3,8 +3,8 @@
 #include <unordered_map>
 
 #include "../games/stratego/fixtures.hpp"
+#include "nor/env.hpp"
 #include "nor/nor.hpp"
-#include "nor/wrappers.hpp"
 #include "utils_for_testing.hpp"
 
 using namespace nor;

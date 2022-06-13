@@ -22,7 +22,7 @@ target_link_libraries(
         ${nor_test}_concepts
         PRIVATE
         ${nor_lib}
-        ${nor_lib}_wrappers
+        ${nor_lib}_envs
         project_warnings
         CONAN_PKG::gtest
         )
@@ -51,7 +51,7 @@ add_executable(${nor_test}_type_traits ${PROJECT_TEST_DIR}/main_tests.cpp ${NOR_
 target_link_libraries(${nor_test}_type_traits
         PRIVATE
         ${nor_lib}
-        ${nor_lib}_wrappers
+        ${nor_lib}_envs
         project_warnings
         CONAN_PKG::gtest
         )
@@ -90,7 +90,7 @@ add_executable(
 target_link_libraries(${nor_test}
         PRIVATE
         ${nor_lib}
-        ${nor_lib}_wrappers
+        ${nor_lib}_envs
         project_warnings
         CONAN_PKG::gtest
         pybind11::module

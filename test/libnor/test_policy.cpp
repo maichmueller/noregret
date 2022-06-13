@@ -2,11 +2,11 @@
 
 #include <string>
 
+#include "nor/env.hpp"
 #include "nor/fosg_states.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/policy.hpp"
 #include "nor/rm/factory.hpp"
-#include "nor/wrappers.hpp"
 
 class TestInfostate: public nor::DefaultInfostate< TestInfostate, std::string > {
 };

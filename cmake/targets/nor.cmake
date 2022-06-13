@@ -67,18 +67,18 @@ list(TRANSFORM WRAPPER_SOURCES PREPEND "${PROJECT_NOR_DIR}/impl/")
 
 if (ENABLE_GAMES)
     add_library(
-            ${nor_lib}_wrappers
+            ${nor_lib}_envs
             STATIC
     )
 
     target_sources(
-            ${nor_lib}_wrappers
+            ${nor_lib}_envs
             PRIVATE
             ${WRAPPER_SOURCES}
     )
 
     target_link_libraries(
-            ${nor_lib}_wrappers
+            ${nor_lib}_envs
             PUBLIC
             ${nor_lib}
             stratego
