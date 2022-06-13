@@ -3,7 +3,7 @@
 
 #include "nor/nor.hpp"
 #include "nor/policy.hpp"
-#include "nor/rm/cfr_utils.hpp"
+#include "nor/rm/rm_utils.hpp"
 #include "nor/wrappers.hpp"
 
 using namespace nor;

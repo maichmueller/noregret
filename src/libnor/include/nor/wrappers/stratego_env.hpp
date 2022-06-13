@@ -30,67 +30,6 @@ std::string observation(
    const State& state,
    std::optional< Player > observing_player = std::nullopt);
 
-// class InfoState {
-//   public:
-//    InfoState() = default;
-//
-//    auto& operator[](std::convertible_to< size_t > auto index) { return m_history[size_t(index)];
-//    }
-//
-//    [[nodiscard]] auto& history() const { return m_history; }
-//    [[nodiscard]] size_t size() const { return m_history.size(); }
-//
-//    template < typename... Args >
-//    auto& append(Args&&... args)
-//    {
-//       auto& ret_val = m_history.emplace_back(std::forward< Args >(args)...);
-//       m_hash_cache = _hash();
-//       return ret_val;
-//    }
-//
-//    [[nodiscard]] size_t hash() const { return m_hash_cache; }
-//    [[nodiscard]] Player player() const { return m_player; }
-//
-//    auto to_string() const
-//    {
-//       std::stringstream ss;
-//       size_t pos = 0;
-//       for(const auto& [action, observation] : m_history) {
-//          ss << "a_" << pos << ":[" << action << "]\n";
-//          ss << "obs_" << pos << ":[" << observation << "]\n";
-//          ss << "-----\n";
-//          pos++;
-//       }
-//       return ss.str();
-//    };
-//
-//    bool operator==(const InfoState& other) const
-//    {
-//       if(size() != other.size()) {
-//          return false;
-//       }
-//       auto zip_view = ranges::views::zip(m_history, other.history());
-//       return std::all_of(zip_view.begin(), zip_view.end(), [](const auto& tuple) {
-//          const auto& [this_hist_elem, other_hist_elem] = tuple;
-//          return this_hist_elem.first == other_hist_elem.first
-//                 and this_hist_elem.second == other_hist_elem.second;
-//       });
-//    }
-//    inline bool operator!=(const InfoState& other) const { return not (*this == other); }
-//
-//   private:
-//    /// the history (action trajectory) of the state.
-//    /// Each entry is a pair of action observation (first) and state observation (second)
-//    std::vector< std::pair< Observation, Observation > > m_history;
-//    Player m_player;
-//    size_t m_hash_cache{0};
-//
-//    size_t _hash()
-//    {
-//       size_t hash = std::hash< Observation >{}(to_string());
-//       return hash;
-//    }
-// };
 
 class Publicstate: public DefaultPublicstate< Publicstate, Observation > {
    using base = DefaultPublicstate< Publicstate, Observation >;

@@ -1,9 +1,9 @@
 
-#ifndef NOR_PLUSCFR_HPP
-#define NOR_PLUSCFR_HPP
+#ifndef NOR_CFR_PLUS_HPP
+#define NOR_CFR_PLUS_HPP
 
 #include "cfr_config.hpp"
-#include "vcfr.hpp"
+#include "cfr_vanilla.hpp"
 
 namespace nor::rm {
 
@@ -19,4 +19,4 @@ using CFRPlus = VanillaCFR<
 
 }
 
-#endif  // NOR_PLUSCFR_HPP
+#endif  // NOR_CFR_PLUS_HPP

@@ -1,6 +1,6 @@
 
-#ifndef NOR_RM_ALGORITHMS_HPP
-#define NOR_RM_ALGORITHMS_HPP
+#ifndef NOR_RM_UTILS_HPP
+#define NOR_RM_UTILS_HPP
 
 #include <execution>
 #include <named_type.hpp>
@@ -331,4 +331,4 @@ auto collect_rewards(
 
 }  // namespace nor::rm
 
-#endif  // NOR_RM_ALGORITHMS_HPP
+#endif  // NOR_RM_UTILS_HPP

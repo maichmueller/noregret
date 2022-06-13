@@ -1,6 +1,6 @@
 
-#ifndef NOR_MCCFR_HPP
-#define NOR_MCCFR_HPP
+#ifndef NOR_CFR_MONTE_CARLO_HPP
+#define NOR_CFR_MONTE_CARLO_HPP
 
 #include <execution>
 #include <iostream>
@@ -14,8 +14,8 @@
 #include <utility>
 #include <vector>
 
+#include "cfr_base_tabular.hpp"
 #include "cfr_config.hpp"
-#include "cfr_utils.hpp"
 #include "common/common.hpp"
 #include "forest.hpp"
 #include "node.hpp"
@@ -24,7 +24,7 @@
 #include "nor/policy.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
-#include "tabular_cfr_base.hpp"
+#include "rm_utils.hpp"
 
 namespace nor::rm {
 
@@ -1129,4 +1129,4 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
 }  // namespace nor::rm
 
-#endif  // NOR_MCCFR_HPP
+#endif  // NOR_CFR_MONTE_CARLO_HPP

@@ -24,7 +24,7 @@ TEST(KuhnPoker, CFR_PLUS)
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto solver = rm::factory::make_cfrplus< true >(
+   auto solver = rm::factory::make_cfr_plus< true >(
       std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
@@ -68,7 +68,7 @@ TEST(RockPaperScissors, CFR_PLUS)
 
    auto players = env.players();
 
-   auto solver = rm::factory::make_cfrplus(
+   auto solver = rm::factory::make_cfr_plus(
       std::move(env),
       std::make_unique< games::rps::State >(),
       std::unordered_map{
@@ -128,7 +128,7 @@ TEST(RockPaperScissors, CFR_PLUS)
 //
 //    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 //
-//    auto solver = rm::factory::make_vanilla< cfr_config, true >(
+//    auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
 //       std::move(env),
 //       std::make_unique< State >(std::move(state)),
 //       tabular_policy,
