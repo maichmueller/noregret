@@ -49,10 +49,10 @@ std::string nor::games::kuhn::Environment::public_observation(
    for(uint8_t i = 0; i < 2; i++) {
       ss << (wstate.cards()[i].has_value() ? "?" : "-");
    }
-   if(not wstate.history().sequence.empty()) {
+   if(not wstate.history().container.empty()) {
       ss << "|";
    }
-   for(auto card : wstate.history().sequence) {
+   for(auto card : wstate.history().container) {
       ss << common::to_string(card)[0];
    }
    return ss.str();
@@ -97,14 +97,14 @@ nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::t
    for(auto [idx, card] : ranges::views::enumerate(wstate.cards())) {
       if(card.has_value()) {
          ss << card.value();
-         if((idx == 0 and wstate.cards()[1].has_value()) or not wstate.history().sequence.empty()) {
+         if((idx == 0 and wstate.cards()[1].has_value()) or not wstate.history().container.empty()) {
             ss << "-";
          }
       }
    }
-   for(auto [idx, action] : ranges::views::enumerate(wstate.history().sequence)) {
+   for(auto [idx, action] : ranges::views::enumerate(wstate.history().container)) {
       ss << action;
-      if(idx != wstate.history().sequence.size() - 1) {
+      if(idx != wstate.history().container.size() - 1) {
          ss << "-";
       }
    }

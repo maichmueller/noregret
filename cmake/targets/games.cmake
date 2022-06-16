@@ -50,6 +50,34 @@ target_link_libraries(
         CONAN_PKG::namedtype
 )
 
+#################################
+# Leduc Poker
+#################################
+
+set(
+        KUHNPOKER_SOURCES
+        state.cpp
+)
+
+list(TRANSFORM KUHNPOKER_SOURCES PREPEND "${PROJECT_GAMES_DIR}/leduc_poker/impl/")
+
+add_library(leduc_poker SHARED ${KUHNPOKER_SOURCES})
+
+target_include_directories(
+        leduc_poker
+        PUBLIC
+        ${PROJECT_GAMES_DIR}/leduc_poker/include
+)
+
+target_link_libraries(
+        leduc_poker
+        PUBLIC
+        project_options
+        common
+        CONAN_PKG::range-v3
+)
+
+
 
 #################################
 # Kuhn Poker
@@ -76,7 +104,6 @@ target_link_libraries(
         project_options
         common
         CONAN_PKG::range-v3
-        CONAN_PKG::namedtype
 )
 
 #################################

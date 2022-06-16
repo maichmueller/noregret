@@ -9,10 +9,20 @@
 
 namespace kuhn {
 
-constexpr common::CEBijection< Card, std::string_view, 3 > card_name_bij = {
+constexpr common::CEBijection< Card, std::string_view, 13 > card_name_bij = {
+   std::pair{Card::two, "two"},
+   std::pair{Card::three, "three"},
+   std::pair{Card::four, "four"},
+   std::pair{Card::five, "five"},
+   std::pair{Card::six, "six"},
+   std::pair{Card::seven, "seven"},
+   std::pair{Card::eight, "eight"},
+   std::pair{Card::nine, "nine"},
+   std::pair{Card::ten, "ten"},
    std::pair{Card::jack, "jack"},
    std::pair{Card::queen, "queen"},
-   std::pair{Card::king, "king"}};
+   std::pair{Card::king, "king"},
+   std::pair{Card::ace, "ace"}};
 
 constexpr common::CEBijection< Action, std::string_view, 2 > action_name_bij = {
    std::pair{Action::check, "check"},

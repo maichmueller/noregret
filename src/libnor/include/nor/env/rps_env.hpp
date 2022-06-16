@@ -65,6 +65,7 @@ class Environment {
    static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
    Player active_player(const world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
+   static constexpr bool is_competing(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
    observation_type private_observation(Player player, const world_state_type& wstate) const;

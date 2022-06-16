@@ -226,7 +226,7 @@ class TabularCFRBase {
    inline void _init_player_update_schedule()
    {
       if constexpr(alternating_updates) {
-         for(auto player : m_env.players()) {
+         for(auto player : m_env.players(*m_root_state)) {
             if(player != Player::chance) {
                m_player_update_schedule.push_back(player);
             }

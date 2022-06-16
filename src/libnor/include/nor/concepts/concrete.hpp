@@ -210,8 +210,9 @@ concept fosg =
    && has::method::public_observation< Env, Action&, Observation >
    && has::method::reward< const Env, Worldstate >
    && has::method::is_terminal< Env, Worldstate& >
+   && has::method::is_competing< Env >
    && has::method::active_player< Env >
-   && has::method::players< Env >
+   && has::method::players< Env, Worldstate >
    && has::method::max_player_count< Env >
    && has::method::player_count< Env >
    && has::method::stochasticity< Env >

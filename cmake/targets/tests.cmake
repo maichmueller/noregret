@@ -163,4 +163,32 @@ if (ENABLE_GAMES)
             NAME Test_kuhn_poker
             COMMAND kuhn_poker_test
     )
+
+    #########################
+    # Leduc Poker Tests
+    #########################
+    set(
+            LEDUCPOKER_TEST_SOURCES
+            test_state.cpp
+    )
+    list(TRANSFORM LEDUCPOKER_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/games/leduc_poker/")
+
+    add_executable(leduc_poker_test ${PROJECT_TEST_DIR}/main_tests.cpp ${LEDUCPOKER_TEST_SOURCES})
+
+    set_target_properties(leduc_poker_test PROPERTIES
+            EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
+            )
+
+    target_link_libraries(
+            leduc_poker_test
+            PRIVATE
+            leduc_poker
+            project_warnings
+            CONAN_PKG::gtest
+    )
+
+    add_test(
+            NAME Test_leduc_poker
+            COMMAND leduc_poker_test
+    )
 endif ()

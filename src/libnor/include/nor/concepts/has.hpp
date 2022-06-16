@@ -179,13 +179,26 @@ concept reset = requires(T t, Worldstate& wstate)
    ->std::same_as< ReturnType >;
 };
 
-template < typename T >
-concept players = requires(T t)
+template < typename T,
+           typename Worldstate = typename T::world_state_type >
+concept players = requires(T t, const Worldstate& wstate)
 {
    {
-      t.players()
+      t.players(wstate)
    }
    ->std::same_as< std::vector< Player > >;
+};
+
+template < typename T,
+           typename Worldstate = typename T::world_state_type  >
+concept is_competing = requires(T t, const Worldstate& wstate, Player player)
+{
+   // a function for answering whether a given player is still partaking in the game
+   // or e.g. already lost
+   {
+      t.is_competing(wstate, player)
+   }
+   ->std::convertible_to< bool >;
 };
 
 template < typename T >
@@ -363,7 +376,6 @@ template < typename T, typename InputT >
 concept at = requires(T t, InputT inp)
 {
    /// getitem method for input type returning an output type
-
    t.at(inp);
 };
 

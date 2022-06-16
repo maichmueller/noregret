@@ -79,6 +79,7 @@ class Environment {
    }
    Player active_player(const world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
+   static constexpr bool is_competing(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
    void transition(world_state_type& worldstate, const chance_outcome_type& action) const;
@@ -118,9 +119,9 @@ struct fosg_traits< games::kuhn::Environment > {
 
 namespace std {
 template < typename StateType >
-requires common::
-   is_any_v< StateType, nor::games::kuhn::Publicstate, nor::games::kuhn::Infostate > struct hash<
-      StateType > {
+   requires common::
+      is_any_v< StateType, nor::games::kuhn::Publicstate, nor::games::kuhn::Infostate >
+   struct hash< StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };
 

@@ -1,6 +1,6 @@
 
-#ifndef NOR_STATE_HPP
-#define NOR_STATE_HPP
+#ifndef NOR_KUHN_POKER_STATE_HPP
+#define NOR_KUHN_POKER_STATE_HPP
 
 #include <array>
 #include <optional>
@@ -99,4 +99,4 @@ class State {
 
 }  // namespace kuhn
 
-#endif  // NOR_STATE_HPP
+#endif  // NOR_KUHN_POKER_STATE_HPP
