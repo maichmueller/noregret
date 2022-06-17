@@ -69,7 +69,7 @@ enum class ActionType {
 
 struct Action {
    ActionType action_type;
-   float bet = 0.f;
+   double bet = 0.;
 };
 
 inline bool operator==(const Action& action1, const Action& action2)
@@ -77,15 +77,15 @@ inline bool operator==(const Action& action1, const Action& action2)
    // we are never expecting large floating point values here so the absolute comparison should
    // suffice for the use case at hand
    return action1.action_type == action2.action_type
-          and std::fabs(action1.bet - action2.bet) <= std::numeric_limits< float >::epsilon();
+          and std::fabs(action1.bet - action2.bet) <= std::numeric_limits< double >::epsilon();
 }
 
 struct LeducConfig {
    size_t n_players = 2;
    size_t n_raises_allowed = 2;
-   float small_blind = 1.;
-   std::vector< float > bet_sizes_round_one = {2};
-   std::vector< float > bet_sizes_round_two = {4};
+   double small_blind = 1.;
+   std::vector< double > bet_sizes_round_one = {2};
+   std::vector< double > bet_sizes_round_two = {4};
    std::vector< Card > available_cards = {
       {Rank::jack, Suit::clubs},
       {Rank::jack, Suit::diamonds},
@@ -95,7 +95,7 @@ struct LeducConfig {
       {Rank::king, Suit::diamonds}};
 };
 
-auto leduc5_config()
+inline auto leduc5_config()
 {
    // returns a bigger betting range config, which will blow up the action space and thus game tree
    // enormously! as per Noam Brown's thesis: Nr of information sets for Leduc: 288, Leduc-5: 34224
@@ -106,34 +106,40 @@ auto leduc5_config()
 /**
  * @brief stores the currently commited action sequence
  */
-struct HistorySinceBet {
-   HistorySinceBet(std::vector< std::optional< Action > > cont) : container(std::move(cont)) {}
-   std::vector< std::optional< Action > > container{};
+class HistorySinceBet {
+  public:
+   HistorySinceBet(std::vector< std::optional< Action > > cont) : m_container(std::move(cont)) {}
 
-   auto& operator[](Player player) { return container[as_integral(player)]; }
+   auto& operator[](Player player) { return m_container[as_integral(player)]; }
 
-   auto& operator[](Player player) const { return container[as_integral(player)]; }
+   auto& operator[](Player player) const { return m_container[as_integral(player)]; }
 
    void reset()
    {
-      ranges::for_each(container, [](auto& action_opt) { action_opt.reset(); });
+      ranges::for_each(m_container, [](auto& action_opt) { action_opt.reset(); });
    }
 
    bool all_acted(const std::vector< Player >& remaining_players)
    {
       return ranges::all_of(remaining_players, [&](Player player) {
-         return container[as_integral(player)].has_value();
+         return m_container[as_integral(player)].has_value();
       });
    }
+
+   auto& container() { return m_container; }
+   [[nodiscard]] auto& container() const { return m_container; }
+
+  private:
+   std::vector< std::optional< Action > > m_container{};
 };
 
 inline bool operator==(const HistorySinceBet& left, const HistorySinceBet& right)
 {
-   if(left.container.size() != right.container.size()) {
+   if(left.container().size() != right.container().size()) {
       return false;
    }
    return ranges::all_of(
-      ranges::views::zip(left.container, right.container), [](const auto& paired_actions) {
+      ranges::views::zip(left.container(), right.container()), [](const auto& paired_actions) {
          const auto& [left_action, right_action] = paired_actions;
          return left_action == right_action;
       });
@@ -143,26 +149,31 @@ class State {
   public:
    State(sptr< LeducConfig > config);
 
+   template < typename... Args >
+   auto apply_action(Args... args)
+   {
+      return apply_action({std::forward< Args >(args)...});
+   }
    void apply_action(Action action);
    void apply_action(Card action);
+   bool is_terminal();
+   std::vector< double > payoff();
+   inline double payoff(Player player) { return payoff()[as_integral(player)]; }
+
+   template < typename... Args >
+   [[nodiscard]] auto is_valid(Args... args) const
+   {
+      return is_valid({std::forward< Args >(args)...});
+   }
    [[nodiscard]] bool is_valid(Action action) const;
    [[nodiscard]] bool is_valid(Card outcome) const;
-   [[nodiscard]] bool is_terminal() const;
    [[nodiscard]] std::vector< Action > actions() const;
    [[nodiscard]] std::vector< Card > chance_actions() const;
    [[nodiscard]] double chance_probability(Card action) const;
-   [[nodiscard]] std::vector< double > payoff() const;
-   [[nodiscard]] double payoff(Player player) const { return payoff()[as_integral(player)]; }
 
    [[nodiscard]] auto active_player() const { return m_active_player; }
-   [[nodiscard]] auto card(Player player) const
-   {
-      return m_player_cards[as_integral(player)];
-   }
-   [[nodiscard]] auto public_card() const
-   {
-      return m_public_card;
-   }
+   [[nodiscard]] auto card(Player player) const { return m_player_cards[as_integral(player)]; }
+   [[nodiscard]] auto public_card() const { return m_public_card; }
    [[nodiscard]] auto& history() const { return m_history; }
    [[nodiscard]] auto& cards() const { return m_player_cards; }
 
@@ -170,10 +181,9 @@ class State {
    Player m_active_player = Player::chance;
    std::vector< Player > m_remaining_players;
    std::vector< Card > m_player_cards;
-   std::vector< float > m_stakes;
+   std::vector< double > m_stakes;
    std::optional< Card > m_public_card = std::nullopt;
    std::optional< Player > m_active_bettor = std::nullopt;
-   float m_pot = 0.f;
    unsigned int m_bets_this_round = 0;
    HistorySinceBet m_history;
    bool m_is_terminal = false;

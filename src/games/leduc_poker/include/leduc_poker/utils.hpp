@@ -136,13 +136,13 @@ struct hash< leduc::HistorySinceBet > {
       auto to_string = [](const auto &action) {
          return (action.has_value() ? common::to_string(action.value()) : std::string("?"));
       };
-      std::string str = to_string(history.container[0]);
-      for(auto action_iter = history.container.begin() + 1;
-          action_iter != history.container.end() - 1;
+      std::string str = to_string(history[leduc::Player::one]);
+      for(auto action_iter = history.container().begin() + 1;
+          action_iter != history.container().end() - 1;
           action_iter++) {
          str.append(to_string(*action_iter) + "-");
       }
-      str.append(to_string(history.container.back()));
+      str.append(to_string(history.container().back()));
       return std::hash< std::string >{}(str);
    }
 };

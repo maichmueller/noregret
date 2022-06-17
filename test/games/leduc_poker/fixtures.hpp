@@ -10,13 +10,19 @@ struct LeducPokerState: public ::testing::Test {
    leduc::State state{std::make_shared<leduc::LeducConfig>()};
 };
 
+struct Leduc5PokerState: public ::testing::Test {
+   leduc::State state{std::make_shared<leduc::LeducConfig>(leduc::leduc5_config())};
+};
+
 class TerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
-       std::array< leduc::Card, 2 >,  // chance cards
-       leduc::HistorySinceBet,  // action sequence
-       bool > > {
+       std::array< std::optional<leduc::Card>, 3 >,  // chance cards
+       std::vector< leduc::Action >,  // action sequence round 1
+       std::vector< leduc::Action >,  // action sequence round 2
+       bool // whether the state is terminal
+       > > {
   protected:
-   leduc::State state;
+   leduc::State state{std::make_shared<leduc::LeducConfig>()};
 };
 
 class PayoffParamsF:
@@ -26,7 +32,7 @@ class PayoffParamsF:
        std::array< int, 2 >  // payoffs
        > > {
   protected:
-   leduc::State state;
+   leduc::State state{std::make_shared<leduc::LeducConfig>()};
 };
 
 #endif  // NOR_LEDUC_POKER_FIXTURES_HPP

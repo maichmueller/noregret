@@ -22,20 +22,20 @@ TEST_F(KuhnPokerState, apply_action)
    state.apply_action(ChanceOutcome{Player::one, Card::king});
    state.apply_action(ChanceOutcome{Player::two, Card::queen});
    state.apply_action(Action::check);
-   EXPECT_EQ(state.history().container.size(), 1);
-   EXPECT_EQ(state.history().container[0], Action::check);
+   EXPECT_EQ(state.history().sequence.size(), 1);
+   EXPECT_EQ(state.history().sequence[0], Action::check);
    state.apply_action(Action::bet);
-   EXPECT_EQ(state.history().container.size(), 2);
-   EXPECT_EQ(state.history().container[1], Action::bet);
+   EXPECT_EQ(state.history().sequence.size(), 2);
+   EXPECT_EQ(state.history().sequence[1], Action::bet);
    state.apply_action(Action::bet);
-   EXPECT_EQ(state.history().container.size(), 3);
-   EXPECT_EQ(state.history().container[2], Action::bet);
+   EXPECT_EQ(state.history().sequence.size(), 3);
+   EXPECT_EQ(state.history().sequence[2], Action::bet);
    state.apply_action(Action::check);
-   EXPECT_EQ(state.history().container.size(), 4);
-   EXPECT_EQ(state.history().container[3], Action::check);
+   EXPECT_EQ(state.history().sequence.size(), 4);
+   EXPECT_EQ(state.history().sequence[3], Action::check);
    state.apply_action(Action::check);
-   EXPECT_EQ(state.history().container.size(), 5);
-   EXPECT_EQ(state.history().container[4], Action::check);
+   EXPECT_EQ(state.history().sequence.size(), 5);
+   EXPECT_EQ(state.history().sequence[4], Action::check);
 }
 
 TEST_F(KuhnPokerState, is_valid_chance_action)
