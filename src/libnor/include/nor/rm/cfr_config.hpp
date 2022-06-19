@@ -29,7 +29,6 @@ struct CFRPlusConfig {
    UpdateMode update_mode = UpdateMode::alternating;
 };
 
-
 struct CFRDiscountedConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;

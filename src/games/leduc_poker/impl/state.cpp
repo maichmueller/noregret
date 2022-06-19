@@ -151,7 +151,7 @@ std::vector< double > State::payoff()
       for(auto p : m_remaining_players) {
          auto card = m_player_cards[as_integral(p)];
          private_cards_left.emplace_back(std::pair{p, card});
-         if(card == pub_card) {
+         if(card.rank == pub_card.rank) {
             players_with_pairs.emplace_back(p);
          }
       }

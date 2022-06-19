@@ -2,9 +2,9 @@
 
 #include <gtest/gtest.h>
 
-#include "testing_utils.hpp"
 #include "fixtures.hpp"
 #include "leduc_poker/leduc_poker.hpp"
+#include "testing_utils.hpp"
 
 using namespace leduc;
 
@@ -204,7 +204,7 @@ INSTANTIATE_TEST_SUITE_P(
             Card{Rank::queen, Suit::diamonds}},
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{
-            {ActionType::bet, 2.},
+            {ActionType::bet, 4.},
          },
          false},
       std::tuple{
@@ -229,72 +229,103 @@ INSTANTIATE_TEST_SUITE_P(
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
          true}));
 
- TEST_P(PayoffParamsF, payoff_combinations)
+TEST_P(PayoffParamsF, payoff_combinations)
 {
-    auto [cards, actions, expected_payoffs] = GetParam();
-    state.apply_action({Player::one, cards[0]});
-    state.apply_action({Player::two, cards[1]});
-    for(auto action : actions.container) {
-       state.apply_action(action);
-    }
-    for(size_t player = 0; player < 2; player++) {
-       EXPECT_EQ(state.payoff(Player(player)), expected_payoffs[player]);
-    }
- }
+   auto [cards, actions_r1, actions_r2, expected_payoffs] = GetParam();
 
- TEST_P(PayoffParamsF, payoff_combinations)
- {
-    auto [cards, actions_r1, actions_r2, expected_terminal] = GetParam();
+   for(auto opt_card : ranges::span{cards}.subspan(0, 2)) {
+      if(opt_card.has_value())
+         state.apply_action(opt_card.value());
+   }
 
-    for(auto opt_card : ranges::span{cards}.subspan(0, 2)) {
-       if(opt_card.has_value())
-          state.apply_action(opt_card.value());
-    }
+   for(auto action : actions_r1) {
+      state.apply_action(action);
+   }
+   if(cards[2].has_value()) {
+      state.apply_action(cards[2].value());
+   }
+   for(auto action : actions_r2) {
+      state.apply_action(action);
+   }
+   auto payoffs = state.payoff();
+   for(size_t player = 0; player < 2; player++) {
+      EXPECT_EQ(payoffs[player], expected_payoffs[player]);
+   }
+}
 
-    for(auto action : actions_r1) {
-       state.apply_action(action);
-    }
-    if(cards[2].has_value()) {
-       state.apply_action(cards[2].value());
-    }
-    for(auto action : actions_r2) {
-       state.apply_action(action);
-    }
-    auto payoffs = state.payoffs();
-    for(size_t player = 0; player < 2; player++) {
-       EXPECT_EQ(payoffs[player], expected_payoffs[player]);
-    }
- }
-
- INSTANTIATE_TEST_SUITE_P(
-    payoff_combinations_tests,
-    PayoffParamsF,
-    ::testing::Values(
-       std::tuple{
-          std::array{Card::jack, Card::queen},
-          std::vector{Action::check, Action::check},
-          std::array{-1, 1}},
-       std::tuple{
-          std::array{Card::queen, Card::jack},
-          std::vector{Action::bet, Action::bet},
-          std::array{2, -2}},
-       std::tuple{
-          std::array{Card::king, Card::jack},
-          std::vector{Action::check, Action::bet, Action::bet},
-          std::array{2, -2}},
-       std::tuple{
-          std::array{Card::king, Card::jack},
-          std::vector{Action::check, Action::bet, Action::check},
-          std::array{-1, 1}},
-       std::tuple{
-          std::array{Card::king, Card::jack},
-          std::vector{Action::bet, Action::check},
-          std::array{1, -1}},
-       std::tuple{
-          std::array{Card::king, Card::jack},
-          std::vector{Action::bet, Action::bet},
-          std::array{2, -2}},
-       std::tuple{
-          std::array{Card::queen, Card::king},
-          std::vector{Action::check, Action::bet, Action::check},
-          std::array{-1, 1}}));
+INSTANTIATE_TEST_SUITE_P(
+   payoff_combinations_tests,
+   PayoffParamsF,
+   ::testing::Values(
+      std::tuple{
+         std::array< std::optional< Card >, 3 >{
+            Card{Rank::jack, Suit::clubs},
+            Card{Rank::queen, Suit::clubs},
+            Card{Rank::king, Suit::diamonds}},
+         std::vector< Action >{{ActionType::check}, {ActionType::check}},
+         std::vector< Action >{{ActionType::check}, {ActionType::check}},
+         std::array{-1., 1.}},
+      std::tuple{
+         std::array< std::optional< Card >, 3 >{
+            Card{Rank::king, Suit::clubs},
+            Card{Rank::queen, Suit::clubs},
+            Card{Rank::king, Suit::diamonds}},
+         std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
+         std::vector< Action >{{ActionType::check}, {ActionType::check}},
+         std::array{3., -3.}},
+      std::tuple{
+         std::array< std::optional< Card >, 3 >{
+            Card{Rank::king, Suit::clubs},
+            Card{Rank::queen, Suit::clubs},
+            Card{Rank::king, Suit::diamonds}},
+         std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::fold}},
+         std::vector< Action >{},
+         std::array{-1., 1.}},
+      std::tuple{
+         std::array< std::optional< Card >, 3 >{
+            Card{Rank::king, Suit::clubs},
+            Card{Rank::queen, Suit::clubs},
+            Card{Rank::jack, Suit::clubs}},
+         std::vector< Action >{{ActionType::check}, {ActionType::check}},
+         std::vector< Action >{
+            {ActionType::check},
+            {ActionType::bet, 4.},
+            {ActionType::bet, 4.},
+            {ActionType::check}},
+         std::array{9., -9.}},
+      std::tuple{
+         std::array< std::optional< Card >, 3 >{
+            Card{Rank::king, Suit::clubs},
+            Card{Rank::queen, Suit::clubs},
+            Card{Rank::king, Suit::diamonds}},
+         std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
+         std::vector< Action >{{ActionType::bet, 4.}, {ActionType::fold}},
+         std::array{3., -3.}},
+      std::tuple{
+         std::array< std::optional< Card >, 3 >{
+            Card{Rank::king, Suit::clubs},
+            Card{Rank::queen, Suit::clubs},
+            Card{Rank::queen, Suit::diamonds}},
+         std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
+         std::vector< Action >{{ActionType::bet, 4.}, {ActionType::bet, 4.}, {ActionType::check}},
+         std::array{-11., 11.}},
+      std::tuple{
+         std::array< std::optional< Card >, 3 >{
+            Card{Rank::king, Suit::clubs},
+            Card{Rank::queen, Suit::clubs},
+            Card{Rank::king, Suit::diamonds}},
+         std::vector< Action >{
+            {ActionType::check},
+            {ActionType::bet, 2.},
+            {ActionType::bet, 2.},
+            {ActionType::check}},
+         std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
+         std::array{7., -7.}},
+      std::tuple{
+         std::array< std::optional< Card >, 3 >{
+            Card{Rank::jack, Suit::clubs},
+            Card{Rank::queen, Suit::clubs},
+            Card{Rank::king, Suit::diamonds}},
+         std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
+         std::vector< Action >{{ActionType::check}, {ActionType::check}},
+         std::array{-3., 3.}}));
