@@ -254,6 +254,16 @@ class MCCFR:
    common::random::RNG m_rng;
    /// the standard 0 to 1. floating point uniform distribution
    std::uniform_real_distribution< double > m_uniform_01_dist{0., 1.};
+   /// the actual regret minimizing method we will apply on the infostates
+   static constexpr auto m_regret_minimizer = []< typename... Args >(Args&&... args) {
+      if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
+         return rm::regret_matching(std::forward< Args >(args)...);
+      }
+      if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
+         static_assert(utils::always_false_v< env_type >, "MCCFR+ is not yet implemented.");
+         // return rm::regret_matching_plus(std::forward< Args >(args)...);
+      }
+   };
 
    /// define the implementation details of the
 
@@ -449,7 +459,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(std::optional< Player 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player > player_to_update)
 {
-   auto players = _env().players();
+   auto players = _env().players(*_root_state_uptr());
    auto init_infostates = [&] {
       std::unordered_map< Player, sptr< info_state_type > > infostates;
       for(auto player : players | utils::is_nonchance_player_filter) {
@@ -584,7 +594,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    // need to update all infostates after the last iteration to ensure that the policy is fully
    // up-to-date
 
-   rm::regret_matching(
+   m_regret_minimizer(
       player_policy,
       infonode_data.regret(),
       // we provide the accessor to get the underlying referenced action, as the infodata
@@ -720,7 +730,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    // updates the policy once you revisit it, as it is a lazy update schedule. As such, one would
    // need to update all infostates after the last iteration to ensure that the policy is fully
    // up-to-date
-   rm::regret_matching(
+   m_regret_minimizer(
       player_policy,
       infonode_data.regret(),
       // we provide the accessor to get the underlying referenced action, as the infodata
@@ -1054,7 +1064,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
    auto& player_policy = fetch_policy< PolicyLabel::current >(infostate, infonode_data.actions());
 
-   rm::regret_matching(
+   m_regret_minimizer(
       player_policy,
       infonode_data.regret(),
       // we provide the accessor to get the underlying referenced action, as the infodata

@@ -12,7 +12,9 @@ using namespace nor;
 TEST(KuhnPoker, VANILLA_CFR_alternating)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+      auto root_state = std::make_unique< games::kuhn::State >();
+      auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -28,7 +30,7 @@ TEST(KuhnPoker, VANILLA_CFR_alternating)
    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 
    auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
-      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
+      std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
@@ -60,7 +62,8 @@ TEST(KuhnPoker, VANILLA_CFR_alternating)
 TEST(KuhnPoker, VANILLA_CFR_simultaneous)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -76,7 +79,7 @@ TEST(KuhnPoker, VANILLA_CFR_simultaneous)
    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
 
    auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
-      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
+      std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
@@ -115,14 +118,14 @@ TEST(RockPaperScissors, VANILLA_CFR_alternating)
        infostate_alex,
        infostate_bob,
        init_state] = setup_rps_test();
-
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 
    auto solver = rm::factory::make_cfr_vanilla< cfr_config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -163,14 +166,14 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
        infostate_alex,
        infostate_bob,
        init_state] = setup_rps_test();
-
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
 
    auto solver = rm::factory::make_cfr_vanilla< cfr_config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{

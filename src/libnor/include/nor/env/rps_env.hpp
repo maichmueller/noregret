@@ -62,7 +62,10 @@ class Environment {
       }
       return valid_actions;
    }
-   static inline std::vector< Player > players() { return {Player::alex, Player::bob}; }
+   static inline std::vector< Player > players(const world_state_type&)
+   {
+      return {Player::alex, Player::bob};
+   }
    Player active_player(const world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
    static constexpr bool is_competing(const world_state_type&, Player) { return true; }
@@ -101,9 +104,8 @@ struct fosg_traits< games::rps::Environment > {
 
 namespace std {
 template < typename StateType >
-requires common::
-   is_any_v< StateType, nor::games::rps::PublicState, nor::games::rps::InfoState > struct hash<
-      StateType > {
+   requires common::is_any_v< StateType, nor::games::rps::PublicState, nor::games::rps::InfoState >
+struct hash< StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };
 

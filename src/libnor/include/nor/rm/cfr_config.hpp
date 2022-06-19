@@ -71,6 +71,7 @@ struct MCCFRConfig {
    MCCFRAlgorithmMode algorithm = MCCFRAlgorithmMode::outcome_sampling;
    MCCFRExplorationMode exploration = MCCFRExplorationMode::epsilon_on_policy;
    MCCFRWeightingMode weighting = MCCFRWeightingMode::lazy;
+   RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
 };
 
 }  // namespace nor::rm

@@ -89,7 +89,7 @@ class TabularCFRBase {
    : m_env(std::move(game)), m_root_state(std::move(root_state)), m_curr_policy(), m_avg_policy()
    {
       _assert_sequential_game();
-      for(auto player : game.players() | utils::is_nonchance_player_filter) {
+      for(auto player : game.players(*m_root_state) | utils::is_nonchance_player_filter) {
          m_curr_policy.emplace(player, policy);
          m_avg_policy.emplace(player, avg_policy);
       }
@@ -354,7 +354,7 @@ void TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
       const world_state_type& state)
 {
    auto active_player = _env().active_player(state);
-   for(auto player : _env().players()) {
+   for(auto player : _env().players(state)) {
       if(player == Player::chance) {
          continue;
       }

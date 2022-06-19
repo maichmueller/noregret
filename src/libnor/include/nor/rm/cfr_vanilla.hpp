@@ -213,6 +213,15 @@ class VanillaCFR:
 
    /// Discounted CFR specific parameters
    CFRDiscountedParameters m_dcfr_params;
+   /// the actual regret minimizing method we will apply on the infostates
+   static constexpr auto m_regret_minimizer = []<typename...Args>(Args&&... args) {
+      if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
+         return rm::regret_matching(std::forward< Args >(args)...);
+      }
+      if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
+         return rm::regret_matching_plus(std::forward< Args >(args)...);
+      }
+   };
 
    /// define the implementation details of the API
 
@@ -262,6 +271,12 @@ class VanillaCFR:
       std::unordered_map< action_variant_type, StateValueMap >& action_value);
 
    void _apply_regret_matching(const std::optional< Player >& player_to_update);
+
+   void _invoke_regret_minimizer(
+      const sptr< info_state_type >& infostate_ptr,
+      infostate_data_type& istate_data,
+      [[maybe_unused]] double policy_weight,
+      [[maybe_unused]] const std::array< double, 2 >& regret_weights);
 };
 ///
 //////
@@ -301,7 +316,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
       StateValueMap value = [&] {
          if constexpr(config.update_mode == UpdateMode::alternating) {
             auto player_to_update = _cycle_player_to_update();
-            if(_iteration() < _env().players().size() - 1) {
+            if(_iteration() < _env().players(*_root_state_uptr()).size() - 1) {
                return _iterate< true >(player_to_update);
             } else {
                return _iterate< false >(player_to_update);
@@ -328,7 +343,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(
    LOGD2("Iteration number: ", _iteration());
    // run the iteration
    StateValueMap values = [&] {
-      if(_iteration() < _env().players().size() - 1)
+      if(_iteration() < _env().players(*_root_state_uptr()).size() - 1)
          return _iterate< true >(_cycle_player_to_update(player_to_update));
       else
          return _iterate< false >(_cycle_player_to_update(player_to_update));
@@ -349,14 +364,14 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
          utils::clone_any_way(_root_state_uptr())),
       [&] {
          std::unordered_map< Player, double > rp_map;
-         for(auto player : _env().players()) {
+         for(auto player : _env().players(*_root_state_uptr())) {
             rp_map.emplace(player, 1.);
          }
          return ReachProbabilityMap{std::move(rp_map)};
       }(),
       [&] {
          std::unordered_map< Player, std::vector< observation_type > > obs_map;
-         auto players = _env().players();
+         auto players = _env().players(*_root_state_uptr());
          for(auto player : players | utils::is_nonchance_player_filter) {
             obs_map.emplace(player, std::vector< observation_type >{});
          }
@@ -364,7 +379,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       }(),
       [&] {
          std::unordered_map< Player, sptr< info_state_type > > infostates;
-         auto players = _env().players();
+         auto players = _env().players(*_root_state_uptr());
          for(auto player : players | utils::is_nonchance_player_filter) {
             auto& infostate = infostates
                                  .emplace(player, std::make_shared< info_state_type >(player))
@@ -381,56 +396,60 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
+   const sptr< info_state_type >& infostate_ptr,
+   infostate_data_type& istate_data,
+   [[maybe_unused]] double policy_weight,
+   [[maybe_unused]] const std::array< double, 2 >& regret_weights)
+{
+   // since we are reusing this variable a few times we alias it here
+   auto& current_policy = fetch_policy< PolicyLabel::current >(
+      infostate_ptr, istate_data.actions());
+
+   // we first multiply the accumulated regret by the correct weight as per discount setting
+   // (Discounted CFR only)
+   auto& regret_table = istate_data.regret();
+   if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
+      for(auto& cumul_regret : regret_table | ranges::views::values) {
+         // index 0 is exponentiated by beta, index 1 is exponentiated by alpha
+         cumul_regret *= regret_weights[cumul_regret > 0.];
+      }
+   }
+
+   // here we now perform the actual regret minimizing update step as we update the current
+   // policy through a regret matching algorithm. The specific algorihtm is determined by the
+   // config we input
+
+   // we provide the accessor lambda to get the underlying referenced action, as the infodata
+   // stores only reference wrappers to the actions
+   auto action_accessor = [](const action_type& action) { return std::ref(action); };
+   m_regret_minimizer(current_policy, regret_table, action_accessor);
+//   if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
+//      rm::regret_matching(current_policy, regret_table, action_accessor);
+//   }
+//   if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
+//      rm::regret_matching_plus(current_policy, regret_table, action_accessor);
+//   }
+//
+
+   // now we update the current accumulated policy by the iteration factor, again as per
+   // discount setting.
+   if constexpr(
+      config.weighting_mode == CFRWeightingMode::linear
+      or config.weighting_mode == CFRWeightingMode::discounted) {
+      // we are expecting to be given the right weight for the configuration here
+      auto& avg_action_policy = fetch_policy< PolicyLabel::average >(
+         infostate_ptr, istate_data.actions());
+      for(auto& policy_prob : avg_action_policy | ranges::views::values) {
+         policy_prob *= policy_weight;
+      }
+   }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
    const std::optional< Player >& player_to_update)
 {
-   auto call_regret_matching = [&](
-                                  const sptr< info_state_type >& infostate_ptr,
-                                  infostate_data_type& istate_data,
-                                  [[maybe_unused]] double policy_weight,
-                                  [[maybe_unused]] const std::array< double, 2 >& regret_weights) {
-      // since we are reusing this variable a few times we alias it here
-      auto& current_policy = fetch_policy< PolicyLabel::current >(
-         infostate_ptr, istate_data.actions());
-
-      // we first multiply the accumulated regret by the correct weight as per discount setting
-      // (Discounted CFR only)
-      auto& regret_table = istate_data.regret();
-      if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
-         for(auto& cumul_regret : regret_table | ranges::views::values) {
-            // index 0 is exponentiated by beta, index 1 is exponentiated by alpha
-            cumul_regret *= regret_weights[cumul_regret > 0.];
-         }
-      }
-
-      // here we now perform the actual regret minimizing update step as we update the current
-      // policy through a regret matching algorithm. The specific algorihtm is determined by the
-      // config we input
-
-      // we provide the accessor lambda to get the underlying referenced action, as the infodata
-      // stores only reference wrappers to the actions
-      auto action_accessor = [](const action_type& action) { return std::ref(action); };
-      if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
-         rm::regret_matching(current_policy, regret_table, action_accessor);
-      }
-      if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
-         rm::regret_matching_plus(current_policy, regret_table, action_accessor);
-      }
-
-      // now we update the current accumulated policy by the iteration factor, again as per
-      // discount setting.
-      if constexpr(
-         config.weighting_mode == CFRWeightingMode::linear
-         or config.weighting_mode == CFRWeightingMode::discounted) {
-         // we are expecting to be given the right weight for the configuration here
-         auto& avg_action_policy = fetch_policy< PolicyLabel::average >(
-            infostate_ptr, istate_data.actions());
-         for(auto& policy_prob : avg_action_policy | ranges::views::values) {
-            policy_prob *= policy_weight;
-         }
-      }
-   };
-
    double policy_weight = [&] {
       if constexpr(
          config.weighting_mode == CFRWeightingMode::linear
@@ -466,17 +485,18 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
       return std::array{1., 1.};
    }();
 
+   // here we now invoke the actual regret minimization procedure for each infostate individually
    if constexpr(config.update_mode == UpdateMode::alternating) {
       Player update_player = player_to_update.value();
       for(auto& [infostate_ptr, data] : _infonodes()) {
          if(infostate_ptr->player() == update_player) {
-            call_regret_matching(infostate_ptr, data, policy_weight, regret_weights);
+            _invoke_regret_minimizer(infostate_ptr, data, policy_weight, regret_weights);
          }
       }
    } else {
       // for simultaneous updates we simply update all infostates
       for(auto& [infostate_ptr, data] : _infonodes()) {
-         call_regret_matching(infostate_ptr, data, policy_weight, regret_weights);
+         _invoke_regret_minimizer(infostate_ptr, data, policy_weight, regret_weights);
       }
    }
 };

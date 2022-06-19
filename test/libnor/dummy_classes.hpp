@@ -55,7 +55,8 @@ class Env {
 
    std::vector< action_type > actions(nor::Player player, const world_state_type& wstate) const;
    std::vector< action_type > actions(const info_state_type& istate) const;
-   std::vector< nor::Player > players();
+   std::vector< nor::Player > players(const world_state_type& wstate);
+   bool is_competing(const world_state_type&, nor::Player);
    nor::Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate);
    bool is_terminal(world_state_type& wstate);

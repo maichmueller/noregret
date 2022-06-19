@@ -73,7 +73,7 @@ class Environment {
       return wstate.chance_probability(outcome);
    }
    //   std::vector< action_type > actions(const info_state_type& istate) const;
-   static inline std::vector< Player > players()
+   static inline std::vector< Player > players(const world_state_type&)
    {
       return {Player::chance, Player::alex, Player::bob};
    }

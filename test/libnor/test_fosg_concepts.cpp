@@ -81,9 +81,16 @@ void concept_deterministic_fosg_check();
 
 TEST(concrete, fosg_dummy)
 {
-   //      concept_fosg_check< dummy::Env >();
+//         concept_fosg_check< dummy::Env >();
 
    EXPECT_TRUE((nor::concepts::fosg< dummy::Env >) );
+}
+
+
+TEST(concrete, fosg_kuhn)
+{
+   EXPECT_TRUE((nor::concepts::fosg< nor::games::kuhn::Environment >) );
+   EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::kuhn::Environment >) );
 }
 
 TEST(concrete, fosg_stratego)
@@ -93,12 +100,6 @@ TEST(concrete, fosg_stratego)
 
    EXPECT_TRUE((nor::concepts::fosg< nor::games::stratego::Environment >) );
    EXPECT_TRUE((nor::concepts::deterministic_fosg< nor::games::stratego::Environment >) );
-}
-
-TEST(concrete, fosg_kuhn)
-{
-   EXPECT_TRUE((nor::concepts::fosg< nor::games::kuhn::Environment >) );
-   EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::kuhn::Environment >) );
 }
 
 TEST(concrete, vanilla_requirements) {}

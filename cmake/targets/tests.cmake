@@ -1,5 +1,16 @@
 
 ###########################
+# Common Testing Utilities
+###########################
+
+add_library(
+        common_testing_utils
+        INTERFACE
+)
+
+target_include_directories(common_testing_utils INTERFACE "${PROJECT_TEST_DIR}/common_test_utils")
+
+###########################
 # NOR Concepts
 ###########################
 set(
@@ -24,8 +35,9 @@ target_link_libraries(
         ${nor_lib}
         ${nor_lib}_envs
         project_warnings
+        common_testing_utils
         CONAN_PKG::gtest
-        )
+)
 
 add_test(
         NAME Test_${PROJECT_NAME}_concepts
@@ -53,6 +65,7 @@ target_link_libraries(${nor_test}_type_traits
         ${nor_lib}
         ${nor_lib}_envs
         project_warnings
+        common_testing_utils
         CONAN_PKG::gtest
         )
 
@@ -92,6 +105,7 @@ target_link_libraries(${nor_test}
         ${nor_lib}
         ${nor_lib}_envs
         project_warnings
+        common_testing_utils
         CONAN_PKG::gtest
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
@@ -128,6 +142,7 @@ if (ENABLE_GAMES)
             PRIVATE
             stratego
             project_warnings
+            common_testing_utils
             CONAN_PKG::gtest
     )
 
@@ -156,6 +171,7 @@ if (ENABLE_GAMES)
             PRIVATE
             kuhn_poker
             project_warnings
+            common_testing_utils
             CONAN_PKG::gtest
     )
 
@@ -184,6 +200,7 @@ if (ENABLE_GAMES)
             PRIVATE
             leduc_poker
             project_warnings
+            common_testing_utils
             CONAN_PKG::gtest
     )
 
