@@ -5,8 +5,8 @@
 
 #include <unordered_map>
 
+#include "nor/env.hpp"
 #include "nor/nor.hpp"
-#include "nor/wrappers.hpp"
 
 template < typename Policy >
 inline void print_policy(const Policy& policy)

@@ -1,5 +1,5 @@
 
-#include "nor/wrappers/rps_env.hpp"
+#include "nor/env/rps_env.hpp"
 
 nor::Player nor::games::rps::Environment::active_player(
    const nor::games::rps::Environment::world_state_type& wstate) const

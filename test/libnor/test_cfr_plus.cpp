@@ -3,8 +3,8 @@
 #include <unordered_map>
 
 #include "../games/stratego/fixtures.hpp"
+#include "nor/env.hpp"
 #include "nor/nor.hpp"
-#include "nor/wrappers.hpp"
 #include "utils_for_testing.hpp"
 
 using namespace nor;
@@ -12,7 +12,9 @@ using namespace nor;
 TEST(KuhnPoker, CFR_PLUS)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
+
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
       rm::factory::
@@ -25,7 +27,7 @@ TEST(KuhnPoker, CFR_PLUS)
          HashmapActionPolicy< games::kuhn::Action > >());
 
    auto solver = rm::factory::make_cfr_plus< true >(
-      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
+      std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
@@ -66,11 +68,12 @@ TEST(RockPaperScissors, CFR_PLUS)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    auto solver = rm::factory::make_cfr_plus(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{

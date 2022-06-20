@@ -1,5 +1,16 @@
 
 ###########################
+# Common Testing Utilities
+###########################
+
+add_library(
+        common_testing_utils
+        INTERFACE
+)
+
+target_include_directories(common_testing_utils INTERFACE "${PROJECT_TEST_DIR}/common_test_utils")
+
+###########################
 # NOR Concepts
 ###########################
 set(
@@ -22,10 +33,11 @@ target_link_libraries(
         ${nor_test}_concepts
         PRIVATE
         ${nor_lib}
-        ${nor_lib}_wrappers
+        ${nor_lib}_envs
         project_warnings
+        common_testing_utils
         CONAN_PKG::gtest
-        )
+)
 
 add_test(
         NAME Test_${PROJECT_NAME}_concepts
@@ -51,8 +63,9 @@ add_executable(${nor_test}_type_traits ${PROJECT_TEST_DIR}/main_tests.cpp ${NOR_
 target_link_libraries(${nor_test}_type_traits
         PRIVATE
         ${nor_lib}
-        ${nor_lib}_wrappers
+        ${nor_lib}_envs
         project_warnings
+        common_testing_utils
         CONAN_PKG::gtest
         )
 
@@ -90,8 +103,9 @@ add_executable(
 target_link_libraries(${nor_test}
         PRIVATE
         ${nor_lib}
-        ${nor_lib}_wrappers
+        ${nor_lib}_envs
         project_warnings
+        common_testing_utils
         CONAN_PKG::gtest
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
@@ -128,6 +142,7 @@ if (ENABLE_GAMES)
             PRIVATE
             stratego
             project_warnings
+            common_testing_utils
             CONAN_PKG::gtest
     )
 
@@ -156,11 +171,41 @@ if (ENABLE_GAMES)
             PRIVATE
             kuhn_poker
             project_warnings
+            common_testing_utils
             CONAN_PKG::gtest
     )
 
     add_test(
             NAME Test_kuhn_poker
             COMMAND kuhn_poker_test
+    )
+
+    #########################
+    # Leduc Poker Tests
+    #########################
+    set(
+            LEDUCPOKER_TEST_SOURCES
+            test_state.cpp
+    )
+    list(TRANSFORM LEDUCPOKER_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/games/leduc_poker/")
+
+    add_executable(leduc_poker_test ${PROJECT_TEST_DIR}/main_tests.cpp ${LEDUCPOKER_TEST_SOURCES})
+
+    set_target_properties(leduc_poker_test PROPERTIES
+            EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
+            )
+
+    target_link_libraries(
+            leduc_poker_test
+            PRIVATE
+            leduc_poker
+            project_warnings
+            common_testing_utils
+            CONAN_PKG::gtest
+    )
+
+    add_test(
+            NAME Test_leduc_poker
+            COMMAND leduc_poker_test
     )
 endif ()

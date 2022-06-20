@@ -6,7 +6,7 @@
 #include "dummy_classes.hpp"
 #include "nor/fosg_traits.hpp"
 #include "nor/rm/factory.hpp"
-#include "nor/wrappers/rps_env.hpp"
+#include "nor/env/rps_env.hpp"
 
 TEST(fosg_traits, auto_traits)
 {

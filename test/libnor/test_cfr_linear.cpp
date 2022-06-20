@@ -3,8 +3,8 @@
 #include <unordered_map>
 
 #include "../games/stratego/fixtures.hpp"
+#include "nor/env.hpp"
 #include "nor/nor.hpp"
-#include "nor/wrappers.hpp"
 #include "utils_for_testing.hpp"
 
 using namespace nor;
@@ -12,7 +12,9 @@ using namespace nor;
 TEST(KuhnPoker, CFR_LINEAR_alternating)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+      auto root_state = std::make_unique< games::kuhn::State >();
+      auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -60,7 +62,9 @@ TEST(KuhnPoker, CFR_LINEAR_alternating)
 TEST(KuhnPoker, CFR_LINEAR_simultaneous)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -116,13 +120,15 @@ TEST(RockPaperScissors, CFR_LINEAR_alternating)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 
    auto solver = rm::factory::make_cfr_linear< cfr_config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -164,13 +170,15 @@ TEST(RockPaperScissors, CFR_LINEAR_simultaneous)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
 
    auto solver = rm::factory::make_cfr_linear< cfr_config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -206,7 +214,9 @@ TEST(RockPaperScissors, CFR_LINEAR_simultaneous)
 //   std::cout << "Before anything...\n" << std::endl;
 //   //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //   games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
-//   auto players = env.players();
+//
+//   auto root_state = std::make_unique< games::kuhn::State >();
+//   auto players = env.players(*root_state);
 //
 //   auto avg_tabular_policy = rm::factory::make_tabular_policy(
 //      std::unordered_map<
@@ -262,7 +272,9 @@ TEST(RockPaperScissors, CFR_LINEAR_simultaneous)
 //{
 //   //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //   games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
-//   auto players = env.players();
+//
+//   auto root_state = std::make_unique< games::stratego::State >();
+//   auto players = env.players(*root_state);
 //
 //   auto avg_tabular_policy = rm::factory::make_tabular_policy(
 //      std::unordered_map<

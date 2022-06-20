@@ -3,8 +3,8 @@
 #include <unordered_map>
 
 #include "../games/stratego/fixtures.hpp"
+#include "nor/env.hpp"
 #include "nor/nor.hpp"
-#include "nor/wrappers.hpp"
 #include "utils_for_testing.hpp"
 
 using namespace nor;
@@ -12,7 +12,9 @@ using namespace nor;
 TEST(KuhnPoker, MCCFR_OS_optimistic_alternating)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -65,7 +67,9 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_alternating)
 TEST(KuhnPoker, MCCFR_OS_optimistic_simultaneous)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -118,7 +122,9 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_simultaneous)
 TEST(KuhnPoker, MCCFR_OS_lazy_alternating)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -171,7 +177,9 @@ TEST(KuhnPoker, MCCFR_OS_lazy_alternating)
 TEST(KuhnPoker, MCCFR_OS_lazy_simultaneous)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -224,7 +232,9 @@ TEST(KuhnPoker, MCCFR_OS_lazy_simultaneous)
 TEST(KuhnPoker, MCCFR_OS_stochastic_alternating)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -277,7 +287,9 @@ TEST(KuhnPoker, MCCFR_OS_stochastic_alternating)
 TEST(KuhnPoker, MCCFR_OS_stochastic_simultaneous)
 {
    games::kuhn::Environment env{};
-   auto players = env.players();
+
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -331,7 +343,8 @@ TEST(KuhnPoker, MCCFR_ES_stochastic)
 {
    games::kuhn::Environment env{};
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::kuhn::State >();
+   auto players = env.players(*root_state);
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
@@ -393,7 +406,8 @@ TEST(RockPaperScissors, MCCFR_OS_optimistic_alternating)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::alternating,
@@ -402,7 +416,7 @@ TEST(RockPaperScissors, MCCFR_OS_optimistic_alternating)
 
    auto solver = rm::factory::make_mccfr< config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -447,7 +461,8 @@ TEST(RockPaperScissors, MCCFR_OS_optimistic_simultaneous)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::simultaneous,
@@ -456,7 +471,7 @@ TEST(RockPaperScissors, MCCFR_OS_optimistic_simultaneous)
 
    auto solver = rm::factory::make_mccfr< config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -501,7 +516,8 @@ TEST(RockPaperScissors, MCCFR_OS_lazy_alternating)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::alternating,
@@ -510,7 +526,7 @@ TEST(RockPaperScissors, MCCFR_OS_lazy_alternating)
 
    auto solver = rm::factory::make_mccfr< config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -555,7 +571,8 @@ TEST(RockPaperScissors, MCCFR_OS_lazy_simultaneous)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::simultaneous,
@@ -564,7 +581,7 @@ TEST(RockPaperScissors, MCCFR_OS_lazy_simultaneous)
 
    auto solver = rm::factory::make_mccfr< config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -609,7 +626,8 @@ TEST(RockPaperScissors, MCCFR_OS_stochastic_alternating)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::alternating,
@@ -618,7 +636,7 @@ TEST(RockPaperScissors, MCCFR_OS_stochastic_alternating)
 
    auto solver = rm::factory::make_mccfr< config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -663,7 +681,8 @@ TEST(RockPaperScissors, MCCFR_OS_stochastic_simultaneous)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::simultaneous,
@@ -672,7 +691,7 @@ TEST(RockPaperScissors, MCCFR_OS_stochastic_simultaneous)
 
    auto solver = rm::factory::make_mccfr< config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{
@@ -717,7 +736,8 @@ TEST(RockPaperScissors, MCCFR_ES_stochastic)
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto players = env.players();
+   auto root_state = std::make_unique< games::rps::State >();
+   auto players = env.players(*root_state);
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::alternating,
@@ -726,7 +746,7 @@ TEST(RockPaperScissors, MCCFR_ES_stochastic)
 
    auto solver = rm::factory::make_mccfr< config >(
       std::move(env),
-      std::make_unique< games::rps::State >(),
+      std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
       std::unordered_map{

@@ -21,7 +21,7 @@ target_link_libraries(
         sandbox
         PRIVATE
         ${nor_lib}
-        ${nor_lib}_wrappers
+        ${nor_lib}_envs
         stratego
         project_warnings
         CONAN_PKG::cppitertools

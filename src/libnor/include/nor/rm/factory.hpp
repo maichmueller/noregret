@@ -50,7 +50,7 @@ struct factory {
       AveragePolicy&& avg_policy)
    {
       if constexpr(as_map) {
-         auto players = env.players();
+         auto players = env.players(*root_state);
          return {
             std::forward< Env >(env),
             std::move(root_state),
@@ -109,7 +109,7 @@ struct factory {
       AveragePolicy&& avg_policy)
    {
       if constexpr(as_map) {
-         auto players = env.players();
+         auto players = env.players(*root_state);
          return {
             std::forward< Env >(env),
             std::move(root_state),
@@ -171,7 +171,7 @@ struct factory {
       CFRDiscountedParameters params = {})
    {
       if constexpr(as_map) {
-         auto players = env.players();
+         auto players = env.players(*root_state);
          return {
             std::move(params),
             std::forward< Env >(env),
@@ -239,7 +239,7 @@ struct factory {
       AveragePolicy&& avg_policy)
    {
       if constexpr(as_map) {
-         auto players = env.players();
+         auto players = env.players(*root_state);
          return {
             CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
             std::forward< Env >(env),
@@ -303,7 +303,7 @@ struct factory {
       size_t seed = 0)
    {
       if constexpr(as_map) {
-         auto players = env.players();
+         auto players = env.players(*root_state);
          auto each_player_current_policy_map = to_map(players, std::forward< Policy >(policy));
          auto each_player_avg_policy_map = to_map(players, std::forward< AvgPolicy >(avg_policy));
          return MCCFR<

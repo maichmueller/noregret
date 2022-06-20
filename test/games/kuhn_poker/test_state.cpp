@@ -4,7 +4,7 @@
 
 #include "fixtures.hpp"
 #include "kuhn_poker/kuhn_poker.hpp"
-#include "utils.hpp"
+#include "testing_utils.hpp"
 
 using namespace kuhn;
 

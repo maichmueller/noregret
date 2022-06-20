@@ -310,7 +310,7 @@ auto collect_rewards(
 // clang-format on
 {
    std::unordered_map< Player, double > rewards;
-   auto players = env.players();
+   auto players = env.players(terminal_wstate);
    if constexpr(nor::concepts::has::method::reward_multi< Env >) {
       // if the environment has a method for returning all rewards for given players at
       // once, then we will assume this is a more performant alternative and use it

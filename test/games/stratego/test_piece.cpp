@@ -5,7 +5,7 @@
 #include <range/v3/all.hpp>
 
 #include "fixtures.hpp"
-#include "utils.hpp"
+#include "testing_utils.hpp"
 
 using namespace stratego;
 

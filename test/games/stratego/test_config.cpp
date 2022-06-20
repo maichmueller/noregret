@@ -2,7 +2,8 @@
 #include <gtest/gtest.h>
 
 #include "fixtures.hpp"
-#include "utils.hpp"
+
+#include "testing_utils.hpp"
 
 using namespace stratego;
 

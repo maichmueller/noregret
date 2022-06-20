@@ -53,10 +53,10 @@ inline auto& choose(const RAContainer& cont, RNG& rng)
 {
    auto chooser = [&](const auto& actual_ra_container) -> auto&
    {
-//      auto choice = std::uniform_int_distribution(
-//         0ul, actual_ra_container.size())(rng);
-//      LOGD2("Choice", choice);
-//      return cont[choice];
+      //      auto choice = std::uniform_int_distribution(
+      //         0ul, actual_ra_container.size())(rng);
+      //      LOGD2("Choice", choice);
+      //      return cont[choice];
       return actual_ra_container[std::uniform_int_distribution(
          0ul, actual_ra_container.size() - 1)(rng)];
    };
@@ -93,9 +93,8 @@ inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
       }
       // the ranges::to_vector method here fails with a segmentation fault for no apparent reason
       //      auto weights = ranges::to_vector(cont | ranges::views::transform(policy));
-//      auto choice = std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng);
-//      LOGD2("Choice", choice);
-//      return cont[choice];
+      //      auto choice = std::discrete_distribution< size_t >(weights.begin(),
+      //      weights.end())(rng); LOGD2("Choice", choice); return cont[choice];
       return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
    } else {
       std::vector< double > weights;
@@ -165,6 +164,34 @@ inline auto counter(
 
    return rv;
 }
+
+template < typename T >
+struct Printer;
+
+template < typename T >
+struct Printer<std::span< T >> {
+   std::span< T > value;
+   std::string_view delimiter;
+
+   Printer(std::span< T > span, const std::string& delim = std::string(", "))
+       : value(span), delimiter(delim)
+   {
+   }
+
+   friend auto& operator<<(std::ostream& os, const Printer& printer)
+   {
+      os << "[";
+      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
+         os << printer.value[i] << printer.delimiter;
+      }
+      os << printer.value.back() << "]";
+      return os;
+   }
+};
+
+// additional deduction guide needed to disambiguate type T
+template < class T >
+Printer(std::span< T >) -> Printer< std::span< T > >;
 
 template < class Lambda, int = (Lambda{}(), 0) >
 constexpr bool is_constexpr(Lambda)

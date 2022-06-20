@@ -1,5 +1,5 @@
 
-#include "nor/wrappers/kuhn_env.hpp"
+#include "nor/env/kuhn_env.hpp"
 
 #include <unordered_set>
 
