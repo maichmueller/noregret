@@ -10,8 +10,8 @@
 
 namespace nor {
 
-template < typename T >
-inline T _zero()
+template < typename T, typename...Args >
+inline T _zero(Args&&...args)
 {
    return T(0);
 }
