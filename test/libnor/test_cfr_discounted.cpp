@@ -144,7 +144,7 @@ TEST(RockPaperScissors, CFR_DISCOUNTED_alternating)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 70;
+   size_t n_iters = 150;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG

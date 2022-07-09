@@ -216,7 +216,7 @@ class TabularPolicy {
    using table_type = Table;
 
    TabularPolicy()
-      requires all_predicate_v< std::is_default_constructible, table_type, default_policy_type >
+      requires common::all_predicate_v< std::is_default_constructible, table_type, default_policy_type >
    = default;
    TabularPolicy(table_type table) : m_table(std::move(table)) {}
    TabularPolicy(table_type table, default_policy_type default_policy)

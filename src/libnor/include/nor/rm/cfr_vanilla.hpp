@@ -36,10 +36,29 @@ struct VCFRNodeDataSelector {
    using action_type = typename fosg_auto_traits< Env >::action_type;
    /// for vanilla cfr we need no extra weight data stored
    using default_data_type = InfostateNodeData< action_type >;
+   /// for exponential CFR we need to store the L1 loss for each action at each infostate
+   /// intermittently
+   using exp_node_type = InfostateNodeData<
+      action_type,
+      double,
+      std::unordered_map<
+         std::reference_wrapper< const action_type >,
+         double,
+         common::ref_wrapper_hasher< const action_type >,
+         common::ref_wrapper_comparator< const action_type > > >;
 
   public:
-   using type = default_data_type;
+   using type = std::conditional_t<
+      config.weighting_mode == CFRWeightingMode::exponential,
+      exp_node_type,  // if true, then we need an extra table per node
+      default_data_type >;  // otherwise the standard tables suffice
 };
+
+inline double _zero(double)
+{
+   return 0.;
+}
+
 }  // namespace detail
 
 struct CFRDiscountedParameters {
@@ -49,6 +68,12 @@ struct CFRDiscountedParameters {
    double beta = 0.;
    /// the parameter to exponentiate the weight of the cumulative policy with
    double gamma = 2.;
+};
+
+struct CFRExponentialParameters {
+   /// the parameter function beta (can depend on the instantaneous regret of the action) to limit
+   /// negative regrets to
+   double (*beta)(double) = &detail::_zero;
 };
 
 /**
@@ -108,7 +133,9 @@ class VanillaCFR:
    VanillaCFR& operator=(VanillaCFR&&) = default;
 
    template < typename... Args >
-      requires(config.weighting_mode != CFRWeightingMode::discounted)
+      requires(not common::contains(
+         std::array{CFRWeightingMode::discounted, CFRWeightingMode::exponential},
+         config.weighting_mode))
    VanillaCFR(Args&&... args) : base(std::forward< Args >(args)...)
    {
    }
@@ -117,6 +144,13 @@ class VanillaCFR:
       requires(config.weighting_mode == CFRWeightingMode::discounted)
    VanillaCFR(CFRDiscountedParameters params, Args&&... args)
        : base(std::forward< Args >(args)...), m_dcfr_params(std::move(params))
+   {
+   }
+
+   template < typename... Args >
+      requires(config.weighting_mode == CFRWeightingMode::exponential)
+   VanillaCFR(CFRExponentialParameters params, Args&&... args)
+       : base(std::forward< Args >(args)...), m_expcfr_params(std::move(params))
    {
    }
 
@@ -213,8 +247,10 @@ class VanillaCFR:
 
    /// Discounted CFR specific parameters
    CFRDiscountedParameters m_dcfr_params;
+   /// Exponential CFR specific parameters
+   CFRExponentialParameters m_expcfr_params;
    /// the actual regret minimizing method we will apply on the infostates
-   static constexpr auto m_regret_minimizer = []<typename...Args>(Args&&... args) {
+   static constexpr auto m_regret_minimizer = []< typename... Args >(Args&&... args) {
       if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
          return rm::regret_matching(std::forward< Args >(args)...);
       }
@@ -406,8 +442,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    auto& current_policy = fetch_policy< PolicyLabel::current >(
       infostate_ptr, istate_data.actions());
 
+   // Discounted CFR only:
    // we first multiply the accumulated regret by the correct weight as per discount setting
-   // (Discounted CFR only)
    auto& regret_table = istate_data.regret();
    if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
       for(auto& cumul_regret : regret_table | ranges::views::values) {
@@ -422,15 +458,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 
    // we provide the accessor lambda to get the underlying referenced action, as the infodata
    // stores only reference wrappers to the actions
-   auto action_accessor = [](const action_type& action) { return std::ref(action); };
-   m_regret_minimizer(current_policy, regret_table, action_accessor);
-//   if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
-//      rm::regret_matching(current_policy, regret_table, action_accessor);
-//   }
-//   if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
-//      rm::regret_matching_plus(current_policy, regret_table, action_accessor);
-//   }
-//
+   m_regret_minimizer(
+      current_policy, regret_table, [](const action_type& action) { return std::ref(action); });
 
    // now we update the current accumulated policy by the iteration factor, again as per
    // discount setting.
@@ -438,9 +467,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       config.weighting_mode == CFRWeightingMode::linear
       or config.weighting_mode == CFRWeightingMode::discounted) {
       // we are expecting to be given the right weight for the configuration here
-      auto& avg_action_policy = fetch_policy< PolicyLabel::average >(
-         infostate_ptr, istate_data.actions());
-      for(auto& policy_prob : avg_action_policy | ranges::views::values) {
+      for(auto& policy_prob :
+          fetch_policy< PolicyLabel::average >(infostate_ptr, istate_data.actions())
+             | ranges::views::values) {
          policy_prob *= policy_weight;
       }
    }
@@ -454,11 +483,12 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
       if constexpr(
          config.weighting_mode == CFRWeightingMode::linear
          or config.weighting_mode == CFRWeightingMode::discounted) {
-         // weighting by an iteration dependant factor multiplies the current iteration t as t^gamma
-         // onto the update INCREMENT. The numerically more stable approach, however, is to multiply
-         // the ACCUMULATED strategy with (t/(t+1))^gamma, as the risk of reaching numerical
-         // ceilings is far reduced. This is mathematically equivalent (e.g. see Noam Brown's PhD
-         // thesis "Equilibrium Finding for Large Adversarial Imperfect-Information Games").
+         // weighting by an iteration dependant factor multiplies the current iteration t as
+         // t^gamma onto the update INCREMENT. The numerically more stable approach, however, is
+         // to multiply the ACCUMULATED strategy with (t/(t+1))^gamma, as the risk of reaching
+         // numerical ceilings is far reduced. This is mathematically equivalent (e.g. see Noam
+         // Brown's PhD thesis "Equilibrium Finding for Large Adversarial Imperfect-Information
+         // Games").
 
          // normalization factor from the papers is irrelevant, as it is absorbed by the
          // normalization constant of each action policy afterwards.
@@ -478,8 +508,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
          // normalization factor from the papers is irrelevant, as it is absorbed by the
          // normalization constant of each action policy afterwards.
          auto t = double(_iteration());
-         return std::array< double, 2 >{
-            std::pow(t / (t + 1), m_dcfr_params.beta), std::pow(t / (t + 1), m_dcfr_params.alpha)};
+         double t_alpha = std::pow(t, m_dcfr_params.alpha);
+         double t_beta = std::pow(t, m_dcfr_params.beta);
+         return std::array< double, 2 >{t_beta / (t_beta + 1), t_alpha / (t_alpha + 1)};
       }
       // when no weighting is needed simply return 1. this will be ignored anyway
       return std::array{1., 1.};
@@ -695,14 +726,6 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    double player_reach_prob = reach_probability.get().at(player);
    double player_state_value = state_value.get().at(player);
 
-   [[maybe_unused]] double weighting_factor;
-   if constexpr(config.weighting_mode == CFRWeightingMode::linear) {
-      // linear weighting multiplies the current iteration onto the increment. The
-      // normalization factor from the papers is irrelevant, as it is absorbed by the
-      // normalization constant of each action policy afterwards.
-      weighting_factor = double(_iteration());
-   }
-
    for(const auto& [action_variant, q_value] : action_value) {
       // we only call this function with action values from a non-chance player, so we can safely
       // assume that the action is of action_type
@@ -710,7 +733,16 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       // update the cumulative regret according to the formula:
       // let I be the infostate, p be the player, r the cumulative regret
       //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
-      istatedata.regret(action) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
+      istatedata.regret(action) += [&] {
+         const double incr = cf_reach_prob * (q_value.get().at(player) - player_state_value);
+         if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
+            // for the exponential cfr method we need to remember these regret increments of
+            // iteration t, until the end of iteration t. After iteration t ends we have to delete
+            // them again, so that this is only a memory of the current iteration!
+            istatedata.template storage_element<2>(std::cref(action)) += incr;
+         }
+         return incr;
+      }();
       // update the cumulative policy according to the formula:
       // let I be the infostate, p be the player, a the chosen action, sigma^t the current policy
       //    avg_sigma^{t+1} = \sum_a reach_prob_{p}(I) * sigma^t(I, a)

@@ -81,7 +81,7 @@ class TabularCFRBase {
       AveragePolicy avg_policy = AveragePolicy())
       // clang-format off
       requires
-         all_predicate_v<
+         common::all_predicate_v<
             std::is_copy_constructible,
             Policy,
             AveragePolicy >

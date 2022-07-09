@@ -8,7 +8,6 @@
 
 #include "nor/game_defs.hpp"
 #include "nor/type_defs.hpp"
-#include "nor/utils/type_traits.hpp"
 
 namespace nor::concepts::has {
 namespace method {
@@ -19,7 +18,7 @@ concept game = requires(T t)
    {
       t.game()
    }
-   ->std::same_as< nor::const_as_t< T, GameType >& >;
+   ->std::same_as< common::const_as_t< T, GameType >& >;
 };
 
 template < typename T, typename Policy = typename T::policy_type >
@@ -28,7 +27,7 @@ concept current_policy = requires(T t)
    {
       t.current_policy()
    }
-   ->std::same_as< nor::const_as_t< T, Policy >& >;
+   ->std::same_as< common::const_as_t< T, Policy >& >;
 };
 
 template < typename T, typename Policy = typename T::policy_type >
@@ -37,7 +36,7 @@ concept avg_policy = requires(T t)
    {
       t.avg_policy()
    }
-   ->std::same_as< nor::const_as_t< T, Policy >& >;
+   ->std::same_as< common::const_as_t< T, Policy >& >;
 };
 
 template < typename T >
@@ -55,7 +54,7 @@ concept game_tree = requires(T t)
    {
       t.game_tree()
    }
-   ->std::same_as< nor::const_as_t< T, TreeContainer >& >;
+   ->std::same_as< common::const_as_t< T, TreeContainer >& >;
 };
 
 template <
