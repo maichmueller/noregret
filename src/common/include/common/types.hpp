@@ -5,15 +5,13 @@
 #include <iostream>
 #include <range/v3/all.hpp>
 #include <vector>
+
 #include "common/misc.hpp"
 namespace common {
 
 template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
 struct ref_wrapper_hasher {
-   auto operator()(const std::reference_wrapper< T >& value) const
-   {
-      return Hasher{}(value.get());
-   }
+   auto operator()(const std::reference_wrapper< T >& value) const { return Hasher{}(value.get()); }
 };
 template < typename T >
 struct ref_wrapper_comparator {
@@ -25,18 +23,21 @@ struct ref_wrapper_comparator {
 };
 template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
 struct sptr_value_hasher {
-   auto operator()(const sptr< T >& ptr) const
-   {
-      return Hasher{}(*ptr);
-   }
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
+
+   auto operator()(const sptr< T >& ptr) const { return Hasher{}(*ptr); }
+   auto operator()(const T& t) const { return Hasher{}(t); }
 };
 template < typename T >
 struct sptr_value_comparator {
-   auto operator()(const sptr< T >& ptr1, const sptr< T >& ptr2)
-      const
-   {
-      return *ptr1 == *ptr2;
-   }
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
+
+   auto operator()(const sptr< T >& ptr1, const sptr< T >& ptr2) const { return *ptr1 == *ptr2; }
+   auto operator()(const sptr< T >& ptr1, T& t2) const { return *ptr1 == t2; }
+   auto operator()(const T& t1, const sptr< T >& ptr2) const { return t1 == *ptr2; }
+   auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
 };
 
 /**
@@ -51,10 +52,7 @@ struct StringLiteral {
 };
 
 template < typename T >
-requires requires(T t)
-{
-   std::cout << t;
-}
+   requires requires(T t) { std::cout << t; }
 struct VectorPrinter {
    const std::vector< T >& value;
    std::string_view delimiter;
@@ -76,10 +74,7 @@ struct VectorPrinter {
 };
 
 template < typename T >
-requires requires(T t)
-{
-   std::cout << t;
-}
+   requires requires(T t) { std::cout << t; }
 struct SpanPrinter {
    ranges::span< T > value;
    std::string_view delimiter;
@@ -140,7 +135,9 @@ struct CEBijection {
    std::array< std::pair< Key, Value >, Size > data;
 
    template < typename T >
-   requires is_any_v< T, Key, Value >[[nodiscard]] constexpr auto at(const T& elem) const
+      requires is_any_v< T, Key, Value > [
+         [nodiscard]] constexpr auto
+      at(const T& elem) const
    {
       const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
          if constexpr(std::is_same_v< T, Key >) {
@@ -161,19 +158,18 @@ struct CEBijection {
    }
 };
 
-
-template <bool condition, typename T>
+template < bool condition, typename T >
 struct const_if {
    using type = T;
 };
 
 template < typename T >
-struct const_if<true, T> {
+struct const_if< true, T > {
    using type = const T;
 };
 
-template <bool condition, typename T>
-using const_if_t = typename const_if<condition, T>::type;
+template < bool condition, typename T >
+using const_if_t = typename const_if< condition, T >::type;
 
 //
 // template < typename T, typename U >
@@ -424,7 +420,6 @@ struct const_ref_if< false, T > {
 
 template < bool condition, typename T >
 using const_ref_if_t = typename const_ref_if< condition, T >::type;
-
 
 }  // namespace common
 

@@ -93,6 +93,11 @@ class InfostateNodeData {
    }
    [[nodiscard]] auto& regret() const { return std::get< regret_map_type >(m_storage); }
    [[nodiscard]] auto& storage() const { return m_storage; }
+   template < size_t N = 0 >
+   auto& storage_element() const
+   {
+      return std::get< N >(m_storage);
+   }
    /// if the weight is a map of some sorts, then this method will also be available for the correct
    /// key types of the map. This method requires a std map like accessor. If there is no const
    /// bracket operator[], then we demand the function 'at' to exist. Otherwise, we cannot use this

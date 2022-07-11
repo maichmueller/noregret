@@ -37,6 +37,11 @@ struct CFRDiscountedConfig {
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
 };
 
+struct CFRExponentialConfig {
+   UpdateMode update_mode = UpdateMode::alternating;
+   RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
+};
+
 enum class MCCFRAlgorithmMode {
    // sample only the chance players action according to the chance distribution
    chance_sampling = 0,
