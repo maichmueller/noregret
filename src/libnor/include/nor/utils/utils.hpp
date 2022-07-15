@@ -256,6 +256,13 @@ inline std::string to_string(const nor::Stochasticity &e)
 }
 
 template <>
+struct printable<nor::Player> : std::true_type {};
+template <>
+struct printable<nor::TurnDynamic> : std::true_type {};
+template <>
+struct printable<nor::Stochasticity> : std::true_type {};
+
+template <>
 inline nor::Player from_string< nor::Player >(std::string_view str)
 {
    return nor::utils::player_name_bij.at(str);

@@ -362,7 +362,7 @@ class VanillaCFR:
       const sptr< info_state_type >& infostate_ptr,
       infostate_data_type& istate_data,
       [[maybe_unused]] double policy_weight,
-      [[maybe_unused]] const std::array< double, 2 >& regret_weights);
+      [[maybe_unused]] const auto& regret_weights);
 
    void _invoke_regret_minimizer(
       const sptr< info_state_type >& infostate_ptr,
@@ -511,9 +511,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
             weighting_factor = std::pow(weighting_factor, m_dcfr_params.gamma);
          }
          return weighting_factor;
+      } else {
+         // when no weighting is needed simply return 0. This will be ignored anyway
+         return 0;
       }
-      // when no weighting is needed simply return 0. This will be ignored anyway
-      return 0;
    };
 
    auto regret_weights = [&]([[maybe_unused]] infostate_data_type& data_node) {
@@ -524,9 +525,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
          double t_alpha = std::pow(t, m_dcfr_params.alpha);
          double t_beta = std::pow(t, m_dcfr_params.beta);
          return std::array< double, 2 >{t_beta / (t_beta + 1), t_alpha / (t_alpha + 1)};
+      } else {
+         // when no weighting is needed simply return 0. This will be ignored anyway
+         return 0;
       }
-      // when no weighting is needed simply return 0. This will be ignored anyway
-      return 0;
    };
 
    // here we now invoke the actual regret minimization procedure for each infostate individually
@@ -551,7 +553,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    const sptr< info_state_type >& infostate_ptr,
    infostate_data_type& istate_data,
    [[maybe_unused]] double policy_weight,
-   [[maybe_unused]] const std::array< double, 2 >& regret_weights)
+   [[maybe_unused]] const auto& regret_weights)
 {
    // since we are reusing this variable a few times we alias it here
    auto& current_policy = fetch_policy< PolicyLabel::current >(
@@ -561,6 +563,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    // we first multiply the accumulated regret by the correct weight as per discount setting
    auto& regret_table = istate_data.regret();
    if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
+      static_assert(
+         std::is_same_v< std::array< double, 2 >, std::remove_cvref_t< decltype(regret_weights) > >,
+         "Expected a regret weight array of length 2.");
       for(auto& cumul_regret : regret_table | ranges::views::values) {
          // index 0 is beta based weight, index 1 is alpha based weight
          cumul_regret *= regret_weights[cumul_regret > 0.];
@@ -597,7 +602,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    auto&&...)
    requires(config.weighting_mode == CFRWeightingMode::exponential)
 {
-   auto l1_weights = [&] {
+   auto exp_l1_weights = [&] {
       // we need to reset this infostate data node's accumulated weights to prepare empty
       // buffers for the next iteration
       std::unordered_map<
@@ -606,8 +611,11 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          common::ref_wrapper_hasher< const action_type >,
          common::ref_wrapper_comparator< const action_type > >
          l1;
-      LOGD2("Instant regret values", ranges::views::values(istate_data.template storage_element< 1 >()));
+      LOGD2(
+         "Instant regret values",
+         ranges::views::values(istate_data.template storage_element< 1 >()));
       double average_instant_regret = 0.;
+      auto kkkk = istate_data.template storage_element< 1 >();
       ranges::for_each(
          istate_data.template storage_element< 1 >(), [&](auto& actionref_to_instant_regret) {
             auto& [action_ref, instant_regret] = actionref_to_instant_regret;
@@ -619,9 +627,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       ranges::for_each(
          istate_data.template storage_element< 1 >(), [&](auto& actionref_to_instant_regret) {
             auto& [action_ref, instant_regret] = actionref_to_instant_regret;
-            // instant_regret is r(I, a)
-            l1[action_ref] = instant_regret - average_instant_regret;
-            instant_regret = 0.;
+            // instant_regret is r(I, a), not R(I, a), i.e. the cumulative regret
+            l1[action_ref] = std::exp(instant_regret - average_instant_regret);
          });
       return l1;
    }();
@@ -633,26 +640,47 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    auto& regret_table = istate_data.regret();
    for(auto& [action, cumul_regret] : regret_table) {
       auto action_ref = std::cref(action);
-      auto instant_regret = istate_data.template storage_element< 1 >()[action_ref];
-      if(instant_regret > 0) {
-         cumul_regret += l1_weights[action_ref] * instant_regret;
+      auto& instant_regret = istate_data.template storage_element< 1 >()[action_ref];
+      LOGD2("Action", action);
+      LOGD2("L1 weight", exp_l1_weights[action_ref]);
+      LOGD2("Instant regret", instant_regret);
+      LOGD2(
+         "All instant regret", ranges::views::values(istate_data.template storage_element< 1 >()));
+      LOGD2("Cumul regret before", ranges::views::values(istate_data.regret()));
+
+      if(instant_regret >= 0) {
+         LOGD2("Cumul regret update (>=0)", exp_l1_weights[action_ref] * instant_regret);
+         cumul_regret += exp_l1_weights[action_ref] * instant_regret;
       } else {
-         cumul_regret += l1_weights[action_ref]
+         LOGD2(
+            "Cumul regret update (<0)",
+            exp_l1_weights[action_ref] * m_expcfr_params.beta(instant_regret, _iteration()));
+         cumul_regret += exp_l1_weights[action_ref]
                          * m_expcfr_params.beta(instant_regret, _iteration());
       }
+      // reset the instant regret, so that the next round's storage is starting fresh
+      instant_regret = 0.;
+      LOGD2("Cumul regret after", ranges::views::values(istate_data.regret()));
    }
 
+   LOGD2("Cumul Policy before", ranges::views::values(istate_data.template storage_element< 3 >()));
    // now we update the current accumulated policy numerator and denominator
    for(auto& [action, avg_policy_prob] :
        fetch_policy< PolicyLabel::average >(infostate_ptr, istate_data.actions())) {
-      double& reach_prob = istate_data.template storage_element< 2 >();
-      double l1_weight = l1_weights[std::cref(action)];
+      double reach_prob = istate_data.template storage_element< 2 >();
+      double l1_weight = exp_l1_weights[std::cref(action)];
       // this is the cumulative enumerator update
+      LOGD2("Cumul Policy Reach prob", reach_prob);
+      LOGD2("Cumul Policy L1 Weight prob", l1_weight);
+      LOGD2("Cumul Policy Current Policy", curr_policy[action]);
+      LOGD2("Cumul Policy numerator update", l1_weight * reach_prob * curr_policy[action]);
       avg_policy_prob += l1_weight * reach_prob * curr_policy[action];
       // this is the cumulative denominator update
+      LOGD2("Cumul Policy denominator update", l1_weight * reach_prob);
       istate_data.template storage_element< 3 >(std::cref(action)) += l1_weight * reach_prob;
    }
 
+   LOGD2("Cumul Policy after", ranges::views::values(istate_data.template storage_element< 3 >()));
    // here we now perform the actual regret minimizing update step as we update the current
    // policy through a regret matching algorithm. The specific algorihtm is determined by the
    // config we entered to the class
@@ -855,9 +883,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    {
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
          return fetch_policy< PolicyLabel::average >(infostate, actions);
+      } else {
+         // this value will be ignored so we can simply return anything that is cheap to fetch
+         return _env();
       }
-      // this value will be ignored so we can simply return anything that is cheap to fetch
-      return _env();
    }
    ();
    auto player = infostate->player();
@@ -872,18 +901,31 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       // update the cumulative regret according to the formula:
       // let I be the infostate, p be the player, r the cumulative regret
       //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
-      istatedata.regret(action) += [&] {
-         const double incr = cf_reach_prob * (q_value.get().at(player) - player_state_value);
-         if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
-            // for the exponential cfr method we need to remember these regret increments of
-            // iteration t, until the end of iteration t. After iteration t ends we have to
-            // delete them again, so that this is only a memory of the current iteration!
-            // Each history h that passed through infostate I will increment here the
-            // instantaneous regret values r(h,a), in order to accumulate r(I, a) = sum_h r(h, a)
-            istatedata.template storage_element< 1 >(std::cref(action)) += incr;
-         }
-         return incr;
-      }();
+      if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
+         // all other cfr variants currently implemented need the average regret update at history
+         // update time
+         istatedata.regret(action) += cf_reach_prob
+                                      * (q_value.get().at(player) - player_state_value);
+      } else {
+         // for the exponential cfr method we need to remember these regret increments of
+         // iteration t, until the end of iteration t, and apply them once we have computed the L1
+         // weights (i.e. at infostate update time, not history update time). After iteration t ends
+         // we have to delete them again, so that this is only a memory of the current iteration!
+         // Each history h that passed through infostate I will increment here the
+         // instantaneous regret values r(h,a), in order to accumulate r(I, a) = sum_h r(h, a)
+
+         // We emplace the action first into the cumul regret map (if not already there) to receive
+         // the action key's reference back. This reference is then going to be ref-wrapped and
+         // added to the instant temp regret map. We avoid copying the action this way. For games
+         // with elaborate action types, this may be worth the extra runtime, for small action
+         // values probably not. We do however save some memory since ref wrappers are merely as big
+         // as one pointer.
+         auto [iter, _] = istatedata.regret().try_emplace(action, 0.);
+         // if we emplaced merely std::cref(action) here then we would have silent segfaults that
+         // lead to erroenuous memory storing
+         istatedata.template storage_element< 1 >(std::cref(
+            iter->first)) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
+      }
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
          // update the cumulative policy according to the formula:
          // let I be the infostate, p be the player, a the chosen action, sigma^t the current
@@ -893,8 +935,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
          // For exponential CFR we update the average policy after the tree traversal
       }
    }
-
-   if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
+   if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
       // For exponential CFR we need to store the reach probability of the active player until
       // the end of the iteration
       istatedata.template storage_element< 2 >() = player_reach_prob;

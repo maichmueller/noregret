@@ -44,7 +44,7 @@ TEST(KuhnPoker, EXPONENTIAL_CFR_alternating)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 15000;
+   size_t n_iters = 10000;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -145,7 +145,7 @@ TEST(RockPaperScissors, EXPONENTIAL_CFR_alternating)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 20000;
+   size_t n_iters = 15000;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -194,7 +194,7 @@ TEST(RockPaperScissors, EXPONENTIAL_CFR_simultaneous)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 20000;
+   size_t n_iters = 1000;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG

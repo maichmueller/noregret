@@ -63,7 +63,7 @@ class InfostateNodeData {
       }
       for(auto& action : actions) {
          auto& action_in_vec = m_legal_actions.emplace_back(std::move(action));
-         regret().emplace(std::ref(action_in_vec), 0.);
+         regret().emplace(std::cref(action_in_vec), 0.);
       }
    }
 

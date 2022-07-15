@@ -11,16 +11,34 @@ namespace common {
 
 template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
 struct ref_wrapper_hasher {
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
+
    auto operator()(const std::reference_wrapper< T >& value) const { return Hasher{}(value.get()); }
+   auto operator()(const T& value) const { return Hasher{}(value); }
 };
+
 template < typename T >
+   requires std::equality_comparable< T >
 struct ref_wrapper_comparator {
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
    auto operator()(const std::reference_wrapper< T >& ref1, const std::reference_wrapper< T >& ref2)
       const
    {
       return ref1.get() == ref2.get();
    }
+   auto operator()(const std::reference_wrapper< T >& ref, const T& t) const
+   {
+      return ref.get() == t;
+   }
+   auto operator()(const T& t, const std::reference_wrapper< T >& ref) const
+   {
+      return t == ref.get();
+   }
+   auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
 };
+
 template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
 struct sptr_value_hasher {
    // allow for heterogenous lookup
@@ -29,7 +47,9 @@ struct sptr_value_hasher {
    auto operator()(const sptr< T >& ptr) const { return Hasher{}(*ptr); }
    auto operator()(const T& t) const { return Hasher{}(t); }
 };
+
 template < typename T >
+   requires std::equality_comparable< T >
 struct sptr_value_comparator {
    // allow for heterogenous lookup
    using is_transparent = std::true_type;

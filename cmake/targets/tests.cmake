@@ -136,6 +136,7 @@ target_link_libraries(${nor_test}
         PRIVATE
         ${nor_lib}
         ${nor_lib}_envs
+        project_options
         project_warnings
         common_testing_utils
         CONAN_PKG::gtest
@@ -173,6 +174,7 @@ if (ENABLE_GAMES)
             stratego_test
             PRIVATE
             stratego
+            project_options
             project_warnings
             common_testing_utils
             CONAN_PKG::gtest
@@ -202,6 +204,7 @@ if (ENABLE_GAMES)
             kuhn_poker_test
             PRIVATE
             kuhn_poker
+            project_options
             project_warnings
             common_testing_utils
             CONAN_PKG::gtest
@@ -231,6 +234,7 @@ if (ENABLE_GAMES)
             leduc_poker_test
             PRIVATE
             leduc_poker
+            project_options
             project_warnings
             common_testing_utils
             CONAN_PKG::gtest
