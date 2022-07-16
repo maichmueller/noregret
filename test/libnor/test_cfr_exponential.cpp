@@ -9,7 +9,7 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, EXPONENTIAL_CFR_alternating)
+TEST(KuhnPoker, CFR_EXPONENTIAL_alternating)
 {
    games::kuhn::Environment env{};
 
@@ -44,7 +44,7 @@ TEST(KuhnPoker, EXPONENTIAL_CFR_alternating)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 10000;
+   size_t n_iters = 100000;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -60,7 +60,7 @@ TEST(KuhnPoker, EXPONENTIAL_CFR_alternating)
    assert_optimal_policy_kuhn(solver, env);
 }
 
-TEST(KuhnPoker, EXPONENTIAL_CFR_simultaneous)
+TEST(KuhnPoker, CFR_EXPONENTIAL_simultaneous)
 {
    games::kuhn::Environment env{};
    auto root_state = std::make_unique< games::kuhn::State >();
@@ -93,7 +93,7 @@ TEST(KuhnPoker, EXPONENTIAL_CFR_simultaneous)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 15000;
+   size_t n_iters = 100000;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -109,7 +109,7 @@ TEST(KuhnPoker, EXPONENTIAL_CFR_simultaneous)
    assert_optimal_policy_kuhn(solver, env);
 }
 
-TEST(RockPaperScissors, EXPONENTIAL_CFR_alternating)
+TEST(RockPaperScissors, CFR_EXPONENTIAL_alternating)
 {
    auto
       [env,
@@ -145,7 +145,7 @@ TEST(RockPaperScissors, EXPONENTIAL_CFR_alternating)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 15000;
+   size_t n_iters = 700;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
@@ -158,7 +158,7 @@ TEST(RockPaperScissors, EXPONENTIAL_CFR_alternating)
    assert_optimal_policy_rps(solver);
 }
 
-TEST(RockPaperScissors, EXPONENTIAL_CFR_simultaneous)
+TEST(RockPaperScissors, CFR_EXPONENTIAL_simultaneous)
 {
    auto
       [env,
@@ -194,7 +194,7 @@ TEST(RockPaperScissors, EXPONENTIAL_CFR_simultaneous)
       std::pair{
          Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 1000;
+   size_t n_iters = 700;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG
