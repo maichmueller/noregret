@@ -12,49 +12,45 @@
 
 namespace nor::rm {
 
-namespace detail {
-
-/// In order to avoid any storage overhead we don't let the empty type have unique storage. This
-/// way there won't be individual storage of empty structs in the node, but rather a single address
-/// for all. This reduces the memory footprint of each node by a potentially significant amount,
-/// depending on compiler struct padding
-
-template < typename Weight >
-struct CondWeight {
-   constexpr static bool empty_optimization = false;
-   Weight weight;
-};
-
-/**
- * @brief Empty Weight optimization for when its storage is not required.
- */
-template < concepts::is::empty Weight >
-struct CondWeight< Weight > {
-   constexpr static bool empty_optimization = true;
-   [[no_unique_address]] Weight weight;
-};
-
-}  // namespace detail
-
-/**
- * @brief the node type to represent information states in the information tree built by CFR.
- *
- * There is no concept checking for this class as any of the template types are supposed to be
- * checked within the CFR class for concept fulfillment
- *
- * @tparam Action
- */
-
-template < typename Action, typename Weight = utils::empty >
-class InfostateNodeData: public detail::CondWeight< Weight > {
+template < typename Action, typename... OptionalData >
+class InfostateNodeData {
   public:
-   using cond_weight_base = detail::CondWeight< Weight >;
+   using regret_map_type = std::unordered_map<
+      std::reference_wrapper< const Action >,
+      double,
+      common::ref_wrapper_hasher< const Action >,
+      common::ref_wrapper_comparator< const Action > >;
+   using optional_data_tuple_type = std::tuple< OptionalData... >;
 
-   InfostateNodeData(Weight weight = {}) : cond_weight_base(std::move(weight)), m_regret(){};
+   using storage_type = std::tuple< regret_map_type, OptionalData... >;
+
+   InfostateNodeData()
+      requires(
+         sizeof...(OptionalData) == 0
+         or common::all_predicate_v< std::is_default_constructible, OptionalData... >)
+   : m_storage(_init_storage())
+   {
+   }
+
+   InfostateNodeData(OptionalData... extra_data)
+      requires(sizeof...(OptionalData) > 0)
+   : m_storage(_init_storage(std::move(extra_data)...))
+   {
+   }
 
    template < ranges::range ActionRange >
-   InfostateNodeData(ActionRange actions, Weight weight = {})
-       : cond_weight_base(std::move(weight)), m_regret()
+      requires(sizeof...(OptionalData) > 0)
+   InfostateNodeData(ActionRange actions, OptionalData... optional_data)
+       : m_legal_actions(), m_storage(_init_storage(std::move(optional_data)...))
+   {
+      emplace(std::move(actions));
+   }
+
+   template < ranges::range ActionRange >
+      requires(sizeof...(OptionalData) == 0
+               or common::all_predicate_v< std::is_default_constructible, OptionalData... >)
+   InfostateNodeData(ActionRange actions)
+       : m_legal_actions(), m_storage(_init_storage())
    {
       emplace(std::move(actions));
    }
@@ -67,30 +63,89 @@ class InfostateNodeData: public detail::CondWeight< Weight > {
       }
       for(auto& action : actions) {
          auto& action_in_vec = m_legal_actions.emplace_back(std::move(action));
-         m_regret.emplace(std::ref(action_in_vec), 0.);
+         regret().emplace(std::cref(action_in_vec), 0.);
       }
    }
 
    auto& actions() { return m_legal_actions; }
-   auto& regret(const Action& action) { return m_regret[std::ref(action)]; }
-   auto& regret() { return m_regret; }
-   auto& weight() requires(not concepts::is::empty< Weight >) { return cond_weight_base::weight; }
+   auto& regret() { return std::get< regret_map_type >(m_storage); }
+   auto& regret(const Action& action) { return regret()[std::ref(action)]; }
+
+   auto& storage() { return m_storage; }
+   template < size_t N = 0 >
+   auto& storage_element()
+   {
+      return std::get< N >(m_storage);
+   }
+   /// if the weight is a map of some sorts, then this method will also be available for the correct
+   /// key types of the map
+   template < size_t N, typename T >
+   auto& storage_element(const T& t)
+      requires(requires(storage_type storage) { std::get< N >(storage)[t]; })
+   {
+      return std::get< N >(m_storage)[t];
+   }
 
    [[nodiscard]] auto& actions() const { return m_legal_actions; }
-   [[nodiscard]] auto& regret(const Action& action) const { return m_regret.at(std::ref(action)); }
-   [[nodiscard]] auto& regret() const { return m_regret; }
-   [[nodiscard]] auto& weight() const requires(not concepts::is::empty< Weight >) { return cond_weight_base::weight; }
+   [[nodiscard]] auto& regret(const Action& action) const
+   {
+      return std::get< regret_map_type >(m_storage).at(std::ref(action));
+   }
+   [[nodiscard]] auto& regret() const { return std::get< regret_map_type >(m_storage); }
+   [[nodiscard]] auto& storage() const { return m_storage; }
+   template < size_t N = 0 >
+   auto& storage_element() const
+   {
+      return std::get< N >(m_storage);
+   }
+   /// if the weight is a map of some sorts, then this method will also be available for the correct
+   /// key types of the map. This method requires a std map like accessor. If there is no const
+   /// bracket operator[], then we demand the function 'at' to exist. Otherwise, we cannot use this
+   /// function.
+   template < size_t N, typename T >
+   [[nodiscard]] auto& storage_element(const T& t) const
+      requires(
+         sizeof...(OptionalData) > 0
+         and (
+            requires(const storage_type& storage) { std::get< N >(storage)[t]; }
+            or requires(const storage_type& storage) { std::get< N >(storage).at(t); }))
+   {
+      if constexpr(requires(const storage_type& storage) { std::get< N >(storage)[t]; }) {
+         return std::get< N >(m_storage)[t];
+      } else {
+         return std::get< N >(m_storage).at(t);
+      }
+   }
 
   private:
    std::vector< Action > m_legal_actions;
    /// the cumulative regret the active player amassed with each action. Cumulative with regards to
    /// the number of CFR iterations. Defaults to 0 and should be updated later during the traversal.
-   std::unordered_map<
-      std::reference_wrapper< const Action >,
-      double,
-      common::ref_wrapper_hasher< const Action >,
-      common::ref_wrapper_comparator< const Action > >
-      m_regret{};
+   std::tuple< regret_map_type, OptionalData... > m_storage;
+
+   auto _init_storage()
+   {
+      if constexpr(sizeof...(OptionalData) == 0) {
+         return storage_type{};
+      } else {
+         return storage_type{
+            std::tuple_cat(std::tuple{regret_map_type{}}, optional_data_tuple_type{})};
+      }
+   }
+   auto _init_storage(regret_map_type rm)
+   {
+      return storage_type{std::tuple_cat(std::tuple{std::move(rm)}, optional_data_tuple_type{})};
+   }
+   auto _init_storage(OptionalData... data) requires(sizeof...(OptionalData) > 0)
+   {
+      return storage_type{std::tuple_cat(
+         std::tuple{regret_map_type{}}, optional_data_tuple_type{std::move(data)...})};
+   }
+   auto _init_storage(regret_map_type rm, OptionalData... data) requires(sizeof...(OptionalData) > 0)
+   {
+      return storage_type{
+         std::tuple_cat(std::tuple{std::move(rm)}, optional_data_tuple_type{std::move(data)...})};
+   }
 };
 
 }  // namespace nor::rm

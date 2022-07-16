@@ -302,7 +302,7 @@ template < typename Env, typename Worldstate = typename fosg_auto_traits< Env >:
 // clang-format off
 auto collect_rewards(
    Env& env,
-   const_ref_if_t<   // the fosg concept asserts a reward function taking world_state_type.
+   common::const_ref_if_t<   // the fosg concept asserts a reward function taking world_state_type.
                      // But if it can be passed a const world state then do so instead
       nor::concepts::has::method::reward_multi< Env, const Worldstate& >
          or concepts::has::method::reward< Env, const Worldstate& >,

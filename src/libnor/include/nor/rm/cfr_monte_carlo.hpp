@@ -608,7 +608,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    auto next_weights = weights.get();
    next_reach_prob[active_player] *= action_policy_prob;
    next_weights[active_player] = next_weights[active_player] * action_policy_prob
-                                 + infonode_data.weight()[std::cref(sampled_action)];
+                                 + infonode_data.template storage_element<1>(std::cref(sampled_action));
 
    _env().transition(state, sampled_action);
 
@@ -882,9 +882,9 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
       auto policy_incr = (weight.get() + reach_prob.get()) * current_policy[action];
       avg_policy[action] += policy_incr;
       if(action == sampled_action) [[unlikely]] {
-         infonode_data.weight()[std::cref(action)] = 0.;
+         infonode_data.template storage_element<1>(std::cref(action)) = 0.;
       } else [[likely]] {
-         infonode_data.weight()[std::cref(action)] += policy_incr;
+         infonode_data.template storage_element<1>(std::cref(action)) += policy_incr;
       }
    }
 }
@@ -903,7 +903,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
    auto& avg_policy = fetch_policy< false >(infostate, infonode_data.actions());
 
    if constexpr(config.weighting == MCCFRWeightingMode::optimistic) {
-      auto& infostate_last_visit = infonode_data.weight();
+      auto& infostate_last_visit = infonode_data.template storage_element<1>();
       auto current_iter = _iteration();
       // we add + 1 to the current iter counter, since the iterations start counting at 0
       auto last_visit_difference = static_cast< double >(1 + current_iter - infostate_last_visit);

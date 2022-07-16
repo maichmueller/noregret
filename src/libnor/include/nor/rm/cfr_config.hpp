@@ -16,7 +16,10 @@ enum class CFRWeightingMode {
    linear = 1,
    // Both the regret and average policy are updated by the weights as laid out in
    // the 'Discounted CFR' algorithm.
-   discounted = 2
+   discounted = 2,
+   // We regret and average policy are weighted by an exponential L1 factor: L1 = r(I,a) - E[v(I)]
+   // where r(I,a) is the instantaneous regret and E[v(I)] is the expected value of the infostate
+   exponential = 3
 };
 
 struct CFRConfig {
@@ -30,6 +33,11 @@ struct CFRPlusConfig {
 };
 
 struct CFRDiscountedConfig {
+   UpdateMode update_mode = UpdateMode::alternating;
+   RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
+};
+
+struct CFRExponentialConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
 };

@@ -60,6 +60,15 @@ inline std::string to_string(const kuhn::ChanceOutcome &value)
    return std::string(kuhn::card_name_bij.at(value.card));
 }
 
+template <>
+struct printable<kuhn::Card> : std::true_type {};
+template <>
+struct printable<kuhn::Action> : std::true_type {};
+template <>
+struct printable<kuhn::Player> : std::true_type {};
+template <>
+struct printable<kuhn::ChanceOutcome> : std::true_type {};
+
 }  // namespace common
 
 // these operator<< definitions are specifically made for gtest which cannot handle the lookup in

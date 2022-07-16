@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "nor/utils/type_traits.hpp"
+#include "common/types.hpp"
 
 TEST(add_const_if, expected_constness)
 {
@@ -15,5 +15,5 @@ TEST(add_const_if, expected_constness)
 
 TEST(all_predicate, simple)
 {
-   EXPECT_TRUE((nor::all_predicate_v< std::is_default_constructible, int, double, std::string >) );
+   EXPECT_TRUE((common::all_predicate_v< std::is_default_constructible, int, double, std::string >) );
 }

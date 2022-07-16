@@ -77,11 +77,43 @@ add_test(
 ###########################
 # NOR Tests
 ###########################
+
+set(
+        NOR_EXP_CFR_TEST_SOURCES
+        test_cfr_exponential.cpp
+)
+list(TRANSFORM NOR_EXP_CFR_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
+
+add_executable(
+        ${nor_test}_cfr_exponential
+        ${PROJECT_TEST_DIR}/main_tests.cpp
+        ${NOR_EXP_CFR_TEST_SOURCES})
+
+#set_target_properties(${nor_test} PROPERTIES
+#        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
+#        )
+
+target_link_libraries(${nor_test}_cfr_exponential
+        PRIVATE
+        ${nor_lib}
+        ${nor_lib}_envs
+        project_warnings
+        common_testing_utils
+        CONAN_PKG::gtest
+        stratego
+        )
+
+add_test(
+        NAME Test_${PROJECT_NAME}_cfr_exponential
+        COMMAND ${nor_test}_cfr_exponential
+)
+
 set(
         NOR_TEST_SOURCES
         test_rm.cpp
         test_cfr.cpp
         test_cfr_plus.cpp
+        test_cfr_exponential.cpp
         test_cfr_discounted.cpp
         test_cfr_linear.cpp
         test_mccfr.cpp
@@ -104,12 +136,12 @@ target_link_libraries(${nor_test}
         PRIVATE
         ${nor_lib}
         ${nor_lib}_envs
+        project_options
         project_warnings
         common_testing_utils
         CONAN_PKG::gtest
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
-        stratego
         )
 
 add_test(
@@ -141,6 +173,7 @@ if (ENABLE_GAMES)
             stratego_test
             PRIVATE
             stratego
+            project_options
             project_warnings
             common_testing_utils
             CONAN_PKG::gtest
@@ -170,6 +203,7 @@ if (ENABLE_GAMES)
             kuhn_poker_test
             PRIVATE
             kuhn_poker
+            project_options
             project_warnings
             common_testing_utils
             CONAN_PKG::gtest
@@ -199,6 +233,7 @@ if (ENABLE_GAMES)
             leduc_poker_test
             PRIVATE
             leduc_poker
+            project_options
             project_warnings
             common_testing_utils
             CONAN_PKG::gtest

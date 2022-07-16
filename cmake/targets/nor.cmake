@@ -43,7 +43,6 @@ target_link_libraries(
         INTERFACE
         project_options
         common
-        CONAN_PKG::cppitertools
         CONAN_PKG::range-v3
 )
 
@@ -81,6 +80,7 @@ if (ENABLE_GAMES)
             ${nor_lib}_envs
             PUBLIC
             ${nor_lib}
+            project_options
             stratego
             kuhn_poker
             rock_paper_scissors

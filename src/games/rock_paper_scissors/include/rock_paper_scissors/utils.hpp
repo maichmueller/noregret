@@ -41,6 +41,14 @@ inline std::string to_string(const rps::Action& value)
           + std::string(rps::hand_name_bij.at((value.hand)));
 }
 
+
+template <>
+struct printable<rps::Hand> : std::true_type {};
+template <>
+struct printable<rps::Team> : std::true_type {};
+template <>
+struct printable<rps::Action> : std::true_type {};
+
 }  // namespace common
 
 namespace std {

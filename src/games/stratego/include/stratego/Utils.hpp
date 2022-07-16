@@ -78,6 +78,20 @@ auto from_string(std::string_view str) -> stratego::Token;
 template <>
 auto from_string(std::string_view str) -> stratego::DefinedBoardSizes;
 
+
+template <>
+struct printable<stratego::Status> : std::true_type {};
+template <>
+struct printable<stratego::Team> : std::true_type {};
+template <>
+struct printable<stratego::FightOutcome> : std::true_type {};
+template <>
+struct printable<stratego::Token> : std::true_type {};
+template <>
+struct printable<stratego::DefinedBoardSizes> : std::true_type {};
+template <>
+struct printable<stratego::Action> : std::true_type {};
+
 }  // namespace common
 
 // these operator<< definitions are specifically made for gtest which cannot handle the lookup in

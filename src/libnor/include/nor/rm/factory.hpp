@@ -3,6 +3,7 @@
 #define NOR_FACTORY_HPP
 
 #include "cfr_discounted.hpp"
+#include "cfr_exponential.hpp"
 #include "cfr_monte_carlo.hpp"
 #include "cfr_plus.hpp"
 #include "cfr_vanilla.hpp"
@@ -177,8 +178,7 @@ struct factory {
             std::forward< Env >(env),
             std::move(root_state),
             to_map(players, std::forward< Policy >(policy)),
-            to_map(players, std::forward< AveragePolicy >(avg_policy))
-            };
+            to_map(players, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
             std::move(params),
@@ -213,8 +213,7 @@ struct factory {
       CFRDiscountedParameters params = {})
    {
       return make_cfr_discounted< cfg, as_map >(
-         std::move(params),
-         std::forward< Env >(env), std::move(root_state), policy, policy);
+         std::move(params), std::forward< Env >(env), std::move(root_state), policy, policy);
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -245,8 +244,7 @@ struct factory {
             std::forward< Env >(env),
             std::move(root_state),
             to_map(players, std::forward< Policy >(policy)),
-            to_map(players, std::forward< AveragePolicy >(avg_policy))
-         };
+            to_map(players, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
             CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
@@ -280,7 +278,77 @@ struct factory {
    {
       return make_cfr_linear< cfg, as_map >(
          CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
-         std::forward< Env >(env), std::move(root_state), policy, policy);
+         std::forward< Env >(env),
+         std::move(root_state),
+         policy,
+         policy);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////////////////////
+   /////////////////// EXPONENTIAL Counterfactual Regret Minimizer Factory //////////////////////
+   /////////////////////////////////////////////////////////////////////////////////////////////
+
+   template <
+      CFRExponentialConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
+   static CFRExponential<
+      cfg,
+      std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
+      std::remove_cvref_t< Policy >,
+      std::remove_cvref_t< AveragePolicy > >
+   make_cfr_exponential(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      Policy&& policy,
+      AveragePolicy&& avg_policy,
+      CFRExponentialParameters params = {})
+   {
+      if constexpr(as_map) {
+         auto players = env.players(*root_state);
+         return {
+            std::move(params),
+            std::forward< Env >(env),
+            std::move(root_state),
+            to_map(players, std::forward< Policy >(policy)),
+            to_map(players, std::forward< AveragePolicy >(avg_policy))};
+      } else {
+         return {
+            std::move(params),
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::forward< Policy >(policy),
+            std::forward< AveragePolicy >(avg_policy)};
+      }
+   }
+
+   template < CFRExponentialConfig cfg, typename Env, typename Policy, typename AveragePolicy >
+   static CFRExponential< cfg, Env, Policy, AveragePolicy > make_cfr_exponential(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map,
+      CFRExponentialParameters params = {})
+   {
+      return {
+         std::move(params),
+         std::forward< Env >(env),
+         std::move(root_state),
+         std::move(policy_map),
+         std::move(avg_policy_map)};
+   }
+
+   template < CFRExponentialConfig cfg, bool as_map, typename Env, typename Policy >
+   static CFRExponential< cfg, Env, Policy, Policy > make_cfr_exponential(
+      Env&& env,
+      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      const Policy& policy,
+      CFRExponentialParameters params = {})
+   {
+      return make_cfr_exponential< cfg, as_map >(
+         std::move(params), std::forward< Env >(env), std::move(root_state), policy, policy);
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////

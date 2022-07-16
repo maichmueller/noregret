@@ -203,6 +203,11 @@ constexpr bool is_constexpr(...)
    return false;
 }
 
+template <typename Container, typename T>
+constexpr bool contains(Container cont, T value) {
+   return std::find(cont.begin(), cont.end(), value) != cont.end();
+}
+
 template < class first, class second, class... types >
 auto min(first f, second s, types... t)
 {
