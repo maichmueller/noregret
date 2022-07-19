@@ -83,9 +83,15 @@ concept dynamic_pointer_castable_to = requires(T t)
 template < typename T >
 concept smart_pointer_like = requires(T t)
 {
-   not std::is_pointer_v< T >;  // this would be true if T was a raw pointer!
+   // this would be true if T was a raw pointer (hence we cannot allow this to be true)
+   not std::is_pointer_v< T >;
+   // needs to be convertible to bool (nullptr or not nullptr)
+   bool(t);
+   // needs to have the underlying type stored in it as typedef
    typename T::element_type;
-   t.operator*();
+   // needs to be dereferencable
+   { t.operator*() } -> std::same_as< typename T::element_type& >;
+   // needs to be allow for arrow operator calls
    t.operator->();
 };
 

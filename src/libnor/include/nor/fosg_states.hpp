@@ -40,21 +40,22 @@ class DefaultPublicstate {
    auto& append(Args&&... args)
    {
       auto& ret_val = m_history.emplace_back(std::forward< Args >(args)...);
-      m_hash_cache = _hash();
+      _hash();
       return ret_val;
    }
 
    [[nodiscard]] size_t hash() const { return m_hash_cache; }
 
-   auto to_string() const requires std::is_same_v< observation_type, std::string >
+   auto to_string() const
+      requires std::is_same_v< observation_type, std::string >
    {
-      std::stringstream ss;
+      std::string s;
       size_t pos = 0;
       for(const auto& observation : m_history) {
-         ss << "obs_" << pos << ": " << observation << "\n";
+         s += std::string("obs_") + std::to_string(pos) + ": " + observation + "\n";
          pos++;
       }
-      return ss.str();
+      return s;
    };
 
    bool operator==(const DefaultPublicstate& other) const
@@ -74,20 +75,12 @@ class DefaultPublicstate {
    std::vector< Observation > m_history{};
    size_t m_hash_cache{0};
 
-   size_t _hash()
+   void _hash()
    {
       if constexpr(std::is_same_v< observation_type, std::string >) {
-         if(requires(derived_type d) {
-               // clang-format off
-                      { d.to_string() } -> std::same_as< std::string >;
-               // clang-format on
-            }) {
-            return std::hash< std::string >{}(static_cast< derived_type* >(this)->to_string());
-         } else {
-            return std::hash< std::string >{}(to_string());
-         }
+         common::hash_combine(m_hash_cache, std::hash< std::string >{}(m_history.back()));
       } else {
-         return static_cast< derived_type* >(this)->_hash_impl();
+         m_hash_cache = static_cast< derived_type* >(this)->_hash_impl();
       }
    }
 };
@@ -102,7 +95,8 @@ class DefaultInfostate: public DefaultPublicstate< Derived, Observation > {
 
    [[nodiscard]] Player player() const { return m_player; }
 
-   auto to_string() const requires std::is_same_v< observation_type, std::string >
+   auto to_string() const
+      requires std::is_same_v< observation_type, std::string >
    {
       std::stringstream ss;
       ss << m_player << "\n" << base::to_string();
