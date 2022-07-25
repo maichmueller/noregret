@@ -60,14 +60,43 @@ concept game_tree = requires(T t)
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::action_type,
+   typename ChanceOutcome = typename T::chance_outcome_type >
+concept history = requires(T const t, Worldstate worldstate, Player player)
+{
+   // get the history of applied actions as observable by this player
+   {
+      t.history(player, worldstate)
+      }
+      ->std::convertible_to< std::vector< std::optional< std::variant< Action, ChanceOutcome > > > >;
+};
+
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::action_type,
+   typename ChanceOutcome = typename T::chance_outcome_type >
+concept history_full = requires(T const t, Worldstate worldstate)
+{
+   // get the history of all applied actions, regardless whether some actions were
+   // hidden from other players
+   {
+      t.history_full(worldstate)
+      }
+      ->std::convertible_to< std::vector< std::variant< Action, ChanceOutcome > > >;
+};
+
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type >
 concept actions = requires(T const t, Worldstate worldstate, Player player)
 {
    // legal actions getter for the given player
    {
       t.actions(player, worldstate)
-   }
-   ->std::convertible_to< std::vector< Action > >;
+      }
+      ->std::convertible_to< std::vector< Action > >;
 };
 
 template <

@@ -49,10 +49,10 @@ std::string nor::games::kuhn::Environment::public_observation(
    for(uint8_t i = 0; i < 2; i++) {
       ss << (wstate.cards()[i].has_value() ? "?" : "-");
    }
-   if(not wstate.history().sequence.empty()) {
+   if(not wstate.history().empty()) {
       ss << "|";
    }
-   for(auto card : wstate.history().sequence) {
+   for(auto card : wstate.history()) {
       ss << common::to_string(card)[0];
    }
    return ss.str();
@@ -97,16 +97,60 @@ nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::t
    for(auto [idx, card] : ranges::views::enumerate(wstate.cards())) {
       if(card.has_value()) {
          ss << card.value();
-         if((idx == 0 and wstate.cards()[1].has_value()) or not wstate.history().sequence.empty()) {
+         if((idx == 0 and wstate.cards()[1].has_value()) or not wstate.history().empty()) {
             ss << "-";
          }
       }
    }
-   for(auto [idx, action] : ranges::views::enumerate(wstate.history().sequence)) {
+   for(auto [idx, action] : ranges::views::enumerate(wstate.history())) {
       ss << action;
-      if(idx != wstate.history().sequence.size() - 1) {
+      if(idx != wstate.history().size() - 1) {
          ss << "-";
       }
    }
    return ss.str();
+}
+std::vector< std::optional< std::variant<
+   nor::games::kuhn::Environment::action_type,
+   nor::games::kuhn::Environment::chance_outcome_type > > >
+nor::games::kuhn::Environment::history(
+   const nor::games::kuhn::Environment::world_state_type& wstate,
+   nor::Player player) const
+{
+   std::vector< std::optional< std::variant< action_type, chance_outcome_type > > > out;
+   auto action_history = wstate.history();
+   out.reserve(action_history.size() + 2);
+   for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.cards())) {
+      if(outcome_opt.has_value()) {
+         out.emplace_back(
+            chance_outcome_type{.player = kuhn::Player(i), .card = outcome_opt.value()});
+      } else {
+         out.emplace_back(std::nullopt);
+      }
+   }
+   for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
+      if(i != static_cast< size_t >(player)) {
+         out.emplace_back(std::move(action_or_outcome));
+      } else {
+         out.emplace_back(std::nullopt);
+      }
+   }
+   out.shrink_to_fit();
+   return out;
+}
+
+std::vector< std::variant<
+   nor::games::kuhn::Environment::action_type,
+   nor::games::kuhn::Environment::chance_outcome_type > >
+nor::games::kuhn::Environment::history_full(
+   const nor::games::kuhn::Environment::world_state_type& wstate) const
+{
+   std::vector< std::variant< action_type, chance_outcome_type > > out;
+   auto action_history = wstate.history();
+   out.reserve(action_history.size() + 2);
+   for(auto& action_or_outcome : action_history) {
+      out.emplace_back(std::move(action_or_outcome));
+   }
+   out.shrink_to_fit();
+   return out;
 }

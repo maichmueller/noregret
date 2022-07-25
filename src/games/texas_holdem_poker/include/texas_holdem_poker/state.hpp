@@ -6,11 +6,12 @@
 #include <optional>
 #include <range/v3/all.hpp>
 #include <sstream>
+#include <variant>
 #include <vector>
 
 #include "common/common.hpp"
 
-namespace texasholdem {
+namespace texholdem {
 
 enum class Player {
    chance = -1,
@@ -79,20 +80,76 @@ inline bool operator==(const ChanceOutcome& outcome1, const ChanceOutcome& outco
    return outcome1.player == outcome2.player and outcome1.card == outcome2.card;
 }
 
-struct PokerConfig {
-   size_t n_players;
-   size_t n_raises_allowed = 2;
-   std::vector< float > bet_sizes_round_one = {2};
-   std::vector< float > bet_sizes_round_two = {4};
-   std::vector< Card > available_cards = {
-      {Rank::jack, Suit::clubs},
-      {Rank::jack, Suit::hearts},
-      {Rank::queen, Suit::clubs},
-      {Rank::queen, Suit::hearts},
-      {Rank::king, Suit::clubs},
-      {Rank::king, Suit::hearts}};
+enum class BetLimit { limit = 1, no_limit = 0, pot_limit = 2 };
+
+enum class PokerToken { dealer = 0, small_blind = 1, big_blind = 2 };
+
+template < typename T, std::integral To = size_t >
+inline auto as_int(T p)
+{
+   // we let things silently fail in the call site if an incorrect value is passed in here
+   return static_cast< To >(p);
 };
 
+struct PokerConfig {
+   size_t n_players;
+   // how many rounds should the game last? 3 rounds is standard (flop-turn-river)
+   size_t n_rounds = 3;
+   // how many boardcards are going to be drawn on each round (index i is #cards of round i)
+   std::vector< size_t > boardcards_per_round = {3, 1, 1};
+   // the starting amount the big blind will need to pay.
+   float small_blind = 0.f;
+   // the starting amount the small blind will need to pay.
+   float big_blind = 0.f;
+   // what holdem variant is to be played in each round? Limit/No-Limit/Pot-Limit
+   std::vector< std::variant< BetLimit, float > > bet_size_limits;
+   // how often can players raise the bet in each round
+   std::vector< size_t > bet_nr_limits = {
+      std::dynamic_extent,
+      std::dynamic_extent,
+      std::dynamic_extent};
+   // the starting deck to play with
+   std::vector< Card > deck = {
+      {Rank::two, Suit::diamonds},   {Rank::two, Suit::clubs},
+      {Rank::two, Suit::hearts},     {Rank::two, Suit::spades},
+
+      {Rank::three, Suit::diamonds}, {Rank::three, Suit::clubs},
+      {Rank::three, Suit::hearts},   {Rank::three, Suit::spades},
+
+      {Rank::four, Suit::diamonds},  {Rank::four, Suit::clubs},
+      {Rank::four, Suit::hearts},    {Rank::four, Suit::spades},
+
+      {Rank::five, Suit::diamonds},  {Rank::five, Suit::clubs},
+      {Rank::five, Suit::hearts},    {Rank::five, Suit::spades},
+
+      {Rank::six, Suit::diamonds},   {Rank::six, Suit::clubs},
+      {Rank::six, Suit::hearts},     {Rank::six, Suit::spades},
+
+      {Rank::seven, Suit::diamonds}, {Rank::seven, Suit::clubs},
+      {Rank::seven, Suit::hearts},   {Rank::seven, Suit::spades},
+
+      {Rank::eight, Suit::diamonds}, {Rank::eight, Suit::clubs},
+      {Rank::eight, Suit::hearts},   {Rank::eight, Suit::spades},
+
+      {Rank::nine, Suit::diamonds},  {Rank::nine, Suit::clubs},
+      {Rank::nine, Suit::hearts},    {Rank::nine, Suit::spades},
+
+      {Rank::ten, Suit::diamonds},   {Rank::ten, Suit::clubs},
+      {Rank::ten, Suit::hearts},     {Rank::ten, Suit::spades},
+
+      {Rank::jack, Suit::diamonds},  {Rank::jack, Suit::clubs},
+      {Rank::jack, Suit::hearts},    {Rank::jack, Suit::spades},
+
+      {Rank::queen, Suit::diamonds}, {Rank::queen, Suit::clubs},
+      {Rank::queen, Suit::hearts},   {Rank::queen, Suit::spades},
+
+      {Rank::king, Suit::diamonds},  {Rank::king, Suit::clubs},
+      {Rank::king, Suit::hearts},    {Rank::king, Suit::spades},
+
+      {Rank::ace, Suit::diamonds},   {Rank::ace, Suit::clubs},
+      {Rank::ace, Suit::hearts},     {Rank::ace, Suit::spades},
+   };
+};
 
 /**
  * @brief stores the currently commited action sequence
@@ -115,6 +172,35 @@ inline bool operator==(const History& left, const History& right)
          return left_action == right_action;
       });
 }
+
+/**
+ * @brief stores the currently commited action sequence
+ */
+class HistorySinceBet {
+  public:
+   HistorySinceBet(std::vector< std::optional< Action > > cont) : m_container(std::move(cont)) {}
+
+   auto& operator[](Player player) { return m_container[as_int(player)]; }
+
+   auto& operator[](Player player) const { return m_container[as_int(player)]; }
+
+   void reset()
+   {
+      ranges::for_each(m_container, [](auto& action_opt) { action_opt.reset(); });
+   }
+
+   bool all_acted(const std::vector< Player >& remaining_players)
+   {
+      return ranges::all_of(
+         remaining_players, [&](Player player) { return m_container[as_int(player)].has_value(); });
+   }
+
+   auto& container() { return m_container; }
+   [[nodiscard]] auto& container() const { return m_container; }
+
+  private:
+   std::vector< std::optional< Action > > m_container{};
+};
 
 class State {
   public:
@@ -140,10 +226,16 @@ class State {
 
   private:
    Player m_active_player = Player::chance;
+   size_t m_round = 0;
    std::vector< Player > m_remaining_players;
    std::vector< std::optional< Card > > m_player_cards;
-   std::optional< Card > m_public_card = std::nullopt;
-   History m_history{};
+   std::vector< std::optional< Card > > m_public_cards;
+   History m_action_history{};
+   History m_history_since_last_bet{};
+   std::vector< double > m_stakes;
+   unsigned int m_bets_this_round = 0;
+   bool m_is_terminal = false;
+   bool m_terminal_checked = false;
    sptr< PokerConfig > m_config;
 
    static const std::vector< History >& _all_terminal_histories();
@@ -152,6 +244,6 @@ class State {
    void _flip_active_player();
 };
 
-}  // namespace leduc
+}  // namespace texholdem
 
 #endif  // NOR_STATE_HPP

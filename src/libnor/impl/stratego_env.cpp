@@ -76,6 +76,20 @@ Player Environment::active_player(const Environment::world_state_type& wstate) c
 {
    return to_player(wstate.active_team());
 }
+
+std::vector< std::variant< std::monostate, Environment::action_type > > Environment::history_full(
+   const world_state_type& wstate) const
+{
+   std::vector< std::variant< std::monostate, action_type > > out;
+}
+
+std::vector< std::optional< std::variant< std::monostate, Environment::action_type > > >
+Environment::history(const world_state_type& wstate, Player player) const
+{
+   std::vector< std::optional< std::variant< std::monostate, action_type > > > out;
+
+}
+
 // std::vector< Environment::action_type > Environment::actions(
 //    const Environment::info_state_type& istate) const
 //{

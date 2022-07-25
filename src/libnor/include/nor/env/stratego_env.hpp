@@ -57,7 +57,14 @@ class Environment {
    explicit Environment(uptr< Logic >&& logic);
 
    std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
-   //   std::vector< action_type > actions(const info_state_type& istate) const;
+
+   std::vector< std::optional< std::variant< std::monostate, action_type > > > history(
+      const world_state_type& wstate,
+      Player player) const;
+
+   std::vector< std::variant< std::monostate, action_type > > history_full(
+      const world_state_type& wstate) const;
+
    static inline std::vector< Player > players(const world_state_type&) { return {Player::alex, Player::bob}; }
    Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate) const;

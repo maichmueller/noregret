@@ -62,6 +62,33 @@ class Environment {
       }
       return valid_actions;
    }
+
+   inline std::vector< std::optional< std::variant< std::monostate, action_type > > > history(
+      const world_state_type& wstate,
+      Player player) const
+   {
+      std::vector< std::optional< std::variant< std::monostate, action_type > > > out;
+      for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
+         if(outcome_opt.has_value()) {
+            out.emplace_back(outcome_opt.value());
+         } else {
+            out.emplace_back(std::nullopt);
+         }
+      }
+      return out;
+   }
+
+   inline std::vector< std::variant< std::monostate, action_type > > history_full(
+      const world_state_type& wstate) const
+   {
+      std::vector< std::variant< std::monostate, action_type > > out;
+      for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
+         if(outcome_opt.has_value()) {
+            out.emplace_back(outcome_opt.value());
+         }
+      }
+      return out;
+   }
    static inline std::vector< Player > players(const world_state_type&)
    {
       return {Player::alex, Player::bob};
@@ -81,7 +108,6 @@ class Environment {
 }  // namespace nor::games::rps
 
 namespace nor {
-
 template <>
 struct fosg_traits< games::rps::InfoState > {
    using observation_type = nor::games::rps::Observation;

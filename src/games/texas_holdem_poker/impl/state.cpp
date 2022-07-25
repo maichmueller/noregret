@@ -1,9 +1,9 @@
 
-#include "leduc_poker/state.hpp"
+#include "texas_holdem_poker/state.hpp"
 
 #include <iostream>
 
-namespace leduc {
+namespace texholdem {
 
 inline int16_t sign(bool x)
 {

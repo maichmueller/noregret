@@ -70,9 +70,10 @@ class DefaultPublicstate {
    inline bool operator!=(const DefaultPublicstate& other) const { return not (*this == other); }
 
   private:
-   /// the history (action trajectory) of the state.
-   /// Each entry is an observation of an action or a state
+   /// the history (action trajectory) container of the state.
+   /// Each entry is an observation of a state followed by an action.
    std::vector< Observation > m_history{};
+   /// the cache of the current hash value of the public state
    size_t m_hash_cache{0};
 
    void _hash()

@@ -66,13 +66,20 @@ class Environment {
       return wstate.chance_actions();
    }
 
+   std::vector< std::optional< std::variant< chance_outcome_type, action_type > > > history(
+      const world_state_type& wstate,
+      Player player) const;
+
+   std::vector< std::variant< chance_outcome_type, action_type > > history_full(
+      const world_state_type& wstate) const;
+
    inline double chance_probability(
       const world_state_type& wstate,
       const chance_outcome_type& outcome) const
    {
       return wstate.chance_probability(outcome);
    }
-   //   std::vector< action_type > actions(const info_state_type& istate) const;
+
    static inline std::vector< Player > players(const world_state_type&)
    {
       return {Player::chance, Player::alex, Player::bob};
@@ -89,6 +96,8 @@ class Environment {
    observation_type public_observation(const world_state_type& wstate) const;
    observation_type public_observation(const action_type& action) const;
    observation_type public_observation(const chance_outcome_type& action) const;
+
+   /// mainly for debug purposes
    observation_type tiny_repr(const world_state_type& wstate) const;
 };
 
