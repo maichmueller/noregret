@@ -77,17 +77,34 @@ Player Environment::active_player(const Environment::world_state_type& wstate) c
    return to_player(wstate.active_team());
 }
 
-std::vector< std::variant< std::monostate, Environment::action_type > > Environment::history_full(
-   const world_state_type& wstate) const
+std::vector< PlayerInformedType< std::variant< std::monostate, Environment::action_type > > >
+Environment::history_full(const Environment::world_state_type& wstate) const
 {
-   std::vector< std::variant< std::monostate, action_type > > out;
+   std::vector< PlayerInformedType< std::variant< std::monostate, Environment::action_type > > >
+      out;
+   const auto& history = wstate.history();
+   out.reserve(history.size());
+   for(auto turn : history.turns()) {
+      auto [team, action, _] = history[std::remove_cvref_t< decltype(history) >::Turn(turn)];
+      out.emplace_back(action, to_player(team));
+   }
+   return out;
 }
 
-std::vector< std::optional< std::variant< std::monostate, Environment::action_type > > >
-Environment::history(const world_state_type& wstate, Player player) const
+std::vector<
+   PlayerInformedType< std::optional< std::variant< std::monostate, Environment::action_type > > > >
+Environment::history(Player, const Environment::world_state_type& wstate) const
 {
-   std::vector< std::optional< std::variant< std::monostate, action_type > > > out;
-
+   std::vector< PlayerInformedType<
+      std::optional< std::variant< std::monostate, Environment::action_type > > > >
+      out;
+   const auto& history = wstate.history();
+   out.reserve(history.size());
+   for(auto turn : history.turns()) {
+      auto [team, action, _] = history[std::remove_cvref_t< decltype(history) >::Turn(turn)];
+      out.emplace_back(action, to_player(team));
+   }
+   return out;
 }
 
 // std::vector< Environment::action_type > Environment::actions(

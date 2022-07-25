@@ -63,32 +63,13 @@ class Environment {
       return valid_actions;
    }
 
-   inline std::vector< std::optional< std::variant< std::monostate, action_type > > > history(
-      const world_state_type& wstate,
-      Player player) const
-   {
-      std::vector< std::optional< std::variant< std::monostate, action_type > > > out;
-      for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
-         if(outcome_opt.has_value()) {
-            out.emplace_back(outcome_opt.value());
-         } else {
-            out.emplace_back(std::nullopt);
-         }
-      }
-      return out;
-   }
+   std::vector<
+      PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+   history(Player, const world_state_type& wstate) const;
 
-   inline std::vector< std::variant< std::monostate, action_type > > history_full(
-      const world_state_type& wstate) const
-   {
-      std::vector< std::variant< std::monostate, action_type > > out;
-      for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
-         if(outcome_opt.has_value()) {
-            out.emplace_back(outcome_opt.value());
-         }
-      }
-      return out;
-   }
+   std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > >
+   history_full(const world_state_type& wstate) const;
+
    static inline std::vector< Player > players(const world_state_type&)
    {
       return {Player::alex, Player::bob};

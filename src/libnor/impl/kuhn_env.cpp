@@ -110,46 +110,51 @@ nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::t
    }
    return ss.str();
 }
-std::vector< std::optional< std::variant<
-   nor::games::kuhn::Environment::action_type,
-   nor::games::kuhn::Environment::chance_outcome_type > > >
+
+std::vector< nor::PlayerInformedType< std::optional< std::variant<
+   nor::games::kuhn::Environment::chance_outcome_type,
+   nor::games::kuhn::Environment::action_type > > > >
 nor::games::kuhn::Environment::history(
-   const nor::games::kuhn::Environment::world_state_type& wstate,
-   nor::Player player) const
+   nor::Player player,
+   const nor::games::kuhn::Environment::world_state_type& wstate) const
 {
-   std::vector< std::optional< std::variant< action_type, chance_outcome_type > > > out;
+   std::vector<
+      nor::PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+      out;
    auto action_history = wstate.history();
    out.reserve(action_history.size() + 2);
    for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.cards())) {
       if(outcome_opt.has_value()) {
          out.emplace_back(
-            chance_outcome_type{.player = kuhn::Player(i), .card = outcome_opt.value()});
+            chance_outcome_type{.player = kuhn::Player(i), .card = outcome_opt.value()},
+            to_nor_player(wstate.active_player()));
       } else {
-         out.emplace_back(std::nullopt);
+         out.emplace_back(std::nullopt, to_nor_player(wstate.active_player()));
       }
    }
    for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
       if(i != static_cast< size_t >(player)) {
-         out.emplace_back(std::move(action_or_outcome));
+         out.emplace_back(std::move(action_or_outcome), to_nor_player(wstate.active_player()));
       } else {
-         out.emplace_back(std::nullopt);
+         out.emplace_back(std::nullopt, to_nor_player(wstate.active_player()));
       }
    }
    out.shrink_to_fit();
    return out;
 }
 
-std::vector< std::variant<
-   nor::games::kuhn::Environment::action_type,
-   nor::games::kuhn::Environment::chance_outcome_type > >
+std::vector< nor::PlayerInformedType< std::variant<
+   nor::games::kuhn::Environment::chance_outcome_type,
+   nor::games::kuhn::Environment::action_type > > >
 nor::games::kuhn::Environment::history_full(
    const nor::games::kuhn::Environment::world_state_type& wstate) const
 {
-   std::vector< std::variant< action_type, chance_outcome_type > > out;
+   using action_chance_variant = std::variant< chance_outcome_type, action_type >;
+   std::vector< nor::PlayerInformedType< action_chance_variant > > out;
    auto action_history = wstate.history();
    out.reserve(action_history.size() + 2);
-   for(auto& action_or_outcome : action_history) {
-      out.emplace_back(std::move(action_or_outcome));
+   for(action_type& action : action_history) {
+      out.emplace_back(std::move(action), to_nor_player(wstate.active_player()));
    }
    out.shrink_to_fit();
    return out;

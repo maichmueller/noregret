@@ -58,12 +58,12 @@ class Environment {
 
    std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
 
-   std::vector< std::optional< std::variant< std::monostate, action_type > > > history(
-      const world_state_type& wstate,
-      Player player) const;
+   std::vector<
+      PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+   history(Player, const world_state_type& wstate) const;
 
-   std::vector< std::variant< std::monostate, action_type > > history_full(
-      const world_state_type& wstate) const;
+   std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > >
+   history_full(const world_state_type& wstate) const;
 
    static inline std::vector< Player > players(const world_state_type&) { return {Player::alex, Player::bob}; }
    Player active_player(const world_state_type& wstate) const;

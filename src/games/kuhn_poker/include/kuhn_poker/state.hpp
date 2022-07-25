@@ -46,17 +46,15 @@ inline bool operator==(const ChanceOutcome& outcome1, const ChanceOutcome& outco
  * It's a simple wrapper for the action sequence to allow for std::hash specialization and
  * operator== overloading.
  */
-struct History {
-   std::vector< Action > sequence{};
-};
+using History = std::vector< Action >;
 
 inline bool operator==(const History& left, const History& right)
 {
-   if(left.sequence.size() != right.sequence.size()) {
+   if(left.size() != right.size()) {
       return false;
    }
    return ranges::all_of(
-      ranges::views::zip(left.sequence, right.sequence), [](const auto& paired_actions) {
+      ranges::views::zip(left, right), [](const auto& paired_actions) {
          return std::get< 0 >(paired_actions) == std::get< 1 >(paired_actions);
       });
 }

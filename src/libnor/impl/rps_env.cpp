@@ -72,3 +72,34 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::tin
              : "");
    return ss.str();
 }
+std::vector< nor::PlayerInformedType<
+   std::variant< std::monostate, nor::games::rps::Environment::action_type > > >
+nor::games::rps::Environment::history_full(
+   const nor::games::rps::Environment::world_state_type& wstate) const
+{
+   std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > > out;
+   for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
+      if(outcome_opt.has_value()) {
+         out.emplace_back(outcome_opt.value(), to_player(wstate.active_team()));
+      }
+   }
+   return out;
+}
+
+std::vector< nor::PlayerInformedType<
+   std::optional< std::variant< std::monostate, nor::games::rps::Environment::action_type > > > >
+nor::games::rps::Environment::history(
+   nor::Player,
+   const nor::games::rps::Environment::world_state_type& wstate) const
+{
+   std::vector< PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+      out;
+   for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
+      if(outcome_opt.has_value()) {
+         out.emplace_back(outcome_opt.value(), to_player(wstate.active_team()));
+      } else {
+         out.emplace_back(std::nullopt, to_player(wstate.active_team()));
+      }
+   }
+   return out;
+}

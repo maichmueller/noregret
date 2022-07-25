@@ -7,6 +7,7 @@
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "player_informed_type.hpp"
 
 namespace nor {
 

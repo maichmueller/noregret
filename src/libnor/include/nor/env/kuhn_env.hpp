@@ -66,12 +66,12 @@ class Environment {
       return wstate.chance_actions();
    }
 
-   std::vector< std::optional< std::variant< chance_outcome_type, action_type > > > history(
-      const world_state_type& wstate,
-      Player player) const;
+   std::vector<
+      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+   history(Player player, const world_state_type& wstate) const;
 
-   std::vector< std::variant< chance_outcome_type, action_type > > history_full(
-      const world_state_type& wstate) const;
+   std::vector< PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
+   history_full(const world_state_type& wstate) const;
 
    inline double chance_probability(
       const world_state_type& wstate,
