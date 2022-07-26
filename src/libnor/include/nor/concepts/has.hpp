@@ -111,10 +111,10 @@ concept chance_probability = requires(T const t, Worldstate worldstate, Action a
 
 template < typename T, typename ReturnType, typename... Args >
 concept append = requires(T t, Args&&... args) {
-                    // append object u to t
+                    // append objects Us... to t
                     {
                        t.append(std::forward< Args >(args)...)
-                       } -> std::same_as< ReturnType& >;
+                       } -> std::same_as< ReturnType >;
                  };
 
 template <

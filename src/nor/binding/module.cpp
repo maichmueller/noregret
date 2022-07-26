@@ -5,6 +5,8 @@
 
 #include <pybind11/pybind11.h>
 
+#include "env/py_env.hpp"
+
 namespace py = pybind11;
 
 PYBIND11_MODULE(_nor, m) {}
