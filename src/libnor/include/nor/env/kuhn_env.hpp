@@ -68,10 +68,14 @@ class Environment {
 
    std::vector<
       PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
-   history(Player player, const world_state_type& wstate) const;
+   private_history(Player player, const world_state_type& wstate) const;
+
+   std::vector<
+      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+   public_history(const world_state_type& wstate) const;
 
    std::vector< PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
-   history_full(const world_state_type& wstate) const;
+   open_history(const world_state_type& wstate) const;
 
    inline double chance_probability(
       const world_state_type& wstate,
@@ -86,7 +90,7 @@ class Environment {
    }
    Player active_player(const world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
-   static constexpr bool is_competing(const world_state_type&, Player) { return true; }
+   static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
    void transition(world_state_type& worldstate, const chance_outcome_type& action) const;

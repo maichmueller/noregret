@@ -18,7 +18,7 @@ struct factory {
       const ValueType& value)
    {
       std::unordered_map< Player, ValueType > map;
-      for(auto player : players | utils::is_nonchance_player_filter) {
+      for(auto player : players | utils::is_actual_player_filter) {
          map.emplace(player, value);
       }
       return map;

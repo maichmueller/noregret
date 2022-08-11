@@ -54,24 +54,38 @@ template <
    typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type,
    typename ChanceOutcome = typename T::chance_outcome_type >
-concept history = requires(T const t, Worldstate worldstate, Player player) {
-                     // get the history of applied actions as observable by this player
-                     {
-                        t.history(player, worldstate)
-                        } -> std::convertible_to< std::vector< PlayerInformedType<
-                           std::optional< std::variant< ChanceOutcome, Action > > > > >;
-                  };
+concept private_history = requires(T const t, Worldstate worldstate, Player player) {
+                             // get the history of privately observable (by the player) actions up
+                             // to this point
+                             {
+                                t.private_history(player, worldstate)
+                                } -> std::convertible_to< std::vector< PlayerInformedType<
+                                   std::optional< std::variant< ChanceOutcome, Action > > > > >;
+                          };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Action = typename T::action_type,
    typename ChanceOutcome = typename T::chance_outcome_type >
-concept history_full = requires(T const t, Worldstate worldstate) {
+concept public_history = requires(T const t, Worldstate worldstate) {
+                            // get the history of public actions played up to this state
+                            {
+                               t.public_history(worldstate)
+                               } -> std::convertible_to< std::vector< PlayerInformedType<
+                                  std::optional< std::variant< ChanceOutcome, Action > > > > >;
+                         };
+
+template <
+   typename T,
+   typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::action_type,
+   typename ChanceOutcome = typename T::chance_outcome_type >
+concept open_history = requires(T const t, Worldstate worldstate) {
                           // get the history of all applied actions, regardless whether some actions
                           // were hidden from other players
                           {
-                             t.history_full(worldstate)
+                             t.open_history(worldstate)
                              } -> std::convertible_to< std::vector<
                                 PlayerInformedType< std::variant< ChanceOutcome, Action > > > >;
                        };
@@ -185,11 +199,11 @@ concept players = requires(T t, const Worldstate& wstate) {
                   };
 
 template < typename T, typename Worldstate = typename T::world_state_type >
-concept is_competing = requires(T t, const Worldstate& wstate, Player player) {
+concept is_partaking = requires(T t, const Worldstate& wstate, Player player) {
                           // a function for answering whether a given player is still partaking in
                           // the game or e.g. already lost
                           {
-                             t.is_competing(wstate, player)
+                             t.is_partaking(wstate, player)
                              } -> std::convertible_to< bool >;
                        };
 

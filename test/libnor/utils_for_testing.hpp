@@ -15,8 +15,8 @@ inline void print_policy(const Policy& policy)
                                           return std::pair{std::get< 0 >(kv), std::get< 1 >(kv)};
                                        }));
    std::sort(policy_vec.begin(), policy_vec.end(), [](const auto& kv, const auto& other_kv) {
-      return std::get< 0 >(kv).history().back().size()
-             < std::get< 0 >(other_kv).history().back().size();
+      return std::get< 0 >(kv).private_history().back().size()
+             < std::get< 0 >(other_kv).private_history().back().size();
    });
    auto action_policy_printer = [&](const auto& action_policy) {
       std::stringstream ss;
@@ -30,7 +30,7 @@ inline void print_policy(const Policy& policy)
    };
    for(const auto& [istate, action_policy] : policy_vec) {
       std::cout << std::setw(5) << istate.player() << " | " << std::setw(8)
-                << common::left(istate.history().back(), 5, " ") << " -> ";
+                << common::left(istate.private_history().back(), 5, " ") << " -> ";
       std::cout << action_policy_printer(action_policy) << "\n";
    }
 }
@@ -235,7 +235,7 @@ inline void assert_optimal_policy_kuhn(const auto& solver, auto& env, double pre
          const auto& [istate, action_policy] = computed_state_policy;
          auto normalized_ap = rm::normalize_action_policy(action_policy);
          for(const auto& [optim_action_and_prob, action_and_prob] :
-             ranges::views::zip(optimal_table.at(istate.history().back()), normalized_ap)) {
+             ranges::views::zip(optimal_table.at(istate.private_history().back()), normalized_ap)) {
             auto found_action_prob = std::get< 1 >(action_and_prob);
             auto optimal_action_prob = std::get< 1 >(optim_action_and_prob);
             ASSERT_NEAR(found_action_prob, optimal_action_prob, precision);

@@ -60,7 +60,7 @@ class Env {
    std::vector< nor::PlayerInformedType< std::variant< std::monostate, action_type > > >
    history_full(const world_state_type& wstate) const;
    std::vector< nor::Player > players(const world_state_type& wstate);
-   bool is_competing(const world_state_type&, nor::Player);
+   bool is_partaking(const world_state_type&, nor::Player);
    nor::Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate);
    bool is_terminal(world_state_type& wstate);

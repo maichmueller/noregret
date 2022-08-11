@@ -53,7 +53,7 @@ TEST(KuhnPoker, CFR_EXPONENTIAL_alternating)
 #endif
    }
    evaluate_policies< false >(
-      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy");
    auto game_value_map = solver.game_value();
    double alex_true_game_value = -1. / 18.;
    ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
@@ -102,7 +102,7 @@ TEST(KuhnPoker, CFR_EXPONENTIAL_simultaneous)
 #endif
    }
    evaluate_policies< false >(
-      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy");
    auto game_value_map = solver.game_value();
    double alex_true_game_value = -1. / 18.;
    ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
@@ -154,7 +154,7 @@ TEST(RockPaperScissors, CFR_EXPONENTIAL_alternating)
 #endif
    }
    evaluate_policies< false >(
-      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 
@@ -203,7 +203,7 @@ TEST(RockPaperScissors, CFR_EXPONENTIAL_simultaneous)
 #endif
    }
    evaluate_policies< false >(
-      solver, players | utils::is_nonchance_player_filter, n_iters, "Final Policy");
+      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy");
    assert_optimal_policy_rps(solver);
 }
 

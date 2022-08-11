@@ -462,7 +462,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
    auto players = _env().players(*_root_state_uptr());
    auto init_infostates = [&] {
       std::unordered_map< Player, sptr< info_state_type > > infostates;
-      for(auto player : players | utils::is_nonchance_player_filter) {
+      for(auto player : players | utils::is_actual_player_filter) {
          auto& infostate = infostates.emplace(player, std::make_shared< info_state_type >(player))
                               .first->second;
          infostate->append(_env().private_observation(player, root_state()));
@@ -478,7 +478,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
    };
    auto init_obs_buffer = [&] {
       std::unordered_map< Player, std::vector< observation_type > > obs_map;
-      for(auto player : players | utils::is_nonchance_player_filter) {
+      for(auto player : players | utils::is_actual_player_filter) {
          obs_map.emplace(player, std::vector< observation_type >{});
       }
       return ObservationbufferMap{std::move(obs_map)};
@@ -499,7 +499,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
             Probability{1.},
             [&] {
                std::unordered_map< Player, double > weights;
-               for(auto player : players | utils::is_nonchance_player_filter) {
+               for(auto player : players | utils::is_actual_player_filter) {
                   weights.emplace(player, 0.);
                }
                return WeightMap{std::move(weights)};

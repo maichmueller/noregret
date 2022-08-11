@@ -322,7 +322,7 @@ auto collect_rewards(
          players, [&](Player player) { rewards.emplace(player, all_rewards[player]); });
    } else {
       // otherwise we just loop over the per player reward method
-      for(auto player : players | utils::is_nonchance_player_filter) {
+      for(auto player : players | utils::is_actual_player_filter) {
          rewards.emplace(player, env.reward(player, terminal_wstate));
       }
       return rewards;

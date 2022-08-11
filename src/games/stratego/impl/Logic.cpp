@@ -333,4 +333,19 @@ bool Logic::is_valid(const State &state, Move move, Team team)
    return is_valid(state, Action{team, std::move(move)});
 }
 
+void Logic::draw_board(
+   const Config &config,
+   Board& curr_board,
+   const std::map<Team, std::map< Position, Token >> &setups)
+{
+   for(size_t i = 0; i < 2; i++) {
+      auto team = Team(i);
+      if(config.fixed_setups[i]) {
+         place_setup(config.setups.at(team).value(), curr_board, team);
+      } else {
+         place_setup(setups.at(team), curr_board, team);
+      }
+   }
+}
+
 }  // namespace stratego

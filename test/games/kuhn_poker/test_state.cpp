@@ -22,20 +22,20 @@ TEST_F(KuhnPokerState, apply_action)
    state.apply_action(ChanceOutcome{Player::one, Card::king});
    state.apply_action(ChanceOutcome{Player::two, Card::queen});
    state.apply_action(Action::check);
-   EXPECT_EQ(state.history().sequence.size(), 1);
-   EXPECT_EQ(state.history().sequence[0], Action::check);
+   EXPECT_EQ(state.history().size(), 1);
+   EXPECT_EQ(state.history()[0], Action::check);
    state.apply_action(Action::bet);
-   EXPECT_EQ(state.history().sequence.size(), 2);
-   EXPECT_EQ(state.history().sequence[1], Action::bet);
+   EXPECT_EQ(state.history().size(), 2);
+   EXPECT_EQ(state.history()[1], Action::bet);
    state.apply_action(Action::bet);
-   EXPECT_EQ(state.history().sequence.size(), 3);
-   EXPECT_EQ(state.history().sequence[2], Action::bet);
+   EXPECT_EQ(state.history().size(), 3);
+   EXPECT_EQ(state.history()[2], Action::bet);
    state.apply_action(Action::check);
-   EXPECT_EQ(state.history().sequence.size(), 4);
-   EXPECT_EQ(state.history().sequence[3], Action::check);
+   EXPECT_EQ(state.history().size(), 4);
+   EXPECT_EQ(state.history()[3], Action::check);
    state.apply_action(Action::check);
-   EXPECT_EQ(state.history().sequence.size(), 5);
-   EXPECT_EQ(state.history().sequence[4], Action::check);
+   EXPECT_EQ(state.history().size(), 5);
+   EXPECT_EQ(state.history()[4], Action::check);
 }
 
 TEST_F(KuhnPokerState, is_valid_chance_action)
@@ -111,7 +111,7 @@ TEST_P(TerminalParamsF, terminal_situations)
    state.apply_action({Player::one, cards[0]});
    state.apply_action({Player::two, cards[1]});
 
-   for(auto action : actions.sequence) {
+   for(auto action : actions) {
       state.apply_action(action);
    }
    EXPECT_EQ(state.is_terminal(), expected_terminal);
@@ -153,7 +153,7 @@ TEST_P(PayoffParamsF, payoff_combinations)
    auto [cards, actions, expected_payoffs] = GetParam();
    state.apply_action({Player::one, cards[0]});
    state.apply_action({Player::two, cards[1]});
-   for(auto action : actions.sequence) {
+   for(auto action : actions) {
       state.apply_action(action);
    }
    for(size_t player = 0; player < 2; player++) {

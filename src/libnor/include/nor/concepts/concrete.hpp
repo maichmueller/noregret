@@ -227,9 +227,10 @@ concept fosg =
    && has::method::public_observation< Env, Action&, Observation >
    && has::method::reward< const Env, Worldstate >
    && has::method::is_terminal< Env, Worldstate& >
-   && has::method::is_competing< Env, Worldstate >
-   && has::method::history< Env, Worldstate, Action, ChanceOutcomeType >
-   && has::method::history_full< Env, Worldstate, Action, ChanceOutcomeType >
+   && has::method::is_partaking< Env, Worldstate >
+   && has::method::private_history< Env, Worldstate, Action, ChanceOutcomeType >
+   && has::method::public_history< Env, Worldstate, Action, ChanceOutcomeType >
+   && has::method::open_history< Env, Worldstate, Action, ChanceOutcomeType >
    && has::method::active_player< Env >
    && has::method::players< Env, Worldstate >
    && has::method::max_player_count< Env >

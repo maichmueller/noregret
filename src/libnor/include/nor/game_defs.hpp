@@ -5,6 +5,7 @@
 namespace nor {
 
 enum class Player {
+   unknown = -2,
    chance = -1,
    alex = 0,
    bob = 1,
