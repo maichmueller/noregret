@@ -244,7 +244,9 @@ template <
       std::monostate,
       typename fosg_auto_traits< Env >::chance_outcome_type > >
 // clang-format off
-concept supports_open_history = has::method::open_history< Env, Worldstate, Action, ChanceOutcomeType >;
+concept supports_open_history =
+      has::method::open_history< Env, Worldstate, Action, ChanceOutcomeType >;
+// clang-format on
 
 template <
    typename Env,
@@ -258,6 +260,7 @@ template <
 concept supports_private_history =
       has::method::private_history< Env, Worldstate, Action, ChanceOutcomeType >
    && has::method::public_history< Env, Worldstate, Action, ChanceOutcomeType > ;
+// clang-format on
 
 template <
    typename Env,
@@ -271,6 +274,7 @@ template <
 concept supports_all_histories =
       supports_private_history< Env, Action, Worldstate, ChanceOutcomeType>
    && supports_open_history< Env, Action, Worldstate, ChanceOutcomeType>;
+// clang-format on
 
 template <
    typename Env,
