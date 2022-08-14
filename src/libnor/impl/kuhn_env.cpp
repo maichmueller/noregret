@@ -130,7 +130,9 @@ nor::games::kuhn::Environment::private_history(
       }
 
       if(i == static_cast< size_t >(player)) {
-         out.emplace_back(outcome_opt.value(), Player::chance);
+         out.emplace_back(
+            chance_outcome_type{.player = kuhn::Player(i), .card = outcome_opt.value()},
+            Player::chance);
       } else {
          out.emplace_back(std::nullopt, Player::chance);
       }
