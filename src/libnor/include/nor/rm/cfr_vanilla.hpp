@@ -465,7 +465,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       [&] {
          std::unordered_map< Player, std::vector< observation_type > > obs_map;
          auto players = _env().players(*_root_state_uptr());
-         for(auto player : players | utils::is_nonchance_player_filter) {
+         for(auto player : players | utils::is_actual_player_filter) {
             obs_map.emplace(player, std::vector< observation_type >{});
          }
          return ObservationbufferMap{std::move(obs_map)};
@@ -473,7 +473,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       [&] {
          std::unordered_map< Player, sptr< info_state_type > > infostates;
          auto players = _env().players(*_root_state_uptr());
-         for(auto player : players | utils::is_nonchance_player_filter) {
+         for(auto player : players | utils::is_actual_player_filter) {
             auto& infostate = infostates
                                  .emplace(player, std::make_shared< info_state_type >(player))
                                  .first->second;

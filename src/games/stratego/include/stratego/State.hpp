@@ -66,7 +66,7 @@ class History {
    auto pop_last()
    {
       /**
-       * @brief Remove the latest entries from the history. Return the
+       * @brief Remove the latest entries from the private_history. Return the
        * contents, that were removed.
        * @return tuple,
        *  all removed entries in sequence: turn, team, move, pieces

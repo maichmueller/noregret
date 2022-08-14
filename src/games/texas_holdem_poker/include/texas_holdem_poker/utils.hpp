@@ -98,6 +98,18 @@ struct hash< kuhn::ChanceOutcome > {
       return std::hash< std::string >{}(ss.str());
    }
 };
+
+template <>
+struct hash< texholdem::Card > {
+   size_t operator()(const texholdem::Card &card) const
+   {
+      size_t hash = std::hash< texholdem::Rank >{}(card.rank);
+      common::hash_combine(hash, std::hash< texholdem::Suit >{}(card.suit));
+      return hash;
+   }
+};
+
+
 }  // namespace std
 
 #endif  // NOR_TEXAS_HOLDEM_POKER_UTILS_HPP

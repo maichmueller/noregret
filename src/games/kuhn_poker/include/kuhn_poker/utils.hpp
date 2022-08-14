@@ -101,7 +101,7 @@ struct hash< kuhn::History > {
    size_t operator()(const kuhn::History &history) const
    {
       std::stringstream ss;
-      for(auto action : history.sequence) {
+      for(auto action : history) {
          ss << std::to_string(static_cast< int >(action));
       }
       return std::hash< std::string >{}(ss.str());

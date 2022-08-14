@@ -187,6 +187,19 @@ concept chance_distribution =
       >;
 // clang-format on
 
+template < typename Env >
+// clang-format off
+concept deterministic_env =
+/**/ requires (Env e) {
+         // checks if the stochasticity function is static and constexpr
+         {std::bool_constant< (Env::stochasticity(), true) >() } -> std::same_as<std::true_type>;
+         // checks if the function is also giving the correct value
+         requires(
+            Env::stochasticity() == Stochasticity::deterministic
+         );
+      };
+// clang-format on
+
 template <
    typename Env,
    typename Action = typename nor::fosg_auto_traits< Env >::action_type,
@@ -202,15 +215,15 @@ concept fosg =
    && public_state< Publicstate >
    && world_state< Worldstate >
    && is::copyable_someway< Worldstate >
-   && has::method::actions< Env, const Worldstate& >
+   && has::method::actions< Env, Worldstate >
    && has::method::transition< Env, Worldstate& >
-   && has::method::private_observation< Env, Worldstate&, Observation >
-   && has::method::public_observation< Env, Worldstate&, Observation >
-   && has::method::private_observation< Env, Action&, Observation >
-   && has::method::public_observation< Env, Action&, Observation >
+   && has::method::private_observation< Env, Worldstate, Observation >
+   && has::method::public_observation< Env, Worldstate, Observation >
+   && has::method::private_observation< Env, Action, Observation >
+   && has::method::public_observation< Env, Action, Observation >
    && has::method::reward< const Env, Worldstate >
-   && has::method::is_terminal< Env, Worldstate& >
-   && has::method::is_competing< Env >
+   && has::method::is_terminal< Env, Worldstate >
+   && has::method::is_partaking< Env, Worldstate >
    && has::method::active_player< Env >
    && has::method::players< Env, Worldstate >
    && has::method::max_player_count< Env >
@@ -225,18 +238,55 @@ template <
    typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
    typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
    typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
+   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
+   typename ChanceOutcomeType = std::conditional_t<
+      deterministic_env< Env >,
+      std::monostate,
+      typename fosg_auto_traits< Env >::chance_outcome_type > >
+// clang-format off
+concept supports_open_history =
+      has::method::open_history< Env, Worldstate, Action, ChanceOutcomeType >;
+// clang-format on
+
+template <
+   typename Env,
+   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
+   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
+   typename ChanceOutcomeType = std::conditional_t<
+      deterministic_env< Env >,
+      std::monostate,
+      typename fosg_auto_traits< Env >::chance_outcome_type > >
+// clang-format off
+concept supports_private_history =
+      has::method::private_history< Env, Worldstate, Action, ChanceOutcomeType >
+   && has::method::public_history< Env, Worldstate, Action, ChanceOutcomeType > ;
+// clang-format on
+
+template <
+   typename Env,
+   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
+   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
+   typename ChanceOutcomeType = std::conditional_t<
+      deterministic_env< Env >,
+      std::monostate,
+      typename fosg_auto_traits< Env >::chance_outcome_type > >
+// clang-format off
+concept supports_all_histories =
+      supports_private_history< Env, Action, Worldstate, ChanceOutcomeType>
+   && supports_open_history< Env, Action, Worldstate, ChanceOutcomeType>;
+// clang-format on
+
+template <
+   typename Env,
+   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
+   typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
+   typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
+   typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
    typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type >
 // clang-format off
 concept deterministic_fosg =
 /**/  fosg< Env, Action, Observation, Infostate, Publicstate, Worldstate >
-   && requires (Env e) {
-         // checks if the stochasticity function is static and constexpr
-         {std::bool_constant< (Env::stochasticity(), true) >() } -> std::same_as<std::true_type>;
-         // checks if the function is also giving the correct value
-         requires(
-            Env::stochasticity() == Stochasticity::deterministic
-         );
-      };
+   && deterministic_env< Env >;
 // clang-format on
 
 template < typename Env, typename Policy, typename AveragePolicy >

@@ -41,7 +41,6 @@ class Env {
   public:
    // nor fosg typedefs
    using world_state_type = struct State {
-      int i;
    };
    using info_state_type = Infostate;
    using public_state_type = Publicstate;
@@ -55,8 +54,16 @@ class Env {
 
    std::vector< action_type > actions(nor::Player player, const world_state_type& wstate) const;
    std::vector< action_type > actions(const info_state_type& istate) const;
+   std::vector<
+      nor::PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+   private_history(nor::Player, const world_state_type& wstate) const;
+   std::vector<
+      nor::PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+   public_history(nor::Player, const world_state_type& wstate) const;
+   std::vector< nor::PlayerInformedType< std::variant< std::monostate, action_type > > >
+   open_history(const world_state_type& wstate) const;
    std::vector< nor::Player > players(const world_state_type& wstate);
-   bool is_competing(const world_state_type&, nor::Player);
+   bool is_partaking(const world_state_type&, nor::Player);
    nor::Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate);
    bool is_terminal(world_state_type& wstate);

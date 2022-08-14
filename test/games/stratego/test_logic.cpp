@@ -165,9 +165,9 @@ TEST_P(CheckTerminalParamsF, check_terminal)
    State s_to_test(
       s.config(), s.graveyard(), s.logic()->clone(), s.board(), turn_counter, s.history(), s.rng());
 
-   LOGD2("State to test", s_to_test.to_string());
-   LOGD2("Observed Outcome", common::to_string(s_to_test.logic()->check_terminal(s_to_test)));
-   LOGD2("Expected Outcome", common::to_string(status));
+//   LOGD2("State to test", s_to_test.to_string());
+//   LOGD2("Observed Outcome", common::to_string(s_to_test.logic()->check_terminal(s_to_test)));
+//   LOGD2("Expected Outcome", common::to_string(status));
 
    EXPECT_EQ(s_to_test.logic()->check_terminal(s_to_test), status);
 }

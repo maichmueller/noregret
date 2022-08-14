@@ -151,12 +151,23 @@ inline auto counter(
    return rv;
 }
 
-template < typename Container, typename Accessor >
+template < ranges::range Container, typename Accessor >
 inline auto counter(
    const Container& vals,
    Accessor acc = [](const auto& iter) { return *iter; })
 {
-   std::map< typename Container::mapped_type, unsigned int > rv;
+   using mapped_type = std::remove_cvref_t< decltype(*(vals.begin())) >;
+   constexpr bool hashable_mapped_type =
+      requires(Container t)
+   {
+      std::hash< mapped_type >{}(t);
+      std::equality_comparable< mapped_type >;
+   };
+   std::conditional_t<
+      hashable_mapped_type,
+      std::unordered_map< mapped_type, unsigned int >,
+      std::map< mapped_type, unsigned int > >
+      rv;
 
    for(auto val_iter = vals.begin(); val_iter != vals.end(); ++val_iter) {
       rv[acc(val_iter)]++;
@@ -169,7 +180,7 @@ template < typename T >
 struct Printer;
 
 template < typename T >
-struct Printer<std::span< T >> {
+struct Printer< std::span< T > > {
    std::span< T > value;
    std::string_view delimiter;
 
@@ -203,19 +214,20 @@ constexpr bool is_constexpr(...)
    return false;
 }
 
-template <typename Container, typename T>
-constexpr bool contains(Container cont, T value) {
+template < typename Container, typename T >
+constexpr bool contains(Container cont, T value)
+{
    return std::find(cont.begin(), cont.end(), value) != cont.end();
 }
 
 template < class first, class second, class... types >
-auto min(first f, second s, types... t)
+constexpr auto min(first f, second s, types... t)
 {
    return std::min(f, s) ? min(f, t...) : min(s, t...);
 }
 
 template < class first, class second >
-auto min(first f, second s)
+constexpr auto min(first f, second s)
 {
    return std::min(f, s);
 }

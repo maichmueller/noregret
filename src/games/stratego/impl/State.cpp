@@ -31,7 +31,17 @@ State::State(Config cfg, std::optional< std::variant< size_t, aze::utils::random
       m_logic(std::make_unique< Logic >())
 {
    Logic::place_holes(config(), board());
-   board() = logic()->draw_board(config(), board(), rng(), &Logic::draw_setup_uniform);
+   std::map<Team, std::map< Position, Token>> setups;
+   for(auto team : std::array{Team::BLUE, Team::RED}) {
+        if(not config().setups.at(team).has_value()) {
+           setups.emplace(team, logic()->draw_setup_uniform(config(), board(), team, rng()));
+        } else {
+           setups.emplace(team, config().setups.at(team).value());
+        }
+   }
+   m_config.setups[Team::BLUE] = setups[Team::BLUE];
+   m_config.setups[Team::RED] = setups[Team::RED];
+   logic()->draw_board(config(), board(), setups);
    _fill_dead_pieces();
    status(Status::ONGOING);
 }

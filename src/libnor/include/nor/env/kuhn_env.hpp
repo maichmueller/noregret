@@ -66,20 +66,31 @@ class Environment {
       return wstate.chance_actions();
    }
 
+   std::vector<
+      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+   private_history(Player player, const world_state_type& wstate) const;
+
+   std::vector<
+      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+   public_history(const world_state_type& wstate) const;
+
+   std::vector< PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
+   open_history(const world_state_type& wstate) const;
+
    inline double chance_probability(
       const world_state_type& wstate,
       const chance_outcome_type& outcome) const
    {
       return wstate.chance_probability(outcome);
    }
-   //   std::vector< action_type > actions(const info_state_type& istate) const;
+
    static inline std::vector< Player > players(const world_state_type&)
    {
       return {Player::chance, Player::alex, Player::bob};
    }
    Player active_player(const world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
-   static constexpr bool is_competing(const world_state_type&, Player) { return true; }
+   static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
    void transition(world_state_type& worldstate, const chance_outcome_type& action) const;
@@ -89,6 +100,8 @@ class Environment {
    observation_type public_observation(const world_state_type& wstate) const;
    observation_type public_observation(const action_type& action) const;
    observation_type public_observation(const chance_outcome_type& action) const;
+
+   /// mainly for debug purposes
    observation_type tiny_repr(const world_state_type& wstate) const;
 };
 

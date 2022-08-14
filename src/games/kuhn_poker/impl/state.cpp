@@ -18,7 +18,7 @@ bool State::_has_higher_card(Player player) const
 
 void State::apply_action(Action action)
 {
-   m_history.sequence.emplace_back(action);
+   m_history.emplace_back(action);
    m_active_player = static_cast< Player >(not static_cast< bool >(m_active_player));
 }
 void State::apply_action(ChanceOutcome action)
@@ -45,9 +45,9 @@ int16_t State::payoff(Player player) const
    if(not is_terminal()) {
       return 0;
    }
-   bool p1_has_bet = m_history.sequence.size() < 3 ? m_history.sequence[0] == Action::bet
-                                                   : m_history.sequence[2] == Action::bet;
-   bool p2_has_bet = m_history.sequence[1] == Action::bet;
+   bool p1_has_bet = m_history.size() < 3 ? m_history[0] == Action::bet
+                                                   : m_history[2] == Action::bet;
+   bool p2_has_bet = m_history[1] == Action::bet;
 
    // 2 * x - 1 is a faster computation than std::pow((-1), x)
    for(auto [this_player, has_bet, other_has_bet] : std::array{
@@ -101,7 +101,7 @@ bool State::_all_cards_engaged() const
 
 std::vector< ChanceOutcome > State::chance_actions() const
 {
-   if(not m_history.sequence.empty() or _all_cards_engaged()) {
+   if(not m_history.empty() or _all_cards_engaged()) {
       return {};
    }
    Player player = m_player_cards[0].has_value() ? (Player::two) : (Player::one);

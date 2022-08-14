@@ -54,11 +54,16 @@ class Logic {
 
    template < std::invocable< const Config &, Board &, Team, aze::utils::random::RNG & >
                  SampleStrategyType >
-   Board draw_board(
+   void draw_board(
       const Config &config,
-      Board curr_board,
+      Board& curr_board,
       aze::utils::random::RNG &rng,
       SampleStrategyType setup_sampler = [](...) { return; });
+
+   void draw_board(
+      const Config &config,
+      Board &curr_board,
+      const std::map<Team, std::map< Position, Token >> &setups);
 
    static inline FightOutcome
    fight(const Config &config, const Piece &attacker, const Piece &defender)
@@ -166,9 +171,9 @@ auto Logic::_valid_vectors(Position pos, Range shape, int distance)
 
 template <
    std::invocable< const Config &, Board &, Team, aze::utils::random::RNG & > SampleStrategyType >
-Board Logic::draw_board(
+void Logic::draw_board(
    const Config &config,
-   Board curr_board,
+   Board& curr_board,
    aze::utils::random::RNG &rng,
    SampleStrategyType setup_sampler)
 {
@@ -180,7 +185,7 @@ Board Logic::draw_board(
          place_setup(setup_sampler(config, curr_board, team, rng), curr_board, team);
       }
    }
-   return curr_board;
 }
+
 
 }  // namespace stratego
