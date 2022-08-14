@@ -10,14 +10,14 @@ enum class UpdateMode { simultaneous = 0, alternating = 1 };
 
 enum class CFRWeightingMode {
    // no particular weighting scheme applied to updates of regret or average policy.
-   // Both are incremented by the unweighted increments
+   // Both are incremented by unweighted increments
    uniform = 0,
    // The average policy is being incremented by the weight 't' in iteration 't'
    linear = 1,
-   // Both the regret and average policy are updated by the weights as laid out in
-   // the 'Discounted CFR' algorithm.
+   // Both the regret and average policy are updated by the weights
+   // t^alpha / (t^alpha +1), t^beta / (t^beta + 1), (t / t+1)^gamma
    discounted = 2,
-   // We regret and average policy are weighted by an exponential L1 factor: L1 = r(I,a) - E[v(I)]
+   // The regret and average policy are weighted by an L1 factor: L1(I, a) = r(I,a) - E[v(I)]
    // where r(I,a) is the instantaneous regret and E[v(I)] is the expected value of the infostate
    exponential = 3
 };
