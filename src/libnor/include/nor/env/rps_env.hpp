@@ -65,10 +65,14 @@ class Environment {
 
    std::vector<
       PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
-   history(Player, const world_state_type& wstate) const;
+   private_history(Player player, const world_state_type& wstate) const;
+
+   std::vector<
+      PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+   public_history(const world_state_type& wstate) const;
 
    std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > >
-   history_full(const world_state_type& wstate) const;
+   open_history(const world_state_type& wstate) const;
 
    static inline std::vector< Player > players(const world_state_type&)
    {
@@ -76,7 +80,7 @@ class Environment {
    }
    Player active_player(const world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
-   static constexpr bool is_competing(const world_state_type&, Player) { return true; }
+   static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
    observation_type private_observation(Player player, const world_state_type& wstate) const;

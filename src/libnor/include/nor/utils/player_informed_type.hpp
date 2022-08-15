@@ -7,6 +7,10 @@
 
 namespace nor {
 
+/**
+ * Simple wrapper class to add the corresponding player as a (non-modifiable) member to the type.
+ * @tparam Contained the type to augment with player information
+ */
 template < typename Contained >
 class PlayerInformedType {
   public:
@@ -18,8 +22,9 @@ class PlayerInformedType {
    operator Contained&() { return m_value; }
    /// get the contained value by reference to modify
    auto& value() { return m_value; }
-   /// const accessors of the contained values
+   /// const accessors of the contained value
    [[nodiscard]] auto& value() const { return m_value; }
+   /// access to the corresponding player (non-modifiable)
    [[nodiscard]] Player player() const { return m_player; }
 
    auto to_string() const

@@ -62,12 +62,29 @@ struct VCFRNodeDataSelector {
          double,
          common::ref_wrapper_hasher< const action_type >,
          common::ref_wrapper_comparator< const action_type > > >;
+   /// For regret-based-pruning with CFR+ we need to store the instantenous regret and determine
+   /// after the tree traversal whether to replace the current cumulative regret with the
+   /// instantaneous one (i.e. if r(I, a) > 0 and R^T(I,a) < 0) or do a normal addition to the
+   /// cumulative regret
+   using rbp_cfr_plus_node_type = InfostateNodeData<
+      action_type,
+      // storage_element< 1 >: the instantaneous regret r(I, a) = sum_h r(h, a) will be stored in
+      // the action map
+      std::unordered_map<
+         std::reference_wrapper< const action_type >,
+         double,
+         common::ref_wrapper_hasher< const action_type >,
+         common::ref_wrapper_comparator< const action_type > > >;
 
   public:
    using type = std::conditional_t<
       config.weighting_mode == CFRWeightingMode::exponential,
-      exp_node_type,  // if true, then we need an extra table per node
-      default_data_type >;  // otherwise the standard tables suffice
+      exp_node_type,  // if true, then we need extra tables per node
+      std::conditional_t<
+         config.pruning_mode == CFRPruningMode::regret_based
+            and config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus,
+         rbp_cfr_plus_node_type,  // if true, then we need an extra table for the instant. regret
+         default_data_type > >;  // otherwise the standard tables suffice
 };
 
 inline double _zero(double, size_t)
@@ -92,6 +109,13 @@ struct CFRExponentialParameters {
    double (*beta)(double, size_t) = &detail::_zero;
 };
 
+namespace detail {
+// a verification of the current config correctness
+template < CFRConfig config >
+consteval bool sanity_check_cfr_config();
+
+}  // namespace detail
+
 /**
  * A (Vanilla) Counterfactual Regret Minimization algorithm class following the
  * terminology of the Factored-Observation Stochastic Games (FOSG) formulation.
@@ -109,6 +133,10 @@ class VanillaCFR:
        Policy,
        AveragePolicy > {
   public:
+   static_assert(
+      detail::sanity_check_cfr_config< config >(),
+      "The configuration check did not return TRUE.");
+
    ////////////////////////////
    /// API: public typedefs ///
    ////////////////////////////
@@ -303,7 +331,11 @@ class VanillaCFR:
          return rm::regret_matching(std::forward< Args >(args)...);
       }
       if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
-         return rm::regret_matching_plus(std::forward< Args >(args)...);
+         if constexpr(config.pruning_mode == CFRPruningMode::regret_based) {
+            return rm::regret_matching_plus_rbp(std::forward< Args >(args)...);
+         } else {
+            return rm::regret_matching_plus(std::forward< Args >(args)...);
+         }
       }
    };
 
@@ -465,7 +497,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       [&] {
          std::unordered_map< Player, std::vector< observation_type > > obs_map;
          auto players = _env().players(*_root_state_uptr());
-         for(auto player : players | utils::is_nonchance_player_filter) {
+         for(auto player : players | utils::is_actual_player_filter) {
             obs_map.emplace(player, std::vector< observation_type >{});
          }
          return ObservationbufferMap{std::move(obs_map)};
@@ -473,7 +505,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       [&] {
          std::unordered_map< Player, sptr< info_state_type > > infostates;
          auto players = _env().players(*_root_state_uptr());
-         for(auto player : players | utils::is_nonchance_player_filter) {
+         for(auto player : players | utils::is_actual_player_filter) {
             auto& infostate = infostates
                                  .emplace(player, std::make_shared< info_state_type >(player))
                                  .first->second;
@@ -578,8 +610,18 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 
    // we provide the accessor lambda to get the underlying referenced action, as the infodata
    // stores only reference wrappers to the actions
-   m_regret_minimizer(
-      current_policy, regret_table, [](const action_type& action) { return std::ref(action); });
+   if constexpr(
+      config.pruning_mode == CFRPruningMode::regret_based
+      and config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
+      m_regret_minimizer(
+         current_policy,
+         regret_table,
+         [](const action_type& action) { return std::ref(action); },
+         istate_data.template storage_element< 1 >());
+   } else {
+      m_regret_minimizer(
+         current_policy, regret_table, [](const action_type& action) { return std::ref(action); });
+   }
 
    // now we update the current accumulated policy by the iteration factor, again as per
    // discount setting.
@@ -615,7 +657,6 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          "Instant regret values",
          ranges::views::values(istate_data.template storage_element< 1 >()));
       double average_instant_regret = 0.;
-      auto kkkk = istate_data.template storage_element< 1 >();
       ranges::for_each(
          istate_data.template storage_element< 1 >(), [&](auto& actionref_to_instant_regret) {
             auto& [action_ref, instant_regret] = actionref_to_instant_regret;
@@ -704,6 +745,52 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       return StateValueMap{collect_rewards(_env(), *state)};
    }
 
+   if constexpr(config.pruning_mode == CFRPruningMode::partial) {
+      // if all players have 0 reach probability for reaching this infostate then the
+      // entire subtree visited from this infostate can be pruned, since both the regret
+      // updates (depending on the counterfactual values, i.e. pi_{-i}) will be 0, as well
+      // as the average strategy updates (depending on pi_i) will be 0. If only the
+      // opponent reach prob is 0, then we can only skip regret updates which does not
+      // improve the speed much in this implementation.
+      if([&] {
+            if constexpr(config.update_mode == UpdateMode::alternating) {
+               // if one of the opponents' (non traversers') reach prob is 0. then the regret
+               // updates will be skipped. If also the traversing player's reach probability is 0
+               // then the entire subtree is prunable, since the average strategy updates would also
+               // be 0.
+               Player traverser = player_to_update.value();
+               auto traversing_player_rp_is_zero = reach_probability.get()[traverser]
+                                                   <= std::numeric_limits< double >::epsilon();
+               return traversing_player_rp_is_zero
+                      and ranges::any_of(reach_probability.get(), [&](const auto& player_rp_pair) {
+                             const auto& [player, rp] = player_rp_pair;
+                             return player != traverser
+                                    and rp <= std::numeric_limits< double >::epsilon();
+                          });
+            } else {
+               // A mere check on ONE of the opponents having reach prob 0 and the active player
+               // having reach prob 0 would not suffice in the multiplayer case as some average
+               // strategy updates of other opponent with reach prob > 0 would be missed in the case
+               // of simultaneous updates.
+               return ranges::all_of(reach_probability.get(), [&](const auto& player_rp_pair) {
+                  const auto& [player, rp] = player_rp_pair;
+                  return player != Player::chance
+                         and rp <= std::numeric_limits< double >::epsilon();
+               });
+            }
+         }()) {
+         // if the entire subtree is pruned then the values that could be found are all 0. for each
+         // player
+         return StateValueMap{[&] {
+            StateValueMap::UnderlyingType map;
+            for(auto player : _env().players(*state) | utils::is_actual_player_pred) {
+               map[player] = 0.;
+            }
+            return map;
+         }()};
+      }
+   }
+
    Player active_player = _env().active_player(*state);
    sptr< info_state_type > this_infostate = nullptr;
    // the state's value for each player. To be filled by the action traversal functions.
@@ -761,7 +848,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       if constexpr(config.update_mode == UpdateMode::alternating) {
          // in alternating updates, we only update the regret and strategy if the current
          // player is the chosen player to update.
-         if(active_player == player_to_update.value_or(Player::chance)) {
+         if(active_player == player_to_update.value()) {
             update_regret_and_policy(this_infostate, reach_probability, state_value, action_value);
          }
       } else {
@@ -808,12 +895,12 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    }
 
    for(const action_type& action : actions) {
-      uptr< world_state_type > next_wstate_uptr = _child_state(state, action);
+      auto action_prob = action_policy[action] / normalizing_factor;
 
       auto child_reach_prob = reach_probability.get();
-      auto action_prob = action_policy[action] / normalizing_factor;
       child_reach_prob[active_player] *= action_prob;
 
+      uptr< world_state_type > next_wstate_uptr = _child_state(state, action);
       auto [child_observation_buffer, child_infostate_map] = _fill_infostate_and_obs_buffers(
          observation_buffer, infostate_map, action, *next_wstate_uptr);
 
@@ -884,7 +971,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
          return fetch_policy< PolicyLabel::average >(infostate, actions);
       } else {
-         // this value will be ignored so we can simply return anything that is cheap to fetch
+         // this value will be ignored so we can simply return anything that is cheap to fetch (it
+         // has to be an l-value so can't return an r-value like simply 0
          return _env();
       }
    }
@@ -902,10 +990,15 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       // let I be the infostate, p be the player, r the cumulative regret
       //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
-         // all other cfr variants currently implemented need the average regret update at history
-         // update time
-         istatedata.regret(action) += cf_reach_prob
-                                      * (q_value.get().at(player) - player_state_value);
+         if(cf_reach_prob > 0) {
+            // this if statement effectively introduces partial pruning. But this is such a slight
+            // modification (and gain, if any) that it is to be included in all variants of CFR
+            //
+            // all other cfr variants currently implemented need the average regret update at
+            // history update time
+            istatedata.regret(action) += cf_reach_prob
+                                         * (q_value.get().at(player) - player_state_value);
+         }
       } else {
          // for the exponential cfr method we need to remember these regret increments of
          // iteration t, until the end of iteration t, and apply them once we have computed the L1
@@ -941,6 +1034,27 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       istatedata.template storage_element< 2 >() = player_reach_prob;
    }
 }
+
+namespace detail {
+// a verification of the current config correctness
+template < CFRConfig config >
+consteval bool sanity_check_cfr_config()
+{
+   if constexpr(
+      config.weighting_mode == CFRWeightingMode::exponential
+      and config.pruning_mode == CFRPruningMode::regret_based
+      and config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
+      // there is currently no theoretic work on combining these methods and the update rule for the
+      // cumulative regret in both clash with different approaches (exp weighting wants e^L1
+      // weighted updates) while regret-based-pruning with CFR+ wants to replace the
+      // cumulative regret with r(I,a) only if r(I,a) > 0 and R^T(I,a) < 0, otherwise do a normal
+      // cumulative regret update (i.e. R^t+1(I,a) = R^t(I,a) + r(I,a))
+      return false;
+   }
+   return true;
+}
+
+}  // namespace detail
 
 }  // namespace nor::rm
 

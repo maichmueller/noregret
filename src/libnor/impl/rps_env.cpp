@@ -73,14 +73,28 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::tin
    return ss.str();
 }
 std::vector< nor::PlayerInformedType<
+   std::optional< std::variant< std::monostate, nor::games::rps::Environment::action_type > > > >
+nor::games::rps::Environment::public_history(
+   const nor::games::rps::Environment::world_state_type& wstate) const
+{
+   if(wstate.picks()[0].has_value()) {
+      if(wstate.picks()[1].has_value()) {
+         return {{std::nullopt, Player::alex}, {std::nullopt, Player::bob}};
+      }
+      return {{std::nullopt, Player::alex}};
+   }
+   return {};
+}
+
+std::vector< nor::PlayerInformedType<
    std::variant< std::monostate, nor::games::rps::Environment::action_type > > >
-nor::games::rps::Environment::history_full(
+nor::games::rps::Environment::open_history(
    const nor::games::rps::Environment::world_state_type& wstate) const
 {
    std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > > out;
    for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
       if(outcome_opt.has_value()) {
-         out.emplace_back(outcome_opt.value(), to_player(wstate.active_team()));
+         out.emplace_back(outcome_opt.value(), nor::Player(i));
       }
    }
    return out;
@@ -88,7 +102,7 @@ nor::games::rps::Environment::history_full(
 
 std::vector< nor::PlayerInformedType<
    std::optional< std::variant< std::monostate, nor::games::rps::Environment::action_type > > > >
-nor::games::rps::Environment::history(
+nor::games::rps::Environment::private_history(
    nor::Player,
    const nor::games::rps::Environment::world_state_type& wstate) const
 {
@@ -96,9 +110,9 @@ nor::games::rps::Environment::history(
       out;
    for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
       if(outcome_opt.has_value()) {
-         out.emplace_back(outcome_opt.value(), to_player(wstate.active_team()));
+         out.emplace_back(outcome_opt.value(), nor::Player(i));
       } else {
-         out.emplace_back(std::nullopt, to_player(wstate.active_team()));
+         out.emplace_back(std::nullopt, nor::Player(i));
       }
    }
    return out;

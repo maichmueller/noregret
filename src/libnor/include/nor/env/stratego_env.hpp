@@ -54,22 +54,26 @@ class Environment {
    static constexpr TurnDynamic turn_dynamic() { return TurnDynamic::sequential; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
-   explicit Environment(uptr< Logic >&& logic);
+   Environment() = default;
 
    std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
 
    std::vector<
       PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
-   history(Player, const world_state_type& wstate) const;
+   private_history(Player player, const world_state_type& wstate) const;
+
+   std::vector<
+      PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+   public_history(const world_state_type& wstate) const;
 
    std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > >
-   history_full(const world_state_type& wstate) const;
+   open_history(const world_state_type& wstate) const;
 
    static inline std::vector< Player > players(const world_state_type&) { return {Player::alex, Player::bob}; }
    Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
-   static constexpr bool is_competing(const world_state_type&, Player) { return true; }
+   static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
    observation_type private_observation(Player player, const world_state_type& wstate) const;
@@ -78,7 +82,6 @@ class Environment {
    observation_type public_observation(const action_type& action) const;
 
   private:
-   uptr< Logic > m_logic;
 
    static double _status_to_reward(Status status, Player player);
 };
@@ -99,10 +102,6 @@ struct fosg_traits< games::stratego::Environment > {
    using public_state_type = nor::games::stratego::Publicstate;
    using action_type = nor::games::stratego::Action;
    using observation_type = nor::games::stratego::Observation;
-
-   static constexpr size_t max_player_count = 2;
-   static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
-   static constexpr Stochasticity stochasticity = Stochasticity::deterministic;
 };
 
 }  // namespace nor

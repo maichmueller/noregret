@@ -36,11 +36,13 @@ using DefaultPlayerMap = Map< Key, Value, Args... >;
 namespace nor::utils {
 
 constexpr auto is_chance_player_pred = [](Player player) { return player == Player::chance; };
-constexpr auto is_nonchance_player_pred = [](Player player) { return player != Player::chance; };
-constexpr auto is_nonchance_player_filter = ranges::views::filter(is_nonchance_player_pred);
-
-struct empty {
+constexpr auto is_actual_player_pred = [](Player player) {
+   // this comparison also excludes 'player' being 'unknown' (currently set to -2)
+   return static_cast< int >(player) > static_cast< int >(Player::chance);
 };
+constexpr auto is_actual_player_filter = ranges::views::filter(is_actual_player_pred);
+
+struct empty {};
 
 struct hashable_empty {
    constexpr bool operator==(const hashable_empty &) { return true; }
@@ -112,8 +114,8 @@ auto clone_any_way(const T &obj)
 }
 
 template < typename Derived, typename Base, typename Deleter >
-requires std::is_same_v< Deleter, std::default_delete< Base > > std::unique_ptr< Derived >
-static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p) noexcept
+   requires std::is_same_v< Deleter, std::default_delete< Base > >
+std::unique_ptr< Derived > static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p) noexcept
 {
    if constexpr(std::is_same_v< Derived, Base >) {
       return p;
@@ -124,8 +126,9 @@ static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p) noexcept
 }
 
 template < typename Derived, typename DerivedDeleter, typename Base, typename Deleter >
-requires std::convertible_to< Deleter, DerivedDeleter > std::unique_ptr< Derived, DerivedDeleter >
-static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p) noexcept
+   requires std::convertible_to< Deleter, DerivedDeleter >
+std::unique_ptr< Derived, DerivedDeleter > static_unique_ptr_downcast(
+   std::unique_ptr< Base, Deleter > &&p) noexcept
 {
    if constexpr(std::is_same_v< Derived, Base >) {
       return p;
@@ -257,11 +260,14 @@ inline std::string to_string(const nor::Stochasticity &e)
 }
 
 template <>
-struct printable<nor::Player> : std::true_type {};
+struct printable< nor::Player >: std::true_type {
+};
 template <>
-struct printable<nor::TurnDynamic> : std::true_type {};
+struct printable< nor::TurnDynamic >: std::true_type {
+};
 template <>
-struct printable<nor::Stochasticity> : std::true_type {};
+struct printable< nor::Stochasticity >: std::true_type {
+};
 
 template <>
 inline nor::Player from_string< nor::Player >(std::string_view str)
@@ -272,16 +278,14 @@ inline nor::Player from_string< nor::Player >(std::string_view str)
 }  // namespace common
 
 template < nor::concepts::is::enum_ Enum, typename T >
-requires nor::concepts::is::
-   any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity > inline std::string
-   operator+(const T &other, Enum e)
+   requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+inline std::string operator+(const T &other, Enum e)
 {
    return std::string_view(other) + common::to_string(e);
 }
 template < nor::concepts::is::enum_ Enum, typename T >
-requires nor::concepts::is::
-   any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity > inline std::string
-   operator+(Enum e, const T &other)
+   requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+inline std::string operator+(Enum e, const T &other)
 {
    return common::to_string(e) + std::string_view(other);
 }

@@ -200,7 +200,8 @@ void regret_matching(
 }
 
 /**
- * @brief Performs regret-matching on the given policy with respect to the provided regret
+ * @brief Performs regret-matching (plus resetting to 0 if regret < 0) on the given policy with
+ * respect to the provided regret
  *
  * @tparam Action
  * @tparam Policy
@@ -241,6 +242,58 @@ void regret_matching_plus(Policy& policy_map, RegretMap& cumul_regret)
 }
 
 /**
+ * @brief Performs regret-matching+ on the given policy with respect to the provided regret when
+ * regret-based-pruning is also performed.
+ *
+ * @tparam Action
+ * @tparam Policy
+ */
+template <
+   typename Policy,
+   typename RegretMap,
+   typename InstantRegretMap,
+   typename Action = typename fosg_auto_traits< Policy >::action_type >
+// clang-format off
+requires
+   concepts::action_policy< Policy >
+   and concepts::map< RegretMap >
+   and std::is_convertible_v< typename RegretMap::mapped_type, double >
+   and concepts::map< InstantRegretMap >
+   and std::is_convertible_v< typename InstantRegretMap::mapped_type, double >
+// clang-format on
+void regret_matching_plus_rbp(
+   Policy& policy_map,
+   RegretMap& cumul_regret_map,
+   InstantRegretMap& instant_regret_map)
+{
+   double pos_regret_sum{0.};
+   for(auto& [action, cumul_reg] : cumul_regret_map) {
+      auto& instant_regret = instant_regret_map[action];
+      cumul_reg = instant_regret > 0. and cumul_reg < 0. ? instant_regret
+                                                         : cumul_reg + instant_regret;
+      instant_regret = 0.;
+      pos_regret_sum += std::max(0., cumul_reg);
+   }
+   // apply the new policy to the vector policy
+   auto exec_policy{std::execution::par_unseq};
+   if(pos_regret_sum > 0) {
+      if(cumul_regret_map.size() != policy_map.size()) {
+         throw std::invalid_argument(
+            "Passed regrets and policy maps do not have the same number of elements");
+      }
+      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+         return std::get< 1 >(
+                   entry) = std::max(0., cumul_regret_map.at(action_wrapper(std::get< 0 >(entry))))
+                            / pos_regret_sum;
+      });
+   } else {
+      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+         return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
+      });
+   }
+}
+
+/**
  * @brief Performs regret-matching on the given policy with respect to the provided regret
  *
  * @tparam Action
@@ -262,25 +315,25 @@ requires
 // clang-format on
 void regret_matching_plus(
    Policy& policy_map,
-   RegretMap& cumul_regret,
+   RegretMap& cumul_regret_map,
    ActionWrapper action_wrapper = [](const Action& action) { return action; })
 {
    double pos_regret_sum{0.};
-   for(auto& [action, regret] : cumul_regret) {
-      regret = std::max(0., regret);
-      pos_regret_sum += regret;
+   for(auto& [action, cumul_regret] : cumul_regret_map) {
+      cumul_regret = std::max(0., cumul_regret);
+      pos_regret_sum += cumul_regret;
    }
    // apply the new policy to the vector policy
    auto exec_policy{std::execution::par_unseq};
    if(pos_regret_sum > 0) {
-      if(cumul_regret.size() != policy_map.size()) {
+      if(cumul_regret_map.size() != policy_map.size()) {
          throw std::invalid_argument(
             "Passed regrets and policy maps do not have the same number of elements");
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(entry) = std::max(
-                                          0., cumul_regret.at(action_wrapper(std::get< 0 >(entry))))
-                                       / pos_regret_sum;
+         return std::get< 1 >(
+                   entry) = std::max(0., cumul_regret_map.at(action_wrapper(std::get< 0 >(entry))))
+                            / pos_regret_sum;
       });
    } else {
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
@@ -322,7 +375,7 @@ auto collect_rewards(
          players, [&](Player player) { rewards.emplace(player, all_rewards[player]); });
    } else {
       // otherwise we just loop over the per player reward method
-      for(auto player : players | utils::is_nonchance_player_filter) {
+      for(auto player : players | utils::is_actual_player_filter) {
          rewards.emplace(player, env.reward(player, terminal_wstate));
       }
       return rewards;
