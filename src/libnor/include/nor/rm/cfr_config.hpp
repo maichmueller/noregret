@@ -22,10 +22,24 @@ enum class CFRWeightingMode {
    exponential = 3
 };
 
+enum class CFRPruningMode {
+   // No pruning
+   none = 0,
+   // Partial pruning drops the a subtree if a player policy upstream hits 0
+   partial = 1,
+   // Regret-based pruning skips subtrees for all t > t_0 if an action's regret is < 0 at time t_0
+   // and updates upon take up t_1 with a best response against the average strategy of the
+   // opponents during this period.
+   regret_based = 2,
+   //
+   dynamic_thresholding = 3
+};
+
 struct CFRConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
    CFRWeightingMode weighting_mode = CFRWeightingMode::uniform;
+   CFRPruningMode pruning_mode = CFRPruningMode::none;
 };
 
 struct CFRPlusConfig {
