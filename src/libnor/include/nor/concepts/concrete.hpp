@@ -203,12 +203,12 @@ concept deterministic_env =
 template <
    typename Env,
    typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
-   typename Action = typename fosg_auto_traits< Env >::chance_outcome_type >
+   typename Outcome = typename fosg_auto_traits< Env >::chance_outcome_type >
 // clang-format off
 concept stochastic_env =
 /**/  not deterministic_env< Env >
-   && has::method::chance_actions< Env, Worldstate, Action  >
-   && has::method::chance_probability< Env, Worldstate, Action >;
+   && has::method::chance_actions< Env, Worldstate, Outcome  >
+   && has::method::chance_probability< Env, Worldstate, Outcome >;
 // clang-format on
 
 template <
@@ -217,7 +217,8 @@ template <
    typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
    typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
    typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
-   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type >
+   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
+   typename Outcome = typename nor::fosg_auto_traits< Env >::chance_outcome_type >
 // clang-format off
 concept fosg =
 /**/  action< Action >
@@ -241,7 +242,7 @@ concept fosg =
    && has::method::player_count< Env >
    && has::method::stochasticity< Env >
    && has::method::turn_dynamic< Env >
-   && (deterministic_env < Env > or stochastic_env< Env, Worldstate, Action >);
+   && (deterministic_env < Env > or stochastic_env< Env, Worldstate, Outcome >);
 // clang-format on
 
 template <

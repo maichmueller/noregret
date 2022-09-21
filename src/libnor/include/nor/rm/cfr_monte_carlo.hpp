@@ -562,7 +562,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          _env().transition(state, chosen_outcome);
 
          fill_infostate_and_obs_buffers_inplace(
-            observation_buffer, infostates, chosen_outcome, state);
+            _env(), observation_buffer, infostates, chosen_outcome, state);
 
          return _traverse(
             player_to_update,
@@ -606,11 +606,13 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    auto next_weights = weights.get();
    next_reach_prob[active_player] *= action_policy_prob;
    next_weights[active_player] = next_weights[active_player] * action_policy_prob
-                                 + infonode_data.template storage_element<1>(std::cref(sampled_action));
+                                 + infonode_data.template storage_element< 1 >(
+                                    std::cref(sampled_action));
 
    _env().transition(state, sampled_action);
 
-   fill_infostate_and_obs_buffers_inplace(observation_buffer, infostates, sampled_action, state);
+   fill_infostate_and_obs_buffers_inplace(
+      _env(), observation_buffer, infostates, sampled_action, state);
 
    auto [action_value_map, tail_prob] = _traverse(
       player_to_update,
@@ -700,7 +702,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          _env().transition(state, chosen_outcome);
 
          fill_infostate_and_obs_buffers_inplace(
-            observation_buffer, infostates, chosen_outcome, state);
+            _env(), observation_buffer, infostates, chosen_outcome, state);
 
          return _traverse(
             player_to_update,
@@ -743,7 +745,8 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
 
    _env().transition(state, sampled_action);
 
-   fill_infostate_and_obs_buffers_inplace(observation_buffer, infostates, sampled_action, state);
+   fill_infostate_and_obs_buffers_inplace(
+      _env(), observation_buffer, infostates, sampled_action, state);
 
    auto [action_value_map, tail_prob] = _traverse(
       player_to_update,
@@ -880,9 +883,9 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
       auto policy_incr = (weight.get() + reach_prob.get()) * current_policy[action];
       avg_policy[action] += policy_incr;
       if(action == sampled_action) [[unlikely]] {
-         infonode_data.template storage_element<1>(std::cref(action)) = 0.;
+         infonode_data.template storage_element< 1 >(std::cref(action)) = 0.;
       } else [[likely]] {
-         infonode_data.template storage_element<1>(std::cref(action)) += policy_incr;
+         infonode_data.template storage_element< 1 >(std::cref(action)) += policy_incr;
       }
    }
 }
@@ -901,7 +904,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
    auto& avg_policy = fetch_policy< false >(infostate, infonode_data.actions());
 
    if constexpr(config.weighting == MCCFRWeightingMode::optimistic) {
-      auto& infostate_last_visit = infonode_data.template storage_element<1>();
+      auto& infostate_last_visit = infonode_data.template storage_element< 1 >();
       auto current_iter = _iteration();
       // we add + 1 to the current iter counter, since the iterations start counting at 0
       auto last_visit_difference = static_cast< double >(1 + current_iter - infostate_last_visit);
@@ -1040,7 +1043,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          _env().transition(*state, chosen_outcome);
 
          fill_infostate_and_obs_buffers_inplace(
-            observation_buffer, infostates, chosen_outcome, *state);
+            _env(), observation_buffer, infostates, chosen_outcome, *state);
 
          return _traverse(
             player_to_update,
@@ -1084,7 +1087,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          _env().transition(*next_state, action);
 
          auto [next_observation_buffer, next_infostates] = fill_infostate_and_obs_buffers(
-            observation_buffer, infostates, action, *next_state);
+            _env(), observation_buffer, infostates, action, *next_state);
 
          double action_value_estimate = _traverse(
                                            player_to_update,
@@ -1112,7 +1115,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       _env().transition(*state, sampled_action);
 
       fill_infostate_and_obs_buffers_inplace(
-         observation_buffer, infostates, sampled_action, *state);
+         _env(), observation_buffer, infostates, sampled_action, *state);
 
       double action_value_estimate = _traverse(
                                         player_to_update,

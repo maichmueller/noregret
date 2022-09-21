@@ -63,7 +63,7 @@ auto fill_infostate_and_obs_buffers(
    const Worldstate& state)
 {
    fill_infostate_and_obs_buffers_inplace(
-      observation_buffer, infostate_map, action_or_outcome, state);
+      env, observation_buffer, infostate_map, action_or_outcome, state);
    return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
 }
 

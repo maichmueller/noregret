@@ -41,8 +41,8 @@ struct chance_outcome_type_trait {
 };
 
 template < typename HeadT, typename... TailTs >
-requires(concepts::has::trait::chance_outcome_type<
-         HeadT >) struct chance_outcome_type_trait< HeadT, TailTs... > {
+requires(concepts::has::trait::chance_outcome_type< HeadT >)
+struct chance_outcome_type_trait< HeadT, TailTs... > {
    using type = typename HeadT::chance_outcome_type;
 };
 

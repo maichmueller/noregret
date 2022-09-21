@@ -105,10 +105,10 @@ template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Outcome = typename T::chance_outcome_type >
-concept chance_actions = requires(T const t, Worldstate worldstate, Player player) {
+concept chance_actions = requires(T const t, Worldstate worldstate) {
                             // legal actions getter for the given player
                             {
-                               t.chance_actions(player, worldstate)
+                               t.chance_actions(worldstate)
                                } -> std::convertible_to< std::vector< Outcome > >;
                          };
 
