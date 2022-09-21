@@ -27,7 +27,6 @@
 
 namespace nor::rm {
 
-
 /**
  * A Counterfactual Regret Minimization algorithm base class following the
  * terminology of the Factored-Observation Stochastic Games (FOSG) formulation.
@@ -235,17 +234,6 @@ class TabularCFRBase {
       }
    }
 
-   uptr< world_state_type > _child_state(const uptr< world_state_type >& state, const auto& action)
-   {
-      // clone the current world state first before transitioniong it with this action
-      uptr< world_state_type >
-         next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(state));
-      // move the new world state forward by the current action
-      _env().transition(*next_wstate_uptr, action);
-      return next_wstate_uptr;
-   }
-
    ///////////////////////////////////////////
    /// private member variable definitions ///
    ///////////////////////////////////////////
@@ -253,13 +241,13 @@ class TabularCFRBase {
   private:
    /// the environment object to maneuver the states with.
    env_type m_env;
-   /// the game tree mapping information states to the associated game nodes.
+   /// the root game state.
    uptr< world_state_type > m_root_state;
-   /// the current policy $\pi^t$ that each player is following in this iteration (t).
+   /// a map of the current policy $\pi^t$ that each player is following in this iteration (t).
    std::unordered_map< Player, Policy > m_curr_policy;
    /// the average policy table. The values stored in this table are the UNNORMALIZED average state
-   /// policies. This means that the state policy p(s, . ) for a given info state s needs to
-   /// normalize its probabilities p(s, . ) by \sum_a p(s,a) when used for evaluation.
+   /// policy cumulative values. This means that the state policy p(s, . ) for a given info state s
+   /// needs to normalize its probabilities p(s, . ) by \sum_a p(s,a) when used for evaluation.
    std::unordered_map< Player, AveragePolicy > m_avg_policy;
    /// the next player to update when doing alternative updates. Otherwise this member will be
    /// unused.

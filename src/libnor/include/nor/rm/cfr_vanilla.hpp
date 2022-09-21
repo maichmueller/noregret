@@ -310,7 +310,6 @@ class VanillaCFR:
    using base::_average_policy;
    using base::_player_update_schedule;
    using base::_cycle_player_to_update;
-   using base::_child_state;
 
    /// the relevant data stored at each infostate
    std::unordered_map<
@@ -819,7 +818,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    // now we check first if we even need to consider a chance player, as the env could be simply
    // deterministic. In that case we might need to traverse the chance player's actions or an
    // active player's actions
-   if constexpr(not concepts::deterministic_fosg< env_type >) {
+   if constexpr(concepts::stochastic_env< env_type >) {
       if(active_player == Player::chance) {
          _traverse_chance_actions< initialize_infonodes, use_current_policy >(
             player_to_update,
@@ -899,7 +898,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       auto child_reach_prob = reach_probability.get();
       child_reach_prob[active_player] *= action_prob;
 
-      uptr< world_state_type > next_wstate_uptr = _child_state(state, action);
+      uptr< world_state_type > next_wstate_uptr = child_state(state, action);
       auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
          _env(), observation_buffer, infostate_map, action, *next_wstate_uptr);
 
@@ -931,7 +930,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
    std::unordered_map< action_variant_type, StateValueMap >& action_value)
 {
    for(auto&& outcome : _env().chance_actions(*state)) {
-      uptr< world_state_type > next_wstate_uptr = _child_state(state, outcome);
+      uptr< world_state_type > next_wstate_uptr = child_state(state, outcome);
 
       auto child_reach_prob = reach_probability.get();
       auto outcome_prob = _env().chance_probability(*state, outcome);

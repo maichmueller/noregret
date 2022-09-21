@@ -53,11 +53,13 @@ template <
    typename Env,
    typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
    typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
-   typename Observation = typename fosg_auto_traits< Env >::observation_type >
-   requires concepts::fosg< Env >
+   typename Observation = typename fosg_auto_traits< Env >::observation_type,
+   typename ObsBufferMap >
+   requires concepts::fosg<
+      Env > requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
 auto fill_infostate_and_obs_buffers(
    const Env& env,
-   ObservationbufferMap< Observation > observation_buffer,
+   ObsbufferMap observation_buffer,
    InfostateMap< Infostate > infostate_map,
    const auto& action_or_outcome,
    const Worldstate& state)
@@ -115,6 +117,21 @@ void fill_infostate_and_obs_buffers_inplace(
          infostate_ptr_slot = std::move(cloned_infostate_ptr);
       }
    }
+}
+
+template < concepts::fosg Env, typename Worldstate >
+uptr< Worldstate > child_state(
+   Env& env,
+   const uptr< Worldstate >& state,
+   const auto& action_or_outcome)
+{
+   // clone the current world state first before transitioniong it with this action
+   uptr< world_state_type >
+      next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
+         utils::clone_any_way(state));
+   // move the new world state forward by the current action
+   _env().transition(*next_wstate_uptr, action);
+   return next_wstate_uptr;
 }
 
 template < ranges::range Policy >

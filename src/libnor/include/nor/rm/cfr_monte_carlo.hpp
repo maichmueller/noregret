@@ -237,7 +237,6 @@ class MCCFR:
    using base::_player_update_schedule;
    using base::_cycle_player_to_update;
    using base::_preview_next_player_to_update;
-   using base::_child_state;
 
    /// the relevant data stored at each infostate
    std::unordered_map<
