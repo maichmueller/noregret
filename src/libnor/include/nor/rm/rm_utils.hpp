@@ -25,15 +25,6 @@ using StateValueMap = fluent::
 using ReachProbabilityMap = fluent::
    NamedType< std::unordered_map< Player, double >, struct reach_prob_map_tag >;
 
-template < typename Infostate >
-using InfostateMap = fluent::
-   NamedType< std::unordered_map< Player, sptr< Infostate > >, struct reach_prob_tag >;
-
-template < typename Observation >
-using ObservationbufferMap = fluent::NamedType<
-   std::unordered_map< Player, std::vector< Observation > >,
-   struct observation_buffer_tag >;
-
 /**
  * @brief Fills the infostate of each player with the current observations from the intermittent
  * buffers.
@@ -49,36 +40,24 @@ using ObservationbufferMap = fluent::NamedType<
  * @param state
  * @return
  */
-template <
-   typename Env,
-   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
-   typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
-   typename Observation = typename fosg_auto_traits< Env >::observation_type,
-   typename ObsBufferMap >
-   requires concepts::fosg<
-      Env > requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
-auto fill_infostate_and_obs_buffers(
-   const Env& env,
-   ObsbufferMap observation_buffer,
-   InfostateMap< Infostate > infostate_map,
-   const auto& action_or_outcome,
-   const Worldstate& state)
-{
-   fill_infostate_and_obs_buffers_inplace(
-      env, observation_buffer, infostate_map, action_or_outcome, state);
-   return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
-}
 
 template <
-   typename Env,
+   typename ObsBufferMap,
+   typename InformationStateMap,
+   concepts::fosg Env,
    typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
    typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
    typename Observation = typename fosg_auto_traits< Env >::observation_type >
-   requires concepts::fosg< Env >
+// clang-format off
+requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
+     and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+         or concepts::map< InformationStateMap, Player, Infostate* >
+         or concepts::map< InformationStateMap, Player, Infostate >)
+// clang-format on
 void fill_infostate_and_obs_buffers_inplace(
    const Env& env,
-   ObservationbufferMap< Observation >& observation_buffer,
-   InfostateMap< Infostate >& infostate_map,
+   ObsBufferMap& observation_buffer,
+   InformationStateMap& infostate_map,
    const auto& action_or_outcome,
    const Worldstate& state)
 {
@@ -91,7 +70,7 @@ void fill_infostate_and_obs_buffers_inplace(
          // for all but the active player we simply append action and state observation to the
          // buffer. They will be written to an actual infostate once that player becomes the
          // active player again
-         auto& player_infostate = observation_buffer.get().at(player);
+         auto& player_infostate = observation_buffer.at(player);
          player_infostate.emplace_back(env.private_observation(player, action_or_outcome));
          player_infostate.emplace_back(env.private_observation(player, state));
       } else {
@@ -101,36 +80,71 @@ void fill_infostate_and_obs_buffers_inplace(
 
          // we are taking the reference here to the position of this infostate in the map, in order
          // to replace it later without needing to refetch it.
-         auto& infostate_ptr_slot = infostate_map.get().at(active_player);
-         auto cloned_infostate_ptr = utils::clone_any_way(infostate_ptr_slot);
+         auto& infostate_slot = infostate_map.at(active_player);
+         auto cloned_infostate = utils::clone_any_way(infostate_slot);
+         auto appender = [&]<typename Container>(Container& c, auto elem) {
+            if constexpr(
+               // clang-format off
+               concepts::is::smart_pointer_like< Container >
+                  or std::is_pointer_v< Container >
+               // clang-format on
+            ) {
+               c->append(std::move(elem));
+            } else {
+               c.append(std::move(elem));
+            }
+         };
          // we consume these observations by moving them into the appendix of the infostates. The
          // clearled observation buffer is still returned and reused, but is now empty. This
          // indicates that this player's recent observations have now been consumed by the
          // infostate.
-         auto& obs_history = observation_buffer.get()[active_player];
+         auto& obs_history = observation_buffer[active_player];
          for(auto& obs : obs_history) {
-            cloned_infostate_ptr->append(std::move(obs));
+            appender(cloned_infostate, std::move(obs));
          }
          obs_history.clear();
-         cloned_infostate_ptr->append(env.private_observation(player, action_or_outcome));
-         cloned_infostate_ptr->append(env.private_observation(player, state));
-         infostate_ptr_slot = std::move(cloned_infostate_ptr);
+         appender(cloned_infostate, env.private_observation(player, action_or_outcome));
+         appender(cloned_infostate, env.private_observation(player, state));
+         infostate_slot = std::move(cloned_infostate);
       }
    }
 }
 
+template <
+   typename ObsBufferMap,
+   typename InformationStateMap,
+   concepts::fosg Env,
+   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
+   typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
+   typename Observation = typename fosg_auto_traits< Env >::observation_type >
+// clang-format off
+requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
+     and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+         or concepts::map< InformationStateMap, Player, Infostate* >
+         or concepts::map< InformationStateMap, Player, Infostate >)
+// clang-format on
+auto fill_infostate_and_obs_buffers(
+   const Env& env,
+   ObsBufferMap observation_buffer,
+   InformationStateMap infostate_map,
+   const auto& action_or_outcome,
+   const Worldstate& state)
+{
+   fill_infostate_and_obs_buffers_inplace(
+      env, observation_buffer, infostate_map, action_or_outcome, state);
+   return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
+}
+
+
 template < concepts::fosg Env, typename Worldstate >
-uptr< Worldstate > child_state(
-   Env& env,
-   const uptr< Worldstate >& state,
-   const auto& action_or_outcome)
+uptr< Worldstate >
+child_state(Env& env, const uptr< Worldstate >& state, const auto& action_or_outcome)
 {
    // clone the current world state first before transitioniong it with this action
-   uptr< world_state_type >
-      next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
-         utils::clone_any_way(state));
+   uptr< Worldstate > next_wstate_uptr = utils::static_unique_ptr_downcast< Worldstate >(
+      utils::clone_any_way(state));
    // move the new world state forward by the current action
-   _env().transition(*next_wstate_uptr, action);
+   env.transition(*next_wstate_uptr, action_or_outcome);
    return next_wstate_uptr;
 }
 

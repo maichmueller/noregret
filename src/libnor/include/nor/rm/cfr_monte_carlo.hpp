@@ -561,7 +561,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          _env().transition(state, chosen_outcome);
 
          fill_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer, infostates, chosen_outcome, state);
+            _env(), observation_buffer.get(), infostates.get(), chosen_outcome, state);
 
          return _traverse(
             player_to_update,
@@ -611,7 +611,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    _env().transition(state, sampled_action);
 
    fill_infostate_and_obs_buffers_inplace(
-      _env(), observation_buffer, infostates, sampled_action, state);
+      _env(), observation_buffer.get(), infostates.get(), sampled_action, state);
 
    auto [action_value_map, tail_prob] = _traverse(
       player_to_update,
@@ -701,7 +701,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          _env().transition(state, chosen_outcome);
 
          fill_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer, infostates, chosen_outcome, state);
+            _env(), observation_buffer.get(), infostates.get(), chosen_outcome, state);
 
          return _traverse(
             player_to_update,
@@ -745,7 +745,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    _env().transition(state, sampled_action);
 
    fill_infostate_and_obs_buffers_inplace(
-      _env(), observation_buffer, infostates, sampled_action, state);
+      _env(), observation_buffer.get(), infostates.get(), sampled_action, state);
 
    auto [action_value_map, tail_prob] = _traverse(
       player_to_update,
@@ -1042,7 +1042,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          _env().transition(*state, chosen_outcome);
 
          fill_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer, infostates, chosen_outcome, *state);
+            _env(), observation_buffer.get(), infostates.get(), chosen_outcome, *state);
 
          return _traverse(
             player_to_update,
@@ -1081,18 +1081,16 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       value_estimates.reserve(infonode_data.actions().size());
 
       for(const auto& action : infonode_data.actions()) {
-         auto next_state = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(state));
-         _env().transition(*next_state, action);
+         auto next_state = child_state(_env(), state, action);
 
          auto [next_observation_buffer, next_infostates] = fill_infostate_and_obs_buffers(
-            _env(), observation_buffer, infostates, action, *next_state);
+            _env(), observation_buffer.get(), infostates.get(), action, *next_state);
 
          double action_value_estimate = _traverse(
                                            player_to_update,
                                            std::move(next_state),
-                                           std::move(next_observation_buffer),
-                                           std::move(next_infostates))
+                                           ObservationbufferMap{std::move(next_observation_buffer)},
+                                           InfostateMap{std::move(next_infostates)})
                                            .get();
          value_estimates.emplace(action, action_value_estimate);
          state_value_estimate += action_value_estimate * player_policy[action];
@@ -1114,13 +1112,13 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       _env().transition(*state, sampled_action);
 
       fill_infostate_and_obs_buffers_inplace(
-         _env(), observation_buffer, infostates, sampled_action, *state);
+         _env(), observation_buffer.get(), infostates.get(), sampled_action, *state);
 
       double action_value_estimate = _traverse(
                                         player_to_update,
                                         std::move(state),
-                                        std::move(observation_buffer),
-                                        std::move(infostates))
+                                        ObservationbufferMap{std::move(observation_buffer)},
+                                        InfostateMap{std::move(infostates)})
                                         .get();
 
       if(active_player == _preview_next_player_to_update()) {

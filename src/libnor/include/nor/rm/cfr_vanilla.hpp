@@ -898,9 +898,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       auto child_reach_prob = reach_probability.get();
       child_reach_prob[active_player] *= action_prob;
 
-      uptr< world_state_type > next_wstate_uptr = child_state(state, action);
+      uptr< world_state_type > next_wstate_uptr = child_state(_env(), state, action);
       auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
-         _env(), observation_buffer, infostate_map, action, *next_wstate_uptr);
+         _env(), observation_buffer.get(), infostate_map.get(), action, *next_wstate_uptr);
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
          player_to_update,
@@ -930,14 +930,14 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
    std::unordered_map< action_variant_type, StateValueMap >& action_value)
 {
    for(auto&& outcome : _env().chance_actions(*state)) {
-      uptr< world_state_type > next_wstate_uptr = child_state(state, outcome);
+      uptr< world_state_type > next_wstate_uptr = child_state(_env(), state, outcome);
 
       auto child_reach_prob = reach_probability.get();
       auto outcome_prob = _env().chance_probability(*state, outcome);
       child_reach_prob[active_player] *= outcome_prob;
 
       auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
-         _env(), observation_buffer, infostate_map, outcome, *next_wstate_uptr);
+         _env(), observation_buffer.get(), infostate_map.get(), outcome, *next_wstate_uptr);
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
          player_to_update,
