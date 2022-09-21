@@ -202,6 +202,17 @@ concept deterministic_env =
 
 template <
    typename Env,
+   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
+   typename Action = typename fosg_auto_traits< Env >::chance_outcome_type >
+// clang-format off
+concept stochastic_env =
+/**/  not deterministic_env< Env >
+   && has::method::chance_actions< Env, Worldstate, Action  >
+   && has::method::chance_probability< Env, Worldstate, Action >;
+// clang-format on
+
+template <
+   typename Env,
    typename Action = typename nor::fosg_auto_traits< Env >::action_type,
    typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
    typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
@@ -229,7 +240,8 @@ concept fosg =
    && has::method::max_player_count< Env >
    && has::method::player_count< Env >
    && has::method::stochasticity< Env >
-   && has::method::turn_dynamic< Env >;
+   && has::method::turn_dynamic< Env >
+   && (deterministic_env < Env > or stochastic_env< Env, Worldstate, Action >);
 // clang-format on
 
 template <
@@ -276,6 +288,9 @@ concept supports_all_histories =
    && supports_open_history< Env, Action, Worldstate, ChanceOutcomeType>;
 // clang-format on
 
+// template < typename Env >
+// concept supports_adhoc_infostate = supports_adhoc_infostate< Env >;
+
 template <
    typename Env,
    typename Action = typename nor::fosg_auto_traits< Env >::action_type,
@@ -285,6 +300,19 @@ template <
    typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type >
 // clang-format off
 concept deterministic_fosg =
+/**/  fosg< Env, Action, Observation, Infostate, Publicstate, Worldstate >
+   && deterministic_env< Env >;
+// clang-format on
+
+template <
+   typename Env,
+   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
+   typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
+   typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
+   typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
+   typename Action = typename nor::fosg_auto_traits< Env >::action_type >
+// clang-format off
+concept stochastic_fosg =
 /**/  fosg< Env, Action, Observation, Infostate, Publicstate, Worldstate >
    && deterministic_env< Env >;
 // clang-format on

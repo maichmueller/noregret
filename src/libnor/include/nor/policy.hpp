@@ -10,8 +10,8 @@
 
 namespace nor {
 
-template < typename T, typename...Args >
-inline T _zero(Args&&...args)
+template < typename T, typename... Args >
+inline T _zero(Args&&... args)
 {
    return T(0);
 }
@@ -106,6 +106,7 @@ class HashmapActionPolicy {
          return m_def_value_gen();
       }
    }
+
   private:
    map_type m_map;
    default_value_generator m_def_value_gen;
@@ -142,10 +143,11 @@ class UniformPolicy {
 
    UniformPolicy() = default;
 
-   auto operator[](const std::pair<
-                   info_state_type,
-                   std::vector< typename fosg_auto_traits< action_policy_type >::action_type > >&
-                      infostate_legalactions) const
+   auto operator[](
+      const std::pair<
+         const info_state_type&,
+         const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >& >&
+         infostate_legalactions) const
    {
       if constexpr(extent == std::dynamic_extent) {
          const auto& [info_state, legal_actions] = infostate_legalactions;
@@ -178,10 +180,11 @@ class ZeroDefaultPolicy {
 
    ZeroDefaultPolicy() = default;
 
-   auto operator[](const std::pair<
-                   info_state_type,
-                   std::vector< typename fosg_auto_traits< action_policy_type >::action_type > >&
-                      infostate_legalactions) const
+   auto operator[](
+      const std::pair<
+         const info_state_type&,
+         const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >& >&
+         infostate_legalactions) const
    {
       if constexpr(extent == std::dynamic_extent) {
          const auto& [info_state, legal_actions] = infostate_legalactions;
@@ -216,7 +219,8 @@ class TabularPolicy {
    using table_type = Table;
 
    TabularPolicy()
-      requires common::all_predicate_v< std::is_default_constructible, table_type, default_policy_type >
+      requires common::
+                  all_predicate_v< std::is_default_constructible, table_type, default_policy_type >
    = default;
    TabularPolicy(table_type table) : m_table(std::move(table)) {}
    TabularPolicy(table_type table, default_policy_type default_policy)
@@ -241,21 +245,26 @@ class TabularPolicy {
       return m_table.find(infostate);
    }
 
-   const action_policy_type& operator[](
-      const std::pair< info_state_type, std::vector< action_type > >& state_any_pair) const
+   const action_policy_type& operator[](const info_state_type& infostate) const
    {
-      const auto& infostate = std::get< 0 >(state_any_pair);
       return m_table.at(infostate);
    }
 
+   const action_policy_type& operator[](
+      const std::pair< const info_state_type&, const std::vector< action_type >& >& state_any_pair)
+      const
+   {
+      return (*this)[std::get< 0 >(state_any_pair)];
+   }
+
    action_policy_type& operator[](
-      const std::pair< info_state_type, std::vector< action_type > >& state_action_pair)
+      const std::pair< const info_state_type&, const std::vector< action_type >& >&
+         state_action_pair)
    {
       const auto& infostate = std::get< 0 >(state_action_pair);
       auto found_action_policy = find(infostate);
       if(found_action_policy == m_table.end()) {
-         return m_table.emplace(infostate, m_default_policy[state_action_pair])
-            .first->second;
+         return m_table.emplace(infostate, m_default_policy[state_action_pair]).first->second;
       }
       return found_action_policy->second;
    }
@@ -295,36 +304,63 @@ class FixedActionsChanceDistribution {
 template <
    concepts::info_state Infostate,
    concepts::action Action,
-   typename TabularOpponentPolicy,
-   typename Table = std::unordered_map< Infostate, Action > >
-// clang-format off
-requires
-   concepts::state_policy<
-      TabularOpponentPolicy,
+   typename Policy,
+   typename... RestPolicies >
+consteval bool _all_state_policies()
+{
+   constexpr bool is_state_policy = concepts::state_policy<
+      Policy,
       Infostate,
       typename fosg_auto_traits< Infostate >::observation_type,
-      Action>
-   && concepts::map< Table, Infostate, Action >
-   // clang-format on
-   class TabularBestResponse {
-   TabularBestResponse(
-      Player best_responding_player,
-      const TabularOpponentPolicy& opponent_policy,
-      Table best_response_table)
-       : m_responder(best_responding_player),
-         m_opponent_policy(&opponent_policy),
-         m_best_response(std::move(best_response_table))
-   {
+      Action >;
+   if constexpr(sizeof...(RestPolicies) > 0) {
+      return is_state_policy and _all_state_policies< RestPolicies... >();
+   } else {
+      return is_state_policy;
    }
+}
+//
+//template <
+//   concepts::fosg Env,
+//   concepts::info_state Infostate = typename fosg_auto_traits< Env >::info_state_type,
+//   concepts::action Action = typename fosg_auto_traits< Env >::action_type,
+//   concepts::action_policy< Action > ActionPolicy = HashmapActionPolicy< Action >,
+//   typename Table = std::unordered_map< Infostate, Action > >
+//// clang-format off
+// requires concepts::map< Table, Infostate, ActionPolicy >
+//// clang-format on
+//class BestResponsePolicy {
+//  public:
+//   using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
+//   using info_state_type =  typename fosg_auto_traits< Env >::info_state_type;
+//   using action_type =  typename fosg_auto_traits< Env >::action_type;
+//   using action_policy_type = ActionPolicy;
+//   using table_type = Table;
+//
+//   BestResponsePolicy(
+//      Player best_response_player,
+//      uptr< world_state_type > root_state,
+//      uptr< Infostate > root_infostate,
+//      OpponentPoliciesMap&& opp_policies)
+//   {
+//      Table br_policy{};
+//
+//   };
+//
+//
+//   template < typename OpponentPoliciesMap = std::unordered_map< Infostate, ActionPolicy >>
+//   requires concepts::map< OpponentPoliciesMap, Infostate, ActionPolicy >
+//   Table compute() {
+//
+//   }
+//
+//  private:
+//   Player m_br_player;
+//   uptr< world_state_type > m_root;
+//   uptr< info_state_type > m_root_infostate;
+//   Table m_best_reponse_map;
+//};
 
-  private:
-   /// the player who is acting according to the best response
-   Player m_responder;
-   /// the tabular opponent policy the given player is searching the best response to
-   const TabularOpponentPolicy* m_opponent_policy;
-   /// the table of a best response to a given infostate
-   Table m_best_response;
-};
 
 }  // namespace nor
 

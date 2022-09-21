@@ -341,7 +341,7 @@ auto TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
 {
    _fill_infostate_and_obs_buffers_inplace(
       observation_buffer, infostate_map, action_or_outcome, state);
-   return std::tuple{observation_buffer, infostate_map};
+   return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
 }
 
 template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
@@ -366,11 +366,18 @@ void TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
          player_infostate.emplace_back(_env().private_observation(player, action_or_outcome));
          player_infostate.emplace_back(_env().private_observation(player, state));
       } else {
-         // for the active player we first append all recent action and state observations to a
+         // for the active player we first append all recent actions and state observations to an
          // info state copy, and then follow it up by adding the current action and state
          // observations
+
+         // we are taking the reference here to the position of this infostate in the map, in order
+         // to replace it later without needing to refetch it.
          auto& infostate_ptr_slot = infostate_map.get().at(active_player);
          auto cloned_infostate_ptr = utils::clone_any_way(infostate_ptr_slot);
+         // we consume these observations by moving them into the appendix of the infostates. The
+         // clearled observation buffer is still returned and reused, but is now empty. This
+         // indicates that this player's recent observations have now been consumed by the
+         // infostate.
          auto& obs_history = observation_buffer.get()[active_player];
          for(auto& obs : obs_history) {
             cloned_infostate_ptr->append(std::move(obs));
