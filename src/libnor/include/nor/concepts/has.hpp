@@ -104,22 +104,22 @@ concept actions = requires(T const t, Worldstate worldstate, Player player) {
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
-   typename Action = typename T::chance_outcome_type >
+   typename Outcome = typename T::chance_outcome_type >
 concept chance_actions = requires(T const t, Worldstate worldstate, Player player) {
                             // legal actions getter for the given player
                             {
                                t.chance_actions(player, worldstate)
-                               } -> std::convertible_to< std::vector< Action > >;
+                               } -> std::convertible_to< std::vector< Outcome > >;
                          };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
-   typename Action = typename T::chance_outcome_type >
-concept chance_probability = requires(T const t, Worldstate worldstate, Action action) {
+   typename Outcome = typename T::chance_outcome_type >
+concept chance_probability = requires(T const t, Worldstate worldstate, Outcome outcome) {
                                 // legal actions getter for the given player
                                 {
-                                   t.chance_probability(worldstate, action)
+                                   t.chance_probability(worldstate, outcome)
                                    } -> std::convertible_to< double >;
                              };
 
