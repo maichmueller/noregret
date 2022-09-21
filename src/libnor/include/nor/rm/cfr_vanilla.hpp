@@ -311,7 +311,6 @@ class VanillaCFR:
    using base::_player_update_schedule;
    using base::_cycle_player_to_update;
    using base::_child_state;
-   using base::_fill_infostate_and_obs_buffers;
 
    /// the relevant data stored at each infostate
    std::unordered_map<
@@ -901,7 +900,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       child_reach_prob[active_player] *= action_prob;
 
       uptr< world_state_type > next_wstate_uptr = _child_state(state, action);
-      auto [child_observation_buffer, child_infostate_map] = _fill_infostate_and_obs_buffers(
+      auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
          observation_buffer, infostate_map, action, *next_wstate_uptr);
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
@@ -938,7 +937,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
       auto outcome_prob = _env().chance_probability(*state, outcome);
       child_reach_prob[active_player] *= outcome_prob;
 
-      auto [child_observation_buffer, child_infostate_map] = _fill_infostate_and_obs_buffers(
+      auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
          observation_buffer, infostate_map, outcome, *next_wstate_uptr);
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(

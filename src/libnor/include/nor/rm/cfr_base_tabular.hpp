@@ -27,6 +27,7 @@
 
 namespace nor::rm {
 
+
 /**
  * A Counterfactual Regret Minimization algorithm base class following the
  * terminology of the Factored-Observation Stochastic Games (FOSG) formulation.
@@ -245,18 +246,6 @@ class TabularCFRBase {
       return next_wstate_uptr;
    }
 
-   auto _fill_infostate_and_obs_buffers(
-      ObservationbufferMap observation_buffer,
-      InfostateMap infostate_map,
-      const auto& action_or_outcome,
-      const world_state_type& state);
-
-   void _fill_infostate_and_obs_buffers_inplace(
-      ObservationbufferMap& observation_buffer,
-      InfostateMap& infostate_map,
-      const auto& action_or_outcome,
-      const world_state_type& state);
-
    ///////////////////////////////////////////
    /// private member variable definitions ///
    ///////////////////////////////////////////
@@ -327,66 +316,6 @@ auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_p
    } else {
       auto& player_policy = m_avg_policy[infostate->player()];
       return player_policy[std::pair{*infostate, actions}];
-   }
-}
-
-template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
-auto TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
-   _fill_infostate_and_obs_buffers(
-      ObservationbufferMap observation_buffer,
-      InfostateMap infostate_map,
-      const auto& action_or_outcome,
-      const world_state_type& state)
-{
-   _fill_infostate_and_obs_buffers_inplace(
-      observation_buffer, infostate_map, action_or_outcome, state);
-   return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
-}
-
-template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
-void TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
-   _fill_infostate_and_obs_buffers_inplace(
-      ObservationbufferMap& observation_buffer,
-      InfostateMap& infostate_map,
-      const auto& action_or_outcome,
-      const world_state_type& state)
-{
-   auto active_player = _env().active_player(state);
-   for(auto player : _env().players(state)) {
-      if(player == Player::chance) {
-         continue;
-      }
-      if(player != active_player) {
-         // for all but the active player we simply append action and state observation to the
-         // buffer. They will be written to an actual infostate once that player becomes the
-         // active player again
-         auto& player_infostate = observation_buffer.get().at(player);
-         player_infostate.emplace_back(_env().private_observation(player, action_or_outcome));
-         player_infostate.emplace_back(_env().private_observation(player, state));
-      } else {
-         // for the active player we first append all recent actions and state observations to an
-         // info state copy, and then follow it up by adding the current action and state
-         // observations
-
-         // we are taking the reference here to the position of this infostate in the map, in order
-         // to replace it later without needing to refetch it.
-         auto& infostate_ptr_slot = infostate_map.get().at(active_player);
-         auto cloned_infostate_ptr = utils::clone_any_way(infostate_ptr_slot);
-         // we consume these observations by moving them into the appendix of the infostates. The
-         // clearled observation buffer is still returned and reused, but is now empty. This
-         // indicates that this player's recent observations have now been consumed by the
-         // infostate.
-         auto& obs_history = observation_buffer.get()[active_player];
-         for(auto& obs : obs_history) {
-            cloned_infostate_ptr->append(std::move(obs));
-         }
-         obs_history.clear();
-         cloned_infostate_ptr->append(_env().private_observation(player, action_or_outcome));
-         cloned_infostate_ptr->append(_env().private_observation(player, state));
-         infostate_ptr_slot = std::move(cloned_infostate_ptr);
-      }
    }
 }
 

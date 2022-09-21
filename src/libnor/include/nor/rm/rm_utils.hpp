@@ -25,6 +25,98 @@ using StateValueMap = fluent::
 using ReachProbabilityMap = fluent::
    NamedType< std::unordered_map< Player, double >, struct reach_prob_map_tag >;
 
+template < typename Infostate >
+using InfostateMap = fluent::
+   NamedType< std::unordered_map< Player, sptr< Infostate > >, struct reach_prob_tag >;
+
+template < typename Observation >
+using ObservationbufferMap = fluent::NamedType<
+   std::unordered_map< Player, std::vector< Observation > >,
+   struct observation_buffer_tag >;
+
+/**
+ * @brief Fills the infostate of each player with the current observations from the intermittent
+ * buffers.
+ *
+ * @tparam Env
+ * @tparam Worldstate
+ * @tparam Infostate
+ * @tparam Observation
+ * @param env
+ * @param observation_buffer
+ * @param infostate_map
+ * @param action_or_outcome
+ * @param state
+ * @return
+ */
+template <
+   typename Env,
+   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
+   typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
+   typename Observation = typename fosg_auto_traits< Env >::observation_type >
+   requires concepts::fosg< Env >
+auto fill_infostate_and_obs_buffers(
+   const Env& env,
+   ObservationbufferMap< Observation > observation_buffer,
+   InfostateMap< Infostate > infostate_map,
+   const auto& action_or_outcome,
+   const Worldstate& state)
+{
+   fill_infostate_and_obs_buffers_inplace(
+      observation_buffer, infostate_map, action_or_outcome, state);
+   return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
+}
+
+template <
+   typename Env,
+   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
+   typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
+   typename Observation = typename fosg_auto_traits< Env >::observation_type >
+   requires concepts::fosg< Env >
+void fill_infostate_and_obs_buffers_inplace(
+   const Env& env,
+   ObservationbufferMap< Observation >& observation_buffer,
+   InfostateMap< Infostate >& infostate_map,
+   const auto& action_or_outcome,
+   const Worldstate& state)
+{
+   auto active_player = env.active_player(state);
+   for(auto player : env.players(state)) {
+      if(player == Player::chance) {
+         continue;
+      }
+      if(player != active_player) {
+         // for all but the active player we simply append action and state observation to the
+         // buffer. They will be written to an actual infostate once that player becomes the
+         // active player again
+         auto& player_infostate = observation_buffer.get().at(player);
+         player_infostate.emplace_back(env.private_observation(player, action_or_outcome));
+         player_infostate.emplace_back(env.private_observation(player, state));
+      } else {
+         // for the active player we first append all recent actions and state observations to an
+         // info state copy, and then follow it up by adding the current action and state
+         // observations
+
+         // we are taking the reference here to the position of this infostate in the map, in order
+         // to replace it later without needing to refetch it.
+         auto& infostate_ptr_slot = infostate_map.get().at(active_player);
+         auto cloned_infostate_ptr = utils::clone_any_way(infostate_ptr_slot);
+         // we consume these observations by moving them into the appendix of the infostates. The
+         // clearled observation buffer is still returned and reused, but is now empty. This
+         // indicates that this player's recent observations have now been consumed by the
+         // infostate.
+         auto& obs_history = observation_buffer.get()[active_player];
+         for(auto& obs : obs_history) {
+            cloned_infostate_ptr->append(std::move(obs));
+         }
+         obs_history.clear();
+         cloned_infostate_ptr->append(env.private_observation(player, action_or_outcome));
+         cloned_infostate_ptr->append(env.private_observation(player, state));
+         infostate_ptr_slot = std::move(cloned_infostate_ptr);
+      }
+   }
+}
+
 template < ranges::range Policy >
 auto& normalize_action_policy_inplace(Policy& policy)
 {
