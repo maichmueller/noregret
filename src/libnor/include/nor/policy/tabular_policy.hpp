@@ -94,7 +94,7 @@ class TabularPolicy {
    action_policy_type operator[](
       std::tuple< const info_state_type&, tag::normalize > infostate_tag) const
    {
-      return rm::normalize_action_policy(m_table.at(std::get< 0 >(infostate_tag)));
+      return normalize_action_policy(m_table.at(std::get< 0 >(infostate_tag)));
    }
 
    action_policy_type operator[](
@@ -109,7 +109,7 @@ class TabularPolicy {
          state_action_pair)
    {
       auto& found_action_policy = find_or_default(state_action_pair)->second;
-      return rm::normalize_action_policy(found_action_policy);
+      return normalize_action_policy(found_action_policy);
    }
 
    [[nodiscard]] auto size() const

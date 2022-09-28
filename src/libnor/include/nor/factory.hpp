@@ -2,12 +2,12 @@
 #ifndef NOR_FACTORY_HPP
 #define NOR_FACTORY_HPP
 
-#include "cfr_discounted.hpp"
-#include "cfr_exponential.hpp"
-#include "cfr_monte_carlo.hpp"
-#include "cfr_plus.hpp"
-#include "cfr_vanilla.hpp"
-#include "policy/policy.hpp"
+#include "nor/policy/policy.hpp"
+#include "nor/rm/cfr_discounted.hpp"
+#include "nor/rm/cfr_exponential.hpp"
+#include "nor/rm/cfr_monte_carlo.hpp"
+#include "nor/rm/cfr_plus.hpp"
+#include "nor/rm/cfr_vanilla.hpp"
 
 namespace nor::rm {
 

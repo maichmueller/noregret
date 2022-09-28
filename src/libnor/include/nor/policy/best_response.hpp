@@ -296,18 +296,24 @@ class BestResponsePolicy {
 
             auto child_traverser = [&](auto state_value_updater) {
                for(auto& [action_variant, child_tuple] : curr_node.children) {
-                  auto& [child_node_uptr, action_prob, action_value_opt] = child_tuple;
-                  // the action_value_optional will only be set if this action leads directly to a
-                  // terminal state. In that case we know exactly what the value of the action is
-                  // and can set fetch it. We don't set the action_value with the computed value
-                  // otherwise, since we are not going to return to this infostate anymore.
+                  const auto& [child_node_uptr, action_prob, action_value_opt] = child_tuple;
+                  // the action_value_optional will only hold a value if this action leads directly
+                  // to a terminal state. In that case we know exactly what the value of the action
+                  // is and can set fetch it. Otherwise, we ask the downstream information state to
+                  // return to us its value in a recursive manner.
+                  // We don't set the action_value with the computed value afterwards, since we are
+                  // not going to query this infostate's actions for values anymore, as by that
+                  // point we already know the complete infostate value to return upon being
+                  // queried.
                   double child_value = action_value_opt.has_value()
                                           ? action_value_opt.value()
                                           : br_recursor_ref(*child_node_uptr, br_recursor_ref);
+                  // the state value is updated depending on the given update rule
                   state_value_updater(action_variant, action_prob, child_value);
                }
             };
 
+            double state_value = 0.;
             if(curr_node.active_player == m_br_player) {
                // if this is an infostate pertaining to the Best Response player then we need to
                // compute:
@@ -315,7 +321,7 @@ class BestResponsePolicy {
                // 2. best_response(I) = argmax_{a}(v(a | I))
                // we return value(I) back up as this infostate's value to the BR player.
                std::optional< action_type > best_action = std::nullopt;
-               double state_value = std::numeric_limits< double >::lowest();
+               state_value = std::numeric_limits< double >::lowest();
                child_traverser([&](const auto& action_variant, Probability, double child_value) {
                   if(child_value > state_value) {
                      // the action variant holds the action type in the second slot
@@ -323,23 +329,20 @@ class BestResponsePolicy {
                      state_value = child_value;
                   }
                });
-               // store this value to not trigger a recomputation upon visit from another Infostate.
-               curr_node.state_value = state_value;
+               // store this value to full the BR policy with the answer for this infostate
                m_best_response.emplace(*(curr_node.infostate), best_action.value());
-               return state_value;
             } else {
                // if this is not an infostate of the Best Response player then it is either a
                // chance node or an opponent node. In both cases we compute:
                //    value(I) = sum_{a}(policy(a | I) * v(a | I))
                // we return value(I) back up as this infostate's value to the BR player.
-               double state_value = 0.;
                child_traverser([&](const auto&, Probability action_prob, double child_value) {
                   state_value += action_prob.get() * child_value;
                });
-               // store this value to not trigger a recomputation upon visit from another Infostate.
-               curr_node.state_value = state_value;
-               return state_value;
             }
+            // store this value to not trigger a recomputation upon visit from another Infostate.
+            curr_node.state_value = state_value;
+            return state_value;
          };
 
          return best_response_recursor_impl(root_node, best_response_recursor_impl);
@@ -347,119 +350,122 @@ class BestResponsePolicy {
    }
 };
 
-//template < concepts::fosg Env, typename StatePolicy, typename ValueTable >
-//auto& BestResponsePolicy< Env, StatePolicy, ValueTable >::_best_response_values(
-//   uptr< world_state_type > wstate,
-//   std::unordered_map< Player, info_state_type > infostates)
+// template < concepts::fosg Env, typename StatePolicy, typename ValueTable >
+// auto& BestResponsePolicy< Env, StatePolicy, ValueTable >::_best_response_values(
+//    uptr< world_state_type > wstate,
+//    std::unordered_map< Player, info_state_type > infostates)
 //{
-//   if(infostates.empty()) {
-//      // if the infostates are all empty then we will be filling them with empty ones, assuming
-//      // this is the root of the game.
-//      for(auto player : m_env->players(*wstate)) {
-//         infostates.emplace(player, info_state_type{player});
-//      }
-//   } else {
-//      if(m_env->players(*wstate) != ranges::to_vector(infostates | ranges::views::keys)) {
-//         throw std::invalid_argument(
-//            "The passed map of infostates does not align with the environment's partaking "
-//            "player "
-//            "list.");
-//      }
-//   }
-//   std::unordered_map< info_state_type, std::unordered_map< action_type, double > >
-//      action_value_table{};
-//   detail::_fill_best_response_values(wstate, std::move(infostates), action_value_table);
-//   return action_value_table;
-//}
+//    if(infostates.empty()) {
+//       // if the infostates are all empty then we will be filling them with empty ones, assuming
+//       // this is the root of the game.
+//       for(auto player : m_env->players(*wstate)) {
+//          infostates.emplace(player, info_state_type{player});
+//       }
+//    } else {
+//       if(m_env->players(*wstate) != ranges::to_vector(infostates | ranges::views::keys)) {
+//          throw std::invalid_argument(
+//             "The passed map of infostates does not align with the environment's partaking "
+//             "player "
+//             "list.");
+//       }
+//    }
+//    std::unordered_map< info_state_type, std::unordered_map< action_type, double > >
+//       action_value_table{};
+//    detail::_fill_best_response_values(wstate, std::move(infostates), action_value_table);
+//    return action_value_table;
+// }
 //
-//template < concepts::fosg Env, typename StatePolicy, typename ValueTable >
-//double BestResponsePolicy< Env, StatePolicy, ValueTable >::_fill_best_response_values(
-//   uptr< world_state_type > wstate,
-//   std::unordered_map< Player, info_state_type > infostates,
-//   std::unordered_map< Player, std::vector< observation_type > > observation_buffer,
-//   Probability opp_reach_prob)
+// template < concepts::fosg Env, typename StatePolicy, typename ValueTable >
+// double BestResponsePolicy< Env, StatePolicy, ValueTable >::_fill_best_response_values(
+//    uptr< world_state_type > wstate,
+//    std::unordered_map< Player, info_state_type > infostates,
+//    std::unordered_map< Player, std::vector< observation_type > > observation_buffer,
+//    Probability opp_reach_prob)
 //{
-//   if(m_env->is_terminal(*wstate)) {
-//      return m_env->reward(m_br_player, *wstate);
-//   }
+//    if(m_env->is_terminal(*wstate)) {
+//       return m_env->reward(m_br_player, *wstate);
+//    }
 //
-//   if constexpr(concepts::stochastic_fosg< Env, world_state_type, action_type >) {
-//      if(m_env->active_player(*wstate) == Player::chance) {
-//         // iterate over all chance outcomes and create the expected value of them. Pass this
-//         // value back up.
+//    if constexpr(concepts::stochastic_fosg< Env, world_state_type, action_type >) {
+//       if(m_env->active_player(*wstate) == Player::chance) {
+//          // iterate over all chance outcomes and create the expected value of them. Pass this
+//          // value back up.
 //
-//         double value = 0.;
-//         for(auto outcome : m_env->chance_outcomes(*wstate)) {
-//            double outcome_prob = m_env->chance_probability(*wstate, outcome);
-//            auto next_state = child_state(*m_env, wstate, outcome);
+//          double value = 0.;
+//          for(auto outcome : m_env->chance_outcomes(*wstate)) {
+//             double outcome_prob = m_env->chance_probability(*wstate, outcome);
+//             auto next_state = child_state(*m_env, wstate, outcome);
 //
-//            auto child_opp_reach = opp_reach_prob.get() * outcome_prob;
+//             auto child_opp_reach = opp_reach_prob.get() * outcome_prob;
 //
-//            auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
-//               *m_env, observation_buffer, infostates, outcome, *next_state);
+//             auto [child_observation_buffer, child_infostate_map] =
+//             fill_infostate_and_obs_buffers(
+//                *m_env, observation_buffer, infostates, outcome, *next_state);
 //
-//            auto child_value = _fill_best_response_values(
+//             auto child_value = _fill_best_response_values(
 //
-//               std::move(next_state),
-//               child_infostate_map,
-//               child_observation_buffer,
-//               Probability{child_opp_reach});
+//                std::move(next_state),
+//                child_infostate_map,
+//                child_observation_buffer,
+//                Probability{child_opp_reach});
 //
-//            value += outcome_prob * child_value;
-//         }
-//         return value;
-//      }
-//   }
+//             value += outcome_prob * child_value;
+//          }
+//          return value;
+//       }
+//    }
 //
-//   Player active_player = m_env->active_player(*wstate);
-//   const auto& curr_infostate = infostates.at(active_player);
-//   auto& child_values = m_value_map[infostates.at(active_player)];
-//   if(active_player == m_br_player) {
-//      // the active player is the best response seeking player
-//      std::optional< action_type > best_response_action = std::nullopt;
-//      double best_response_value = std::numeric_limits< double >::lowest();
-//      for(const auto& action : m_env->actions(active_player, *wstate)) {
-//         auto next_state = child_state(*m_env, wstate, action);
-//         auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
-//            *m_env, observation_buffer, infostates, action, *next_state);
-//         double child_value = _fill_best_response_values(
-//            std::move(next_state), child_infostate_map, child_observation_buffer, opp_reach_prob);
-//         // memorize this action value, so that after the tree traversal we can iterate over them
-//         // and find the maximum, once the values over each history in this information state
-//         // have been accumulated. Note that if this action has never been emplaced before, then
-//         // the bracket operator[] will emplace it with the default value 0., which is precisely
-//         // what we want in this case.
-//         child_values[action] += child_value;
-//         // we only send back up the tree the best value that can be found in this history for
-//         // the best response player
-//         best_response_value = std::max(best_response_value, child_value);
-//      }
-//      return best_response_value;
-//   } else {
-//      // set up the action value and weight containers. These are computed regardless of whether
-//      // the active player is a best responder or not.
-//      auto legal_actions = m_env->actions(active_player, *wstate);
-//      auto opp_action_policy = rm::normalize_action_policy(
-//         m_player_policies.at(active_player)[{curr_infostate, legal_actions}]);
-//      double value = 0.;
-//      for(const auto& action : legal_actions) {
-//         // we first have to compute the weight of this action and the new child reach
-//         // probability from the opponent policy
-//         auto action_prob = opp_action_policy[action];
-//         auto child_opp_reach_prob = opp_reach_prob.get() * action_prob;
+//    Player active_player = m_env->active_player(*wstate);
+//    const auto& curr_infostate = infostates.at(active_player);
+//    auto& child_values = m_value_map[infostates.at(active_player)];
+//    if(active_player == m_br_player) {
+//       // the active player is the best response seeking player
+//       std::optional< action_type > best_response_action = std::nullopt;
+//       double best_response_value = std::numeric_limits< double >::lowest();
+//       for(const auto& action : m_env->actions(active_player, *wstate)) {
+//          auto next_state = child_state(*m_env, wstate, action);
+//          auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
+//             *m_env, observation_buffer, infostates, action, *next_state);
+//          double child_value = _fill_best_response_values(
+//             std::move(next_state), child_infostate_map, child_observation_buffer,
+//             opp_reach_prob);
+//          // memorize this action value, so that after the tree traversal we can iterate over them
+//          // and find the maximum, once the values over each history in this information state
+//          // have been accumulated. Note that if this action has never been emplaced before, then
+//          // the bracket operator[] will emplace it with the default value 0., which is precisely
+//          // what we want in this case.
+//          child_values[action] += child_value;
+//          // we only send back up the tree the best value that can be found in this history for
+//          // the best response player
+//          best_response_value = std::max(best_response_value, child_value);
+//       }
+//       return best_response_value;
+//    } else {
+//       // set up the action value and weight containers. These are computed regardless of whether
+//       // the active player is a best responder or not.
+//       auto legal_actions = m_env->actions(active_player, *wstate);
+//       auto opp_action_policy = rm::normalize_action_policy(
+//          m_player_policies.at(active_player)[{curr_infostate, legal_actions}]);
+//       double value = 0.;
+//       for(const auto& action : legal_actions) {
+//          // we first have to compute the weight of this action and the new child reach
+//          // probability from the opponent policy
+//          auto action_prob = opp_action_policy[action];
+//          auto child_opp_reach_prob = opp_reach_prob.get() * action_prob;
 //
-//         auto next_state = child_state(*m_env, wstate, action);
-//         auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
-//            *m_env, observation_buffer, infostates, action, *next_state);
-//         double child_value = _fill_best_response_values(
-//            std::move(next_state), child_infostate_map, child_observation_buffer, opp_reach_prob);
-//         // at opponent nodes we need to gather the counterfactual expected value of the
-//         // trajectory (history) that we are currently at.
-//         value += child_value * action_prob;
-//      }
-//      return value;
-//   }
-//}
+//          auto next_state = child_state(*m_env, wstate, action);
+//          auto [child_observation_buffer, child_infostate_map] = fill_infostate_and_obs_buffers(
+//             *m_env, observation_buffer, infostates, action, *next_state);
+//          double child_value = _fill_best_response_values(
+//             std::move(next_state), child_infostate_map, child_observation_buffer,
+//             opp_reach_prob);
+//          // at opponent nodes we need to gather the counterfactual expected value of the
+//          // trajectory (history) that we are currently at.
+//          value += child_value * action_prob;
+//       }
+//       return value;
+//    }
+// }
 
 }  // namespace nor::rm
 

@@ -44,6 +44,17 @@ concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
                                              } -> std::same_as< const MappedType& >;
                                        };
 
+template < typename MapLike, typename MappedType = double >
+concept mapping = requires(MapLike m) {
+                     // has to be key-value-like to iterate over values and keys only repsectively
+                     ranges::views::keys(m);
+                     ranges::views::values(m);
+                     // value type has to be convertible to the Mapped Type
+                     std::is_convertible_v<
+                        decltype(*(ranges::views::values(m).begin())),
+                        MappedType >;
+                  };
+
 template < typename T >
 concept action = is::hashable< T > && std::equality_comparable< T >;
 
@@ -114,7 +125,7 @@ template <
    typename Action,
    typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
-concept memorizing_state_policy =
+concept reference_state_policy =
 /**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
    && has::method::getitem_r<
          T,
@@ -123,13 +134,16 @@ concept memorizing_state_policy =
       >;
 // clang-format on
 
+/// The value state policy concept returns values, instead of references upon queries to its bracket
+/// operator. Such queries cannot be written back to, in order to change the state policy.
+/// E.g. neural network based policies would fall under this concept
 template <
    typename T,
    typename Infostate,
    typename Action,
    typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
-concept evaluating_state_policy =
+concept value_state_policy =
 /**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
    && has::method::getitem_r<
          T,
@@ -145,8 +159,8 @@ template <
    typename ActionPolicy = typename T::action_policy_type >
 // clang-format off
 concept state_policy =
-/**/  memorizing_state_policy< T, Infostate, Action, ActionPolicy >
-   or evaluating_state_policy< T, Infostate, Action, ActionPolicy >;
+/**/  reference_state_policy< T, Infostate, Action, ActionPolicy >
+   or value_state_policy< T, Infostate, Action, ActionPolicy >;
 // clang-format on
 
 template < typename T, typename Infostate, typename ActionPolicy = typename T::action_policy_type >
@@ -325,12 +339,12 @@ concept tabular_cfr_requirements =
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && fosg_traits_partial_match< AveragePolicy, Env >::value
-   && concepts::memorizing_state_policy<
+   && concepts::reference_state_policy<
        Policy,
        typename fosg_auto_traits< Env >::info_state_type,
        typename fosg_auto_traits< Env >::action_type
       >
-   && concepts::memorizing_state_policy<
+   && concepts::reference_state_policy<
          AveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::action_type

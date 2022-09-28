@@ -34,15 +34,15 @@ TEST(KuhnPoker, CFR_EXPONENTIAL_alternating)
       std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
-      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
-      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+      std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
+      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}};
 
    auto initial_policy_profile = std::unordered_map{
       std::pair{
          Player::alex,
-         rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+         normalize_state_policy(solver.average_policy().at(Player::alex).table())},
       std::pair{
-         Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
    size_t n_iters = 100000;
    for(size_t i = 0; i < n_iters; i++) {
@@ -84,14 +84,14 @@ TEST(KuhnPoker, CFR_EXPONENTIAL_simultaneous)
       std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
-      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
-      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+      std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
+      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}};
    auto initial_policy_profile = std::unordered_map{
       std::pair{
          Player::alex,
-         rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+         normalize_state_policy(solver.average_policy().at(Player::alex).table())},
       std::pair{
-         Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
    size_t n_iters = 100000;
    for(size_t i = 0; i < n_iters; i++) {
@@ -136,14 +136,14 @@ TEST(RockPaperScissors, CFR_EXPONENTIAL_alternating)
          std::pair{Player::bob, avg_tabular_policy_bob}});
 
    auto initial_curr_policy_profile = std::unordered_map{
-      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
-      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+      std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
+      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}};
    auto initial_policy_profile = std::unordered_map{
       std::pair{
          Player::alex,
-         rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+         normalize_state_policy(solver.average_policy().at(Player::alex).table())},
       std::pair{
-         Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
    size_t n_iters = 700;
    for(size_t i = 0; i < n_iters; i++) {
@@ -185,14 +185,14 @@ TEST(RockPaperScissors, CFR_EXPONENTIAL_simultaneous)
          std::pair{Player::bob, avg_tabular_policy_bob}});
 
    auto initial_curr_policy_profile = std::unordered_map{
-      std::pair{Player::alex, rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
-      std::pair{Player::bob, rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+      std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
+      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}};
    auto initial_policy_profile = std::unordered_map{
       std::pair{
          Player::alex,
-         rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+         normalize_state_policy(solver.average_policy().at(Player::alex).table())},
       std::pair{
-         Player::bob, rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
    size_t n_iters = 700;
    for(size_t i = 0; i < n_iters; i++) {
@@ -241,17 +241,17 @@ TEST(RockPaperScissors, CFR_EXPONENTIAL_simultaneous)
 //
 //    auto initial_curr_policy_profile = std::unordered_map{
 //       std::pair{Player::alex,
-//       rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+//       normalize_state_policy(solver.policy().at(Player::alex).table())},
 //       std::pair{Player::bob,
-//       rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+//       normalize_state_policy(solver.policy().at(Player::bob).table())}};
 //
 //    auto initial_policy_profile = std::unordered_map{
 //       std::pair{
 //          Player::alex,
-//          rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+//          normalize_state_policy(solver.average_policy().at(Player::alex).table())},
 //       std::pair{
 //          Player::bob,
-//          rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+//          normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 //
 //       std::cout << "Before Iterations\n";
 //    size_t n_iters = 15000;
@@ -300,17 +300,17 @@ TEST(RockPaperScissors, CFR_EXPONENTIAL_simultaneous)
 //
 //    auto initial_curr_policy_profile = std::unordered_map{
 //       std::pair{Player::alex,
-//       rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+//       normalize_state_policy(solver.policy().at(Player::alex).table())},
 //       std::pair{Player::bob,
-//       rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+//       normalize_state_policy(solver.policy().at(Player::bob).table())}};
 //
 //    auto initial_policy_profile = std::unordered_map{
 //       std::pair{
 //          Player::alex,
-//          rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+//          normalize_state_policy(solver.average_policy().at(Player::alex).table())},
 //       std::pair{
 //          Player::bob,
-//          rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+//          normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 //
 //    size_t n_iters = 15000;
 //    for(size_t i = 0; i < n_iters; i++) {

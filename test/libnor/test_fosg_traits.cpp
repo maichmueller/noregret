@@ -4,9 +4,9 @@
 #include <type_traits>
 
 #include "dummy_classes.hpp"
-#include "nor/fosg_traits.hpp"
-#include "nor/rm/factory.hpp"
 #include "nor/env/rps_env.hpp"
+#include "nor/factory.hpp"
+#include "nor/fosg_traits.hpp"
 
 TEST(fosg_traits, auto_traits)
 {
