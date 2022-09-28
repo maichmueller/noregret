@@ -444,7 +444,7 @@ class BestResponsePolicy {
 //       // set up the action value and weight containers. These are computed regardless of whether
 //       // the active player is a best responder or not.
 //       auto legal_actions = m_env->actions(active_player, *wstate);
-//       auto opp_action_policy = rm::normalize_action_policy(
+//       auto opp_action_policy = normalize_action_policy(
 //          m_player_policies.at(active_player)[{curr_infostate, legal_actions}]);
 //       double value = 0.;
 //       for(const auto& action : legal_actions) {

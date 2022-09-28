@@ -240,17 +240,17 @@ TEST(RockPaperScissors, CFR_DISCOUNTED_simultaneous)
 //
 //    auto initial_curr_policy_profile = std::unordered_map{
 //       std::pair{Player::alex,
-//       rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+//       normalize_state_policy(solver.policy().at(Player::alex).table())},
 //       std::pair{Player::bob,
-//       rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+//       normalize_state_policy(solver.policy().at(Player::bob).table())}};
 //
 //    auto initial_policy_profile = std::unordered_map{
 //       std::pair{
 //          Player::alex,
-//          rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+//          normalize_state_policy(solver.average_policy().at(Player::alex).table())},
 //       std::pair{
 //          Player::bob,
-//          rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+//          normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 //
 //       std::cout << "Before Iterations\n";
 //    size_t n_iters = 15000;
@@ -299,17 +299,17 @@ TEST(RockPaperScissors, CFR_DISCOUNTED_simultaneous)
 //
 //    auto initial_curr_policy_profile = std::unordered_map{
 //       std::pair{Player::alex,
-//       rm::normalize_state_policy(solver.policy().at(Player::alex).table())},
+//       normalize_state_policy(solver.policy().at(Player::alex).table())},
 //       std::pair{Player::bob,
-//       rm::normalize_state_policy(solver.policy().at(Player::bob).table())}};
+//       normalize_state_policy(solver.policy().at(Player::bob).table())}};
 //
 //    auto initial_policy_profile = std::unordered_map{
 //       std::pair{
 //          Player::alex,
-//          rm::normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+//          normalize_state_policy(solver.average_policy().at(Player::alex).table())},
 //       std::pair{
 //          Player::bob,
-//          rm::normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
+//          normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 //
 //    size_t n_iters = 15000;
 //    for(size_t i = 0; i < n_iters; i++) {

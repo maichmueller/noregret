@@ -104,13 +104,13 @@ TEST(RockPaperScissors, CFR_PLUS)
    ASSERT_NEAR(solver.game_value().get()[Player::alex], 0., 1e-3);
    auto final_policy = solver.average_policy().at(Player::alex).table();
    for(const auto& [state, action_policy] : final_policy) {
-      for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
+      for(const auto& [action, prob] : normalize_action_policy(action_policy)) {
          ASSERT_NEAR(prob, 1. / 3., 1e-3);
       }
    }
    final_policy = solver.average_policy().at(Player::bob).table();
    for(const auto& [state, action_policy] : final_policy) {
-      for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
+      for(const auto& [action, prob] : normalize_action_policy(action_policy)) {
          ASSERT_NEAR(prob, 1. / 3., 1e-3);
       }
    }
