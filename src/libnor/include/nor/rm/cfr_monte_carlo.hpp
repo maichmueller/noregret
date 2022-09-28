@@ -21,7 +21,6 @@
 #include "node.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
-#include "nor/policy.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 #include "rm_utils.hpp"

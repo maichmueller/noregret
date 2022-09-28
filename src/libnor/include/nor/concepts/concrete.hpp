@@ -242,6 +242,7 @@ concept fosg =
    && has::method::player_count< Env >
    && has::method::stochasticity< Env >
    && has::method::turn_dynamic< Env >
+   && (not std::is_same_v< Action, Outcome >)
    && (deterministic_env < Env > or stochastic_env< Env, Worldstate, Outcome >);
 // clang-format on
 

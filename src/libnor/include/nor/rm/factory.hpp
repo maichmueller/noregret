@@ -7,6 +7,7 @@
 #include "cfr_monte_carlo.hpp"
 #include "cfr_plus.hpp"
 #include "cfr_vanilla.hpp"
+#include "policy/policy.hpp"
 
 namespace nor::rm {
 

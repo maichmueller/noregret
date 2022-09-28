@@ -2,7 +2,7 @@
 #ifndef NOR_RM_HPP
 #define NOR_RM_HPP
 
-#include "rm/best_response.hpp"
+#include "nor/rm/policy/policy.hpp"
 #include "rm/cfr_monte_carlo.hpp"
 #include "rm/cfr_plus.hpp"
 #include "rm/cfr_vanilla.hpp"

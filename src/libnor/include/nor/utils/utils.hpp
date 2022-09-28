@@ -215,7 +215,7 @@ struct CEBijection {
    }
 };
 
-constexpr CEBijection< Player, std::string_view, 27 > player_name_bij = {
+constexpr CEBijection< Player, std::string_view, 28 > player_name_bij = {
    std::pair{Player::chance, "chance"},     std::pair{Player::alex, "alex"},
    std::pair{Player::bob, "bob"},           std::pair{Player::cedric, "cedric"},
    std::pair{Player::dexter, "dexter"},     std::pair{Player::emily, "emily"},
@@ -228,8 +228,8 @@ constexpr CEBijection< Player, std::string_view, 27 > player_name_bij = {
    std::pair{Player::rosie, "rosie"},       std::pair{Player::sophia, "sophia"},
    std::pair{Player::tristan, "tristan"},   std::pair{Player::ulysses, "ulysses"},
    std::pair{Player::victoria, "victoria"}, std::pair{Player::william, "william"},
-   std::pair{Player::xavier, "xavier"},     std::pair{Player::yeet, "yeet"},
-   std::pair{Player::zoey, "zoey"}};
+   std::pair{Player::xavier, "xavier"},     std::pair{Player::yusuf, "yusuf"},
+   std::pair{Player::zoey, "zoey"},         std::pair{Player::unknown, "unknown"}};
 
 constexpr CEBijection< TurnDynamic, std::string_view, 2 > turndynamic_name_bij = {
    std::pair{TurnDynamic::sequential, "sequential"},

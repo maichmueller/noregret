@@ -3,7 +3,7 @@
 #include "dummy_classes.hpp"
 #include "nor/concepts.hpp"
 #include "nor/env.hpp"
-#include "nor/policy.hpp"
+#include "nor/rm/policy/policy.hpp"
 
 TEST(concrete, iterable)
 {

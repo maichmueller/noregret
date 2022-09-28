@@ -17,7 +17,7 @@ namespace nor::rm {
 
 enum class PolicyLabel { current = 0, average = 1 };
 /// strong-types for passing arguments around with intent
-using Probability = fluent::NamedType< double, struct reach_prob_tag >;
+using Probability = fluent::NamedType< double, struct prob_tag >;
 using Weight = fluent::NamedType< double, struct weight_tag >;
 using StateValue = fluent::NamedType< double, struct state_value_tag >;
 using StateValueMap = fluent::
@@ -82,7 +82,7 @@ void fill_infostate_and_obs_buffers_inplace(
          // to replace it later without needing to refetch it.
          auto& infostate_slot = infostate_map.at(active_player);
          auto cloned_infostate = utils::clone_any_way(infostate_slot);
-         auto appender = [&]<typename Container>(Container& c, auto elem) {
+         auto appender = [&]< typename Container >(Container& c, auto elem) {
             if constexpr(
                // clang-format off
                concepts::is::smart_pointer_like< Container >
@@ -135,7 +135,6 @@ auto fill_infostate_and_obs_buffers(
    return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
 }
 
-
 template < concepts::fosg Env, typename Worldstate >
 uptr< Worldstate >
 child_state(Env& env, const uptr< Worldstate >& state, const auto& action_or_outcome)
@@ -151,10 +150,10 @@ child_state(Env& env, const uptr< Worldstate >& state, const auto& action_or_out
 template < ranges::range Policy >
 auto& normalize_action_policy_inplace(Policy& policy)
 {
-   double sum = 0.;
-   for(const auto& [action, prob] : policy) {
-      sum += prob;
-   }
+   auto sum = ranges::accumulate(
+      /*range=*/policy | ranges::views::values,
+      /*init_value=*/std::remove_cvref_t<decltype(*(ranges::views::values(policy).begin()))>{0},
+      /*operation=*/std::plus{});
    for(auto& [action, prob] : policy) {
       prob /= sum;
    }
@@ -165,7 +164,8 @@ template < ranges::range Policy >
 auto normalize_action_policy(const Policy& policy)
 {
    Policy copy = policy;
-   return normalize_action_policy_inplace(copy);
+   normalize_action_policy_inplace(copy);
+   return copy;
 };
 
 template < ranges::range Policy >
@@ -181,7 +181,8 @@ template < ranges::range Policy >
 auto normalize_state_policy(const Policy& policy)
 {
    auto copy = policy;
-   return normalize_state_policy_inplace(copy);
+   normalize_state_policy_inplace(copy);
+   return copy;
 };
 
 template < typename MapLike >
