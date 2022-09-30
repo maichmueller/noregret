@@ -22,8 +22,7 @@ inline T _zero(Args&&... args)
  *
  * @tparam Action
  */
-template < concepts::action Action, typename default_value_generator = decltype(&_zero< double >) >
-   requires std::is_invocable_r_v< double, default_value_generator >
+template < concepts::action Action>
 class HashmapActionPolicy {
   public:
    using action_type = Action;
@@ -32,7 +31,9 @@ class HashmapActionPolicy {
    using iterator = typename map_type::iterator;
    using const_iterator = typename map_type::const_iterator;
 
+   template <typename default_value_generator>
    HashmapActionPolicy(default_value_generator dvg = &_zero< double >) : m_def_value_gen(dvg) {}
+   template <typename default_value_generator>
    HashmapActionPolicy(
       ranges::range auto const& actions,
       double value,
@@ -43,6 +44,7 @@ class HashmapActionPolicy {
          emplace(action, value);
       }
    }
+   template <typename default_value_generator>
    HashmapActionPolicy(size_t n_actions, default_value_generator dvg = &_zero< double >)
       requires std::is_integral_v< action_type >
    : m_map(), m_def_value_gen(dvg)
@@ -51,6 +53,7 @@ class HashmapActionPolicy {
          emplace(a, m_def_value_gen());
       }
    }
+   template <typename default_value_generator>
    HashmapActionPolicy(map_type map, default_value_generator dvg = &_zero< double >)
        : m_map(std::move(map)), m_def_value_gen(dvg)
    {
@@ -109,7 +112,7 @@ class HashmapActionPolicy {
 
   private:
    map_type m_map;
-   default_value_generator m_def_value_gen;
+   std::function<double()> m_def_value_gen;
 };
 
 }  // namespace nor

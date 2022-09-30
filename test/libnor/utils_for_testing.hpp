@@ -250,22 +250,22 @@ inline auto setup_rps_test()
    games::rps::Environment env{};
 
    auto avg_tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       rm::factory::
-         make_zero_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+         make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
    auto tabular_policy_alex = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       rm::factory::
-         make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
    auto tabular_policy_bob = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       rm::factory::
-         make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
-   auto infostate_alex = games::rps::InfoState{Player::alex};
-   auto infostate_bob = games::rps::InfoState{Player::bob};
+   auto infostate_alex = games::rps::Infostate{Player::alex};
+   auto infostate_bob = games::rps::Infostate{Player::bob};
    auto init_state = games::rps::State();
    infostate_alex.append(env.private_observation(Player::alex, init_state));
    infostate_bob.append(env.private_observation(Player::bob, init_state));

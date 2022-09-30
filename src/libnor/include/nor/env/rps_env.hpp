@@ -28,12 +28,12 @@ std::string observation(
    const State& state,
    std::optional< Player > observing_player = std::nullopt);
 
-class PublicState: public DefaultPublicstate< PublicState, Observation > {
-   using base = DefaultPublicstate< PublicState, Observation >;
+class Publicstate: public DefaultPublicstate< Publicstate, Observation > {
+   using base = DefaultPublicstate< Publicstate, Observation >;
    using base::base;
 };
-class InfoState: public nor::DefaultInfostate< InfoState, Observation > {
-   using base = DefaultInfostate< InfoState, Observation >;
+class Infostate: public nor::DefaultInfostate< Infostate, Observation > {
+   using base = DefaultInfostate< Infostate, Observation >;
    using base::base;
 };
 
@@ -41,8 +41,8 @@ class Environment {
   public:
    // nor fosg typedefs
    using world_state_type = State;
-   using info_state_type = InfoState;
-   using public_state_type = PublicState;
+   using info_state_type = Infostate;
+   using public_state_type = Publicstate;
    using action_type = Action;
    using observation_type = Observation;
    // nor fosg traits
@@ -94,15 +94,15 @@ class Environment {
 
 namespace nor {
 template <>
-struct fosg_traits< games::rps::InfoState > {
+struct fosg_traits< games::rps::Infostate > {
    using observation_type = nor::games::rps::Observation;
 };
 
 template <>
 struct fosg_traits< games::rps::Environment > {
    using world_state_type = nor::games::rps::State;
-   using info_state_type = nor::games::rps::InfoState;
-   using public_state_type = nor::games::rps::PublicState;
+   using info_state_type = nor::games::rps::Infostate;
+   using public_state_type = nor::games::rps::Publicstate;
    using action_type = nor::games::rps::Action;
    using observation_type = nor::games::rps::Observation;
 
@@ -115,7 +115,7 @@ struct fosg_traits< games::rps::Environment > {
 
 namespace std {
 template < typename StateType >
-   requires common::is_any_v< StateType, nor::games::rps::PublicState, nor::games::rps::InfoState >
+   requires common::is_any_v< StateType, nor::games::rps::Publicstate, nor::games::rps::Infostate >
 struct hash< StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };

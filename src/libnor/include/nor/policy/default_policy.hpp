@@ -9,12 +9,6 @@
 
 namespace nor {
 
-template < typename State, std::size_t extent >
-constexpr size_t placeholder_filter([[maybe_unused]] Player player, const State&)
-{
-   return extent;
-}
-
 /**
  * @brief Creates a uniform state_policy taking in the given state and action type.
  *
@@ -89,6 +83,12 @@ class ZeroDefaultPolicy {
       } else {
          return action_policy_type(extent, 0.);
       }
+   }
+
+   auto operator[](const info_state_type& infostate) const
+      requires(extent != std::dynamic_extent)
+   {
+      return action_policy_type(extent, 0.);
    }
 };
 

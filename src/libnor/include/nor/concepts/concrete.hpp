@@ -44,16 +44,21 @@ concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
                                              } -> std::same_as< const MappedType& >;
                                        };
 
-template < typename MapLike, typename MappedType = double >
+template < typename MapLike >
 concept mapping = requires(MapLike m) {
                      // has to be key-value-like to iterate over values and keys only repsectively
                      ranges::views::keys(m);
                      ranges::views::values(m);
-                     // value type has to be convertible to the Mapped Type
-                     std::is_convertible_v<
-                        decltype(*(ranges::views::values(m).begin())),
-                        MappedType >;
                   };
+
+template < typename MapLike, typename MappedType = double >
+concept mapping_of = requires(MapLike m) {
+                        mapping< MapLike >;
+                        // value type has to be convertible to the Mapped Type
+                        std::is_convertible_v<
+                           decltype(*(ranges::views::values(m).begin())),
+                           MappedType >;
+                     };
 
 template < typename T >
 concept action = is::hashable< T > && std::equality_comparable< T >;

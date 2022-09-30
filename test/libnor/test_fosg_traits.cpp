@@ -39,10 +39,10 @@ TEST(fosg_traits, partial_match_rps)
    //      concept_fosg_check< dummy::Env >();
    auto tabular_policy = nor::rm::factory::make_tabular_policy(
       std::unordered_map<
-         nor::games::rps::InfoState,
+         nor::games::rps::Infostate,
          nor::HashmapActionPolicy< nor::games::rps::Action > >{},
       nor::rm::factory::make_uniform_policy<
-         nor::games::rps::InfoState,
+         nor::games::rps::Infostate,
          nor::HashmapActionPolicy< nor::games::rps::Action > >());
 
    //   trait_fosg_partial_match_check< nor::games::rps::Environment, decltype(tabular_policy) >();

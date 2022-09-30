@@ -36,7 +36,7 @@ using ReachProbabilityMap = fluent::
  * this node
  * @return the reach probability of the nde
  */
-template < concepts::mapping KVdouble >
+template < concepts::mapping_of<double> KVdouble >
 [[nodiscard]] inline double reach_probability(const KVdouble& reach_probability_contributions)
 {
    auto values_view = reach_probability_contributions | ranges::views::values;
@@ -51,7 +51,7 @@ template < concepts::mapping KVdouble >
  * @param player the player for which the value is computed
  * @return the counterfactual reach probability
  */
-template < concepts::mapping KVdouble >
+template < concepts::mapping_of<double> KVdouble >
    requires requires(KVdouble m) {
                // the keys have to of type 'Player' as well
                std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;

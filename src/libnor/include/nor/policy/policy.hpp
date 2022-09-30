@@ -8,6 +8,7 @@
 #include "nor/concepts.hpp"
 #include "nor/rm/tag.hpp"
 #include "nor/utils/utils.hpp"
+#include "state_policy_view.hpp"
 #include "tabular_policy.hpp"
 
 #endif  // NOR_POLICY_HPP

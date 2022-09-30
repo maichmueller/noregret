@@ -469,6 +469,12 @@ struct factory {
    {
       return {};
    }
+
+   template < typename Infostate, typename Action>
+   static BestResponsePolicy< Infostate, Action > make_best_response_policy()
+   {
+      return {};
+   }
 };
 
 }  // namespace nor::rm
