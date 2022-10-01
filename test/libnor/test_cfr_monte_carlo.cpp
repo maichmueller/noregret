@@ -16,14 +16,14 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_alternating)
    auto root_state = std::make_unique< games::kuhn::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto tabular_policy = rm::factory::make_tabular_policy(
+   auto tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
+      factory::make_uniform_policy<
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
@@ -32,7 +32,7 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_alternating)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::optimistic};
 
-   auto solver = rm::factory::make_mccfr< config, true >(
+   auto solver = factory::make_mccfr< config, true >(
       std::move(env),
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
@@ -71,14 +71,14 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_simultaneous)
    auto root_state = std::make_unique< games::kuhn::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto tabular_policy = rm::factory::make_tabular_policy(
+   auto tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
+      factory::make_uniform_policy<
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
@@ -87,7 +87,7 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_simultaneous)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::optimistic};
 
-   auto solver = rm::factory::make_mccfr< config, true >(
+   auto solver = factory::make_mccfr< config, true >(
       std::move(env),
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
@@ -126,14 +126,14 @@ TEST(KuhnPoker, MCCFR_OS_lazy_alternating)
    auto root_state = std::make_unique< games::kuhn::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto tabular_policy = rm::factory::make_tabular_policy(
+   auto tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
+      factory::make_uniform_policy<
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
@@ -142,7 +142,7 @@ TEST(KuhnPoker, MCCFR_OS_lazy_alternating)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::lazy};
 
-   auto solver = rm::factory::make_mccfr< config, true >(
+   auto solver = factory::make_mccfr< config, true >(
       std::move(env),
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
@@ -181,14 +181,14 @@ TEST(KuhnPoker, MCCFR_OS_lazy_simultaneous)
    auto root_state = std::make_unique< games::kuhn::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto tabular_policy = rm::factory::make_tabular_policy(
+   auto tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
+      factory::make_uniform_policy<
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
@@ -197,7 +197,7 @@ TEST(KuhnPoker, MCCFR_OS_lazy_simultaneous)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::lazy};
 
-   auto solver = rm::factory::make_mccfr< config, true >(
+   auto solver = factory::make_mccfr< config, true >(
       std::move(env),
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
@@ -236,14 +236,14 @@ TEST(KuhnPoker, MCCFR_OS_stochastic_alternating)
    auto root_state = std::make_unique< games::kuhn::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto tabular_policy = rm::factory::make_tabular_policy(
+   auto tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
+      factory::make_uniform_policy<
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
@@ -252,7 +252,7 @@ TEST(KuhnPoker, MCCFR_OS_stochastic_alternating)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::stochastic};
 
-   auto solver = rm::factory::make_mccfr< config, true >(
+   auto solver = factory::make_mccfr< config, true >(
       std::move(env),
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
@@ -291,14 +291,14 @@ TEST(KuhnPoker, MCCFR_OS_stochastic_simultaneous)
    auto root_state = std::make_unique< games::kuhn::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto tabular_policy = rm::factory::make_tabular_policy(
+   auto tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
+      factory::make_uniform_policy<
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
@@ -307,7 +307,7 @@ TEST(KuhnPoker, MCCFR_OS_stochastic_simultaneous)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::stochastic};
 
-   auto solver = rm::factory::make_mccfr< config, true >(
+   auto solver = factory::make_mccfr< config, true >(
       std::move(env),
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
@@ -346,14 +346,14 @@ TEST(KuhnPoker, MCCFR_ES_stochastic)
    auto root_state = std::make_unique< games::kuhn::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto tabular_policy = rm::factory::make_tabular_policy(
+   auto tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
+      factory::make_uniform_policy<
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
@@ -362,7 +362,7 @@ TEST(KuhnPoker, MCCFR_ES_stochastic)
       .algorithm = rm::MCCFRAlgorithmMode::external_sampling,
       .weighting = rm::MCCFRWeightingMode::stochastic};
 
-   auto solver = rm::factory::make_mccfr< config, true >(
+   auto solver = factory::make_mccfr< config, true >(
       std::move(env),
       std::make_unique< games::kuhn::State >(),
       tabular_policy,
@@ -414,7 +414,7 @@ TEST(RockPaperScissors, MCCFR_OS_optimistic_alternating)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::optimistic};
 
-   auto solver = rm::factory::make_mccfr< config >(
+   auto solver = factory::make_mccfr< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -469,7 +469,7 @@ TEST(RockPaperScissors, MCCFR_OS_optimistic_simultaneous)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::optimistic};
 
-   auto solver = rm::factory::make_mccfr< config >(
+   auto solver = factory::make_mccfr< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -524,7 +524,7 @@ TEST(RockPaperScissors, MCCFR_OS_lazy_alternating)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::lazy};
 
-   auto solver = rm::factory::make_mccfr< config >(
+   auto solver = factory::make_mccfr< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -579,7 +579,7 @@ TEST(RockPaperScissors, MCCFR_OS_lazy_simultaneous)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::lazy};
 
-   auto solver = rm::factory::make_mccfr< config >(
+   auto solver = factory::make_mccfr< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -634,7 +634,7 @@ TEST(RockPaperScissors, MCCFR_OS_stochastic_alternating)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::stochastic};
 
-   auto solver = rm::factory::make_mccfr< config >(
+   auto solver = factory::make_mccfr< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -689,7 +689,7 @@ TEST(RockPaperScissors, MCCFR_OS_stochastic_simultaneous)
       .algorithm = rm::MCCFRAlgorithmMode::outcome_sampling,
       .weighting = rm::MCCFRWeightingMode::stochastic};
 
-   auto solver = rm::factory::make_mccfr< config >(
+   auto solver = factory::make_mccfr< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -744,7 +744,7 @@ TEST(RockPaperScissors, MCCFR_ES_stochastic)
       .algorithm = rm::MCCFRAlgorithmMode::external_sampling,
       .weighting = rm::MCCFRWeightingMode::stochastic};
 
-   auto solver = rm::factory::make_mccfr< config >(
+   auto solver = factory::make_mccfr< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -783,11 +783,11 @@ TEST(RockPaperScissors, MCCFR_ES_stochastic)
 //{
 //    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //    games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
-//    UniformPolicy uniform_policy = rm::factory::make_uniform_policy<
+//    UniformPolicy uniform_policy = factory::make_uniform_policy<
 //       games::stratego::InfoState,
 //       HashmapActionPolicy< games::stratego::Action > >();
 //
-//    auto tabular_policy = rm::factory::make_tabular_policy(
+//    auto tabular_policy = factory::make_tabular_policy(
 //       std::unordered_map<
 //          games::stratego::InfoState,
 //          HashmapActionPolicy< games::stratego::Action > >{});
@@ -795,7 +795,7 @@ TEST(RockPaperScissors, MCCFR_ES_stochastic)
 //    constexpr rm::CFRConfig cfr_config{.alternating_updates = false, .store_public_states =
 //    false};
 //
-//    auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
+//    auto solver = factory::make_cfr_vanilla< cfr_config, true >(
 //       std::move(env),
 //       std::make_unique< State >(std::move(state)),
 //       tabular_policy,

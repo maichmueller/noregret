@@ -249,19 +249,19 @@ inline auto setup_rps_test()
    using namespace nor;
    games::rps::Environment env{};
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
-   auto tabular_policy_alex = rm::factory::make_tabular_policy(
+   auto tabular_policy_alex = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      rm::factory::
+      factory::
          make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
-   auto tabular_policy_bob = rm::factory::make_tabular_policy(
+   auto tabular_policy_bob = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      rm::factory::
+      factory::
          make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
    auto infostate_alex = games::rps::Infostate{Player::alex};

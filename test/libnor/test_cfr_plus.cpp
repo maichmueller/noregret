@@ -15,18 +15,18 @@ TEST(KuhnPoker, CFR_PLUS)
    auto root_state = std::make_unique< games::kuhn::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
+   auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::
+      factory::
          make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto tabular_policy = rm::factory::make_tabular_policy(
+   auto tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      rm::factory::make_uniform_policy<
+      factory::make_uniform_policy<
          games::kuhn::Infostate,
          HashmapActionPolicy< games::kuhn::Action > >());
 
-   auto solver = rm::factory::make_cfr_plus< true >(
+   auto solver = factory::make_cfr_plus< true >(
       std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy);
 
    auto initial_curr_policy_profile = std::unordered_map{
@@ -71,7 +71,7 @@ TEST(RockPaperScissors, CFR_PLUS)
    auto root_state = std::make_unique< games::rps::State >();
    auto players = env.players(*root_state);
 
-   auto solver = rm::factory::make_cfr_plus(
+   auto solver = factory::make_cfr_plus(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -120,18 +120,18 @@ TEST(RockPaperScissors, CFR_PLUS)
 //{
 //    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //    games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
-//    UniformPolicy uniform_policy = rm::factory::make_uniform_policy<
+//    UniformPolicy uniform_policy = factory::make_uniform_policy<
 //       games::stratego::InfoState,
 //       HashmapActionPolicy< games::stratego::Action > >();
 //
-//    auto tabular_policy = rm::factory::make_tabular_policy(
+//    auto tabular_policy = factory::make_tabular_policy(
 //       std::unordered_map<
 //          games::stratego::InfoState,
 //          HashmapActionPolicy< games::stratego::Action > >{});
 //
 //    constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
 //
-//    auto solver = rm::factory::make_cfr_vanilla< cfr_config, true >(
+//    auto solver = factory::make_cfr_vanilla< cfr_config, true >(
 //       std::move(env),
 //       std::make_unique< State >(std::move(state)),
 //       tabular_policy,

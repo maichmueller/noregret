@@ -22,9 +22,9 @@ struct hash< TestInfostate > {
 
 TEST(TabularPolicy, uniform_default)
 {
-   auto tabular_policy = nor::rm::factory::make_tabular_policy(
+   auto tabular_policy = nor::factory::make_tabular_policy(
       std::unordered_map< TestInfostate, nor::HashmapActionPolicy< int > >{},
-      nor::rm::factory::make_uniform_policy< TestInfostate, nor::HashmapActionPolicy< int > >());
+      nor::factory::make_uniform_policy< TestInfostate, nor::HashmapActionPolicy< int > >());
 
    auto istate1 = TestInfostate{nor::Player::alex};
    istate1.append("case1");
@@ -45,9 +45,9 @@ TEST(TabularPolicy, uniform_default)
 
 TEST(TabularPolicy, kuhn_poker_states)
 {
-   auto tabular_policy = nor::rm::factory::make_tabular_policy(
+   auto tabular_policy = nor::factory::make_tabular_policy(
       std::unordered_map< nor::games::kuhn::Infostate, nor::HashmapActionPolicy< int > >{},
-      nor::rm::factory::
+      nor::factory::
          make_uniform_policy< nor::games::kuhn::Infostate, nor::HashmapActionPolicy< int > >());
 
    nor::games::kuhn::Environment env{};
@@ -94,9 +94,9 @@ TEST(TabularPolicy, kuhn_poker_states)
 TEST(BestResponsePolicy, rock_paper_scissors)
 {
    using namespace nor::games::rps;
-   auto tabular_policy = nor::rm::factory::make_tabular_policy(
+   auto tabular_policy = nor::factory::make_tabular_policy(
       std::unordered_map< Infostate, nor::HashmapActionPolicy< int > >{},
-      nor::rm::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< int > >());
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< int > >());
 
    Environment env{};
    State state{};

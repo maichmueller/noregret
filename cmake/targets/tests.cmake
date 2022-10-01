@@ -1,7 +1,7 @@
 
-###########################
-# Common Testing Utilities
-###########################
+##################################################
+## common testing libraries for ease of linking ##
+##################################################
 
 add_library(
         common_testing_utils
@@ -10,68 +10,19 @@ add_library(
 
 target_include_directories(common_testing_utils INTERFACE "${PROJECT_TEST_DIR}/common_test_utils")
 
-###########################
-# NOR Concepts
-###########################
-set(
-        NOR_CONCEPTS_TEST_SOURCES
-        test_fosg_concepts.cpp
+add_library(
+        shared_test_libs
+        INTERFACE
 )
-list(TRANSFORM NOR_CONCEPTS_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
-
-add_executable(
-        ${nor_test}_concepts
-        ${PROJECT_TEST_DIR}/main_tests.cpp
-        ${NOR_CONCEPTS_TEST_SOURCES}
-)
-
-#set_target_properties(${nor_test}_concepts PROPERTIES
-#        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
-#        )
-
 target_link_libraries(
-        ${nor_test}_concepts
-        PRIVATE
+        shared_test_libs
+        INTERFACE
         ${nor_lib}
         ${nor_lib}_envs
+        project_options
         project_warnings
         common_testing_utils
         CONAN_PKG::gtest
-)
-
-add_test(
-        NAME Test_${PROJECT_NAME}_concepts
-        COMMAND ${nor_test}_type_traits
-)
-
-###########################
-# NOR Type Traits Tests
-###########################
-set(
-        NOR_TYPE_TRAITS_TEST_SOURCES
-        test_fosg_traits.cpp
-        test_type_traits.cpp
-)
-list(TRANSFORM NOR_TYPE_TRAITS_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
-
-add_executable(${nor_test}_type_traits ${PROJECT_TEST_DIR}/main_tests.cpp ${NOR_TYPE_TRAITS_TEST_SOURCES})
-
-#set_target_properties(${nor_test}_type_traitsPROPERTIES
-#        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
-#        )
-
-target_link_libraries(${nor_test}_type_traits
-        PRIVATE
-        ${nor_lib}
-        ${nor_lib}_envs
-        project_warnings
-        common_testing_utils
-        CONAN_PKG::gtest
-        )
-
-add_test(
-        NAME Test_${PROJECT_NAME}_type_traits
-        COMMAND ${nor_test}_type_traits
 )
 
 ###########################
@@ -79,75 +30,141 @@ add_test(
 ###########################
 
 set(
-        NOR_EXP_CFR_TEST_SOURCES
+        TYPE_TRAITS_TEST_SOURCES
+        test_fosg_traits.cpp
+        test_type_traits.cpp
+)
+set(
+        CONCEPTS_TEST_SOURCES
+        test_fosg_concepts.cpp
+)
+set(
+        CFR_VANILLA_TEST_SOURCES
+        test_cfr.cpp
+)
+set(
+        CFR_PLUS_TEST_SOURCES
+        test_cfr_plus.cpp
+)
+set(
+        CFR_LINEAR_TEST_SOURCES
+        test_cfr_linear.cpp
+)
+set(
+        CFR_DISCOUNTED_TEST_SOURCES
+        test_cfr_discounted.cpp
+)
+set(
+        CFR_EXP_TEST_SOURCES
         test_cfr_exponential.cpp
 )
-list(TRANSFORM NOR_EXP_CFR_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
-
-add_executable(
-        ${nor_test}_cfr_exponential
-        ${PROJECT_TEST_DIR}/main_tests.cpp
-        ${NOR_EXP_CFR_TEST_SOURCES})
-
-#set_target_properties(${nor_test} PROPERTIES
-#        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
-#        )
-
-target_link_libraries(${nor_test}_cfr_exponential
-        PRIVATE
-        ${nor_lib}
-        ${nor_lib}_envs
-        project_warnings
-        common_testing_utils
-        CONAN_PKG::gtest
-        stratego
-        )
-
-add_test(
-        NAME Test_${PROJECT_NAME}_cfr_exponential
-        COMMAND ${nor_test}_cfr_exponential
+set(
+        CFR_MONTE_CARLO_TEST_SOURCES
+        test_cfr_monte_carlo.cpp
+)
+set(
+        POLICY_TEST_SOURCES
+        test_policy.cpp
+)
+set(
+        RM_UTILS_TEST_SOURCES
+        test_rm_utils.cpp
 )
 
 set(
-        NOR_TEST_SOURCES
-        test_rm.cpp
-        test_cfr.cpp
-        test_cfr_plus.cpp
-        test_cfr_exponential.cpp
-        test_cfr_discounted.cpp
-        test_cfr_linear.cpp
-        test_mccfr.cpp
-        test_policy.cpp
+        ALL_TEST_SOURCES_LIST
+        # [this position will hold the element that joins all of the below entries]
+        TYPE_TRAITS_TEST_SOURCES
+        CONCEPTS_TEST_SOURCES
+        RM_UTILS_TEST_SOURCES
+        CFR_VANILLA_TEST_SOURCES
+        CFR_PLUS_TEST_SOURCES
+        CFR_LINEAR_TEST_SOURCES
+        CFR_DISCOUNTED_TEST_SOURCES
+        CFR_EXP_TEST_SOURCES
+        CFR_MONTE_CARLO_TEST_SOURCES
+        POLICY_TEST_SOURCES
 )
-list(TRANSFORM NOR_TEST_SOURCES PREPEND "${PROJECT_TEST_DIR}/libnor/")
 
-add_executable(
+# for the overall test executable we simply merge all other test files together
+foreach (
+        sources_list
+        IN LISTS
+        ALL_TEST_SOURCES_LIST
+)
+    list(APPEND NOR_TEST_SOURCES ${${sources_list}})
+endforeach ()
+#list(JOIN ALL_TEST_SOURCES_LIST ";" NOR_TEST_SOURCES)
+# prepend it as the first element the target list
+list(PREPEND ALL_TEST_SOURCES_LIST NOR_TEST_SOURCES)
+
+set(
+        TARGET_NAMES_LIST
+        ${nor_test}  # the ALL nor tests exe name
+        ${nor_test}_type_traits
+        ${nor_test}_concepts
+        ${nor_test}_rm_utils
+        ${nor_test}_cfr_vanilla
+        ${nor_test}_cfr_plus
+        ${nor_test}_cfr_linear
+        ${nor_test}_cfr_discounted
+        ${nor_test}_cfr_exponential
+        ${nor_test}_cfr_monte_carlo
+        ${nor_test}_policy
+)
+
+foreach (
+        source_files_list
+        target_name
+        IN ZIP_LISTS
+        ALL_TEST_SOURCES_LIST
+        TARGET_NAMES_LIST
+)
+
+    foreach (
+            source_file
+            IN LISTS
+            ${source_files_list}
+    )
+        list(APPEND source_files ${source_file})
+    endforeach ()
+
+    message(STATUS "Target: ${target_name}")
+    message(STATUS "Target Source List-Name: ${sources_list}")
+    message(STATUS "Target Source Contents: ${source_files}")
+
+    list(TRANSFORM source_files PREPEND "${PROJECT_TEST_DIR}/libnor/")
+
+    message(STATUS "Target Source Contents (pathed): ${source_files}")
+
+    add_executable(
+            ${target_name}
+            ${PROJECT_TEST_DIR}/main_tests.cpp
+            ${source_files})  # a list of source files to append
+
+    target_link_libraries(
+            ${target_name}
+            PRIVATE
+            shared_test_libs
+    )
+
+    add_test(
+            NAME Test_${target_name}
+            COMMAND ${target_name}
+    )
+    # delete the list so that the next iteration can start with an empty list for that name.
+    # If we dont do this then the path will be added recursively often.
+    set(source_files)
+endforeach ()
+
+# the test of all parts needs an extra linkage for the pybind11 components and Python
+target_link_libraries(
         ${nor_test}
-        ${PROJECT_TEST_DIR}/main_tests.cpp
-        ${NOR_TEST_SOURCES}
-        ${NOR_TYPE_TRAITS_TEST_SOURCES}
-        ${NOR_CONCEPTS_TEST_SOURCES})
-
-#set_target_properties(${nor_test} PROPERTIES
-#        EXCLUDE_FROM_ALL True  # don't build tests when ALL is asked to be built. Only on demand.
-#        )
-
-target_link_libraries(${nor_test}
         PRIVATE
-        ${nor_lib}
-        ${nor_lib}_envs
-        project_options
-        project_warnings
-        common_testing_utils
-        CONAN_PKG::gtest
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
-        )
-
-add_test(
-        NAME Test_${PROJECT_NAME}
-        COMMAND ${nor_test}
 )
+
 
 if (ENABLE_GAMES)
     #########################
@@ -172,11 +189,9 @@ if (ENABLE_GAMES)
     target_link_libraries(
             stratego_test
             PRIVATE
+            shared_test_libs
             stratego
-            project_options
-            project_warnings
-            common_testing_utils
-            CONAN_PKG::gtest
+
     )
 
     add_test(
@@ -202,11 +217,8 @@ if (ENABLE_GAMES)
     target_link_libraries(
             kuhn_poker_test
             PRIVATE
+            shared_test_libs
             kuhn_poker
-            project_options
-            project_warnings
-            common_testing_utils
-            CONAN_PKG::gtest
     )
 
     add_test(
@@ -232,11 +244,8 @@ if (ENABLE_GAMES)
     target_link_libraries(
             leduc_poker_test
             PRIVATE
+            shared_test_libs
             leduc_poker
-            project_options
-            project_warnings
-            common_testing_utils
-            CONAN_PKG::gtest
     )
 
     add_test(
