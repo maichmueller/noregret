@@ -7,9 +7,9 @@
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
 #include "nor/rm/rm_utils.hpp"
-#include "state_policy_view.hpp"
+#include "policy_view.hpp"
 
-namespace nor::rm {
+namespace nor {
 
 namespace detail {
 
@@ -50,7 +50,7 @@ class AugmentedInfostateTree {
       // node, that the action points to, has been found.
       std::unordered_map<
          action_variant_type,
-         std::tuple< uptr< Node >, std::optional< Probability >, std::optional< double > >,
+         std::tuple< uptr< Node >, std::optional< rm::Probability >, std::optional< double > >,
          action_variant_hasher >
          children = {};
       /// the infostate that is associated with this node. Remains a nullptr if it's a chance node
@@ -84,10 +84,9 @@ class AugmentedInfostateTree {
       action_emplacer(m_root_node, *root_state);
    }
 
-   template < concepts::action_policy< action_type > ActionPolicy >
-   double build(
+   void build(
       Player br_player,
-      std::unordered_map< Player, StatePolicyView< info_state_type, action_type, ActionPolicy > >
+      std::unordered_map< Player, StatePolicyView< info_state_type, action_type > >
          player_policies);
 
    auto& env() { return m_env; }
@@ -103,36 +102,40 @@ class AugmentedInfostateTree {
    Node m_root_node;
    std::unordered_map< Player, info_state_type > m_root_infostates;
 
-   auto action_emplacer(Node& infostate_node, world_state_type& state)
-   {
-      if(infostate_node.children.empty()) {
-         if constexpr(concepts::stochastic_fosg< Env, world_state_type, action_type >) {
-            if(m_env.active_player(state) == Player::chance) {
-               for(auto&& outcome : m_env.chance_actions(state)) {
-                  infostate_node.children.emplace(outcome, {});
-               }
+   auto action_emplacer(Node& infostate_node, world_state_type& state);
+};
 
-            } else {
-               for(auto&& act : m_env.actions(state)) {
-                  infostate_node.children.emplace(act, {});
-               }
+
+template < concepts::fosg Env >
+auto AugmentedInfostateTree< Env >::action_emplacer(
+   AugmentedInfostateTree::Node& infostate_node,
+   AugmentedInfostateTree::world_state_type& state)
+{
+   if(infostate_node.children.empty()) {
+      if constexpr(concepts::stochastic_fosg< Env, world_state_type, action_type >) {
+         if(m_env.active_player(state) == Player::chance) {
+            for(auto&& outcome : m_env.chance_actions(state)) {
+               infostate_node.children.emplace(outcome, {});
             }
+
          } else {
             for(auto&& act : m_env.actions(state)) {
                infostate_node.children.emplace(act, {});
             }
          }
+      } else {
+         for(auto&& act : m_env.actions(state)) {
+            infostate_node.children.emplace(act, {});
+         }
       }
-   };
-};
+   }
+}
+
 
 template < concepts::fosg Env >
-template <
-   concepts::action_policy< typename AugmentedInfostateTree< Env >::action_type > ActionPolicy >
-double AugmentedInfostateTree< Env >::build(
+void AugmentedInfostateTree< Env >::build(
    Player br_player,
-   std::unordered_map< Player, StatePolicyView< info_state_type, action_type, ActionPolicy > >
-      player_policies)
+   std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies)
 {
    // the tree needs to be traversed. To do so, every node (starting from the root node aka
    // the current game state) will emplace its child states - as generated from its possible
@@ -187,7 +190,7 @@ double AugmentedInfostateTree< Env >::build(
                // policy probability
                return std::pair{
                   child_state(m_env, curr_state, action_or_outcome),
-                  Probability{
+                  rm::Probability{
                      action_prob.has_value()
                         ? action_prob.value().get()
                         : (curr_player == br_player
@@ -198,7 +201,7 @@ double AugmentedInfostateTree< Env >::build(
             [&](const chance_outcome_type& outcome) {
                return std::pair{
                   child_state(m_env, curr_state, outcome),
-                  Probability{m_env.chance_probability(*curr_state, std::get< 0 >(outcome))}};
+                  rm::Probability{m_env.chance_probability(*curr_state, std::get< 0 >(outcome))}};
             },
             action_variant);
          // we overwrite the existing action_prob here since any worldstate pertaining to the
@@ -271,11 +274,10 @@ class BestResponsePolicy {
    {
    }
 
-   template < concepts::fosg Env, concepts::action_policy< Action > ActionPolicy >
+   template < concepts::fosg Env >
    auto& allocate(
       Env& env,
-      std::unordered_map< Player, StatePolicyView< info_state_type, action_type, ActionPolicy > >
-         player_policies,
+      std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       std::unordered_map< Player, info_state_type > root_infostates = {})
    {
@@ -350,7 +352,7 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
       // we return value(I) back up as this infostate's value to the BR player.
       std::optional< action_type > best_action = std::nullopt;
       state_value = std::numeric_limits< double >::lowest();
-      child_traverser([&](const auto& action_variant, Probability, double child_value) {
+      child_traverser([&](const auto& action_variant, rm::Probability, double child_value) {
          if(child_value > state_value) {
             // the action variant holds the action type in the second slot
             best_action = std::get< 1 >(action_variant);
@@ -363,7 +365,7 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
       // if this is an opponent infostate or chance node. In both cases we compute:
       //    value(I) = sum_{a}(policy(a | I) * v(a | I))
       // we return value(I) back up as this infostate's value to the BR player.
-      child_traverser([&](const auto&, Probability action_prob, double child_value) {
+      child_traverser([&](const auto&, rm::Probability action_prob, double child_value) {
          state_value += action_prob.get() * child_value;
       });
    }

@@ -1,9 +1,13 @@
 
-#ifndef NOR_STATE_POLICY_VIEW_HPP
-#define NOR_STATE_POLICY_VIEW_HPP
+#ifndef NOR_POLICY_VIEW_HPP
+#define NOR_POLICY_VIEW_HPP
 
 #include "nor/concepts.hpp"
 #include "nor/utils/utils.hpp"
+
+/// This file provides type erasure classes which allow accessing the underlying contained values
+/// without infering the precise types of the policies used. This enables e.g. type agnostic
+/// containers of policies.
 
 namespace nor {
 
@@ -24,7 +28,7 @@ class ActionPolicyView {
    auto operator[](const action_type& action) const { return m_getitem_impl(action); }
 
   private:
-   const action_type& (*m_getitem_impl)(const action_type&);
+   std::function< const action_type&(const action_type&) > m_getitem_impl;
 };
 
 template < typename Infostate, concepts::action Action >
@@ -52,7 +56,7 @@ class StatePolicyView {
    auto operator[](getitem_sig params) const { return m_getitem_impl(std::move(params)); }
 
   private:
-   action_policy_view_type (*m_getitem_impl)(getitem_sig);
+   std::function< action_policy_view_type(getitem_sig) > m_getitem_impl;
 };
 }  // namespace nor
-#endif  // NOR_STATE_POLICY_VIEW_HPP
+#endif  // NOR_POLICY_VIEW_HPP

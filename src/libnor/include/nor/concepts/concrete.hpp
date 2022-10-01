@@ -252,7 +252,7 @@ concept fosg =
    && has::method::public_observation< Env, Worldstate, Observation >
    && has::method::private_observation< Env, Action, Observation >
    && has::method::public_observation< Env, Action, Observation >
-   && has::method::reward< const Env, Worldstate >
+   && has::method::reward< Env, Worldstate >
    && has::method::is_terminal< Env, Worldstate >
    && has::method::is_partaking< Env, Worldstate >
    && has::method::active_player< Env >

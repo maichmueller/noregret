@@ -31,31 +31,28 @@ class HashmapActionPolicy {
    using iterator = typename map_type::iterator;
    using const_iterator = typename map_type::const_iterator;
 
-   template <typename default_value_generator>
-   HashmapActionPolicy(default_value_generator dvg = &_zero< double >) : m_def_value_gen(dvg) {}
-   template <typename default_value_generator>
+   HashmapActionPolicy(std::function<double()> dvg = &_zero< double >) : m_def_value_gen(std::move(dvg)) {}
+
    HashmapActionPolicy(
       ranges::range auto const& actions,
       double value,
-      default_value_generator dvg = &_zero< double >)
-       : m_map(), m_def_value_gen(dvg)
+      std::function<double()> dvg = &_zero< double >)
+       : m_map(), m_def_value_gen(std::move(dvg))
    {
       for(const auto& action : actions) {
          emplace(action, value);
       }
    }
-   template <typename default_value_generator>
-   HashmapActionPolicy(size_t n_actions, default_value_generator dvg = &_zero< double >)
+   HashmapActionPolicy(size_t n_actions, std::function<double()> dvg = &_zero< double >)
       requires std::is_integral_v< action_type >
-   : m_map(), m_def_value_gen(dvg)
+   : m_map(), m_def_value_gen(std::move(dvg))
    {
       for(auto a : ranges::views::iota(size_t(0), n_actions)) {
          emplace(a, m_def_value_gen());
       }
    }
-   template <typename default_value_generator>
-   HashmapActionPolicy(map_type map, default_value_generator dvg = &_zero< double >)
-       : m_map(std::move(map)), m_def_value_gen(dvg)
+   HashmapActionPolicy(map_type map, std::function<double()> dvg = &_zero< double >)
+       : m_map(std::move(map)), m_def_value_gen(std::move(dvg))
    {
    }
 
