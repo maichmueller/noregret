@@ -48,11 +48,10 @@ class AugmentedInfostateTree {
       // 3. the optional value of this action. This value is only set once the terminal values
       // have been filled for this action, or once the downstream value of the next infostate
       // node, that the action points to, has been found.
-      std::unordered_map<
-         action_variant_type,
-         std::tuple< uptr< Node >, std::optional< rm::Probability >, std::optional< double > >,
-         action_variant_hasher >
-         children = {};
+      using child_node_tuple = std::
+         tuple< uptr< Node >, std::optional< rm::Probability >, std::optional< double > >;
+
+      std::unordered_map< action_variant_type, child_node_tuple, action_variant_hasher > children{};
       /// the infostate that is associated with this node. Remains a nullptr if it's a chance node
       uptr< info_state_type > infostate = nullptr;
       /// the state value of this node. It can only be computed once the entire tree has been
@@ -72,7 +71,7 @@ class AugmentedInfostateTree {
       if(m_root_node.active_player != Player::chance) {
          auto infostate_iter = root_infostates.find(m_root_node.active_player);
          m_root_node.infostate = std::make_unique< info_state_type >(
-            infostate_iter != m_root_infostates.end() ? (*infostate_iter)
+            infostate_iter != m_root_infostates.end() ? infostate_iter->second
                                                       : info_state_type{m_root_node.active_player});
       }
       for(auto player : env.players(*m_root_state)) {
@@ -105,7 +104,6 @@ class AugmentedInfostateTree {
    auto action_emplacer(Node& infostate_node, world_state_type& state);
 };
 
-
 template < concepts::fosg Env >
 auto AugmentedInfostateTree< Env >::action_emplacer(
    AugmentedInfostateTree::Node& infostate_node,
@@ -113,24 +111,23 @@ auto AugmentedInfostateTree< Env >::action_emplacer(
 {
    if(infostate_node.children.empty()) {
       if constexpr(concepts::stochastic_fosg< Env, world_state_type, action_type >) {
-         if(m_env.active_player(state) == Player::chance) {
+         if(auto active_player = m_env.active_player(state); active_player == Player::chance) {
             for(auto&& outcome : m_env.chance_actions(state)) {
-               infostate_node.children.emplace(outcome, {});
+               infostate_node.children.emplace(outcome);
             }
 
          } else {
-            for(auto&& act : m_env.actions(state)) {
-               infostate_node.children.emplace(act, {});
+            for(auto&& act : m_env.actions(active_player, state)) {
+               infostate_node.children.emplace(act);
             }
          }
       } else {
-         for(auto&& act : m_env.actions(state)) {
-            infostate_node.children.emplace(act, {});
+         for(auto&& act : m_env.actions(m_env.active_player(state), state)) {
+            infostate_node.children.emplace(act);
          }
       }
    }
 }
-
 
 template < concepts::fosg Env >
 void AugmentedInfostateTree< Env >::build(
@@ -158,15 +155,17 @@ void AugmentedInfostateTree< Env >::build(
    // emplace the root node into the visitation stack
    visit_stack.emplace(
       utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(m_root_state)),
-      {.infostates =
-          [&] {
-             std::unordered_map< Player, info_state_type > infostates;
-             for(auto player : m_env.players()) {
-                infostates.emplace(player, info_state_type{player});
-             }
-             return infostates;
-          }(),
-       .observation_buffer = {}});
+      VisitationData{
+         .infostates =
+            [&] {
+               std::unordered_map< Player, info_state_type > infostates;
+               for(auto player : m_env.players(*m_root_state)) {
+                  infostates.emplace(player, info_state_type{player});
+               }
+               return infostates;
+            }(),
+         .observation_buffer = {}},
+      &m_root_node);
 
    while(not visit_stack.empty()) {
       // get the top node and world state from the stack and move them into our values.
@@ -176,7 +175,7 @@ void AugmentedInfostateTree< Env >::build(
       visit_stack.pop();
 
       auto curr_player = m_env.active_player(*curr_state);
-      for(auto& [action_variant, uptr_prob_value_tuple] : curr_node.children) {
+      for(auto& [action_variant, uptr_prob_value_tuple] : curr_node->children) {
          // emplace the child node for this action if it doesn't already exist.
          // Another trajectory could have already emplaced it and that is fine, since every
          // trajectory contained in an information state has the same cf. reach probability
@@ -269,7 +268,7 @@ class BestResponsePolicy {
 
    BestResponsePolicy(
       Player best_response_player,
-      std::unordered_map< info_state_type, action_type > best_response_map)
+      std::unordered_map< info_state_type, action_type > best_response_map = {})
        : m_br_player(best_response_player), m_best_response(std::move(best_response_map))
    {
    }
@@ -283,8 +282,8 @@ class BestResponsePolicy {
    {
       auto istate_tree = detail::AugmentedInfostateTree(
          env, std::move(root_state), std::move(root_infostates));
-      m_root_value = istate_tree.build(std::move(player_policies));
-      _compute_best_responses(istate_tree.root_node());
+      istate_tree.build(m_br_player, std::move(player_policies));
+      m_root_value = _compute_best_responses< Env >(istate_tree.root_node());
       return *this;
    }
 
@@ -304,6 +303,8 @@ class BestResponsePolicy {
    {
       return operator[](std::get< 0 >(infostate_and_rest));
    }
+
+   auto& map() const { return m_best_response; }
 
   private:
    Player m_br_player;
@@ -374,6 +375,6 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
    return state_value;
 }
 
-}  // namespace nor::rm
+}  // namespace nor
 
 #endif  // NOR_BEST_RESPONSE_HPP

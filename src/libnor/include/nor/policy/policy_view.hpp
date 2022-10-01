@@ -21,14 +21,23 @@ class ActionPolicyView {
    ActionPolicyView(const ActionPolicy& policy)
        : m_getitem_impl([&]< typename... Args >(Args&&... args) {
             return policy.operator[](std::forward< Args >(args)...);
+         }),
+         m_at_impl([&]< typename... Args >(Args&&... args) {
+            return policy.at(std::forward< Args >(args)...);
+         }),
+         m_size_impl([&]< typename... Args >(Args&&... args) {
+            return policy.size(std::forward< Args >(args)...);
          })
    {
    }
 
    auto operator[](const action_type& action) const { return m_getitem_impl(action); }
+   auto at(const action_type& action) const { return m_at_impl(action); }
 
   private:
    std::function< const action_type&(const action_type&) > m_getitem_impl;
+   std::function< const action_type&(const action_type&) > m_at_impl;
+   std::function< size_t() > m_size_impl;
 };
 
 template < typename Infostate, concepts::action Action >
@@ -45,7 +54,7 @@ class StatePolicyView {
          StatePolicy,
          info_state_type,
          action_type,
-         HashmapActionPolicy< action_type > >
+         typename StatePolicy::action_policy_type >
    StatePolicyView(const StatePolicy& policy)
        : m_getitem_impl([&]< typename... Args >(Args&&... args) {
             return action_policy_view_type{policy.operator[](std::forward< Args >(args)...)};

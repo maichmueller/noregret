@@ -39,7 +39,12 @@ struct factory {
    //////////////////// Vanilla Counterfactual Regret Minimizer Factory ////////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
-   template < rm::CFRConfig cfg, bool as_map, typename Env, typename Policy, typename AveragePolicy >
+   template <
+      rm::CFRConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
    static rm::VanillaCFR<
       cfg,
       std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
@@ -470,13 +475,15 @@ struct factory {
       return {};
    }
 
-   template < typename Infostate, typename Action>
-   static BestResponsePolicy< Infostate, Action > make_best_response_policy()
+   template < typename Infostate, typename Action >
+   static BestResponsePolicy< Infostate, Action > make_best_response_policy(
+      Player best_response_player,
+      std::unordered_map< Infostate, Action > best_response_map = {})
    {
-      return {};
+      return {best_response_player, std::move(best_response_map)};
    }
 };
 
-}  // namespace nor::rm
+}  // namespace nor
 
 #endif  // NOR_FACTORY_HPP

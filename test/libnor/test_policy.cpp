@@ -94,49 +94,61 @@ TEST(TabularPolicy, kuhn_poker_states)
 TEST(BestResponsePolicy, rock_paper_scissors)
 {
    using namespace nor::games::rps;
-   auto tabular_policy = nor::factory::make_tabular_policy(
-      std::unordered_map< Infostate, nor::HashmapActionPolicy< int > >{},
-      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< int > >());
+   auto policy_alex = nor::factory::make_tabular_policy(
+      std::unordered_map< Infostate, nor::HashmapActionPolicy< Action > >{},
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >());
+   auto policy_bob = nor::factory::make_tabular_policy(
+      std::unordered_map< Infostate, nor::HashmapActionPolicy< Action > >{},
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >());
 
    Environment env{};
    State state{};
    auto istate_alex = Infostate{nor::Player::alex};
    auto istate_bob = Infostate{nor::Player::bob};
    auto actions = env.actions(nor::Player::alex, state);
-   auto& policy_alex = tabular_policy[std::pair{istate_alex, actions}];
-   policy_alex[Action{Team::one, Hand::paper}] = 1.;
-   policy_alex[Action{Team::one, Hand::scissors}] = 0.;
-   policy_alex[Action{Team::one, Hand::rock}] = 0.;
-   auto& policy_bob = tabular_policy[std::pair{istate_bob, actions}];
-   policy_bob[Action{Team::two, Hand::paper}] = 1.;
-   policy_bob[Action{Team::two, Hand::scissors}] = 0.;
-   policy_bob[Action{Team::two, Hand::rock}] = 0.;
+   auto& action_policy_alex = policy_alex[std::tie(istate_alex, actions)];
+   action_policy_alex[Action{Team::one, Hand::paper}] = 1.;
+   action_policy_alex[Action{Team::one, Hand::scissors}] = 0.;
+   action_policy_alex[Action{Team::one, Hand::rock}] = 0.;
+   auto& action_policy_bob = policy_bob[std::tie(istate_bob, actions)];
+   action_policy_bob[Action{Team::two, Hand::paper}] = 1.;
+   action_policy_bob[Action{Team::two, Hand::scissors}] = 0.;
+   action_policy_bob[Action{Team::two, Hand::rock}] = 0.;
 
-   auto best_response_bob = nor::rm::BestResponsePolicy{nor::Player::bob, env, };
-
-
-   policy_alex(auto i : actions) {
-      ASSERT_NEAR(policy[i], .2, 1e-10);
-   }
-   policy[3] += 5;
-   for(auto i : actions) {
-      if(i != 3) {
-         ASSERT_NEAR(policy[i], .2, 1e-10);
-      } else {
-         ASSERT_NEAR(policy[3], 5.2, 1e-10);
-      }
-   }
-   actions = std::vector{10, 11, 12, 13, 14};
-   policy = tabular_policy[std::pair{istate_bob, actions}];
-   for(auto i : actions) {
-      ASSERT_NEAR(policy[i], .2, 1e-10);
-   }
-   policy[12] += -1;
-   for(auto i : actions) {
-      if(i != 12) {
-         ASSERT_NEAR(policy[i], .2, 1e-10);
-      } else {
-         ASSERT_NEAR(policy[12], -.8, 1e-10);
-      }
-   }
+   auto best_response_bob = nor::factory::make_best_response_policy< Infostate, Action >(
+      nor::Player::bob);
+   auto policy_view = nor::StatePolicyView< Infostate, Action >{policy_bob};
+   auto br_map = best_response_bob
+                    .allocate(
+                       env,
+                       std::unordered_map< nor::Player, nor::StatePolicyView< Infostate, Action > >{
+                          {nor::Player::bob, policy_view}},
+                       std::make_unique< State >())
+                    .map();
+   double x = 3;
+   //   policy_alex(auto i : actions)
+   //   {
+   //      ASSERT_NEAR(policy[i], .2, 1e-10);
+   //   }
+   //   policy[3] += 5;
+   //   for(auto i : actions) {
+   //      if(i != 3) {
+   //         ASSERT_NEAR(policy[i], .2, 1e-10);
+   //      } else {
+   //         ASSERT_NEAR(policy[3], 5.2, 1e-10);
+   //      }
+   //   }
+   //   actions = std::vector{10, 11, 12, 13, 14};
+   //   policy = tabular_policy[std::pair{istate_bob, actions}];
+   //   for(auto i : actions) {
+   //      ASSERT_NEAR(policy[i], .2, 1e-10);
+   //   }
+   //   policy[12] += -1;
+   //   for(auto i : actions) {
+   //      if(i != 12) {
+   //         ASSERT_NEAR(policy[i], .2, 1e-10);
+   //      } else {
+   //         ASSERT_NEAR(policy[12], -.8, 1e-10);
+   //      }
+   //   }
 }

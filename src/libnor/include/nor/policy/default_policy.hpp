@@ -35,7 +35,7 @@ class UniformPolicy {
    UniformPolicy() = default;
 
    auto operator[](
-      const std::pair<
+      const std::tuple<
          const info_state_type&,
          const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >& >&
          infostate_legalactions) const
@@ -72,7 +72,7 @@ class ZeroDefaultPolicy {
    ZeroDefaultPolicy() = default;
 
    auto operator[](
-      const std::pair<
+      const std::tuple<
          const info_state_type&,
          const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >& >&
          infostate_legalactions) const

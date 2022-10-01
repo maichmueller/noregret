@@ -61,7 +61,7 @@ class TabularPolicy {
    }
 
    auto find_or_default(
-      const std::pair< const info_state_type&, const std::vector< action_type >& >&
+      const std::tuple< const info_state_type&, const std::vector< action_type >& >&
          state_action_pair)
    {
       const auto& infostate = std::get< 0 >(state_action_pair);
@@ -78,14 +78,14 @@ class TabularPolicy {
    }
 
    const action_policy_type& operator[](
-      const std::pair< const info_state_type&, const std::vector< action_type >& >& state_any_pair)
+      std::tuple< const info_state_type&, const std::vector< action_type >& > state_any_pair)
       const
    {
       return (*this)[std::get< 0 >(state_any_pair)];
    }
 
    action_policy_type& operator[](
-      const std::pair< const info_state_type&, const std::vector< action_type >& >&
+      std::tuple< const info_state_type&, const std::vector< action_type >& >
          state_action_pair)
    {
       return find_or_default(state_action_pair)->second;
@@ -98,17 +98,18 @@ class TabularPolicy {
    }
 
    action_policy_type operator[](
-      const std::tuple< const info_state_type&, const std::vector< action_type >&, tag::normalize >&
+      std::tuple< const info_state_type&, const std::vector< action_type >&, tag::normalize >
          state_any_pair) const
    {
       return (*this)[std::get< 0 >(state_any_pair)];
    }
 
    action_policy_type operator[](
-      const std::tuple< const info_state_type&, const std::vector< action_type >&, tag::normalize >&
+      std::tuple< const info_state_type&, const std::vector< action_type >&, tag::normalize >
          state_action_pair)
    {
-      auto& found_action_policy = find_or_default(state_action_pair)->second;
+      const auto& [istate, actions, tag] = state_action_pair;
+      auto& found_action_policy = find_or_default(std::tuple{istate, actions})->second;
       return normalize_action_policy(found_action_policy);
    }
 
