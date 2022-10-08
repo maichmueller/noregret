@@ -72,36 +72,10 @@ class TabularPolicy {
       return found_action_policy_iter;
    }
 
-   const action_policy_type& operator[](const info_state_type& infostate) const
-   {
-      return m_table.at(infostate);
-   }
-
-   const action_policy_type& operator[](
-      std::tuple< const info_state_type&, const std::vector< action_type >& > state_any_pair)
-      const
-   {
-      return (*this)[std::get< 0 >(state_any_pair)];
-   }
-
    action_policy_type& operator[](
-      std::tuple< const info_state_type&, const std::vector< action_type >& >
-         state_action_pair)
+      std::tuple< const info_state_type&, const std::vector< action_type >& > state_action_pair)
    {
       return find_or_default(state_action_pair)->second;
-   }
-
-   action_policy_type operator[](
-      std::tuple< const info_state_type&, tag::normalize > infostate_tag) const
-   {
-      return normalize_action_policy(m_table.at(std::get< 0 >(infostate_tag)));
-   }
-
-   action_policy_type operator[](
-      std::tuple< const info_state_type&, const std::vector< action_type >&, tag::normalize >
-         state_any_pair) const
-   {
-      return (*this)[std::get< 0 >(state_any_pair)];
    }
 
    action_policy_type operator[](
@@ -111,6 +85,29 @@ class TabularPolicy {
       const auto& [istate, actions, tag] = state_action_pair;
       auto& found_action_policy = find_or_default(std::tuple{istate, actions})->second;
       return normalize_action_policy(found_action_policy);
+   }
+
+   const action_policy_type& at(const info_state_type& infostate) const
+   {
+      return m_table.at(infostate);
+   }
+
+   const action_policy_type& at(
+      std::tuple< const info_state_type&, const std::vector< action_type >& > state_any_pair) const
+   {
+      return at(std::get< 0 >(state_any_pair));
+   }
+
+   action_policy_type at(std::tuple< const info_state_type&, tag::normalize > infostate_tag) const
+   {
+      return normalize_action_policy(m_table.at(std::get< 0 >(infostate_tag)));
+   }
+
+   action_policy_type at(
+      std::tuple< const info_state_type&, const std::vector< action_type >&, tag::normalize >
+         state_any_pair) const
+   {
+      return (*this)[std::get< 0 >(state_any_pair)];
    }
 
    [[nodiscard]] auto size() const

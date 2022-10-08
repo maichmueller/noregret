@@ -135,7 +135,12 @@ concept reference_state_policy =
    && has::method::getitem_r<
          T,
          ActionPolicy&,
-         const std::pair< Infostate, std::vector< Action > >&
+         std::tuple<const Infostate&, const std::vector< Action >& >
+      >
+   && has::method::at_r<
+         const T,
+         const ActionPolicy&,
+         std::tuple<const Infostate&, const std::vector< Action >& >
       >;
 // clang-format on
 
@@ -153,7 +158,12 @@ concept value_state_policy =
    && has::method::getitem_r<
          T,
          ActionPolicy,
-         const std::pair<Infostate, std::vector< Action > >&
+         std::tuple<const Infostate&, const std::vector< Action >& >
+      >
+   && has::method::at_r<
+         const T,
+         ActionPolicy,
+         std::tuple<const Infostate&, const std::vector< Action >& >
       >;
 // clang-format on
 

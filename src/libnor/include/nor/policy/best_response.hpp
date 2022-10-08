@@ -14,7 +14,7 @@ namespace nor {
 namespace detail {
 
 template < concepts::fosg Env >
-class AugmentedInfostateTree {
+class InfostateTree {
   public:
    using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
    using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
@@ -59,7 +59,7 @@ class AugmentedInfostateTree {
       std::optional< double > state_value = std::nullopt;
    };
 
-   AugmentedInfostateTree(
+   InfostateTree(
       Env& env,
       uptr< world_state_type > root_state,
       std::unordered_map< Player, info_state_type > root_infostates = {})
@@ -69,10 +69,10 @@ class AugmentedInfostateTree {
          m_root_infostates(std::move(root_infostates))
    {
       if(m_root_node.active_player != Player::chance) {
-         auto infostate_iter = root_infostates.find(m_root_node.active_player);
-         m_root_node.infostate = std::make_unique< info_state_type >(
-            infostate_iter != m_root_infostates.end() ? infostate_iter->second
-                                                      : info_state_type{m_root_node.active_player});
+         auto infostate_iter = m_root_infostates.find(m_root_node.active_player);
+         if(infostate_iter != m_root_infostates.end()) {
+            m_root_node.infostate = std::make_unique< info_state_type >(infostate_iter->second);
+         }
       }
       for(auto player : env.players(*m_root_state)) {
          auto istate_iter = m_root_infostates.find(player);
@@ -105,9 +105,9 @@ class AugmentedInfostateTree {
 };
 
 template < concepts::fosg Env >
-auto AugmentedInfostateTree< Env >::action_emplacer(
-   AugmentedInfostateTree::Node& infostate_node,
-   AugmentedInfostateTree::world_state_type& state)
+auto InfostateTree< Env >::action_emplacer(
+   InfostateTree::Node& infostate_node,
+   InfostateTree::world_state_type& state)
 {
    if(infostate_node.children.empty()) {
       if constexpr(concepts::stochastic_fosg< Env, world_state_type, action_type >) {
@@ -130,7 +130,7 @@ auto AugmentedInfostateTree< Env >::action_emplacer(
 }
 
 template < concepts::fosg Env >
-void AugmentedInfostateTree< Env >::build(
+void InfostateTree< Env >::build(
    Player br_player,
    std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies)
 {
@@ -158,9 +158,9 @@ void AugmentedInfostateTree< Env >::build(
       VisitationData{
          .infostates =
             [&] {
-               std::unordered_map< Player, info_state_type > infostates;
+               std::unordered_map< Player, std::reference_wrapper< info_state_type > > infostates;
                for(auto player : m_env.players(*m_root_state)) {
-                  infostates.emplace(player, info_state_type{player});
+                  infostates.emplace(player, std::ref(m_root_infostates.at(player)));
                }
                return infostates;
             }(),
@@ -180,39 +180,50 @@ void AugmentedInfostateTree< Env >::build(
          // Another trajectory could have already emplaced it and that is fine, since every
          // trajectory contained in an information state has the same cf. reach probability
          auto& [next_node_uptr, action_prob, action_value] = uptr_prob_value_tuple;
-
          auto [next_state, curr_action_prob] = std::visit(
-            [&](const auto& action_or_outcome) {
-               // since we are only interested in counterfactual reach probabilities for
-               // the pure best response of the given player, we do not account for that
-               // player's action probability, but for each opponent, we do fetch their
-               // policy probability
-               return std::pair{
-                  child_state(m_env, curr_state, action_or_outcome),
-                  rm::Probability{
-                     action_prob.has_value()
-                        ? action_prob.value().get()
-                        : (curr_player == br_player
-                              ? 1.
-                              : player_policies[curr_player][visit_data.infostates.at(curr_player)]
-                                               [action_or_outcome])}};
-            },
-            [&](const chance_outcome_type& outcome) {
-               return std::pair{
-                  child_state(m_env, curr_state, outcome),
-                  rm::Probability{m_env.chance_probability(*curr_state, std::get< 0 >(outcome))}};
-            },
+            common::Overload{
+               [&](const action_type& action) {
+                  // since we are only interested in counterfactual reach probabilities for
+                  // the pure best response of the given player, we do not account for that
+                  // player's action probability, but for each opponent, we do fetch their
+                  // policy probability
+                  return std::pair{
+                     child_state(m_env, curr_state, action),
+                     rm::Probability{
+                        action_prob.has_value()
+                           ? action_prob.value().get()
+                           : (curr_player == br_player
+                                 ? 1.
+                                 : player_policies.at(curr_player)[std::tuple{
+                                    visit_data.infostates.at(curr_player).get(),
+                                    std::vector< action_type >{}}][action])}};
+               },
+               [&](const chance_outcome_conditional_type& outcome) {
+                  if constexpr(concepts::deterministic_fosg< Env >) {
+                     // we shouldn't reach here if this is a deterministic fosg
+                     throw std::logic_error(
+                        "A deterministic environment traversed a chance outcome. "
+                        "This should not occur.");
+                     // this return is needed to silence the non-matching return types
+                     return std::pair{uptr< world_state_type >{nullptr}, rm::Probability{1.}};
+                  } else {
+                     return std::pair{
+                        child_state(m_env, curr_state, outcome),
+                        rm::Probability{m_env.chance_probability(*curr_state, outcome)}};
+                  }
+               }},
             action_variant);
          // we overwrite the existing action_prob here since any worldstate pertaining to the
          // infostate is going to have the same action probability (since player's can only
          // choose according to the knowledge they have in the information state and chance
          // states will simply assign the same value again.)
          action_prob = curr_action_prob;
-         Player next_active_player = m_env.is_terminal(*next_state);
+         Player next_active_player = m_env.active_player(*next_state);
 
          if(not next_node_uptr) {
             // create the child node unique ptr. The parent takes ownership of the child node.
-            next_node_uptr = std::make_unique< Node >(nullptr, {}, next_active_player);
+            next_node_uptr = std::make_unique< Node >(
+               Node{.active_player = next_active_player, .infostate = nullptr});
          }
 
          if(next_active_player != Player::chance) {
@@ -233,16 +244,22 @@ void AugmentedInfostateTree< Env >::build(
          } else {
             // since it isn't a terminal state we emplace the child state to visit further
             auto [child_observation_buffer, child_infostate_map] = std::visit(
-               [&](const auto& action_or_outcome) {
-                  m_env.transition(*next_state, action_or_outcome);
-                  auto [child_obs_buffer, child_istate_map] = fill_infostate_and_obs_buffers(
-                     m_env,
-                     visit_data.observation_buffer,
-                     visit_data.infostates,
-                     action_or_outcome,
-                     *next_state);
-                  return std::tuple{child_obs_buffer, child_istate_map};
-               },
+               common::Overload{
+                  [&](std::monostate) {
+                     // this will never be visited anyway, but if so --> error
+                     throw std::logic_error("We entered a std::monostate visit branch.");
+                     return std::tuple{visit_data.observation_buffer, visit_data.infostates};
+                  },
+                  [&](const auto& action_or_outcome) {
+                     m_env.transition(*next_state, action_or_outcome);
+                     auto [child_obs_buffer, child_istate_map] = fill_infostate_and_obs_buffers(
+                        m_env,
+                        visit_data.observation_buffer,
+                        visit_data.infostates,
+                        action_or_outcome,
+                        *next_state);
+                     return std::tuple{child_obs_buffer, child_istate_map};
+                  }},
                action_variant);
 
             visit_stack.emplace(
@@ -280,7 +297,7 @@ class BestResponsePolicy {
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       std::unordered_map< Player, info_state_type > root_infostates = {})
    {
-      auto istate_tree = detail::AugmentedInfostateTree(
+      auto istate_tree = detail::InfostateTree(
          env, std::move(root_state), std::move(root_infostates));
       istate_tree.build(m_br_player, std::move(player_policies));
       m_root_value = _compute_best_responses< Env >(istate_tree.root_node());
@@ -312,13 +329,13 @@ class BestResponsePolicy {
    double m_root_value = 0.;
 
    template < typename Env >
-   double _compute_best_responses(typename detail::AugmentedInfostateTree< Env >::Node& curr_node);
+   double _compute_best_responses(typename detail::InfostateTree< Env >::Node& curr_node);
 };
 
 template < concepts::info_state Infostate, concepts::action Action >
 template < typename Env >
 double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
-   typename detail::AugmentedInfostateTree< Env >::Node& curr_node)
+   typename detail::InfostateTree< Env >::Node& curr_node)
 {
    // first check if this node's value hasn't been already computed by another visit
    if(curr_node.state_value.has_value()) {
@@ -338,9 +355,9 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
          // queried.
          double child_value = action_value_opt.has_value()
                                  ? action_value_opt.value()
-                                 : _compute_best_responses(*child_node_uptr);
+                                 : _compute_best_responses< Env >(*child_node_uptr);
          // the state value is updated depending on the given update rule
-         state_value_updater(action_variant, action_prob, child_value);
+         state_value_updater(action_variant, action_prob.value(), child_value);
       }
    };
 
@@ -356,7 +373,7 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
       child_traverser([&](const auto& action_variant, rm::Probability, double child_value) {
          if(child_value > state_value) {
             // the action variant holds the action type in the second slot
-            best_action = std::get< 1 >(action_variant);
+            best_action = std::get< action_type >(action_variant);
             state_value = child_value;
          }
       });

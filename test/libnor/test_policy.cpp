@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <random>
 #include <string>
 
+#include "common/common.hpp"
 #include "nor/env.hpp"
 #include "nor/factory.hpp"
 #include "nor/fosg_states.hpp"
@@ -88,6 +90,44 @@ TEST(TabularPolicy, kuhn_poker_states)
       } else {
          ASSERT_NEAR(policy[12], -.8, 1e-10);
       }
+   }
+}
+
+TEST(StatePolicyView, from_tabular_policy)
+{
+   using namespace nor::games::rps;
+
+   auto rng = common::create_rng();
+   std::uniform_real_distribution< double > dist{0., 1.};
+
+   auto policy_alex = nor::factory::make_tabular_policy(
+      std::unordered_map< Infostate, nor::HashmapActionPolicy< Action > >{},
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >());
+   auto policy_bob = nor::factory::make_tabular_policy(
+      std::unordered_map< Infostate, nor::HashmapActionPolicy< Action > >{},
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >());
+
+   Environment env{};
+   State state{};
+   auto istate_alex = Infostate{nor::Player::alex};
+   auto istate_bob = Infostate{nor::Player::bob};
+   auto actions = env.actions(nor::Player::alex, state);
+   auto& action_policy_alex = policy_alex[std::tie(istate_alex, actions)];
+   action_policy_alex[Action{Team::one, Hand::paper}] = dist(rng);
+   action_policy_alex[Action{Team::one, Hand::scissors}] = dist(rng);
+   action_policy_alex[Action{Team::one, Hand::rock}] = dist(rng);
+   nor::normalize_action_policy_inplace(action_policy_alex);
+   auto& action_policy_bob = policy_bob[std::tie(istate_bob, actions)];
+   action_policy_bob[Action{Team::two, Hand::paper}] = dist(rng);
+   action_policy_bob[Action{Team::two, Hand::scissors}] = dist(rng);
+   action_policy_bob[Action{Team::two, Hand::rock}] = dist(rng);
+   nor::normalize_action_policy_inplace(action_policy_bob);
+
+   for(auto hand : {Hand::paper, Hand::scissors, Hand::rock}) {
+      ASSERT_EQ(
+         (nor::StatePolicyView< Infostate, Action >{policy_bob}.at(
+            istate_bob)[Action{Team::two, hand}]),
+         (action_policy_bob[Action{Team::two, hand}]));
    }
 }
 

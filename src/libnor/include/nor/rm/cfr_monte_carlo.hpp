@@ -247,7 +247,7 @@ class MCCFR:
    /// the parameter to control the epsilon-on-policy epxloration
    double m_epsilon;
    /// the rng state to produce random numbers with
-   common::random::RNG m_rng;
+   common::RNG m_rng;
    /// the standard 0 to 1. floating point uniform distribution
    std::uniform_real_distribution< double > m_uniform_01_dist{0., 1.};
    /// the actual regret minimizing method we will apply on the infostates
@@ -940,7 +940,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
       // in the non-epsilon case we simply use the player's policy to sample the next move
       // from. Thus in this case, the action's sample probability and action's policy
       // probability are the same, i.e. action_sample_prob = action_policy_prob in the return value
-      auto& chosen_action = common::random::choose(
+      auto& chosen_action = common::choose(
          infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng);
       auto action_prob = player_policy[chosen_action];
       return std::tuple{chosen_action, action_prob, action_prob};
@@ -958,7 +958,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
          // with probability epsilon we do exploration, i.e. uniform sampling, over all actions
          // available. This is a tiny speedup over querying the actual policy map for the
          // epsilon-on-policy enhanced likelihoods
-         auto& chosen_action = common::random::choose(infonode_data.actions(), m_rng);
+         auto& chosen_action = common::choose(infonode_data.actions(), m_rng);
          return std::tuple{
             chosen_action,
             m_epsilon * uniform_prob + (1 - m_epsilon) * player_policy[chosen_action],
@@ -1001,7 +1001,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_outcome(const world_st
       chance_actions | ranges::views::transform([this, &state](const auto& outcome) {
          return std::pair{outcome, _env().chance_probability(state, outcome)};
       }));
-   auto& chosen_outcome = common::random::choose(
+   auto& chosen_outcome = common::choose(
       chance_actions, [&](const auto& outcome) { return chance_probabilities[outcome]; }, m_rng);
 
    if constexpr(return_likelihood) {
@@ -1104,7 +1104,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
    } else {
       // for the non-traversing player we sample a single action and continue
-      auto& sampled_action = common::random::choose(
+      auto& sampled_action = common::choose(
          infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng);
       //      auto& sampled_action = infonode_data.actions()[0];
 

@@ -5,7 +5,7 @@
 #include "../games/stratego/fixtures.hpp"
 #include "nor/env.hpp"
 #include "nor/nor.hpp"
-#include "utils_for_testing.hpp"
+#include "rm_specific_testing_utils.hpp"
 
 using namespace nor;
 

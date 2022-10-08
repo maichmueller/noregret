@@ -26,7 +26,7 @@ struct debug;
 
 using noop = decltype([](auto&&...) { return; });
 
-namespace random {
+
 
 using RNG = std::mt19937_64;
 /**
@@ -116,8 +116,6 @@ inline auto choose(const RAContainer& cont)
    auto rng = create_rng(std::random_device{}());
    return choose(cont, rng);
 }
-
-}  // namespace random
 
 template < typename T >
 inline std::map< T, unsigned int > counter(const std::vector< T >& vals)

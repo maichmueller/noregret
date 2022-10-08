@@ -1,5 +1,5 @@
-#ifndef NOR_UTILS_FOR_TESTING_HPP
-#define NOR_UTILS_FOR_TESTING_HPP
+#ifndef NOR_RM_SPECIFIC_TESTING_UTILS_HPP
+#define NOR_RM_SPECIFIC_TESTING_UTILS_HPP
 
 #include <gtest/gtest.h>
 
@@ -306,4 +306,4 @@ inline auto setup_rps_test()
       std::move(init_state)};
 }
 
-#endif  // NOR_UTILS_FOR_TESTING_HPP
+#endif  // NOR_RM_SPECIFIC_TESTING_UTILS_HPP
