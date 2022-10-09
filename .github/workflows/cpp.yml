@@ -1,0 +1,131 @@
+name: C++ CI
+
+on: [ push, pull_request ]
+
+jobs:
+  matrix-strategy-setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v2
+      - id: set-matrix
+        run: |
+          TASKS=$(echo $(cat .github/workflows/build-matrix.json) | sed 's/ //g' )
+          echo "::set-output name=matrix::$TASKS"
+
+  build-test-install:
+    needs: matrix-strategy-setup
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.matrix-strategy-setup.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Install conan
+        shell: bash
+        run: |
+          python3 -m pip install --upgrade pip setuptools
+          python3 -m pip install conan
+
+      - name: Install Doxygen
+        if: ${{ runner.os }} == "Linux" || ${{ runner.os }} == "macOS"
+        shell: bash
+        run: |
+          if [[ ${{ runner.os }} == 'Linux' ]]; then
+            sudo apt-get clean && sudo apt-get update && sudo apt-get install -y doxygen graphviz
+          elif [[ ${{ runner.os }} == 'macOS' ]]; then
+            brew install doxygen graphviz
+          elif [[ ${{ runner.os }} == 'Windows' ]]; then
+            echo "Deferring to chocolatey"
+          fi
+
+      - name: Chocolatey install Doxygen
+        if: runner.os == 'Windows'
+        uses: crazy-max/ghaction-chocolatey@v1
+        with:
+          args: install doxygen.install graphviz --no-progress
+
+      - name: Source profile
+        if: runner.os == 'Linux'
+        shell: bash
+        run: source ~/.profile
+
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v1.9
+        with:
+          cmake-version: '3.22'
+
+      - name: Configure Windows compile environment
+        uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows' && matrix.config.cxx == 'cl'
+        with:
+          arch: amd64
+
+      - name: Configure CMake
+        shell: bash
+        env:
+          CC: ${{ matrix.config.cc }}
+          CXX: ${{ matrix.config.cxx }}
+        run: >
+          cmake
+          -S .
+          -B ./build
+          -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
+          -DWARNINGS_AS_ERRORS:BOOL=OFF
+          -DUSE_PYBIND11_FINDPYTHON:BOOL=ON
+
+      - name: Build
+        shell: bash
+        run: |
+          cmake --build ./build --config Release --target nor_tests
+
+      - name: Run Tests
+        shell: bash
+        run: >
+          GTEST_OUTPUT=xml:gtest-report-${{ matrix.config.name }}-${{ matrix.config.static }}.xml
+          GTEST_COLOR=1
+          ctest
+          --test-dir ./build
+          --verbose
+          -C ${{ matrix.config.build_type }}
+
+      - name: Upload test result artifacts
+        uses: actions/upload-artifact@v2
+        if: success()
+        with:
+          name: gtest-results
+          path: ./build/**/gtest-report-${{ matrix.config.name }}.xml
+          retention-days: 1
+
+  publish-gtest-results:
+    name: "Publish GTest Results"
+    needs: build-test-install
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: gtest-results
+          path: ./artifacts/gtest-results_downloaded
+
+      - name: Display structure of downloaded files
+        run: ls
+        working-directory: ./artifacts/gtest-results_downloaded
+
+      - name: Publish Unit Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v1
+        with:
+          files: ./artifacts/**/*.xml
