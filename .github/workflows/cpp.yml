@@ -32,6 +32,13 @@ jobs:
         with:
           python-version: '3.9'
 
+      - name: Set up GCC
+        if: ${{ runner.os }} == "Linux"
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: matrix.config.compiler_version
+          platform: x64
+
       - name: Install conan
         shell: bash
         run: |
