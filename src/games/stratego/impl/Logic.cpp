@@ -44,7 +44,8 @@ void Logic::apply_action(State &state, const Action &action)
    auto &piece_to_opt = board[to];
 
    state.history().commit_action(
-      state.turn_count(), state.active_team(), action, {piece_from, piece_to_opt});
+      state.turn_count(), state.active_team(), action, {piece_from, piece_to_opt}
+   );
 
    // enact the move
    if(piece_to_opt.has_value()) {
@@ -176,12 +177,14 @@ std::vector< Action > Logic::valid_actions(const State &state, Team team)
                }
             }
             ranges::for_each(
-               _valid_vectors(pos, board.shape(), token_move_range), [&](const Position &pos_to) {
+               _valid_vectors(pos, board.shape(), token_move_range),
+               [&](const Position &pos_to) {
                   Action action{team, {pos, pos + pos_to}};
                   if(is_valid(state, action, team)) {
                      actions_possible.emplace_back(action);
                   }
-               });
+               }
+            );
          }
       }
    }
@@ -221,7 +224,8 @@ bool Logic::has_valid_actions(const State &state, Team team)
                   _valid_vectors(pos, board.shape(), token_move_range),
                   [&](const Position &vector) -> bool {
                      return is_valid(state, Action{team, {pos, pos + vector}}, team);
-                  })) {
+                  }
+               )) {
                return true;
             }
          }
@@ -234,7 +238,8 @@ std::map< Position, Token > stratego::Logic::draw_setup_uniform(
    const stratego::Config &config,
    stratego::Board &curr_board,
    stratego::Team team,
-   aze::utils::random::RNG &rng)
+   aze::utils::random::RNG &rng
+)
 {
    std::map< Position, Token > setup_out;
 
@@ -271,7 +276,8 @@ std::map< Position, Token > stratego::Logic::draw_setup_uniform(
    if(not tokenvec.empty()) {
       throw std::invalid_argument(
          "Current board setup and config could not be made to agree with number of tokens to "
-         "place on it.");
+         "place on it."
+      );
    }
    return setup_out;
 }
@@ -324,7 +330,8 @@ void Logic::reset(State &state)
    if(not state.config().fixed_starting_team) {
       Config cfg_copy = state.config();
       cfg_copy.starting_team = aze::utils::random::choose(
-         std::array{Team::BLUE, Team::RED}, state.rng());
+         std::array{Team::BLUE, Team::RED}, state.rng()
+      );
    }
    state = State(state.config());
 }
@@ -335,8 +342,9 @@ bool Logic::is_valid(const State &state, Move move, Team team)
 
 void Logic::draw_board(
    const Config &config,
-   Board& curr_board,
-   const std::map<Team, std::map< Position, Token >> &setups)
+   Board &curr_board,
+   const std::map< Team, std::map< Position, Token > > &setups
+)
 {
    for(size_t i = 0; i < 2; i++) {
       auto team = Team(i);

@@ -14,9 +14,8 @@ namespace nor {
 struct factory {
   private:
    template < typename ValueType >
-   static std::unordered_map< Player, ValueType > to_map(
-      ranges::range auto players,
-      const ValueType& value)
+   static std::unordered_map< Player, ValueType >
+   to_map(ranges::range auto players, const ValueType& value)
    {
       std::unordered_map< Player, ValueType > map;
       for(auto player : players | utils::is_actual_player_filter) {
@@ -54,7 +53,8 @@ struct factory {
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       Policy&& policy,
-      AveragePolicy&& avg_policy)
+      AveragePolicy&& avg_policy
+   )
    {
       if constexpr(as_map) {
          auto players = env.players(*root_state);
@@ -77,7 +77,8 @@ struct factory {
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       std::unordered_map< Player, Policy > policy_map,
-      std::unordered_map< Player, AveragePolicy > avg_policy_map)
+      std::unordered_map< Player, AveragePolicy > avg_policy_map
+   )
    {
       return {
          std::forward< Env >(env),
@@ -90,10 +91,12 @@ struct factory {
    static rm::VanillaCFR< cfg, Env, Policy, Policy > make_cfr_vanilla(
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
-      const Policy& policy)
+      const Policy& policy
+   )
    {
       return make_cfr_vanilla< cfg, as_map >(
-         std::forward< Env >(env), std::move(root_state), policy, policy);
+         std::forward< Env >(env), std::move(root_state), policy, policy
+      );
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +116,8 @@ struct factory {
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       Policy&& policy,
-      AveragePolicy&& avg_policy)
+      AveragePolicy&& avg_policy
+   )
    {
       if constexpr(as_map) {
          auto players = env.players(*root_state);
@@ -136,7 +140,8 @@ struct factory {
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       std::unordered_map< Player, Policy > policy_map,
-      std::unordered_map< Player, AveragePolicy > avg_policy_map)
+      std::unordered_map< Player, AveragePolicy > avg_policy_map
+   )
    {
       return {
          std::forward< Env >(env),
@@ -149,10 +154,12 @@ struct factory {
    static rm::CFRPlus< Env, Policy, Policy > make_cfr_plus(
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
-      const Policy& policy)
+      const Policy& policy
+   )
    {
       return make_cfr_plus< as_map >(
-         std::forward< Env >(env), std::move(root_state), policy, policy);
+         std::forward< Env >(env), std::move(root_state), policy, policy
+      );
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +182,8 @@ struct factory {
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy,
-      rm::CFRDiscountedParameters params = {})
+      rm::CFRDiscountedParameters params = {}
+   )
    {
       if constexpr(as_map) {
          auto players = env.players(*root_state);
@@ -201,7 +209,8 @@ struct factory {
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
-      rm::CFRDiscountedParameters params = {})
+      rm::CFRDiscountedParameters params = {}
+   )
    {
       return {
          std::move(params),
@@ -216,10 +225,12 @@ struct factory {
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       const Policy& policy,
-      rm::CFRDiscountedParameters params = {})
+      rm::CFRDiscountedParameters params = {}
+   )
    {
       return make_cfr_discounted< cfg, as_map >(
-         std::move(params), std::forward< Env >(env), std::move(root_state), policy, policy);
+         std::move(params), std::forward< Env >(env), std::move(root_state), policy, policy
+      );
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -241,7 +252,8 @@ struct factory {
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       Policy&& policy,
-      AveragePolicy&& avg_policy)
+      AveragePolicy&& avg_policy
+   )
    {
       if constexpr(as_map) {
          auto players = env.players(*root_state);
@@ -266,7 +278,8 @@ struct factory {
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       std::unordered_map< Player, Policy > policy_map,
-      std::unordered_map< Player, AveragePolicy > avg_policy_map)
+      std::unordered_map< Player, AveragePolicy > avg_policy_map
+   )
    {
       return {
          rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
@@ -280,14 +293,16 @@ struct factory {
    static rm::CFRDiscounted< cfg, Env, Policy, Policy > make_cfr_linear(
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
-      const Policy& policy)
+      const Policy& policy
+   )
    {
       return make_cfr_linear< cfg, as_map >(
          rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
          std::forward< Env >(env),
          std::move(root_state),
          policy,
-         policy);
+         policy
+      );
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -310,7 +325,8 @@ struct factory {
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy,
-      rm::CFRExponentialParameters params = {})
+      rm::CFRExponentialParameters params = {}
+   )
    {
       if constexpr(as_map) {
          auto players = env.players(*root_state);
@@ -336,7 +352,8 @@ struct factory {
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
-      rm::CFRExponentialParameters params = {})
+      rm::CFRExponentialParameters params = {}
+   )
    {
       return {
          std::move(params),
@@ -351,10 +368,12 @@ struct factory {
       Env&& env,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       const Policy& policy,
-      rm::CFRExponentialParameters params = {})
+      rm::CFRExponentialParameters params = {}
+   )
    {
       return make_cfr_exponential< cfg, as_map >(
-         std::move(params), std::forward< Env >(env), std::move(root_state), policy, policy);
+         std::move(params), std::forward< Env >(env), std::move(root_state), policy, policy
+      );
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -374,7 +393,8 @@ struct factory {
       Policy&& policy,
       AvgPolicy&& avg_policy,
       double epsilon,
-      size_t seed = 0)
+      size_t seed = 0
+   )
    {
       if constexpr(as_map) {
          auto players = env.players(*root_state);
@@ -410,7 +430,8 @@ struct factory {
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
       double epsilon,
-      size_t seed = 0)
+      size_t seed = 0
+   )
    {
       return {
          std::forward< Env >(env),
@@ -427,10 +448,12 @@ struct factory {
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
       const Policy& policy,
       double epsilon,
-      size_t seed = 0)
+      size_t seed = 0
+   )
    {
       return make_mccfr< cfg, as_map >(
-         std::forward< Env >(env), std::move(root_state), policy, policy, epsilon, seed);
+         std::forward< Env >(env), std::move(root_state), policy, policy, epsilon, seed
+      );
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -442,9 +465,8 @@ struct factory {
       typename ActionPolicy,
       typename Table,
       typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy > >
-   static TabularPolicy< Infostate, ActionPolicy, DefaultPolicy, Table > make_tabular_policy(
-      Table&& table = Table(),
-      DefaultPolicy&& def_policy = DefaultPolicy())
+   static TabularPolicy< Infostate, ActionPolicy, DefaultPolicy, Table >
+   make_tabular_policy(Table&& table = Table(), DefaultPolicy&& def_policy = DefaultPolicy())
    {
       return {std::forward< Table >(table), std::forward< DefaultPolicy >(def_policy)};
    }
@@ -478,7 +500,8 @@ struct factory {
    template < typename Infostate, typename Action >
    static BestResponsePolicy< Infostate, Action > make_best_response_policy(
       Player best_response_player,
-      std::unordered_map< Infostate, Action > best_response_map = {})
+      std::unordered_map< Infostate, Action > best_response_map = {}
+   )
    {
       return {best_response_player, std::move(best_response_map)};
    }

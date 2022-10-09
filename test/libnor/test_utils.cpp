@@ -123,11 +123,14 @@ TYPED_TEST(clone_any_way_fixture, test_all_paths)
 
    ASSERT_EQ(
       TypeParam::counter_access::copy_constructor_counter,
-      expected_counts[TypeParam::index].copy_cstructor_count);
+      expected_counts[TypeParam::index].copy_cstructor_count
+   );
    ASSERT_EQ(
       TypeParam::counter_access::copy_method_counter,
-      expected_counts[TypeParam::index].copy_meth_count);
+      expected_counts[TypeParam::index].copy_meth_count
+   );
    ASSERT_EQ(
       TypeParam::counter_access::clone_method_counter,
-      expected_counts[TypeParam::index].clone_meth_count);
+      expected_counts[TypeParam::index].clone_meth_count
+   );
 }

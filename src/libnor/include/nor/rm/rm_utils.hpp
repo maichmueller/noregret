@@ -25,7 +25,6 @@ using StateValueMap = fluent::
 using ReachProbabilityMap = fluent::
    NamedType< std::unordered_map< Player, double >, struct reach_prob_map_tag >;
 
-
 /**
  * @brief computes the reach probability of the node.
  *
@@ -36,7 +35,7 @@ using ReachProbabilityMap = fluent::
  * this node
  * @return the reach probability of the nde
  */
-template < concepts::mapping_of<double> KVdouble >
+template < concepts::mapping_of< double > KVdouble >
 [[nodiscard]] inline double reach_probability(const KVdouble& reach_probability_contributions)
 {
    auto values_view = reach_probability_contributions | ranges::views::values;
@@ -51,14 +50,13 @@ template < concepts::mapping_of<double> KVdouble >
  * @param player the player for which the value is computed
  * @return the counterfactual reach probability
  */
-template < concepts::mapping_of<double> KVdouble >
+template < concepts::mapping_of< double > KVdouble >
    requires requires(KVdouble m) {
                // the keys have to of type 'Player' as well
                std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;
             }
-inline double cf_reach_probability(
-   const Player& player,
-   const KVdouble& reach_probability_contributions)
+inline double
+cf_reach_probability(const Player& player, const KVdouble& reach_probability_contributions)
 {
    auto values_view = reach_probability_contributions
                       | ranges::views::filter([&](const auto& player_rp_pair) {
@@ -90,7 +88,8 @@ void regret_matching(Policy& policy_map, const std::unordered_map< Action, doubl
    if(pos_regret_sum > 0) {
       if(cumul_regret.size() != policy_map.size()) {
          throw std::invalid_argument(
-            "Passed regrets and policy maps do not have the same number of elements");
+            "Passed regrets and policy maps do not have the same number of elements"
+         );
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
@@ -126,7 +125,8 @@ requires
 void regret_matching(
    Policy& policy_map,
    const RegretMap& cumul_regret,
-   ActionWrapper action_wrapper = [](const Action& action) { return action; })
+   ActionWrapper action_wrapper = [](const Action& action) { return action; }
+)
 {
    // sum up the positivized regrets and store them in a new vector
    RegretMap pos_regrets;
@@ -141,12 +141,13 @@ void regret_matching(
    if(pos_regret_sum > 0) {
       if(cumul_regret.size() != policy_map.size()) {
          throw std::invalid_argument(
-            "Passed regrets and policy maps do not have the same number of elements");
+            "Passed regrets and policy maps do not have the same number of elements"
+         );
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(entry) = std::max(
-                                          0., cumul_regret.at(action_wrapper(std::get< 0 >(entry))))
-                                       / pos_regret_sum;
+         return std::get< 1 >(entry
+                ) = std::max(0., cumul_regret.at(action_wrapper(std::get< 0 >(entry))))
+                    / pos_regret_sum;
       });
    } else {
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
@@ -184,7 +185,8 @@ void regret_matching_plus(Policy& policy_map, RegretMap& cumul_regret)
    if(pos_regret_sum > 0) {
       if(cumul_regret.size() != policy_map.size()) {
          throw std::invalid_argument(
-            "Passed regrets and policy maps do not have the same number of elements");
+            "Passed regrets and policy maps do not have the same number of elements"
+         );
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
@@ -220,7 +222,8 @@ requires
 void regret_matching_plus_rbp(
    Policy& policy_map,
    RegretMap& cumul_regret_map,
-   InstantRegretMap& instant_regret_map)
+   InstantRegretMap& instant_regret_map
+)
 {
    double pos_regret_sum{0.};
    for(auto& [action, cumul_reg] : cumul_regret_map) {
@@ -235,12 +238,13 @@ void regret_matching_plus_rbp(
    if(pos_regret_sum > 0) {
       if(cumul_regret_map.size() != policy_map.size()) {
          throw std::invalid_argument(
-            "Passed regrets and policy maps do not have the same number of elements");
+            "Passed regrets and policy maps do not have the same number of elements"
+         );
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(
-                   entry) = std::max(0., cumul_regret_map.at(action_wrapper(std::get< 0 >(entry))))
-                            / pos_regret_sum;
+         return std::get< 1 >(entry
+                ) = std::max(0., cumul_regret_map.at(action_wrapper(std::get< 0 >(entry))))
+                    / pos_regret_sum;
       });
    } else {
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
@@ -272,7 +276,8 @@ requires
 void regret_matching_plus(
    Policy& policy_map,
    RegretMap& cumul_regret_map,
-   ActionWrapper action_wrapper = [](const Action& action) { return action; })
+   ActionWrapper action_wrapper = [](const Action& action) { return action; }
+)
 {
    double pos_regret_sum{0.};
    for(auto& [action, cumul_regret] : cumul_regret_map) {
@@ -284,12 +289,13 @@ void regret_matching_plus(
    if(pos_regret_sum > 0) {
       if(cumul_regret_map.size() != policy_map.size()) {
          throw std::invalid_argument(
-            "Passed regrets and policy maps do not have the same number of elements");
+            "Passed regrets and policy maps do not have the same number of elements"
+         );
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(
-                   entry) = std::max(0., cumul_regret_map.at(action_wrapper(std::get< 0 >(entry))))
-                            / pos_regret_sum;
+         return std::get< 1 >(entry
+                ) = std::max(0., cumul_regret_map.at(action_wrapper(std::get< 0 >(entry))))
+                    / pos_regret_sum;
       });
    } else {
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
@@ -327,8 +333,9 @@ auto collect_rewards(
       // individually).
       std::erase(std::remove_if(players.begin(), players.end(), utils::is_chance_player_pred));
       auto all_rewards = env.reward(players, terminal_wstate);
-      ranges::views::for_each(
-         players, [&](Player player) { rewards.emplace(player, all_rewards[player]); });
+      ranges::views::for_each(players, [&](Player player) {
+         rewards.emplace(player, all_rewards[player]);
+      });
    } else {
       // otherwise we just loop over the per player reward method
       for(auto player : players | utils::is_actual_player_filter) {

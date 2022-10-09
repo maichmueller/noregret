@@ -91,7 +91,7 @@ concept smart_pointer_like = requires(T t) {
 template < typename T >
 concept pointer = std::is_pointer_v< T >;
 
-template < typename T , template <class...> class Template>
+template < typename T, template < class... > class Template >
 concept specialization = common::is_specialization_v< T, Template >;
 
 template < typename T >

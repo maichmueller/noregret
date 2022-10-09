@@ -149,8 +149,9 @@ struct CEMap {
 
    [[nodiscard]] constexpr Value at(const Key& key) const
    {
-      const auto itr = std::find_if(
-         begin(data), end(data), [&key](const auto& v) { return v.first == key; });
+      const auto itr = std::find_if(begin(data), end(data), [&key](const auto& v) {
+         return v.first == key;
+      });
       if(itr != end(data)) {
          return itr->second;
       } else {
@@ -198,7 +199,7 @@ template < template < class... > class Template, class... Args >
 struct is_specialization< Template< Args... >, Template >: std::true_type {};
 
 template < class T, template < class... > class Template >
-constexpr bool is_specialization_v = is_specialization< T, Template>::value;
+constexpr bool is_specialization_v = is_specialization< T, Template >::value;
 
 template < typename... Ts >
 using tuple_of_const_ref = std::tuple< const std::remove_cvref_t< Ts >&... >;

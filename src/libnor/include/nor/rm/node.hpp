@@ -25,9 +25,7 @@ class InfostateNodeData {
    using storage_type = std::tuple< regret_map_type, OptionalData... >;
 
    InfostateNodeData()
-      requires(
-         sizeof...(OptionalData) == 0
-         or common::all_predicate_v< std::is_default_constructible, OptionalData... >)
+      requires(sizeof...(OptionalData) == 0 or common::all_predicate_v< std::is_default_constructible, OptionalData... >)
    : m_storage(_init_storage())
    {
    }
@@ -49,8 +47,7 @@ class InfostateNodeData {
    template < ranges::range ActionRange >
       requires(sizeof...(OptionalData) == 0
                or common::all_predicate_v< std::is_default_constructible, OptionalData... >)
-   InfostateNodeData(ActionRange actions)
-       : m_legal_actions(), m_storage(_init_storage())
+   InfostateNodeData(ActionRange actions) : m_legal_actions(), m_storage(_init_storage())
    {
       emplace(std::move(actions));
    }
@@ -108,7 +105,9 @@ class InfostateNodeData {
          sizeof...(OptionalData) > 0
          and (
             requires(const storage_type& storage) { std::get< N >(storage)[t]; }
-            or requires(const storage_type& storage) { std::get< N >(storage).at(t); }))
+            or requires(const storage_type& storage) { std::get< N >(storage).at(t); }
+         )
+      )
    {
       if constexpr(requires(const storage_type& storage) { std::get< N >(storage)[t]; }) {
          return std::get< N >(m_storage)[t];
@@ -136,12 +135,15 @@ class InfostateNodeData {
    {
       return storage_type{std::tuple_cat(std::tuple{std::move(rm)}, optional_data_tuple_type{})};
    }
-   auto _init_storage(OptionalData... data) requires(sizeof...(OptionalData) > 0)
+   auto _init_storage(OptionalData... data)
+      requires(sizeof...(OptionalData) > 0)
    {
       return storage_type{std::tuple_cat(
-         std::tuple{regret_map_type{}}, optional_data_tuple_type{std::move(data)...})};
+         std::tuple{regret_map_type{}}, optional_data_tuple_type{std::move(data)...}
+      )};
    }
-   auto _init_storage(regret_map_type rm, OptionalData... data) requires(sizeof...(OptionalData) > 0)
+   auto _init_storage(regret_map_type rm, OptionalData... data)
+      requires(sizeof...(OptionalData) > 0)
    {
       return storage_type{
          std::tuple_cat(std::tuple{std::move(rm)}, optional_data_tuple_type{std::move(data)...})};

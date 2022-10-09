@@ -27,8 +27,8 @@ concept game_tree_node = requires(Node n) {
                             // the object pointed to by the mapped values in the children map needs
                             // to be another Node
                             std::is_same_v<
-                               decltype(*(
-                                  std::declval< typename decltype(n.children)::mapped_type >())),
+                               decltype(*(std::declval< typename decltype(n.children
+                                          )::mapped_type >())),
                                Node >;
                          };
 }
@@ -113,7 +113,8 @@ class GameTreeTraverser {
       TraversalStrategy traversal_strategy = &traverse_all_actions,
       VisitationData vis_data = {},
       TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook >&&
-         hooks = {})
+         hooks = {}
+   )
    {
       // we need to fill the root node's data (if desired) before entering the loop, since the
       // loop assumes all entered nodes to have their data node emplaced already.
@@ -139,7 +140,8 @@ class GameTreeTraverser {
       // emplace the root node into the visitation stack
       visit_stack.emplace(
          utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(root_state)),
-         std::move(vis_data));
+         std::move(vis_data)
+      );
 
       while(not visit_stack.empty()) {
          // get the top node and world state from the stack and move them into our values.
@@ -154,14 +156,16 @@ class GameTreeTraverser {
 
          for(const auto& action : traversal_strategy(curr_wstate_uptr.get())) {
             auto next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
-               utils::clone_any_way(curr_wstate_uptr));
+               utils::clone_any_way(curr_wstate_uptr)
+            );
             // move the new world state forward by the current action
             if constexpr(concepts::deterministic_fosg< Env >) {
                m_env->transition(*next_wstate_uptr, std::get< 1 >(action));
             } else {
                std::visit(
                   [&](const auto& any_action) { m_env->transition(*next_wstate_uptr, any_action); },
-                  action);
+                  action
+               );
             }
 
             // offer the caller to extract information for the currently visited node. We are
@@ -169,7 +173,8 @@ class GameTreeTraverser {
             // consistency in our call signature
 
             auto new_visitation_data = hooks.child_hook(
-               visit_data, &action, curr_wstate_raw_ptr, next_wstate_uptr.get());
+               visit_data, &action, curr_wstate_raw_ptr, next_wstate_uptr.get()
+            );
 
             if(not m_env->is_terminal(*next_wstate_uptr)) {
                // if the newly reached world state is not a terminal state, then we merely append
@@ -242,8 +247,8 @@ class GameTree {
          action_variant_type*,
          world_state_type*,
          world_state_type* >
-   void build(NodeBuilder builder = [](auto&&...) { return std::make_unique< node_type >(); }){
-
+   void build(NodeBuilder builder = [](auto&&...) { return std::make_unique< node_type >(); })
+   {
    }
 
   private:
@@ -266,7 +271,8 @@ struct PublicTreeNode {
             std::true_type,
             std::false_type > >::value,
       "The passed chance outcome type either has to be void or fulfill the concept: "
-      "'chance_outcome'.");
+      "'chance_outcome'."
+   );
 
    using action_type = Action;
    using info_state_type = Infostate;
@@ -289,7 +295,8 @@ struct PublicTreeNode {
          []< typename VarType >(const VarType& variant_elem) {
             return std::hash< VarType >{}(variant_elem);
          },
-         action_variant);
+         action_variant
+      );
    });
    std::unordered_map< action_variant_type, PublicTreeNode*, variant_hasher > children{};
    /// the action that was taken at the parent to get to this node (nullopt for the root)
@@ -318,7 +325,8 @@ class PublicTree {
          []< typename VarType >(const VarType& var_element) {
             return std::hash< VarType >{}(var_element);
          },
-         action_variant);
+         action_variant
+      );
    });
 
    PublicTree(Env& env, uptr< world_state_type >&& root_state)
@@ -370,10 +378,12 @@ class PublicTree {
       VisitationData vis_data = {},
       TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook >&&
          hooks = {},
-      bool single_trajectory = false)
+      bool single_trajectory = false
+   )
    {
       _traverse(
-         std::move(traversal_strategy), std::move(vis_data), std::move(hooks), single_trajectory);
+         std::move(traversal_strategy), std::move(vis_data), std::move(hooks), single_trajectory
+      );
    }
 
    auto traverse_all_actions(world_state_type* wstate)
@@ -403,7 +413,8 @@ class PublicTree {
       TraversalStrategy traversal_strategy,
       VisitationData&& initial_vis_data,
       TraversalHooks< HookFunctors... >&& hooks,
-      bool single_trajectory)
+      bool single_trajectory
+   )
    {
       // we need to fill the root node's data (if desired) before entering the loop, since the
       // loop assumes all entered nodes to have their data node emplaced already.
@@ -429,7 +440,8 @@ class PublicTree {
       // emplace the root node into the visitation stack
       visit_stack.emplace(
          utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(m_root_state)),
-         std::move(initial_vis_data));
+         std::move(initial_vis_data)
+      );
 
       while(not visit_stack.empty()) {
          // get the top node and world state from the stack and move them into our values.
@@ -451,7 +463,8 @@ class PublicTree {
                next_wstate_uptr = std::move(curr_wstate_uptr);
             } else {
                next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
-                  utils::clone_any_way(curr_wstate_uptr));
+                  utils::clone_any_way(curr_wstate_uptr)
+               );
             }
             // move the new world state forward by the current action
             if constexpr(concepts::deterministic_fosg< Env >) {
@@ -461,7 +474,8 @@ class PublicTree {
                   common::Overload{[&](const auto& any_action) {
                      m_env->transition(*next_wstate_uptr, any_action);
                   }},
-                  action);
+                  action
+               );
             }
 
             // offer the caller to extract information for the currently visited node. We are
@@ -469,7 +483,8 @@ class PublicTree {
             // consistency in our call signature
 
             auto new_visitation_data = hooks.child_hook(
-               vis_data, &action, curr_wstate_raw_ptr, next_wstate_uptr.get());
+               vis_data, &action, curr_wstate_raw_ptr, next_wstate_uptr.get()
+            );
 
             if(not m_env->is_terminal(*next_wstate_uptr)) {
                // if the newly reached world state is not a terminal state, then we merely append
@@ -580,6 +595,5 @@ class PublicTree {
 //   std::vector< uptr<node_type> > m_nodes;
 //   sptr< world_state_type > m_root_state;
 //};
-
 
 #endif  // NOR_FOREST_HPP

@@ -34,7 +34,8 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
    // 10.1 \n
    //   1"
    auto create_piece_str = [&H_SIZE_PER_PIECE, &team, &mid, &hide_unknowns](
-                              const std::optional< Piece >& piece_opt, int line) {
+                              const std::optional< Piece >& piece_opt, int line
+                           ) {
       if(not piece_opt.has_value()) {
          return std::string(static_cast< unsigned long >(H_SIZE_PER_PIECE), ' ');
       }
@@ -67,14 +68,16 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
          const auto& token = piece.token();
          return color
                 + aze::utils::center(
-                   std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " ")
+                   std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " "
+                )
                 + RESET;
       }
       if(line == mid + 1) {
 #if defined(_MSC_VER)
          // team info line
          return aze::utils::center(
-            piece.team() == aze::Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " ");
+            piece.team() == aze::Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " "
+         );
 #else
          // for non msvc we have a colored box to work for us
          return color + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
@@ -90,7 +93,8 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
 
    std::string init_space = std::string(static_cast< unsigned long >(row_ind_space), ' ');
    std::string h_border = aze::utils::repeat(
-      VERT_BAR, static_cast< unsigned long >(horiz_limit * (H_SIZE_PER_PIECE + 1) - 1));
+      VERT_BAR, static_cast< unsigned long >(horiz_limit * (H_SIZE_PER_PIECE + 1) - 1)
+   );
 
    board_print << init_space << VERT_BAR << h_border << VERT_BAR << "\n";
    std::string init = board_print.str();

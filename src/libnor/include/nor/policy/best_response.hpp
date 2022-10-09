@@ -32,7 +32,8 @@ class InfostateTree {
          []< typename VarType >(const VarType& var_element) {
             return std::hash< VarType >{}(var_element);
          },
-         action_variant);
+         action_variant
+      );
    });
 
    struct Node {
@@ -62,7 +63,8 @@ class InfostateTree {
    InfostateTree(
       Env& env,
       uptr< world_state_type > root_state,
-      std::unordered_map< Player, info_state_type > root_infostates = {})
+      std::unordered_map< Player, info_state_type > root_infostates = {}
+   )
        : m_env(env),
          m_root_state(std::move(root_state)),
          m_root_node(Node{.active_player = env.active_player(*m_root_state)}),
@@ -85,8 +87,8 @@ class InfostateTree {
 
    void build(
       Player br_player,
-      std::unordered_map< Player, StatePolicyView< info_state_type, action_type > >
-         player_policies);
+      std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies
+   );
 
    auto& env() { return m_env; }
    auto& env() const { return m_env; }
@@ -107,7 +109,8 @@ class InfostateTree {
 template < concepts::fosg Env >
 auto InfostateTree< Env >::action_emplacer(
    InfostateTree::Node& infostate_node,
-   InfostateTree::world_state_type& state)
+   InfostateTree::world_state_type& state
+)
 {
    if(infostate_node.children.empty()) {
       if constexpr(concepts::stochastic_fosg< Env, world_state_type, action_type >) {
@@ -132,7 +135,8 @@ auto InfostateTree< Env >::action_emplacer(
 template < concepts::fosg Env >
 void InfostateTree< Env >::build(
    Player br_player,
-   std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies)
+   std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies
+)
 {
    // the tree needs to be traversed. To do so, every node (starting from the root node aka
    // the current game state) will emplace its child states - as generated from its possible
@@ -165,7 +169,8 @@ void InfostateTree< Env >::build(
                return infostates;
             }(),
          .observation_buffer = {}},
-      &m_root_node);
+      &m_root_node
+   );
 
    while(not visit_stack.empty()) {
       // get the top node and world state from the stack and move them into our values.
@@ -203,7 +208,8 @@ void InfostateTree< Env >::build(
                      // we shouldn't reach here if this is a deterministic fosg
                      throw std::logic_error(
                         "A deterministic environment traversed a chance outcome. "
-                        "This should not occur.");
+                        "This should not occur."
+                     );
                      // this return is needed to silence the non-matching return types
                      return std::pair{uptr< world_state_type >{nullptr}, rm::Probability{1.}};
                   } else {
@@ -212,7 +218,8 @@ void InfostateTree< Env >::build(
                         rm::Probability{m_env.chance_probability(*curr_state, outcome)}};
                   }
                }},
-            action_variant);
+            action_variant
+         );
          // we overwrite the existing action_prob here since any worldstate pertaining to the
          // infostate is going to have the same action probability (since player's can only
          // choose according to the knowledge they have in the information state and chance
@@ -222,13 +229,14 @@ void InfostateTree< Env >::build(
 
          if(not next_node_uptr) {
             // create the child node unique ptr. The parent takes ownership of the child node.
-            next_node_uptr = std::make_unique< Node >(
-               Node{.active_player = next_active_player, .infostate = nullptr});
+            next_node_uptr = std::make_unique< Node >(Node{
+               .active_player = next_active_player, .infostate = nullptr});
          }
 
          if(next_active_player != Player::chance) {
             next_node_uptr->infostate = std::make_unique< info_state_type >(
-               visit_data.infostates.at(m_env.active_player(*next_state)));
+               visit_data.infostates.at(m_env.active_player(*next_state))
+            );
          }
          // if the actions/outcomes have not yet been emplaced into this infostate node
          // then we do this here. (They could have been already emplaced by another
@@ -257,17 +265,20 @@ void InfostateTree< Env >::build(
                         visit_data.observation_buffer,
                         visit_data.infostates,
                         action_or_outcome,
-                        *next_state);
+                        *next_state
+                     );
                      return std::tuple{child_obs_buffer, child_istate_map};
                   }},
-               action_variant);
+               action_variant
+            );
 
             visit_stack.emplace(
                std::move(next_state),
                VisitationData{
                   .infostates = std::move(child_infostate_map),
                   .observation_buffer = std::move(child_observation_buffer)},
-               next_node_uptr.get());
+               next_node_uptr.get()
+            );
          }
       }
    }
@@ -285,7 +296,8 @@ class BestResponsePolicy {
 
    BestResponsePolicy(
       Player best_response_player,
-      std::unordered_map< info_state_type, action_type > best_response_map = {})
+      std::unordered_map< info_state_type, action_type > best_response_map = {}
+   )
        : m_br_player(best_response_player), m_best_response(std::move(best_response_map))
    {
    }
@@ -295,10 +307,12 @@ class BestResponsePolicy {
       Env& env,
       std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies,
       uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
-      std::unordered_map< Player, info_state_type > root_infostates = {})
+      std::unordered_map< Player, info_state_type > root_infostates = {}
+   )
    {
       auto istate_tree = detail::InfostateTree(
-         env, std::move(root_state), std::move(root_infostates));
+         env, std::move(root_state), std::move(root_infostates)
+      );
       istate_tree.build(m_br_player, std::move(player_policies));
       m_root_value = _compute_best_responses< Env >(istate_tree.root_node());
       return *this;
@@ -335,7 +349,8 @@ class BestResponsePolicy {
 template < concepts::info_state Infostate, concepts::action Action >
 template < typename Env >
 double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
-   typename detail::InfostateTree< Env >::Node& curr_node)
+   typename detail::InfostateTree< Env >::Node& curr_node
+)
 {
    // first check if this node's value hasn't been already computed by another visit
    if(curr_node.state_value.has_value()) {

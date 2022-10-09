@@ -14,23 +14,23 @@ std::string to_string(const T& value);
 template < typename To >
 To from_string(std::string_view str);
 
-template <typename T>
-struct printable : std::false_type {};
+template < typename T >
+struct printable: std::false_type {};
 
-template <typename T>
-constexpr bool printable_v = printable<T>::value;
+template < typename T >
+constexpr bool printable_v = printable< T >::value;
 
 }  // namespace common
 
 template < typename T >
-   requires(::common::printable_v<T>)
+   requires(::common::printable_v< T >)
 inline auto& operator<<(std::ostream& os, const T& value)
 {
    return os << common::to_string(value);
 }
 
 template < typename T >
-   requires(::common::printable_v<T>)
+   requires(::common::printable_v< T >)
 inline auto& operator<<(std::stringstream& os, const T& value)
 {
    return os << common::to_string(value);

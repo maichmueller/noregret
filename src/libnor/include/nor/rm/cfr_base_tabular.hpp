@@ -77,7 +77,8 @@ class TabularCFRBase {
       Env game,
       uptr< world_state_type > root_state,
       Policy policy = Policy(),
-      AveragePolicy avg_policy = AveragePolicy())
+      AveragePolicy avg_policy = AveragePolicy()
+   )
       // clang-format off
       requires
          common::all_predicate_v<
@@ -105,7 +106,8 @@ class TabularCFRBase {
           std::move(env),
           std::make_unique< world_state_type >(env.initial_world_state()),
           std::move(policy),
-          std::move(avg_policy))
+          std::move(avg_policy)
+       )
    {
       _init_player_update_schedule();
    }
@@ -114,7 +116,8 @@ class TabularCFRBase {
       Env game,
       uptr< world_state_type > root_state,
       std::unordered_map< Player, Policy > policy,
-      std::unordered_map< Player, AveragePolicy > avg_policy)
+      std::unordered_map< Player, AveragePolicy > avg_policy
+   )
        : m_env(std::move(game)),
          m_root_state(std::move(root_state)),
          m_curr_policy(std::move(policy)),
@@ -143,18 +146,19 @@ class TabularCFRBase {
    template < bool current_policy >
    auto& fetch_policy(
       const sptr< info_state_type >& infostate,
-      const std::vector< action_type >& actions);
+      const std::vector< action_type >& actions
+   );
    /**
     * @brief Policy fetching overload for explicit naming of the policy.
     */
    template < PolicyLabel label >
-   decltype(auto) fetch_policy(
-      const sptr< info_state_type >& infostate,
-      const std::vector< action_type >& actions)
+   decltype(auto)
+   fetch_policy(const sptr< info_state_type >& infostate, const std::vector< action_type >& actions)
    {
       static_assert(
          label == PolicyLabel::current or label == PolicyLabel::average,
-         "Policy label has to be either 'current' or 'average'.");
+         "Policy label has to be either 'current' or 'average'."
+      );
       return fetch_policy< label == PolicyLabel::current >(infostate, actions);
    }
 
@@ -167,7 +171,8 @@ class TabularCFRBase {
    inline auto& fetch_policy(
       const sptr< info_state_type >& infostate,
       const std::vector< action_type >& actions,
-      const action_type& action)
+      const action_type& action
+   )
    {
       return fetch_policy< current_policy >(infostate, actions)[action];
    }
@@ -215,7 +220,8 @@ class TabularCFRBase {
    {
       if(m_env.turn_dynamic() != TurnDynamic::sequential) {
          throw std::invalid_argument(
-            "VanillaCFR can only be performed on a sequential turn-based game.");
+            "VanillaCFR can only be performed on a sequential turn-based game."
+         );
       }
    }
 
@@ -258,7 +264,8 @@ class TabularCFRBase {
 template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
    requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
 Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle_player_to_update(
-   std::optional< Player > player_to_update)
+   std::optional< Player > player_to_update
+)
 {
    // we assert here that the chosen player to update is not the chance player.
    if(player_to_update.value_or(Player::alex) == Player::chance) {
@@ -274,7 +281,8 @@ Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle
    auto player_q_iter = std::find(
       m_player_update_schedule.begin(),
       m_player_update_schedule.end(),
-      player_to_update.value_or(m_player_update_schedule.front()));
+      player_to_update.value_or(m_player_update_schedule.front())
+   );
 
    if(player_q_iter == m_player_update_schedule.end()) {
       std::stringstream ssout;
@@ -295,7 +303,8 @@ template < bool alternating_updates, typename Env, typename Policy, typename Ave
 template < bool current_policy >
 auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_policy(
    const sptr< info_state_type >& infostate,
-   const std::vector< action_type >& actions)
+   const std::vector< action_type >& actions
+)
 {
    if constexpr(current_policy) {
       auto& player_policy = m_curr_policy[infostate->player()];

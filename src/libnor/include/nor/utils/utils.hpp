@@ -100,7 +100,8 @@ std::unique_ptr< Derived > static_unique_ptr_downcast(std::unique_ptr< Base, Del
 template < typename Derived, typename DerivedDeleter, typename Base, typename Deleter >
    requires std::convertible_to< Deleter, DerivedDeleter >
 std::unique_ptr< Derived, DerivedDeleter > static_unique_ptr_downcast(
-   std::unique_ptr< Base, Deleter >&& p) noexcept
+   std::unique_ptr< Base, Deleter >&& p
+) noexcept
 {
    if constexpr(std::is_same_v< Derived, Base >) {
       return p;
@@ -125,7 +126,8 @@ class ConstView {
   public:
    static_assert(
       concepts::is::const_iter< Iter >,
-      "ConstView can be constructed from const_iterators only.");
+      "ConstView can be constructed from const_iterators only."
+   );
 
    ConstView(Iter begin, Iter end) : m_begin(begin), m_end(end) {}
 
@@ -151,8 +153,9 @@ struct CEMap {
 
    [[nodiscard]] constexpr Value at(const Key& key) const
    {
-      const auto itr = std::find_if(
-         begin(data), end(data), [&key](const auto& v) { return v.first == key; });
+      const auto itr = std::find_if(begin(data), end(data), [&key](const auto& v) {
+         return v.first == key;
+      });
       if(itr != end(data)) {
          return itr->second;
       } else {
@@ -301,7 +304,8 @@ void fill_infostate_and_obs_buffers_inplace(
    ObsBufferMap& observation_buffer,
    InformationStateMap& infostate_map,
    const auto& action_or_outcome,
-   const Worldstate& state)
+   const Worldstate& state
+)
 {
    auto active_player = env.active_player(state);
    for(auto player : env.players(state)) {
@@ -372,10 +376,12 @@ auto fill_infostate_and_obs_buffers(
    ObsBufferMap observation_buffer,
    InformationStateMap infostate_map,
    const auto& action_or_outcome,
-   const Worldstate& state)
+   const Worldstate& state
+)
 {
    fill_infostate_and_obs_buffers_inplace(
-      env, observation_buffer, infostate_map, action_or_outcome, state);
+      env, observation_buffer, infostate_map, action_or_outcome, state
+   );
    return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
 }
 
@@ -385,7 +391,8 @@ child_state(Env& env, const uptr< Worldstate >& state, const auto& action_or_out
 {
    // clone the current world state first before transitioniong it with this action
    uptr< Worldstate > next_wstate_uptr = utils::static_unique_ptr_downcast< Worldstate >(
-      utils::clone_any_way(state));
+      utils::clone_any_way(state)
+   );
    // move the new world state forward by the current action
    env.transition(*next_wstate_uptr, action_or_outcome);
    return next_wstate_uptr;
@@ -397,7 +404,8 @@ auto& normalize_action_policy_inplace(Policy& policy)
    auto sum = ranges::accumulate(
       /*range=*/policy | ranges::views::values,
       /*init_value=*/std::remove_cvref_t< decltype(*(ranges::views::values(policy).begin())) >{0},
-      /*operation=*/std::plus{});
+      /*operation=*/std::plus{}
+   );
    for(auto& [action, prob] : policy) {
       prob /= sum;
    }

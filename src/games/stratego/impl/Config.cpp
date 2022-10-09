@@ -79,7 +79,8 @@ std::map< Team, std::map< Position, Token > > default_setup(size_t game_dims)
       std::pair{Team::RED, default_setup(game_dims, Team::RED)}};
 }
 std::map< Team, std::optional< std::map< Position, Token > > > default_setup(
-   ranges::span< size_t, 2 > game_dims)
+   ranges::span< size_t, 2 > game_dims
+)
 {
    return std::map{
       std::pair{Team::BLUE, std::optional{default_setup(game_dims, Team::BLUE)}},
@@ -113,7 +114,8 @@ std::vector< Position > default_holes(ranges::span< size_t, 2 > game_dims)
       return default_holes(game_dims[0]);
    } else {
       throw std::invalid_argument(
-         "Cannot provide default hole positions for non-default game dimensions.");
+         "Cannot provide default hole positions for non-default game dimensions."
+      );
    }
 }
 
@@ -239,15 +241,15 @@ std::vector< Position > default_start_fields(size_t game_dim, aze::Team team)
    }
 }
 
-const std::vector< Position >& _check_alignment(
-   const std::vector< Position >& positions,
-   const std::map< Position, Token >& setup)
+const std::vector< Position >&
+_check_alignment(const std::vector< Position >& positions, const std::map< Position, Token >& setup)
 {
    if(ranges::any_of(setup | ranges::views::keys, [&](const Position& pos) {
          return ranges::find(positions, pos) == positions.end();
       })) {
       throw std::invalid_argument(
-         "Passed starting positions parameter and setup parameter do not match.");
+         "Passed starting positions parameter and setup parameter do not match."
+      );
    }
    return positions;
 }
@@ -256,7 +258,8 @@ std::map< aze::Team, Config::token_counter_t > Config::_init_tokencounters(
    const std::map<
       aze::Team,
       std::optional< std::variant< std::vector< Token >, token_counter_t > > >& token_sets,
-   const std::map< aze::Team, std::optional< Config::setup_t > >& setups_)
+   const std::map< aze::Team, std::optional< Config::setup_t > >& setups_
+)
 {
    auto token_visitor = aze::utils::Overload{
       [](const std::vector< Token >& tv) { return aze::utils::counter(tv); },
@@ -270,10 +273,11 @@ std::map< aze::Team, Config::token_counter_t > Config::_init_tokencounters(
             auto token_counter_from_setup = tokens_from_setup(setups_.at(team).value());
             for(auto token : ranges::views::concat(
                                 token_counter | ranges::views::keys,
-                                token_counter_from_setup | ranges::views::keys)
-                                | ranges::views::unique) {
+                                token_counter_from_setup | ranges::views::keys
+                             ) | ranges::views::unique) {
                counters[team][token] = std::max(
-                  token_counter[token], token_counter_from_setup[token]);
+                  token_counter[token], token_counter_from_setup[token]
+               );
             }
          } else {
             counters[team] = tokens_from_setup(setups_.at(team).value());
@@ -284,7 +288,8 @@ std::map< aze::Team, Config::token_counter_t > Config::_init_tokencounters(
          } else {
             throw std::invalid_argument(
                "No setup passed and no tokenset passed. Either "
-               "of these need to be set.");
+               "of these need to be set."
+            );
          }
       }
    }
@@ -293,14 +298,16 @@ std::map< aze::Team, Config::token_counter_t > Config::_init_tokencounters(
 
 std::map< aze::Team, std::vector< Position > > Config::_init_start_fields(
    const std::map< aze::Team, std::optional< std::vector< Position > > >& start_pos,
-   const std::map< aze::Team, std::optional< Config::setup_t > >& setups_)
+   const std::map< aze::Team, std::optional< Config::setup_t > >& setups_
+)
 {
    std::map< aze::Team, std::vector< Position > > positions;
    for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
       if(start_pos.at(team).has_value()) {
          if(setups_.at(team).has_value()) {
             positions[team] = _check_alignment(
-               start_pos.at(team).value(), setups_.at(team).value());
+               start_pos.at(team).value(), setups_.at(team).value()
+            );
          } else {
             positions[team] = start_pos.at(team).value();
          }
@@ -309,9 +316,11 @@ std::map< aze::Team, std::vector< Position > > Config::_init_start_fields(
             std::vector< Position > pos;
             pos.reserve(setup.size());
             std::transform(
-               setup.begin(), setup.end(), std::back_inserter(pos), [](const auto& pair) {
-                  return pair.first;
-               });
+               setup.begin(),
+               setup.end(),
+               std::back_inserter(pos),
+               [](const auto& pair) { return pair.first; }
+            );
             return pos;
          }(setups_.at(team).value());
       }
@@ -321,7 +330,8 @@ std::map< aze::Team, std::vector< Position > > Config::_init_start_fields(
 
 std::vector< Position > Config::_init_hole_positions(
    const std::optional< std::vector< Position > >& hole_pos,
-   game_dim_variant_t game_dims_)
+   game_dim_variant_t game_dims_
+)
 {
    return hole_pos.has_value()
              ? hole_pos.value()
@@ -330,7 +340,8 @@ std::vector< Position > Config::_init_hole_positions(
                    [](size_t d) { return default_holes(d); },
                    [](DefinedBoardSizes d) { return default_holes(static_cast< size_t >(d)); },
                    [](ranges::span< size_t, 2 > a) { return default_holes(a); }},
-                game_dims_);
+                game_dims_
+             );
 }
 
 Config::token_counter_t tokens_from_setup(const Config::setup_t& setup)
@@ -340,7 +351,8 @@ Config::token_counter_t tokens_from_setup(const Config::setup_t& setup)
 }
 
 std::map< aze::Team, std::optional< Config::token_counter_t > > tokens_from_setup(
-   const std::map< aze::Team, std::optional< Config::setup_t > >& setups)
+   const std::map< aze::Team, std::optional< Config::setup_t > >& setups
+)
 {
    std::map< aze::Team, std::optional< Config::token_counter_t > > counters;
    for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
@@ -393,7 +405,8 @@ auto default_token_sets(size_t game_dim) -> Config::token_counter_t
       }
       default: {
          throw std::invalid_argument(
-            "Cannot provide default token sets for non-default game dimensions.");
+            "Cannot provide default token sets for non-default game dimensions."
+         );
       }
    }
 }
@@ -411,7 +424,8 @@ Config::Config(
    std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
    std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
-   std::map< Token, std::function< bool(size_t) > > move_ranges_)
+   std::map< Token, std::function< bool(size_t) > > move_ranges_
+)
     : starting_team(starting_team_),
       fixed_starting_team(fixed_starting_team_),
       game_dims(std::visit(
@@ -422,7 +436,8 @@ Config::Config(
             [](ranges::span< size_t, 2 > d) {
                return std::array{d[0], d[1]};
             }},
-         game_dims_)),
+         game_dims_
+      )),
       max_turn_count(max_turn_count_),
       fixed_setups(std::visit(
          aze::utils::Overload{
@@ -433,7 +448,8 @@ Config::Config(
                return std::array{d[0], d[1]};
                ;
             }},
-         fixed_setups_)),
+         fixed_setups_
+      )),
       setups(_init_setups(setups_, token_set_, start_fields_, game_dims_)),
       token_counters(_init_tokencounters(token_set_, setups_)),
       start_fields(_init_start_fields(start_fields_, setups_)),
@@ -447,7 +463,8 @@ Config::Config(
          LOGD2("Token vector size:", utils::flatten_counter(token_counters[aze::Team(i)]).size());
          LOGD2("Field vector size:", start_fields[aze::Team(i)].size());
          throw std::invalid_argument(
-            "Token counters and start position vectors do not match in size");
+            "Token counters and start position vectors do not match in size"
+         );
       }
    }
 }
@@ -461,7 +478,8 @@ Config::Config(
    std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
    std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
-   std::map< Token, std::function< bool(size_t) > > move_ranges_)
+   std::map< Token, std::function< bool(size_t) > > move_ranges_
+)
     : Config(
        starting_team_,
        game_dims_,
@@ -473,7 +491,8 @@ Config::Config(
        fixed_setups_,
        max_turn_count_,
        std::move(battle_matrix_),
-       std::move(move_ranges_))
+       std::move(move_ranges_)
+    )
 {
 }
 Config::Config(
@@ -488,7 +507,8 @@ Config::Config(
    std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
    std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
-   std::map< Token, std::function< bool(size_t) > > move_ranges_)
+   std::map< Token, std::function< bool(size_t) > > move_ranges_
+)
     : Config(
        starting_team_,
        game_dims_,
@@ -500,7 +520,8 @@ Config::Config(
        fixed_setups_,
        max_turn_count_,
        std::move(battle_matrix_),
-       std::move(move_ranges_))
+       std::move(move_ranges_)
+    )
 {
 }
 
@@ -511,7 +532,8 @@ Config::Config(
    std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
    std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
-   std::map< Token, std::function< bool(size_t) > > move_ranges_)
+   std::map< Token, std::function< bool(size_t) > > move_ranges_
+)
     : Config(
        starting_team_,
        game_dims_,
@@ -525,7 +547,8 @@ Config::Config(
        fixed_setups_,
        max_turn_count_,
        std::move(battle_matrix_),
-       std::move(move_ranges_))
+       std::move(move_ranges_)
+    )
 {
 }
 

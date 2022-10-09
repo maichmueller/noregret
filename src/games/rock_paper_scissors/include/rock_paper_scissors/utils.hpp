@@ -41,23 +41,24 @@ inline std::string to_string(const rps::Action& value)
           + std::string(rps::hand_name_bij.at((value.hand)));
 }
 
-
 template <>
-struct printable<rps::Hand> : std::true_type {};
+struct printable< rps::Hand >: std::true_type {};
 template <>
-struct printable<rps::Team> : std::true_type {};
+struct printable< rps::Team >: std::true_type {};
 template <>
-struct printable<rps::Action> : std::true_type {};
+struct printable< rps::Action >: std::true_type {};
 
 }  // namespace common
 
 namespace std {
 template < typename ActionType >
-requires common::is_any_v< ActionType, rps::Action, const rps::Action > struct hash< ActionType > {
+   requires common::is_any_v< ActionType, rps::Action, const rps::Action >
+struct hash< ActionType > {
    size_t operator()(const ActionType& action) const noexcept
    {
       return hash< std::string >{}(
-         common::to_string(action.team) + "-" + common::to_string(action.hand));
+         common::to_string(action.team) + "-" + common::to_string(action.hand)
+      );
    }
 };
 
