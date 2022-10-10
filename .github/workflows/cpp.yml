@@ -100,9 +100,9 @@ jobs:
       - name: Run Tests
         shell: bash
         run: >
-          GTEST_OUTPUT=xml:gtest-report-${{ matrix.config.name }}-${{ matrix.config.static }}.xml
+          GTEST_OUTPUT=xml:gtest-report-${{ matrix.config.name }}.xml
           GTEST_COLOR=1
-          ctest -R Test_nor
+          ctest Test_nor
           --test-dir ./build
           --verbose
           -C ${{ matrix.config.build_type }}
