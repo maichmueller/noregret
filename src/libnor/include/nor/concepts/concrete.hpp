@@ -75,7 +75,7 @@ concept public_state =
 /**/  observation< Observation >
    && is::sized< T >
    && is::hashable< T >
-   && std::is_copy_constructible_v< T >
+   && std::copy_constructible< T >
    && std::equality_comparable< T >
    && has::method::append<
          T,

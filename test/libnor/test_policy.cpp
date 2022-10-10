@@ -156,7 +156,7 @@ TEST(BestResponsePolicy, rock_paper_scissors)
    action_policy_bob[Action{Team::two, Hand::rock}] = 0.;
 
    auto best_response_bob = nor::factory::make_best_response_policy< Infostate, Action >(
-      nor::Player::bob);
+      nor::Player::alex);
    auto policy_view = nor::StatePolicyView< Infostate, Action >{policy_bob};
    auto br_map = best_response_bob
                     .allocate(

@@ -316,19 +316,17 @@ void fill_infostate_and_obs_buffers_inplace(
          // for all but the active player we simply append action and state observation to the
          // buffer. They will be written to an actual infostate once that player becomes the
          // active player again
-         auto& player_infostate = observation_buffer.at(player);
-         player_infostate.emplace_back(env.private_observation(player, action_or_outcome));
-         player_infostate.emplace_back(env.private_observation(player, state));
+         auto& player_obs_buffer = observation_buffer[player];
+         player_obs_buffer.emplace_back(env.private_observation(player, action_or_outcome));
+         player_obs_buffer.emplace_back(env.private_observation(player, state));
       } else {
-         // for the active player we first append all recent actions and state observations to an
-         // info state copy, and then follow it up by adding the current action and state
+         // for the active player we first append all recent actions and state observations to the
+         // info state, and then follow it up by adding the current action and state
          // observations
 
          // we are taking the reference here to the position of this infostate in the map, in order
          // to replace it later without needing to refetch it.
-         auto& infostate_slot = infostate_map.at(active_player);
-         auto cloned_infostate = utils::clone_any_way(infostate_slot);
-         common::debug< decltype(cloned_infostate) > v;
+         auto& infostate_holder = infostate_map.at(active_player);
          auto appender = [&]< typename Container >(Container& c, auto elem) {
             if constexpr(
                // clang-format off
@@ -337,22 +335,21 @@ void fill_infostate_and_obs_buffers_inplace(
                // clang-format on
             ) {
                c->append(std::move(elem));
+            } else if constexpr(concepts::is::specialization< Container, std::reference_wrapper >) {
+               c.get().append(std::move(elem));
             } else {
                c.append(std::move(elem));
             }
          };
          // we consume these observations by moving them into the appendix of the infostates. The
-         // clearled observation buffer is still returned and reused, but is now empty. This
-         // indicates that this player's recent observations have now been consumed by the
-         // infostate.
+         // cleared observation buffer is still returned and reused, but is now empty.
          auto& obs_history = observation_buffer[active_player];
          for(auto& obs : obs_history) {
-            appender(cloned_infostate, std::move(obs));
+            appender(infostate_holder, std::move(obs));
          }
          obs_history.clear();
-         appender(cloned_infostate, env.private_observation(player, action_or_outcome));
-         appender(cloned_infostate, env.private_observation(player, state));
-         infostate_slot = std::move(cloned_infostate);
+         appender(infostate_holder, env.private_observation(player, action_or_outcome));
+         appender(infostate_holder, env.private_observation(player, state));
       }
    }
 }
@@ -379,6 +376,20 @@ auto fill_infostate_and_obs_buffers(
    const Worldstate& state
 )
 {
+   using mapped_infostate_type = typename InformationStateMap::mapped_type;
+   // if the infostate types are raw references or reference_wrappers then we need to actually copy
+   // their pointed to contents in a raw fashion.
+   // Note that the caller needs to be aware of these potential memory leaks!
+   if constexpr(std::same_as< mapped_infostate_type, std::reference_wrapper< Infostate > >) {
+      for(auto& [player, mapped] : infostate_map) {
+         mapped = std::ref(new Infostate(mapped.get()));
+      }
+   } else if constexpr(std::same_as< mapped_infostate_type, Infostate* >) {
+      for(auto& [player, mapped] : infostate_map) {
+         mapped = new Infostate(*mapped);
+      }
+   }
+
    fill_infostate_and_obs_buffers_inplace(
       env, observation_buffer, infostate_map, action_or_outcome, state
    );

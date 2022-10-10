@@ -74,6 +74,8 @@ class InfostateTree {
          auto infostate_iter = m_root_infostates.find(m_root_node.active_player);
          if(infostate_iter != m_root_infostates.end()) {
             m_root_node.infostate = std::make_unique< info_state_type >(infostate_iter->second);
+         } else {
+            m_root_node.infostate = std::make_unique< info_state_type >(m_root_node.active_player);
          }
       }
       for(auto player : env.players(*m_root_state)) {
@@ -82,7 +84,7 @@ class InfostateTree {
             m_root_infostates.emplace(player, info_state_type{player});
          }
       }
-      action_emplacer(m_root_node, *root_state);
+      action_emplacer(m_root_node, *m_root_state);
    }
 
    void build(
@@ -116,17 +118,17 @@ auto InfostateTree< Env >::action_emplacer(
       if constexpr(concepts::stochastic_fosg< Env, world_state_type, action_type >) {
          if(auto active_player = m_env.active_player(state); active_player == Player::chance) {
             for(auto&& outcome : m_env.chance_actions(state)) {
-               infostate_node.children.emplace(outcome);
+               infostate_node.children.emplace(outcome, typename Node::child_node_tuple{});
             }
 
          } else {
             for(auto&& act : m_env.actions(active_player, state)) {
-               infostate_node.children.emplace(act);
+               infostate_node.children.emplace(act, typename Node::child_node_tuple{});
             }
          }
       } else {
          for(auto&& act : m_env.actions(m_env.active_player(state), state)) {
-            infostate_node.children.emplace(act);
+            infostate_node.children.emplace(act, typename Node::child_node_tuple{});
          }
       }
    }
@@ -148,7 +150,7 @@ void InfostateTree< Env >::build(
       // the infostates are meant to be maintained by the istate-to-node map which lives longer
       // than the visitation data objects. Hence, we can safely refer to reference wrappers of
       // those without seg-faulting
-      std::unordered_map< Player, std::reference_wrapper< info_state_type > > infostates;
+      std::unordered_map< Player, info_state_type > infostates;
       std::unordered_map< Player, std::vector< observation_type > > observation_buffer;
    };
 
@@ -162,9 +164,9 @@ void InfostateTree< Env >::build(
       VisitationData{
          .infostates =
             [&] {
-               std::unordered_map< Player, std::reference_wrapper< info_state_type > > infostates;
+               std::unordered_map< Player, info_state_type > infostates;
                for(auto player : m_env.players(*m_root_state)) {
-                  infostates.emplace(player, std::ref(m_root_infostates.at(player)));
+                  infostates.emplace(player, m_root_infostates.at(player));
                }
                return infostates;
             }(),
@@ -197,11 +199,10 @@ void InfostateTree< Env >::build(
                      rm::Probability{
                         action_prob.has_value()
                            ? action_prob.value().get()
-                           : (curr_player == br_player
-                                 ? 1.
-                                 : player_policies.at(curr_player)[std::tuple{
-                                    visit_data.infostates.at(curr_player).get(),
-                                    std::vector< action_type >{}}][action])}};
+                           : (curr_player == br_player ? 1.
+                                                       : player_policies.at(curr_player)[std::tuple{
+                                                          visit_data.infostates.at(curr_player),
+                                                          std::vector< action_type >{}}][action])}};
                },
                [&](const chance_outcome_conditional_type& outcome) {
                   if constexpr(concepts::deterministic_fosg< Env >) {
@@ -230,13 +231,12 @@ void InfostateTree< Env >::build(
          if(not next_node_uptr) {
             // create the child node unique ptr. The parent takes ownership of the child node.
             next_node_uptr = std::make_unique< Node >(Node{
-               .active_player = next_active_player, .infostate = nullptr});
-         }
-
-         if(next_active_player != Player::chance) {
-            next_node_uptr->infostate = std::make_unique< info_state_type >(
-               visit_data.infostates.at(m_env.active_player(*next_state))
-            );
+               .active_player = next_active_player,
+               .infostate = next_active_player != Player::chance
+                               ? std::make_unique< info_state_type >(
+                                  visit_data.infostates.at(m_env.active_player(*next_state))
+                               )
+                               : nullptr});
          }
          // if the actions/outcomes have not yet been emplaced into this infostate node
          // then we do this here. (They could have been already emplaced by another
