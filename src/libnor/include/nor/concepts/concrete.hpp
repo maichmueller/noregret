@@ -77,14 +77,14 @@ concept public_state =
    && is::hashable< T >
    && std::copy_constructible< T >
    && std::equality_comparable< T >
-   && has::method::append<
+   && has::method::update<
          T,
-         Observation&,
+         std::pair< Observation, Observation>&,
          Observation
       >
    && has::method::getitem_r<
          T,
-         Observation&,
+         std::pair< Observation, Observation>&,
          size_t
       >;
 // clang-format on
@@ -258,10 +258,8 @@ concept fosg =
    && is::copyable_someway< Worldstate >
    && has::method::actions< Env, Worldstate >
    && has::method::transition< Env, Worldstate& >
-   && has::method::private_observation< Env, Worldstate, Observation >
-   && has::method::public_observation< Env, Worldstate, Observation >
-   && has::method::private_observation< Env, Action, Observation >
-   && has::method::public_observation< Env, Action, Observation >
+   && has::method::private_observation< Env, Worldstate, Action, Observation >
+   && has::method::public_observation< Env, Worldstate, Action, Observation >
    && has::method::reward< Env, Worldstate >
    && has::method::is_terminal< Env, Worldstate >
    && has::method::is_partaking< Env, Worldstate >

@@ -62,7 +62,7 @@ class TabularCFRBase {
       NamedType< std::unordered_map< Player, sptr< info_state_type > >, struct reach_prob_tag >;
 
    using ObservationbufferMap = fluent::NamedType<
-      std::unordered_map< Player, std::vector< observation_type > >,
+      std::unordered_map< Player, std::vector< std::pair< observation_type, observation_type > > >,
       struct observation_buffer_tag >;
 
    ////////////////////

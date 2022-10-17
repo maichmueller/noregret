@@ -83,10 +83,20 @@ class Environment {
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
-   observation_type private_observation(Player player, const world_state_type& wstate) const;
-   observation_type private_observation(Player player, const action_type& action) const;
-   observation_type public_observation(const world_state_type&) const { return {}; }
-   observation_type public_observation(const action_type&) const { return {}; }
+
+   observation_type private_observation(
+      Player observer,
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   ) const;
+
+   observation_type public_observation(
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   ) const;
+
    observation_type tiny_repr(const world_state_type& wstate) const;
 };
 

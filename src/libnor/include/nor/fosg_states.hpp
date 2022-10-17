@@ -36,10 +36,10 @@ class DefaultPublicstate {
    [[nodiscard]] auto& history() const { return m_history; }
    [[nodiscard]] size_t size() const { return m_history.size(); }
 
-   template < typename... Args >
-   auto& append(Args&&... args)
+   auto& update(observation_type public_obs, observation_type private_obs)
    {
-      auto& ret_val = m_history.emplace_back(std::forward< Args >(args)...);
+      auto& ret_val = m_history.emplace_back(std::pair{
+         std::move(public_obs), std::move(private_obs)});
       _hash();
       return ret_val;
    }
@@ -50,10 +50,11 @@ class DefaultPublicstate {
       requires std::is_same_v< observation_type, std::string >
    {
       std::string s;
-      size_t pos = 0;
-      for(const auto& observation : m_history) {
-         s += std::string("obs_") + std::to_string(pos) + ": " + observation + "\n";
-         pos++;
+      for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
+         auto round_str = std::string("obs_") + std::to_string(pos);
+         s += "pub_" + round_str + ": " + std::get< 0 >(observation) + "\n";
+         s += "prv_" + round_str + ": " + std::get< 1 >(observation) + "\n";
+         s += "||";
       }
       return s;
    };
@@ -72,14 +73,17 @@ class DefaultPublicstate {
   private:
    /// the private_history (action trajectory) container of the state.
    /// Each entry is an observation of a state followed by an action.
-   std::vector< Observation > m_history{};
+   std::vector< std::pair< Observation, Observation > > m_history{};
    /// the cache of the current hash value of the public state
    size_t m_hash_cache{0};
 
    void _hash()
    {
       if constexpr(std::is_same_v< observation_type, std::string >) {
-         common::hash_combine(m_hash_cache, std::hash< std::string >{}(m_history.back()));
+         auto string_hasher = std::hash< std::string >{};
+         const auto& latest_entry = m_history.back();
+         common::hash_combine(m_hash_cache, string_hasher(std::get< 0 >(latest_entry)));
+         common::hash_combine(m_hash_cache, string_hasher(std::get< 1 >(latest_entry)));
       } else {
          m_hash_cache = static_cast< derived_type* >(this)->_hash_impl();
       }

@@ -40,7 +40,8 @@ inline void evaluate_policies(
    CFRRunner& solver,
    std::unordered_map< nor::Player, Policy >& prev_policy_profile,
    size_t iteration,
-   std::string policy_name = "Average Policy")
+   std::string policy_name = "Average Policy"
+)
 {
    using namespace nor;
    auto policy_fetcher = [&](Player this_player) {
@@ -65,7 +66,8 @@ inline void evaluate_policies(
          for(const auto& [curr_pol_state_pol, prev_pol_state_pol] :
              ranges::views::zip(curr_istate_pol, prev_istate_pol)) {
             total_dev = std::abs(
-               std::get< 1 >(curr_pol_state_pol) - std::get< 1 >(prev_pol_state_pol));
+               std::get< 1 >(curr_pol_state_pol) - std::get< 1 >(prev_pol_state_pol)
+            );
          }
       }
    }
@@ -93,7 +95,8 @@ inline void evaluate_policies(
    CFRRunner& solver,
    ranges::range auto players,
    size_t iteration,
-   std::string policy_name = "Average Policy")
+   std::string policy_name = "Average Policy"
+)
 {
    using namespace nor;
    auto policy_fetcher = [&](Player this_player) {
@@ -129,53 +132,65 @@ inline auto kuhn_optimal(double alpha)
    alex_policy.emplace(
       "j?",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}});
+         std::unordered_map{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}}
+   );
    alex_policy.emplace(
       "j?|cb",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+   );
    alex_policy.emplace(
       "q?",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+   );
    alex_policy.emplace(
       "q?|cb",
       HashmapActionPolicy{std::unordered_map{
-         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}});
+         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}}
+   );
    alex_policy.emplace(
       "k?",
       HashmapActionPolicy{std::unordered_map{
-         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}});
+         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}}
+   );
    alex_policy.emplace(
       "k?|cb",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+   );
 
    std::unordered_map< std::string, HashmapActionPolicy< Action > > bob_policy;
    bob_policy.emplace(
       "?j|c",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}});
+         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}}
+   );
    bob_policy.emplace(
       "?j|b",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+   );
    bob_policy.emplace(
       "?q|c",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+   );
    bob_policy.emplace(
       "?q|b",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}});
+         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}}
+   );
    bob_policy.emplace(
       "?k|c",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+   );
    bob_policy.emplace(
       "?k|b",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+   );
 
    return std::tuple{alex_policy, bob_policy};
 }
@@ -204,28 +219,33 @@ inline void assert_optimal_policy_kuhn(const auto& solver, auto& env, double pre
 {
    using namespace nor;
 
-   games::kuhn::State state;
+   games::kuhn::State state{}, next_state{};
 
    games::kuhn::Infostate infostate_alex{Player::alex};
 
-   infostate_alex.append(env.private_observation(Player::alex, state));
-
    auto chance_action = games::kuhn::ChanceOutcome{kuhn::Player::one, kuhn::Card::jack};
-   env.transition(state, chance_action);
 
-   infostate_alex.append(env.private_observation(Player::alex, chance_action));
-   infostate_alex.append(env.private_observation(Player::alex, state));
+   env.transition(next_state, chance_action);
+
+   infostate_alex.update(
+      env.public_observation(state, chance_action, next_state),
+      env.private_observation(Player::alex, state, chance_action, next_state)
+   );
 
    chance_action = games::kuhn::ChanceOutcome{kuhn::Player::two, kuhn::Card::queen};
-   env.transition(state, chance_action);
 
-   infostate_alex.append(env.private_observation(Player::alex, chance_action));
-   infostate_alex.append(env.private_observation(Player::alex, state));
+   state = next_state;
+   env.transition(next_state, chance_action);
+
+   infostate_alex.update(
+      env.public_observation(state, chance_action, next_state),
+      env.private_observation(Player::alex, state, chance_action, next_state)
+   );
+
    auto policy_tables = std::vector{
       solver.average_policy().at(Player::alex).table(),
       solver.average_policy().at(Player::bob).table()};
-   double alpha = normalize_action_policy(
-      policy_tables[0].at(infostate_alex))[kuhn::Action::bet];
+   double alpha = normalize_action_policy(policy_tables[0].at(infostate_alex))[kuhn::Action::bet];
    auto [alex_optimal_table, bob_optimal_table] = kuhn_optimal(alpha);
    auto optimal_tables = std::vector{std::move(alex_optimal_table), std::move(bob_optimal_table)};
 
@@ -235,7 +255,7 @@ inline void assert_optimal_policy_kuhn(const auto& solver, auto& env, double pre
          const auto& [istate, action_policy] = computed_state_policy;
          auto normalized_ap = normalize_action_policy(action_policy);
          for(const auto& [optim_action_and_prob, action_and_prob] :
-             ranges::views::zip(optimal_table.at(istate.history().back()), normalized_ap)) {
+             ranges::views::zip(optimal_table.at(istate.to_string()), normalized_ap)) {
             auto found_action_prob = std::get< 1 >(action_and_prob);
             auto optimal_action_prob = std::get< 1 >(optim_action_and_prob);
             ASSERT_NEAR(found_action_prob, optimal_action_prob, precision);
@@ -251,31 +271,35 @@ inline auto setup_rps_test()
 
    auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      factory::
-         make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
+      factory::make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >(
+      )
+   );
 
    auto tabular_policy_alex = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       factory::
-         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
+   );
 
    auto tabular_policy_bob = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       factory::
-         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
+   );
 
    auto infostate_alex = games::rps::Infostate{Player::alex};
    auto infostate_bob = games::rps::Infostate{Player::bob};
-   auto init_state = games::rps::State();
-   infostate_alex.append(env.private_observation(Player::alex, init_state));
-   infostate_bob.append(env.private_observation(Player::bob, init_state));
+   games::rps::State state{}, next_state{};
 
    auto action_alex = games::rps::Action{games::rps::Team::one, games::rps::Hand::rock};
 
-   env.transition(init_state, action_alex);
+   state = next_state;
+   env.transition(next_state, action_alex);
 
-   infostate_bob.append(env.private_observation(Player::bob, action_alex));
-   infostate_bob.append(env.private_observation(Player::bob, init_state));
+   infostate_bob.update(
+      env.public_observation(state, action_alex, next_state),
+      env.private_observation(Player::bob, state, action_alex, next_state)
+   );
 
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_alex.emplace(
@@ -284,7 +308,8 @@ inline auto setup_rps_test()
          std::pair{games::rps::Action{games::rps::Team::one, games::rps::Hand::rock}, 1. / 10.},
          std::pair{games::rps::Action{games::rps::Team::one, games::rps::Hand::paper}, 2. / 10.},
          std::pair{
-            games::rps::Action{games::rps::Team::one, games::rps::Hand::scissors}, 7. / 10.}}});
+            games::rps::Action{games::rps::Team::one, games::rps::Hand::scissors}, 7. / 10.}}}
+   );
 
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_bob.emplace(
@@ -293,7 +318,8 @@ inline auto setup_rps_test()
          std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::rock}, 9. / 10.},
          std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::paper}, .5 / 10.},
          std::pair{
-            games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, .5 / 10.}}});
+            games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, .5 / 10.}}}
+   );
 
    return std::tuple{
       std::move(env),
@@ -303,7 +329,7 @@ inline auto setup_rps_test()
       std::move(tabular_policy_bob),
       std::move(infostate_alex),
       std::move(infostate_bob),
-      std::move(init_state)};
+      std::move(next_state)};
 }
 
 #endif  // NOR_RM_SPECIFIC_TESTING_UTILS_HPP

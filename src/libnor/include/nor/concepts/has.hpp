@@ -123,11 +123,11 @@ concept chance_probability = requires(T const t, Worldstate worldstate, Outcome 
                                    } -> std::convertible_to< double >;
                              };
 
-template < typename T, typename ReturnType, typename... Args >
-concept append = requires(T t, Args&&... args) {
+template < typename T, typename ReturnType, typename Observation >
+concept update = requires(T t, Observation public_obs, Observation private_obs) {
                     // append objects Us... to t
                     {
-                       t.append(std::forward< Args >(args)...)
+                       t.update(public_obs, private_obs)
                        } -> std::same_as< ReturnType >;
                  };
 
@@ -153,7 +153,8 @@ concept transition_jointly = requires(
    Action action,
    Worldstate& worldstate,
    std::map< Player, Infostate >& infostates,
-   Publicstate& pubstate) {
+   Publicstate& pubstate
+) {
                                 // apply the action on the given world state inplace.
                                 {
                                    t.transition(worldstate, action)
@@ -243,53 +244,52 @@ template <
    typename Worldstate = typename T::world_state_type,
    typename Infostate = typename T::info_state_type >
 concept adhoc_info_state = requires(T t, Worldstate wstate, Player player) {
-                             {
-                                t.adhoc_info_state(wstate, player)
-                                } -> std::same_as< Infostate >;
-                          };
+                              {
+                                 t.adhoc_info_state(wstate, player)
+                                 } -> std::same_as< Infostate >;
+                           };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Infostate = typename T::info_state_type >
 concept adhoc_public_state = requires(T t, Worldstate wstate, Player player) {
-                             {
-                                t.adhoc_public_state(wstate, player)
-                                } -> std::same_as< Infostate >;
-                          };
+                                {
+                                   t.adhoc_public_state(wstate, player)
+                                   } -> std::same_as< Infostate >;
+                             };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::action_type,
    typename Observation = typename T::observation_type >
-concept private_observation = requires(T t, Player player, Worldstate wstate) {
+
+concept private_observation = requires(
+   T t,
+   Player player,
+   Worldstate wstate,
+   Action action,
+   Worldstate next_wstate
+) {
                                  {
-                                    t.private_observation(player, wstate)
+                                    t.private_observation(player, wstate, action, next_wstate)
                                     } -> std::convertible_to< Observation >;
                               };
-template <
-   typename T,
-   typename Worldstate = typename T::world_state_type,
-   typename Observation = typename T::observation_type >
-concept private_observation_multi = requires(
-   T t,
-   const std::vector< Player >& player_list,
-   Worldstate wstate) {
-                                       // get only private obervations.
-                                       // Output is a paired vector of observations, i.e. output[i]
-                                       // is paired to player_list[i].
-                                       {
-                                          t.private_observation(player_list, wstate)
-                                          } -> std::same_as< std::vector< Observation > >;
-                                    };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::action_type,
    typename Observation = typename T::observation_type >
-concept public_observation = requires(T t, Worldstate wstate) {
+concept public_observation = requires(
+   T t,
+   Worldstate wstate,
+   Action action,
+   Worldstate next_wstate
+) {
                                 {
-                                   t.public_observation(wstate)
+                                   t.public_observation(wstate, action, next_wstate)
                                    } -> std::convertible_to< Observation >;
                              };
 
@@ -310,7 +310,8 @@ template <
 concept observation_multi = requires(
    T t,
    const std::vector< Player >& player_list,
-   Worldstate wstate) {
+   Worldstate wstate
+) {
                                // get full observation: private and public.
                                // Output is a paired vector of observations, i.e. output[i] is
                                // paired to player_list[i].
@@ -320,12 +321,12 @@ concept observation_multi = requires(
                             };
 
 template < typename T, template < typename > class Ptr, typename ElemT >
-concept clone_other = std::is_pointer_v< Ptr< ElemT > > && requires(T&& t, Ptr< ElemT > ptr) {
-                                                              {
-                                                                 t->clone(ptr)
-                                                                 } -> std::convertible_to<
-                                                                    Ptr< ElemT > >;
-                                                           };
+concept clone_other = std::is_pointer_v< Ptr< ElemT > >
+                      && requires(T&& t, Ptr< ElemT > ptr) {
+                            {
+                               t->clone(ptr)
+                               } -> std::convertible_to< Ptr< ElemT > >;
+                         };
 
 template < typename T >
 concept clone = requires(T const t) { t.clone(); };

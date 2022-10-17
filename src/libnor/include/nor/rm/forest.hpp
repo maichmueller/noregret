@@ -513,12 +513,11 @@ void InfostateTree< Env >::build(
                   },
                   [&](const auto& action_or_outcome) {
                      m_env.transition(*next_state, action_or_outcome);
-                     auto [child_obs_buffer, child_istate_map] = fill_infostate_and_obs_buffers(
+                     auto [child_obs_buffer, child_istate_map] = update_infostate_and_obs_buffers(
                         m_env,
                         visit_data.observation_buffer,
                         visit_data.infostates,
-                        action_or_outcome,
-                        *next_state
+                        *curr_state, action_or_outcome, *next_state
                      );
                      return std::tuple{child_obs_buffer, child_istate_map};
                   }},
