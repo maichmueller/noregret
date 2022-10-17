@@ -155,17 +155,14 @@ TEST(BestResponsePolicy, rock_paper_scissors)
    action_policy_bob[Action{Team::two, Hand::scissors}] = 0.;
    action_policy_bob[Action{Team::two, Hand::rock}] = 0.;
 
-   auto best_response_bob = nor::factory::make_best_response_policy< Infostate, Action >(
+   auto best_response_alex = nor::factory::make_best_response_policy< Infostate, Action >(
       nor::Player::alex);
-   auto policy_view = nor::StatePolicyView< Infostate, Action >{policy_bob};
-   auto br_map = best_response_bob
-                    .allocate(
+   best_response_alex.allocate(
                        env,
                        std::unordered_map< nor::Player, nor::StatePolicyView< Infostate, Action > >{
-                          {nor::Player::bob, policy_view}},
-                       std::make_unique< State >())
-                    .map();
-   double x = 3;
+                          {nor::Player::bob, nor::StatePolicyView< Infostate, Action >{policy_bob}}},
+                       std::make_unique< State >());
+   EXPECT_NEAR(best_response_alex.root_value(), 1. , 1e-5);
    //   policy_alex(auto i : actions)
    //   {
    //      ASSERT_NEAR(policy[i], .2, 1e-10);
