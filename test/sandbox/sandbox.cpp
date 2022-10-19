@@ -17,32 +17,43 @@
 
 #include <variant>
 
-using var = std::variant< int, double >;
+enum class A { one = 4, two = 4534 };
+enum class B { one = 11111111, two = 33 };
+
+using var = std::variant< A, std::monostate >;
 
 struct Visitor {
-   auto operator()(int i)
-   {
-      throw std::logic_error("sd");
-      return i;
-   }
-   auto operator()(double k) { return int(k); }
+   auto operator()(A a) { return std::hash< A >{}(a); }
+   auto operator()(B b) { return std::hash< B >{}(b); }
 };
 
-template < class T, template < class... > class Template >
-struct is_specialization: std::false_type {};
-
-template < template < class... > class Template, class... Args >
-struct is_specialization< Template< Args... >, Template >: std::true_type {};
-
-template < class T, template < class... > class Template >
-constexpr bool is_specialization_v = is_specialization< T, Template>::value;
+using av_vector_sptr_hasher = decltype([](const sptr< std::vector< var > >& av_vec_ptr) {
+   size_t start = 0;
+   ranges::for_each(*av_vec_ptr, [&](const var& av) {
+      common::hash_combine(
+         start,
+         std::visit(
+            [&]< typename T >(const T& action_or_outcome) {
+               return std::hash< T >{}(action_or_outcome);
+            },
+            av
+         )
+      );
+   });
+   return start;
+});
 
 int main()
 {
-   var v = 3;
-   //   std::visit(Visitor{}, v);
-   std::cout << "Ok";
-   int k = 5;
-   std::reference_wrapper< int > r = k;
-   std::cout << is_specialization_v< std::reference_wrapper< inis_specializationt >, std::reference_wrapper >;
+   sptr< std::vector< var > > ptr = std::make_shared< std::vector< var > >(std::vector< var >{
+      A::one, A::two});
+   using av_sequence_infostate_map = std::unordered_map<
+      sptr< std::vector< var > >,
+      std::string,
+      av_vector_sptr_hasher,
+      common::sptr_value_comparator< std::vector<  var > > > ;
+
+   av_sequence_infostate_map map;
+   map.emplace(ptr, std::string("Mydear"));
+   std::cout << map[ptr];
 }

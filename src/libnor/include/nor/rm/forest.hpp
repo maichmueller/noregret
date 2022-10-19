@@ -8,9 +8,9 @@
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/policy/policy_view.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
-#include "nor/policy/policy_view.hpp"
 #include "rm_utils.hpp"
 
 namespace nor::concepts {
@@ -67,7 +67,7 @@ class GameTreeTraverser {
 
    using chance_outcome_conditional_type = std::
       conditional_t< concepts::deterministic_fosg< Env >, std::monostate, chance_outcome_type >;
-   using action_variant_type = std::variant< chance_outcome_conditional_type, action_type >;
+   using action_variant_type = std::variant< action_type, chance_outcome_conditional_type >;
 
    GameTreeTraverser(Env& env) : m_env(&env) {}
 
@@ -83,7 +83,6 @@ class GameTreeTraverser {
     * children of a node during traversal)
     */
    template <
-      typename TraversalStrategy,
       typename VisitationData = utils::empty,
       typename PreChildVisitHook = common::noop,
       typename ChildVisitHook = common::noop,
@@ -95,6 +94,7 @@ class GameTreeTraverser {
          VisitationData,  // the expected return type
          ChildVisitHook,  // the actual functor
          VisitationData&,  // current node's visitation data access
+         action_variant_type*,  // the action that lead to this child
          world_state_type*,  // current world state
          world_state_type*  // child world state
       >
@@ -105,16 +105,14 @@ class GameTreeTraverser {
       >
       and std::invocable<
          PostChildVisitHook,  // the actual functor
-         VisitationData&,  // current node's visitation data access
          world_state_type*  // current world state
       >
       and std::is_move_constructible_v< VisitationData >
    // clang-format on
    inline void walk(
       uptr< world_state_type > root_state,
-      TraversalStrategy traversal_strategy = &traverse_all_actions,
       VisitationData vis_data = {},
-      TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook >&&
+      TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook >
          hooks = {}
    )
    {
@@ -138,7 +136,7 @@ class GameTreeTraverser {
 
       // the visitation stack. Each node in this stack will be visited once according to the
       // traversal strategy selected.
-      std::stack< std::tuple< uptr< world_state_type > >, VisitationData > visit_stack;
+      std::stack< std::tuple< uptr< world_state_type >, VisitationData > > visit_stack;
       // emplace the root node into the visitation stack
       visit_stack.emplace(
          utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(root_state)),
@@ -153,29 +151,40 @@ class GameTreeTraverser {
          visit_stack.pop();
 
          auto curr_wstate_raw_ptr = curr_wstate_uptr.get();
-
+         auto curr_player = m_env->active_player(*curr_wstate_uptr.get());
          hooks.pre_child_hook(curr_wstate_raw_ptr, visit_data);
 
-         for(const auto& action : traversal_strategy(curr_wstate_uptr.get())) {
+         for(const action_variant_type& action_variant : [&] {
+                auto to_variant_transform = ranges::views::transform([](const auto& any) {
+                   return action_variant_type(any);
+                });
+                if constexpr(concepts::stochastic_env< Env >) {
+                   if(curr_player == Player::chance) {
+                      auto actions = m_env->chance_actions(*curr_wstate_uptr.get());
+                      return ranges::to< std::vector >(actions | to_variant_transform);
+                   }
+                }
+                auto actions = m_env->actions(curr_player, *curr_wstate_uptr.get());
+                return ranges::to< std::vector >(actions | to_variant_transform);
+             }()) {
             auto next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
                utils::clone_any_way(curr_wstate_uptr)
             );
             // move the new world state forward by the current action
-            if constexpr(concepts::deterministic_fosg< Env >) {
-               m_env->transition(*next_wstate_uptr, std::get< 1 >(action));
-            } else {
-               std::visit(
+            std::visit(
+               common::Overload{
                   [&](const auto& any_action) { m_env->transition(*next_wstate_uptr, any_action); },
-                  action
-               );
-            }
+                  [&](const std::monostate&) {},
+               },
+               action_variant
+            );
 
             // offer the caller to extract information for the currently visited node. We are
             // passing the worldstate ptrs even if we are traversing by states in order to maintain
             // consistency in our call signature
 
             auto new_visitation_data = hooks.child_hook(
-               visit_data, &action, curr_wstate_raw_ptr, next_wstate_uptr.get()
+               visit_data, &action_variant, curr_wstate_raw_ptr, next_wstate_uptr.get()
             );
 
             if(not m_env->is_terminal(*next_wstate_uptr)) {
@@ -186,20 +195,6 @@ class GameTreeTraverser {
             }
          }
          hooks.post_child_hook(curr_wstate_raw_ptr);
-      }
-   }
-
-   auto traverse_all_actions(world_state_type* wstate)
-   {
-      if constexpr(concepts::deterministic_fosg< Env >) {
-         // if we have a deterministic environment then we don't need to enfore the existence of
-         // a chance action member function
-         return m_env->actions(m_env->active_player(*wstate), *wstate);
-      } else {
-         if(m_env->active_player == Player::chance) {
-            return m_env->chance_actions(*wstate);
-         }
-         return m_env->actions(m_env->active_player(*wstate), *wstate);
       }
    }
 
@@ -261,7 +256,6 @@ class GameTree {
    /// the game tree nodes
    std::vector< uptr< node_type > > m_nodes;
 };
-
 
 template < concepts::fosg Env >
 class InfostateTree {
@@ -476,9 +470,9 @@ void InfostateTree< Env >::build(
          // choose according to the knowledge they have in the information state and chance
          // states will simply assign the same value again.)
          LOGD2("Active player", curr_player);
-         LOGD2("Action prob before", (action_prob.has_value()? action_prob.value().get() : 404.));
+         LOGD2("Action prob before", (action_prob.has_value() ? action_prob.value().get() : 404.));
          action_prob = curr_action_prob;
-         LOGD2("Action prob after", (action_prob.has_value()? action_prob.value().get() : 404.));
+         LOGD2("Action prob after", (action_prob.has_value() ? action_prob.value().get() : 404.));
          Player next_active_player = m_env.active_player(*next_state);
 
          if(not next_node_uptr) {
@@ -536,53 +530,54 @@ void InfostateTree< Env >::build(
    }
 };
 
-
-//template < concepts::action Action, concepts::info_state Infostate, typename ChanceOutcome >
-//struct PublicTreeNode {
-//   static_assert(
-//      std::conditional_t<
-//         std::is_same_v< ChanceOutcome, void >,
-//         std::true_type,
-//         std::conditional_t<
-//            concepts::chance_outcome< ChanceOutcome >,
-//            std::true_type,
-//            std::false_type > >::value,
-//      "The passed chance outcome type either has to be void or fulfill the concept: "
-//      "'chance_outcome'."
-//   );
+// template < concepts::action Action, concepts::info_state Infostate, typename ChanceOutcome >
+// struct PublicTreeNode {
+//    static_assert(
+//       std::conditional_t<
+//          std::is_same_v< ChanceOutcome, void >,
+//          std::true_type,
+//          std::conditional_t<
+//             concepts::chance_outcome< ChanceOutcome >,
+//             std::true_type,
+//             std::false_type > >::value,
+//       "The passed chance outcome type either has to be void or fulfill the concept: "
+//       "'chance_outcome'."
+//    );
 //
-//   using action_type = Action;
-//   using info_state_type = Infostate;
-//   using chance_outcome_type = ChanceOutcome;
+//    using action_type = Action;
+//    using info_state_type = Infostate;
+//    using chance_outcome_type = ChanceOutcome;
 //
-//   /// this node's id (or index within the node vector)
-//   const size_t id;
-//   /// the parent node from which this node stems
-//   PublicTreeNode* parent = nullptr;
-//   /// the children that each action maps to in the game tree.
-//   /// Should be filled during the traversal.
-//   // If the environment is deterministic, then ChanceOutcome should be void, and thus the map only
-//   // stores the action type itself. If the environment is stochastic however, then either actions
-//   // or chance outcomes can be stored.
-//   using chance_outcome_conditional_type = std::
-//      conditional_t< std::is_same_v< ChanceOutcome, void >, std::monostate, ChanceOutcome >;
-//   using action_variant_type = std::variant< Action, chance_outcome_conditional_type >;
-//   using variant_hasher = decltype([](const action_variant_type& action_variant) {
-//      return std::visit(
-//         []< typename VarType >(const VarType& variant_elem) {
-//            return std::hash< VarType >{}(variant_elem);
-//         },
-//         action_variant
-//      );
-//   });
-//   std::unordered_map< action_variant_type, PublicTreeNode*, variant_hasher > children{};
-//   /// the action that was taken at the parent to get to this node (nullopt for the root)
-//   std::optional< action_variant_type > action_from_parent = std::nullopt;
-//   /// all the infostates that are associated with this public node
-//   std::vector< sptr< Infostate > > contained_infostates;
-//};
+//    /// this node's id (or index within the node vector)
+//    const size_t id;
+//    /// the parent node from which this node stems
+//    PublicTreeNode* parent = nullptr;
+//    /// the children that each action maps to in the game tree.
+//    /// Should be filled during the traversal.
+//    // If the environment is deterministic, then ChanceOutcome should be void, and thus the map
+//    only
+//    // stores the action type itself. If the environment is stochastic however, then either
+//    actions
+//    // or chance outcomes can be stored.
+//    using chance_outcome_conditional_type = std::
+//       conditional_t< std::is_same_v< ChanceOutcome, void >, std::monostate, ChanceOutcome >;
+//    using action_variant_type = std::variant< Action, chance_outcome_conditional_type >;
+//    using variant_hasher = decltype([](const action_variant_type& action_variant) {
+//       return std::visit(
+//          []< typename VarType >(const VarType& variant_elem) {
+//             return std::hash< VarType >{}(variant_elem);
+//          },
+//          action_variant
+//       );
+//    });
+//    std::unordered_map< action_variant_type, PublicTreeNode*, variant_hasher > children{};
+//    /// the action that was taken at the parent to get to this node (nullopt for the root)
+//    std::optional< action_variant_type > action_from_parent = std::nullopt;
+//    /// all the infostates that are associated with this public node
+//    std::vector< sptr< Infostate > > contained_infostates;
+// };
 
-}  // namespace nor::rm::forest
+}  // namespace nor::forest
 //
 //
 // namespace nor::rm::forest {

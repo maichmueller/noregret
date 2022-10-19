@@ -54,7 +54,6 @@ class DefaultPublicstate {
          auto round_str = std::string("obs_") + std::to_string(pos);
          s += "pub_" + round_str + ": " + std::get< 0 >(observation) + "\n";
          s += "prv_" + round_str + ": " + std::get< 1 >(observation) + "\n";
-         s += "||";
       }
       return s;
    };

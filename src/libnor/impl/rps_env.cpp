@@ -35,12 +35,12 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::tin
    std::stringstream ss;
    ss
       << (wstate.picks()[0].has_value()
-             ? std::string(common::to_string(wstate.picks()[0].value().hand))
+             ? std::string(common::to_string(wstate.picks()[0].value()))
              : "");
    ss << "-";
    ss
       << (wstate.picks()[1].has_value()
-             ? std::string(common::to_string(wstate.picks()[1].value().hand))
+             ? std::string(common::to_string(wstate.picks()[1].value()))
              : "");
    return ss.str();
 }
@@ -99,8 +99,8 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::pri
    const world_state_type& next_wstate
 ) const
 {
-   if(action.team == to_team(observer)) {
-      return std::string(common::to_string(action.hand));
+   if(active_player(wstate) == observer) {
+      return std::string(common::to_string(action));
    }
    return "";
 }
@@ -111,5 +111,5 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::pub
    const world_state_type& next_wstate
 ) const
 {
-   return common::to_string(action.team) + "->?";
+   return common::to_string(active_player(wstate)) + "->?";
 }
