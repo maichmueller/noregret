@@ -163,7 +163,7 @@ class VanillaCFR:
    /// the data to store per infostate entry
    using infostate_data_type = typename detail::VCFRNodeDataSelector< config, env_type >::type;
    /// strong-types for player based maps
-   using InfostateMap = typename base::InfostateMap;
+   using InfostateSptrMap = typename base::InfostateSptrMap;
    using ObservationbufferMap = typename base::ObservationbufferMap;
 
    ////////////////////
@@ -363,7 +363,7 @@ class VanillaCFR:
       uptr< world_state_type > curr_worldstate,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap observation_buffer,
-      InfostateMap infostate_map
+      InfostateSptrMap infostate_map
    );
 
    template < bool initialize_infonodes, bool use_current_policy = true >
@@ -373,7 +373,7 @@ class VanillaCFR:
       uptr< world_state_type > state,
       const ReachProbabilityMap& reach_probability,
       const ObservationbufferMap& observation_buffer,
-      InfostateMap infostate_map,
+      InfostateSptrMap infostate_map,
       StateValueMap& state_value,
       std::unordered_map< action_variant_type, StateValueMap >& action_value
    );
@@ -385,7 +385,7 @@ class VanillaCFR:
       uptr< world_state_type > state,
       const ReachProbabilityMap& reach_probability,
       const ObservationbufferMap& observation_buffer,
-      InfostateMap infostate_map,
+      InfostateSptrMap infostate_map,
       StateValueMap& state_value,
       std::unordered_map< action_variant_type, StateValueMap >& action_value
    );
@@ -516,7 +516,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
                                  .first->second;
             infostate->append(_env().private_observation(player, root_state()));
          }
-         return InfostateMap{std::move(infostates)};
+         return InfostateSptrMap{std::move(infostates)};
       }()
    );
 
@@ -754,7 +754,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    uptr< world_state_type > state,
    ReachProbabilityMap reach_probability,
    ObservationbufferMap observation_buffer,
-   InfostateMap infostates
+   InfostateSptrMap infostates
 )
 {
    if(_env().is_terminal(*state)) {
@@ -887,7 +887,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    uptr< world_state_type > state,
    const ReachProbabilityMap& reach_probability,
    const ObservationbufferMap& observation_buffer,
-   InfostateMap infostate_map,
+   InfostateSptrMap infostate_map,
    StateValueMap& state_value,
    std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
@@ -933,7 +933,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          std::move(next_wstate_uptr),
          ReachProbabilityMap{std::move(child_reach_prob)},
          ObservationbufferMap{std::move(child_observation_buffer)},
-         InfostateMap{std::move(child_infostate_map)}
+         InfostateSptrMap{std::move(child_infostate_map)}
       );
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action
@@ -952,7 +952,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
    uptr< world_state_type > state,
    const ReachProbabilityMap& reach_probability,
    const ObservationbufferMap& observation_buffer,
-   InfostateMap infostate_map,
+   InfostateSptrMap infostate_map,
    StateValueMap& state_value,
    std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
@@ -973,7 +973,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
          std::move(next_wstate_uptr),
          ReachProbabilityMap{std::move(child_reach_prob)},
          ObservationbufferMap{std::move(child_observation_buffer)},
-         InfostateMap{std::move(child_infostate_map)}
+         InfostateSptrMap{std::move(child_infostate_map)}
       );
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action

@@ -58,7 +58,7 @@ class TabularCFRBase {
    /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
    /// strong-types for argument passing
-   using InfostateMap = fluent::
+   using InfostateSptrMap = fluent::
       NamedType< std::unordered_map< Player, sptr< info_state_type > >, struct reach_prob_tag >;
 
    using ObservationbufferMap = fluent::NamedType<

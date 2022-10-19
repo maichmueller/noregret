@@ -294,7 +294,8 @@ template <
    typename Observation = typename fosg_auto_traits< Env >::observation_type >
 // clang-format off
 requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
-     and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+       and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+         or concepts::map< InformationStateMap, Player, uptr< Infostate > >
          or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
          or concepts::map< InformationStateMap, Player, Infostate* >
          or concepts::map< InformationStateMap, Player, Infostate >)
@@ -363,7 +364,8 @@ template <
    typename Observation = typename fosg_auto_traits< Env >::observation_type >
 // clang-format off
 requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
-     and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+       and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+         or concepts::map< InformationStateMap, Player, uptr< Infostate > >
          or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
          or concepts::map< InformationStateMap, Player, Infostate* >
          or concepts::map< InformationStateMap, Player, Infostate >)
@@ -377,9 +379,11 @@ auto fill_infostate_and_obs_buffers(
 )
 {
    using mapped_infostate_type = typename InformationStateMap::mapped_type;
-   // if the infostate types are raw references or reference_wrappers then we need to actually copy
-   // their pointed to contents in a raw fashion.
-   // Note that the caller needs to be aware of these potential memory leaks!
+   // if the infostate types are referenced values or reference_wrappers then we need to actually
+   // copy their pointed to contents.
+
+   // Note that the caller needs to be aware of potential memory leaks occuring from this function!
+
    if constexpr(std::same_as< mapped_infostate_type, std::reference_wrapper< Infostate > >) {
       for(auto& [player, mapped] : infostate_map) {
          mapped = std::ref(new Infostate(mapped.get()));
@@ -387,6 +391,14 @@ auto fill_infostate_and_obs_buffers(
    } else if constexpr(std::same_as< mapped_infostate_type, Infostate* >) {
       for(auto& [player, mapped] : infostate_map) {
          mapped = new Infostate(*mapped);
+      }
+   } else if constexpr(std::same_as< mapped_infostate_type, sptr< Infostate > >) {
+      for(auto& [player, mapped] : infostate_map) {
+         mapped = std::make_shared< Infostate >(*mapped);
+      }
+   } else if constexpr(std::same_as< mapped_infostate_type, uptr< Infostate > >) {
+      for(auto& [player, mapped] : infostate_map) {
+         mapped = std::make_unique< Infostate >(*mapped);
       }
    }
 

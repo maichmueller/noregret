@@ -116,7 +116,7 @@ class MCCFR:
    /// strong-types for player based maps
    using WeightMap = fluent::
       NamedType< std::unordered_map< Player, double >, struct weight_map_tag >;
-   using InfostateMap = typename base::InfostateMap;
+   using InfostateSptrMap = typename base::InfostateSptrMap;
    using ObservationbufferMap = typename base::ObservationbufferMap;
 
    ////////////////////
@@ -290,7 +290,7 @@ class MCCFR:
       world_state_type& state,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap observation_buffer,
-      InfostateMap infostates,
+      InfostateSptrMap infostates,
       Probability sample_probability
    )
       requires(
@@ -303,7 +303,7 @@ class MCCFR:
       world_state_type& state,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap observation_buffer,
-      InfostateMap infostates,
+      InfostateSptrMap infostates,
       Probability sample_probability,
       WeightMap weights
    )
@@ -316,7 +316,7 @@ class MCCFR:
       Player player_to_update,
       uptr< world_state_type > state,
       ObservationbufferMap observation_buffer,
-      InfostateMap infostates
+      InfostateSptrMap infostates
    )
       requires(config.algorithm == MCCFRAlgorithmMode::external_sampling);
 
@@ -472,7 +472,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
                               .first->second;
          infostate->append(_env().private_observation(player, root_state()));
       }
-      return InfostateMap{std::move(infostates)};
+      return InfostateSptrMap{std::move(infostates)};
    };
    auto init_reach_probs = [&] {
       std::unordered_map< Player, double > rp_map;
@@ -547,7 +547,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    world_state_type& state,
    ReachProbabilityMap reach_probability,
    ObservationbufferMap observation_buffer,
-   InfostateMap infostates,
+   InfostateSptrMap infostates,
    Probability sample_probability,
    WeightMap weights
 )
@@ -703,7 +703,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    world_state_type& state,
    ReachProbabilityMap reach_probability,
    ObservationbufferMap observation_buffer,
-   InfostateMap infostates,
+   InfostateSptrMap infostates,
    Probability sample_probability
 )
    requires(
@@ -1073,7 +1073,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    Player player_to_update,
    uptr< world_state_type > state,
    ObservationbufferMap observation_buffer,
-   InfostateMap infostates
+   InfostateSptrMap infostates
 )
    requires(config.algorithm == MCCFRAlgorithmMode::external_sampling)
 {
@@ -1143,7 +1143,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
                                            player_to_update,
                                            std::move(next_state),
                                            ObservationbufferMap{std::move(next_observation_buffer)},
-                                           InfostateMap{std::move(next_infostates)}
+                                           InfostateSptrMap{std::move(next_infostates)}
          )
                                            .get();
          value_estimates.emplace(action, action_value_estimate);
@@ -1174,7 +1174,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
                                         player_to_update,
                                         std::move(state),
                                         ObservationbufferMap{std::move(observation_buffer)},
-                                        InfostateMap{std::move(infostates)}
+                                        InfostateSptrMap{std::move(infostates)}
       )
                                         .get();
 
