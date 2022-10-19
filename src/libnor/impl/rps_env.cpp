@@ -35,13 +35,13 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::pri
    }
    if(player == Player::alex) {
       ss
-         << (wstate.picks()[0].has_value() ? common::to_string(wstate.picks()[0].value().hand)
+         << (wstate.picks()[0].has_value() ? common::to_string(wstate.picks()[0].value())
                                            : "");
       ss << "-?";
    } else if(player == Player::bob) {
       ss << "?-";
       ss
-         << (wstate.picks()[1].has_value() ? common::to_string(wstate.picks()[1].value().hand)
+         << (wstate.picks()[1].has_value() ? common::to_string(wstate.picks()[1].value())
                                            : "");
    } else {
       throw std::invalid_argument("Passed player is not 'alex' or 'bob'.");
@@ -52,10 +52,7 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::pri
    nor::Player player,
    const nor::games::rps::Environment::action_type& action) const
 {
-   if(action.team == to_team(player)) {
-      return std::string(common::to_string(action.hand));
-   }
-   return "?";
+      return std::string(common::to_string(action));
 }
 nor::games::rps::Environment::observation_type nor::games::rps::Environment::tiny_repr(
    const nor::games::rps::Environment::world_state_type& wstate) const
@@ -63,12 +60,12 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::tin
    std::stringstream ss;
    ss
       << (wstate.picks()[0].has_value()
-             ? std::string(common::to_string(wstate.picks()[0].value().hand))
+             ? std::string(common::to_string(wstate.picks()[0].value()))
              : "");
    ss << "-";
    ss
       << (wstate.picks()[1].has_value()
-             ? std::string(common::to_string(wstate.picks()[1].value().hand))
+             ? std::string(common::to_string(wstate.picks()[1].value()))
              : "");
    return ss.str();
 }

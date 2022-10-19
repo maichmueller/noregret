@@ -45,6 +45,10 @@ register_nor_target(
         ${nor_test}_policy
         test_policy.cpp
 )
+register_nor_target(
+        ${nor_test}_helpers
+        test_helpers.cpp
+)
 # for the overall test executable we simply merge all other test files together
 foreach (
         sources_list

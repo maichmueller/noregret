@@ -5,15 +5,15 @@
 
 namespace rps {
 
-void State::apply_action(Action action)
+void State::apply_action(Hand action)
 {
    if(m_picks[0].has_value()) {
       if(m_picks[1].has_value()) {
          throw std::logic_error("Each player already chose an action.");
       }
    }
+   m_picks[static_cast< uint8_t >(m_active_team)] = action;
    m_active_team = Team::two;
-   m_picks[static_cast< uint8_t >(action.team)] = action;
 }
 
 double State::payoff(Team team) const
@@ -30,9 +30,9 @@ double State::payoff(Team team) const
       std::pair{std::array{Hand::rock, Hand::scissors}, 1.},
    };
    if(team == Team::one) {
-      return winner_map.at({m_picks[0].value().hand, m_picks[1].value().hand});
+      return winner_map.at({m_picks[0].value(), m_picks[1].value()});
    } else {
-      return winner_map.at({m_picks[1].value().hand, m_picks[0].value().hand});
+      return winner_map.at({m_picks[1].value(), m_picks[0].value()});
    }
 }
 
