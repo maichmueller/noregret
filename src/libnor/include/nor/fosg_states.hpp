@@ -108,7 +108,6 @@ class DefaultInfostate: public DefaultPublicstate< Derived, Observation > {
    Player m_player;
 };
 
-
 }  // namespace nor
 
 #endif  // NOR_FOSG_STATES_HPP

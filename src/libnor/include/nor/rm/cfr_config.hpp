@@ -10,22 +10,36 @@ enum class UpdateMode { simultaneous = 0, alternating = 1 };
 
 enum class CFRWeightingMode {
    // no particular weighting scheme applied to updates of regret or average policy.
-   // Both are incremented by the unweighted increments
+   // Both are incremented by unweighted increments
    uniform = 0,
    // The average policy is being incremented by the weight 't' in iteration 't'
    linear = 1,
-   // Both the regret and average policy are updated by the weights as laid out in
-   // the 'Discounted CFR' algorithm.
+   // Both the regret and average policy are updated by the weights
+   // t^alpha / (t^alpha +1), t^beta / (t^beta + 1), (t / t+1)^gamma
    discounted = 2,
-   // We regret and average policy are weighted by an exponential L1 factor: L1 = r(I,a) - E[v(I)]
+   // The regret and average policy are weighted by an L1 factor: L1(I, a) = r(I,a) - E[v(I)]
    // where r(I,a) is the instantaneous regret and E[v(I)] is the expected value of the infostate
    exponential = 3
+};
+
+enum class CFRPruningMode {
+   // No pruning
+   none = 0,
+   // Partial pruning drops the a subtree if a player policy upstream hits 0
+   partial = 1,
+   // Regret-based pruning skips subtrees for all t > t_0 if an action's regret is < 0 at time t_0
+   // and updates upon take up t_1 with a best response against the average strategy of the
+   // opponents during this period.
+   regret_based = 2,
+   //
+   dynamic_thresholding = 3
 };
 
 struct CFRConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
    CFRWeightingMode weighting_mode = CFRWeightingMode::uniform;
+   CFRPruningMode pruning_mode = CFRPruningMode::none;
 };
 
 struct CFRPlusConfig {

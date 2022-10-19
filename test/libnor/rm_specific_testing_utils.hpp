@@ -1,5 +1,5 @@
-#ifndef NOR_UTILS_FOR_TESTING_HPP
-#define NOR_UTILS_FOR_TESTING_HPP
+#ifndef NOR_RM_SPECIFIC_TESTING_UTILS_HPP
+#define NOR_RM_SPECIFIC_TESTING_UTILS_HPP
 
 #include <gtest/gtest.h>
 
@@ -45,9 +45,9 @@ inline void evaluate_policies(
    using namespace nor;
    auto policy_fetcher = [&](Player this_player) {
       if constexpr(current_policy) {
-         return rm::normalize_state_policy(solver.policy().at(this_player).table());
+         return normalize_state_policy(solver.policy().at(this_player).table());
       } else {
-         return rm::normalize_state_policy(solver.average_policy().at(this_player).table());
+         return normalize_state_policy(solver.average_policy().at(this_player).table());
       }
    };
 
@@ -98,9 +98,9 @@ inline void evaluate_policies(
    using namespace nor;
    auto policy_fetcher = [&](Player this_player) {
       if constexpr(current_policy) {
-         return rm::normalize_state_policy(solver.policy().at(this_player).table());
+         return normalize_state_policy(solver.policy().at(this_player).table());
       } else {
-         return rm::normalize_state_policy(solver.average_policy().at(this_player).table());
+         return normalize_state_policy(solver.average_policy().at(this_player).table());
       }
    };
 
@@ -188,13 +188,13 @@ inline void assert_optimal_policy_rps(const auto& solver, double precision = 1e-
    }
    auto final_policy = solver.average_policy().at(Player::alex).table();
    for(const auto& [state, action_policy] : final_policy) {
-      for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
+      for(const auto& [action, prob] : normalize_action_policy(action_policy)) {
          ASSERT_NEAR(prob, 1. / 3., precision);
       }
    }
    final_policy = solver.average_policy().at(Player::bob).table();
    for(const auto& [state, action_policy] : final_policy) {
-      for(const auto& [action, prob] : rm::normalize_action_policy(action_policy)) {
+      for(const auto& [action, prob] : normalize_action_policy(action_policy)) {
          ASSERT_NEAR(prob, 1. / 3., precision);
       }
    }
@@ -224,7 +224,7 @@ inline void assert_optimal_policy_kuhn(const auto& solver, auto& env, double pre
    auto policy_tables = std::vector{
       solver.average_policy().at(Player::alex).table(),
       solver.average_policy().at(Player::bob).table()};
-   double alpha = rm::normalize_action_policy(
+   double alpha = normalize_action_policy(
       policy_tables[0].at(infostate_alex))[kuhn::Action::bet];
    auto [alex_optimal_table, bob_optimal_table] = kuhn_optimal(alpha);
    auto optimal_tables = std::vector{std::move(alex_optimal_table), std::move(bob_optimal_table)};
@@ -233,7 +233,7 @@ inline void assert_optimal_policy_kuhn(const auto& solver, auto& env, double pre
        ranges::views::zip(policy_tables, optimal_tables)) {
       for(const auto& computed_state_policy : computed_table) {
          const auto& [istate, action_policy] = computed_state_policy;
-         auto normalized_ap = rm::normalize_action_policy(action_policy);
+         auto normalized_ap = normalize_action_policy(action_policy);
          for(const auto& [optim_action_and_prob, action_and_prob] :
              ranges::views::zip(optimal_table.at(istate.history().back()), normalized_ap)) {
             auto found_action_prob = std::get< 1 >(action_and_prob);
@@ -249,23 +249,23 @@ inline auto setup_rps_test()
    using namespace nor;
    games::rps::Environment env{};
 
-   auto avg_tabular_policy = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
-      rm::factory::
-         make_zero_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+   auto avg_tabular_policy = factory::make_tabular_policy(
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
+      factory::
+         make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
-   auto tabular_policy_alex = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
-      rm::factory::
-         make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+   auto tabular_policy_alex = factory::make_tabular_policy(
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
+      factory::
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
-   auto tabular_policy_bob = rm::factory::make_tabular_policy(
-      std::unordered_map< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >{},
-      rm::factory::
-         make_uniform_policy< games::rps::InfoState, HashmapActionPolicy< games::rps::Action > >());
+   auto tabular_policy_bob = factory::make_tabular_policy(
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
+      factory::
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
 
-   auto infostate_alex = games::rps::InfoState{Player::alex};
-   auto infostate_bob = games::rps::InfoState{Player::bob};
+   auto infostate_alex = games::rps::Infostate{Player::alex};
+   auto infostate_bob = games::rps::Infostate{Player::bob};
    auto init_state = games::rps::State();
    infostate_alex.append(env.private_observation(Player::alex, init_state));
    infostate_bob.append(env.private_observation(Player::bob, init_state));
@@ -306,4 +306,4 @@ inline auto setup_rps_test()
       std::move(init_state)};
 }
 
-#endif  // NOR_UTILS_FOR_TESTING_HPP
+#endif  // NOR_RM_SPECIFIC_TESTING_UTILS_HPP

@@ -4,9 +4,9 @@
 #include <type_traits>
 
 #include "dummy_classes.hpp"
-#include "nor/fosg_traits.hpp"
-#include "nor/rm/factory.hpp"
 #include "nor/env/rps_env.hpp"
+#include "nor/factory.hpp"
+#include "nor/fosg_traits.hpp"
 
 TEST(fosg_traits, auto_traits)
 {
@@ -37,12 +37,12 @@ requires nor::fosg_traits_partial_match_v< Sub, Super > void trait_fosg_partial_
 TEST(fosg_traits, partial_match_rps)
 {
    //      concept_fosg_check< dummy::Env >();
-   auto tabular_policy = nor::rm::factory::make_tabular_policy(
+   auto tabular_policy = nor::factory::make_tabular_policy(
       std::unordered_map<
-         nor::games::rps::InfoState,
+         nor::games::rps::Infostate,
          nor::HashmapActionPolicy< nor::games::rps::Action > >{},
-      nor::rm::factory::make_uniform_policy<
-         nor::games::rps::InfoState,
+      nor::factory::make_uniform_policy<
+         nor::games::rps::Infostate,
          nor::HashmapActionPolicy< nor::games::rps::Action > >());
 
    //   trait_fosg_partial_match_check< nor::games::rps::Environment, decltype(tabular_policy) >();

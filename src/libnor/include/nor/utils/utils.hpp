@@ -9,30 +9,6 @@
 #include "nor/game_defs.hpp"
 #include "player_informed_type.hpp"
 
-namespace nor {
-
-#ifndef NEW_EMPTY_TYPE
-   #define NEW_EMPTY_TYPE decltype([]() {})
-#endif
-
-/**
- * A type hint to help identify the remaining template types in a constructor without specifying
- * them twice.
- * @tparam T
- */
-template < typename... Ts >
-struct Hint {
-};
-
-template <
-   typename Key,
-   typename Value,
-   template < typename... > class Map = std::unordered_map,
-   typename... Args >
-using DefaultPlayerMap = Map< Key, Value, Args... >;
-
-}  // namespace nor
-
 namespace nor::utils {
 
 constexpr auto is_chance_player_pred = [](Player player) { return player == Player::chance; };
@@ -45,7 +21,7 @@ constexpr auto is_actual_player_filter = ranges::views::filter(is_actual_player_
 struct empty {};
 
 struct hashable_empty {
-   constexpr bool operator==(const hashable_empty &) { return true; }
+   constexpr bool operator==(const hashable_empty&) { return true; }
 };
 
 }  // namespace nor::utils
@@ -54,7 +30,7 @@ namespace std {
 
 template <>
 struct hash< nor::utils::hashable_empty > {
-   size_t operator()(const nor::utils::hashable_empty &) const { return 0; }
+   size_t operator()(const nor::utils::hashable_empty&) const { return 0; }
 };
 }  // namespace std
 
@@ -64,7 +40,7 @@ template < class >
 inline constexpr bool always_false_v = false;
 
 template < bool condition, typename T >
-inline std::conditional_t< condition, T &&, T & > move_if(T &obj)
+inline std::conditional_t< condition, T&&, T& > move_if(T& obj)
 {
    if constexpr(condition) {
       return std::move(obj);
@@ -74,7 +50,7 @@ inline std::conditional_t< condition, T &&, T & > move_if(T &obj)
 }
 
 template < template < typename > class UnaryPredicate, typename T >
-inline std::conditional_t< UnaryPredicate< T >::value, T &&, T & > move_if(T &obj)
+inline std::conditional_t< UnaryPredicate< T >::value, T&&, T& > move_if(T& obj)
 {
    if constexpr(UnaryPredicate< T >::value) {
       return std::move(obj);
@@ -84,25 +60,9 @@ inline std::conditional_t< UnaryPredicate< T >::value, T &&, T & > move_if(T &ob
 }
 
 template < typename T >
-auto clone_any_way(const T &obj)
+auto clone_any_way(const T& obj)
 {
-   if constexpr(nor::concepts::is::smart_pointer_like< T >) {
-      if constexpr(concepts::has::method::clone< typename T::element_type >) {
-         return obj->clone();
-      } else if constexpr(std::is_copy_constructible_v< typename T::element_type >) {
-         return std::make_unique< typename T::element_type >(*obj);
-      }
-   } else if constexpr(std::is_pointer_v< T >) {
-      if constexpr(concepts::has::method::clone< std::remove_pointer_t< T > >) {
-         return std::unique_ptr< T >(obj->clone());
-      } else if constexpr(std::is_copy_constructible_v< std::remove_pointer_t< T > >) {
-         return std::make_unique< std::remove_cvref_t< std::remove_pointer_t< T > > >(
-            std::remove_pointer_t< T >{*obj});
-      } else {
-         static_assert(
-            always_false_v< T >, "No cloning/copying method available in given type via pointer.");
-      }
-   } else if constexpr(concepts::has::method::clone< T >) {
+   if constexpr(concepts::has::method::clone< T >) {
       return std::unique_ptr< T >(obj.clone());
    } else if constexpr(concepts::has::method::copy< T >) {
       return std::make_unique< T >(obj.copy());
@@ -113,14 +73,26 @@ auto clone_any_way(const T &obj)
    }
 }
 
+template < typename T >
+   requires concepts::is::smart_pointer_like< T > or concepts::is::pointer< T >
+            or concepts::is::specialization< T, std::reference_wrapper >
+auto clone_any_way(const T& obj)
+{
+   if constexpr(concepts::is::specialization< T, std::reference_wrapper >) {
+      return clone_any_way(obj.get());
+   } else {
+      return clone_any_way(*obj);
+   }
+}
+
 template < typename Derived, typename Base, typename Deleter >
    requires std::is_same_v< Deleter, std::default_delete< Base > >
-std::unique_ptr< Derived > static_unique_ptr_downcast(std::unique_ptr< Base, Deleter > &&p) noexcept
+std::unique_ptr< Derived > static_unique_ptr_downcast(std::unique_ptr< Base, Deleter >&& p) noexcept
 {
    if constexpr(std::is_same_v< Derived, Base >) {
       return p;
    } else {
-      auto d = static_cast< Derived * >(p.release());
+      auto d = static_cast< Derived* >(p.release());
       return std::unique_ptr< Derived >(d);
    }
 }
@@ -128,20 +100,21 @@ std::unique_ptr< Derived > static_unique_ptr_downcast(std::unique_ptr< Base, Del
 template < typename Derived, typename DerivedDeleter, typename Base, typename Deleter >
    requires std::convertible_to< Deleter, DerivedDeleter >
 std::unique_ptr< Derived, DerivedDeleter > static_unique_ptr_downcast(
-   std::unique_ptr< Base, Deleter > &&p) noexcept
+   std::unique_ptr< Base, Deleter >&& p
+) noexcept
 {
    if constexpr(std::is_same_v< Derived, Base >) {
       return p;
    } else {
-      auto d = static_cast< Derived * >(p.release());
+      auto d = static_cast< Derived* >(p.release());
       return std::unique_ptr< Derived, DerivedDeleter >(d, std::move(p.get_deleter()));
    }
 }
 
 template < typename Derived, typename Base, typename Deleter >
-std::unique_ptr< Derived, Deleter > dynamic_unique_ptr_cast(std::unique_ptr< Base, Deleter > &&p)
+std::unique_ptr< Derived, Deleter > dynamic_unique_ptr_cast(std::unique_ptr< Base, Deleter >&& p)
 {
-   if(Derived *result = dynamic_cast< Derived * >(p.get())) {
+   if(Derived* result = dynamic_cast< Derived* >(p.get())) {
       p.release();
       return std::unique_ptr< Derived, Deleter >(result, std::move(p.get_deleter()));
    }
@@ -153,7 +126,8 @@ class ConstView {
   public:
    static_assert(
       concepts::is::const_iter< Iter >,
-      "ConstView can be constructed from const_iterators only.");
+      "ConstView can be constructed from const_iterators only."
+   );
 
    ConstView(Iter begin, Iter end) : m_begin(begin), m_end(end) {}
 
@@ -166,7 +140,7 @@ class ConstView {
 };
 
 template < typename Iter >
-auto advance(Iter &&iter, typename Iter::difference_type n)
+auto advance(Iter&& iter, typename Iter::difference_type n)
 {
    Iter it = std::forward< Iter >(iter);
    std::advance(it, n);
@@ -177,10 +151,11 @@ template < typename Key, typename Value, std::size_t Size >
 struct CEMap {
    std::array< std::pair< Key, Value >, Size > data;
 
-   [[nodiscard]] constexpr Value at(const Key &key) const
+   [[nodiscard]] constexpr Value at(const Key& key) const
    {
-      const auto itr = std::find_if(
-         begin(data), end(data), [&key](const auto &v) { return v.first == key; });
+      const auto itr = std::find_if(begin(data), end(data), [&key](const auto& v) {
+         return v.first == key;
+      });
       if(itr != end(data)) {
          return itr->second;
       } else {
@@ -194,9 +169,10 @@ struct CEBijection {
    std::array< std::pair< Key, Value >, Size > data;
 
    template < typename T >
-      requires std::is_same_v< T, Key > or std::is_same_v< T, Value >[[nodiscard]] constexpr auto at(const T &elem) const
+      requires std::is_same_v< T, Key > or std::is_same_v< T, Value >
+   [[nodiscard]] constexpr auto at(const T& elem) const
    {
-      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto &v) {
+      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
          if constexpr(std::is_same_v< T, Key >) {
             return v.first == elem;
          } else {
@@ -215,7 +191,7 @@ struct CEBijection {
    }
 };
 
-constexpr CEBijection< Player, std::string_view, 27 > player_name_bij = {
+constexpr CEBijection< Player, std::string_view, 28 > player_name_bij = {
    std::pair{Player::chance, "chance"},     std::pair{Player::alex, "alex"},
    std::pair{Player::bob, "bob"},           std::pair{Player::cedric, "cedric"},
    std::pair{Player::dexter, "dexter"},     std::pair{Player::emily, "emily"},
@@ -228,8 +204,8 @@ constexpr CEBijection< Player, std::string_view, 27 > player_name_bij = {
    std::pair{Player::rosie, "rosie"},       std::pair{Player::sophia, "sophia"},
    std::pair{Player::tristan, "tristan"},   std::pair{Player::ulysses, "ulysses"},
    std::pair{Player::victoria, "victoria"}, std::pair{Player::william, "william"},
-   std::pair{Player::xavier, "xavier"},     std::pair{Player::yeet, "yeet"},
-   std::pair{Player::zoey, "zoey"}};
+   std::pair{Player::xavier, "xavier"},     std::pair{Player::yusuf, "yusuf"},
+   std::pair{Player::zoey, "zoey"},         std::pair{Player::unknown, "unknown"}};
 
 constexpr CEBijection< TurnDynamic, std::string_view, 2 > turndynamic_name_bij = {
    std::pair{TurnDynamic::sequential, "sequential"},
@@ -244,30 +220,27 @@ constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_b
 
 namespace common {
 template <>
-inline std::string to_string(const nor::Player &e)
+inline std::string to_string(const nor::Player& e)
 {
    return std::string(nor::utils::player_name_bij.at(e));
 }
 template <>
-inline std::string to_string(const nor::TurnDynamic &e)
+inline std::string to_string(const nor::TurnDynamic& e)
 {
    return std::string(nor::utils::turndynamic_name_bij.at(e));
 }
 template <>
-inline std::string to_string(const nor::Stochasticity &e)
+inline std::string to_string(const nor::Stochasticity& e)
 {
    return std::string(nor::utils::stochasticity_name_bij.at(e));
 }
 
 template <>
-struct printable< nor::Player >: std::true_type {
-};
+struct printable< nor::Player >: std::true_type {};
 template <>
-struct printable< nor::TurnDynamic >: std::true_type {
-};
+struct printable< nor::TurnDynamic >: std::true_type {};
 template <>
-struct printable< nor::Stochasticity >: std::true_type {
-};
+struct printable< nor::Stochasticity >: std::true_type {};
 
 template <>
 inline nor::Player from_string< nor::Player >(std::string_view str)
@@ -279,31 +252,214 @@ inline nor::Player from_string< nor::Player >(std::string_view str)
 
 template < nor::concepts::is::enum_ Enum, typename T >
    requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
-inline std::string operator+(const T &other, Enum e)
+inline std::string operator+(const T& other, Enum e)
 {
    return std::string_view(other) + common::to_string(e);
 }
 template < nor::concepts::is::enum_ Enum, typename T >
    requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
-inline std::string operator+(Enum e, const T &other)
+inline std::string operator+(Enum e, const T& other)
 {
    return common::to_string(e) + std::string_view(other);
 }
 
-// template < nor::concepts::is::enum_ Enum >
-// requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
-// inline auto &operator<<(std::stringstream &os, Enum e)
-//{
-//    os << common::to_string(e);
-//    return os;
-// }
-//
-// template < nor::concepts::is::enum_ Enum >
-// requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
-// inline auto &operator<<(std::ostream &os, Enum e)
-//{
-//    os << common::to_string(e);
-//    return os;
-// }
+namespace nor {
+
+#ifndef NEW_EMPTY_TYPE
+   #define NEW_EMPTY_TYPE decltype([]() {})
+#endif
+
+/**
+ * @brief Fills the infostate of each player with the current observations from the intermittent
+ * buffers.
+ *
+ * @tparam Env
+ * @tparam Worldstate
+ * @tparam Infostate
+ * @tparam Observation
+ * @param env
+ * @param observation_buffer
+ * @param infostate_map
+ * @param action_or_outcome
+ * @param state
+ * @return
+ */
+
+template <
+   typename ObsBufferMap,
+   typename InformationStateMap,
+   concepts::fosg Env,
+   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
+   typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
+   typename Observation = typename fosg_auto_traits< Env >::observation_type >
+// clang-format off
+requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
+       and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+         or concepts::map< InformationStateMap, Player, uptr< Infostate > >
+         or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
+         or concepts::map< InformationStateMap, Player, Infostate* >
+         or concepts::map< InformationStateMap, Player, Infostate >)
+// clang-format on
+void fill_infostate_and_obs_buffers_inplace(
+   const Env& env,
+   ObsBufferMap& observation_buffer,
+   InformationStateMap& infostate_map,
+   const auto& action_or_outcome,
+   const Worldstate& state
+)
+{
+   auto active_player = env.active_player(state);
+   for(auto player : env.players(state)) {
+      if(player == Player::chance) {
+         continue;
+      }
+      if(player != active_player) {
+         // for all but the active player we simply append action and state observation to the
+         // buffer. They will be written to an actual infostate once that player becomes the
+         // active player again
+         auto& player_obs_buffer = observation_buffer[player];
+         player_obs_buffer.emplace_back(env.private_observation(player, action_or_outcome));
+         player_obs_buffer.emplace_back(env.private_observation(player, state));
+      } else {
+         // for the active player we first append all recent actions and state observations to the
+         // info state, and then follow it up by adding the current action and state
+         // observations
+
+         // we are taking the reference here to the position of this infostate in the map, in order
+         // to replace it later without needing to refetch it.
+         auto& infostate_holder = infostate_map.at(active_player);
+         auto appender = [&]< typename Container >(Container& c, auto elem) {
+            if constexpr(
+               // clang-format off
+               concepts::is::smart_pointer_like< Container >
+                  or std::is_pointer_v< Container >
+               // clang-format on
+            ) {
+               c->append(std::move(elem));
+            } else if constexpr(concepts::is::specialization< Container, std::reference_wrapper >) {
+               c.get().append(std::move(elem));
+            } else {
+               c.append(std::move(elem));
+            }
+         };
+         // we consume these observations by moving them into the appendix of the infostates. The
+         // cleared observation buffer is still returned and reused, but is now empty.
+         auto& obs_history = observation_buffer[active_player];
+         for(auto& obs : obs_history) {
+            appender(infostate_holder, std::move(obs));
+         }
+         obs_history.clear();
+         appender(infostate_holder, env.private_observation(player, action_or_outcome));
+         appender(infostate_holder, env.private_observation(player, state));
+      }
+   }
+}
+
+template <
+   typename ObsBufferMap,
+   typename InformationStateMap,
+   concepts::fosg Env,
+   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
+   typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
+   typename Observation = typename fosg_auto_traits< Env >::observation_type >
+// clang-format off
+requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
+       and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+         or concepts::map< InformationStateMap, Player, uptr< Infostate > >
+         or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
+         or concepts::map< InformationStateMap, Player, Infostate* >
+         or concepts::map< InformationStateMap, Player, Infostate >)
+// clang-format on
+auto fill_infostate_and_obs_buffers(
+   const Env& env,
+   ObsBufferMap observation_buffer,
+   InformationStateMap infostate_map,
+   const auto& action_or_outcome,
+   const Worldstate& state
+)
+{
+   using mapped_infostate_type = typename InformationStateMap::mapped_type;
+   // if the infostate types are referenced values or reference_wrappers then we need to actually
+   // copy their pointed to contents.
+
+   // Note that the caller needs to be aware of potential memory leaks occuring from this function!
+
+   if constexpr(std::same_as< mapped_infostate_type, std::reference_wrapper< Infostate > >) {
+      for(auto& [player, mapped] : infostate_map) {
+         mapped = std::ref(new Infostate(mapped.get()));
+      }
+   } else if constexpr(std::same_as< mapped_infostate_type, Infostate* >) {
+      for(auto& [player, mapped] : infostate_map) {
+         mapped = new Infostate(*mapped);
+      }
+   } else if constexpr(std::same_as< mapped_infostate_type, sptr< Infostate > >) {
+      for(auto& [player, mapped] : infostate_map) {
+         mapped = std::make_shared< Infostate >(*mapped);
+      }
+   } else if constexpr(std::same_as< mapped_infostate_type, uptr< Infostate > >) {
+      for(auto& [player, mapped] : infostate_map) {
+         mapped = std::make_unique< Infostate >(*mapped);
+      }
+   }
+
+   fill_infostate_and_obs_buffers_inplace(
+      env, observation_buffer, infostate_map, action_or_outcome, state
+   );
+   return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
+}
+
+template < concepts::fosg Env, typename Worldstate >
+uptr< Worldstate >
+child_state(Env& env, const uptr< Worldstate >& state, const auto& action_or_outcome)
+{
+   // clone the current world state first before transitioniong it with this action
+   uptr< Worldstate > next_wstate_uptr = utils::static_unique_ptr_downcast< Worldstate >(
+      utils::clone_any_way(state)
+   );
+   // move the new world state forward by the current action
+   env.transition(*next_wstate_uptr, action_or_outcome);
+   return next_wstate_uptr;
+}
+
+template < ranges::range Policy >
+auto& normalize_action_policy_inplace(Policy& policy)
+{
+   auto sum = ranges::accumulate(
+      /*range=*/policy | ranges::views::values,
+      /*init_value=*/std::remove_cvref_t< decltype(*(ranges::views::values(policy).begin())) >{0},
+      /*operation=*/std::plus{}
+   );
+   for(auto& [action, prob] : policy) {
+      prob /= sum;
+   }
+   return policy;
+};
+
+template < ranges::range Policy >
+auto normalize_action_policy(const Policy& policy)
+{
+   Policy copy = policy;
+   normalize_action_policy_inplace(copy);
+   return copy;
+};
+
+template < ranges::range Policy >
+auto& normalize_state_policy_inplace(Policy& policy)
+{
+   for(auto& [_, action_policy] : policy) {
+      normalize_action_policy_inplace(action_policy);
+   }
+   return policy;
+};
+
+template < ranges::range Policy >
+auto normalize_state_policy(const Policy& policy)
+{
+   auto copy = policy;
+   normalize_state_policy_inplace(copy);
+   return copy;
+};
+
+}  // namespace nor
 
 #endif  // NOR_UTILS_HPP

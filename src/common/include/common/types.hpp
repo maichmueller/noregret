@@ -134,14 +134,12 @@ template < typename... Ts >
 Overload(Ts...) -> Overload< Ts... >;
 
 template < class T, class... Ts >
-struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {
-};
+struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {};
 template < class T, class... Ts >
 inline constexpr bool is_any_v = is_any< T, Ts... >::value;
 
 template < class T, class... Ts >
-struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {
-};
+struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {};
 template < class T, class... Ts >
 inline constexpr bool is_same_v = is_same< T, Ts... >::value;
 
@@ -151,8 +149,9 @@ struct CEMap {
 
    [[nodiscard]] constexpr Value at(const Key& key) const
    {
-      const auto itr = std::find_if(
-         begin(data), end(data), [&key](const auto& v) { return v.first == key; });
+      const auto itr = std::find_if(begin(data), end(data), [&key](const auto& v) {
+         return v.first == key;
+      });
       if(itr != end(data)) {
          return itr->second;
       } else {
@@ -166,9 +165,8 @@ struct CEBijection {
    std::array< std::pair< Key, Value >, Size > data;
 
    template < typename T >
-      requires is_any_v< T, Key, Value > [
-         [nodiscard]] constexpr auto
-      at(const T& elem) const
+      requires is_any_v< T, Key, Value >
+   [[nodiscard]] constexpr auto at(const T& elem) const
    {
       const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
          if constexpr(std::is_same_v< T, Key >) {
@@ -188,6 +186,23 @@ struct CEBijection {
       }
    }
 };
+
+/// is_specialization checks whether T is a specialized template class of 'Template'
+/// This has the limitation of not working with non-type parameters, i.e. templates such as
+/// std::array will not be compatible with this type trait
+/// usage:
+///     constexpr bool is_vector = is_specialization< std::vector< int >, std::vector>;
+template < class T, template < class... > class Template >
+struct is_specialization: std::false_type {};
+
+template < template < class... > class Template, class... Args >
+struct is_specialization< Template< Args... >, Template >: std::true_type {};
+
+template < class T, template < class... > class Template >
+constexpr bool is_specialization_v = is_specialization< T, Template >::value;
+
+template < typename... Ts >
+using tuple_of_const_ref = std::tuple< const std::remove_cvref_t< Ts >&... >;
 
 template < bool condition, typename T >
 struct const_if {

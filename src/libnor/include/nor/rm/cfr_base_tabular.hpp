@@ -20,7 +20,6 @@
 #include "node.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
-#include "nor/policy.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 #include "rm_utils.hpp"
@@ -59,7 +58,7 @@ class TabularCFRBase {
    /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
    /// strong-types for argument passing
-   using InfostateMap = fluent::
+   using InfostateSptrMap = fluent::
       NamedType< std::unordered_map< Player, sptr< info_state_type > >, struct reach_prob_tag >;
 
    using ObservationbufferMap = fluent::NamedType<
@@ -78,7 +77,8 @@ class TabularCFRBase {
       Env game,
       uptr< world_state_type > root_state,
       Policy policy = Policy(),
-      AveragePolicy avg_policy = AveragePolicy())
+      AveragePolicy avg_policy = AveragePolicy()
+   )
       // clang-format off
       requires
          common::all_predicate_v<
@@ -106,7 +106,8 @@ class TabularCFRBase {
           std::move(env),
           std::make_unique< world_state_type >(env.initial_world_state()),
           std::move(policy),
-          std::move(avg_policy))
+          std::move(avg_policy)
+       )
    {
       _init_player_update_schedule();
    }
@@ -115,7 +116,8 @@ class TabularCFRBase {
       Env game,
       uptr< world_state_type > root_state,
       std::unordered_map< Player, Policy > policy,
-      std::unordered_map< Player, AveragePolicy > avg_policy)
+      std::unordered_map< Player, AveragePolicy > avg_policy
+   )
        : m_env(std::move(game)),
          m_root_state(std::move(root_state)),
          m_curr_policy(std::move(policy)),
@@ -144,18 +146,19 @@ class TabularCFRBase {
    template < bool current_policy >
    auto& fetch_policy(
       const sptr< info_state_type >& infostate,
-      const std::vector< action_type >& actions);
+      const std::vector< action_type >& actions
+   );
    /**
     * @brief Policy fetching overload for explicit naming of the policy.
     */
    template < PolicyLabel label >
-   decltype(auto) fetch_policy(
-      const sptr< info_state_type >& infostate,
-      const std::vector< action_type >& actions)
+   decltype(auto)
+   fetch_policy(const sptr< info_state_type >& infostate, const std::vector< action_type >& actions)
    {
       static_assert(
          label == PolicyLabel::current or label == PolicyLabel::average,
-         "Policy label has to be either 'current' or 'average'.");
+         "Policy label has to be either 'current' or 'average'."
+      );
       return fetch_policy< label == PolicyLabel::current >(infostate, actions);
    }
 
@@ -168,7 +171,8 @@ class TabularCFRBase {
    inline auto& fetch_policy(
       const sptr< info_state_type >& infostate,
       const std::vector< action_type >& actions,
-      const action_type& action)
+      const action_type& action
+   )
    {
       return fetch_policy< current_policy >(infostate, actions)[action];
    }
@@ -216,7 +220,8 @@ class TabularCFRBase {
    {
       if(m_env.turn_dynamic() != TurnDynamic::sequential) {
          throw std::invalid_argument(
-            "VanillaCFR can only be performed on a sequential turn-based game.");
+            "VanillaCFR can only be performed on a sequential turn-based game."
+         );
       }
    }
 
@@ -234,29 +239,6 @@ class TabularCFRBase {
       }
    }
 
-   uptr< world_state_type > _child_state(const uptr< world_state_type >& state, const auto& action)
-   {
-      // clone the current world state first before transitioniong it with this action
-      uptr< world_state_type >
-         next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(state));
-      // move the new world state forward by the current action
-      _env().transition(*next_wstate_uptr, action);
-      return next_wstate_uptr;
-   }
-
-   auto _fill_infostate_and_obs_buffers(
-      ObservationbufferMap observation_buffer,
-      InfostateMap infostate_map,
-      const auto& action_or_outcome,
-      const world_state_type& state);
-
-   void _fill_infostate_and_obs_buffers_inplace(
-      ObservationbufferMap& observation_buffer,
-      InfostateMap& infostate_map,
-      const auto& action_or_outcome,
-      const world_state_type& state);
-
    ///////////////////////////////////////////
    /// private member variable definitions ///
    ///////////////////////////////////////////
@@ -264,13 +246,13 @@ class TabularCFRBase {
   private:
    /// the environment object to maneuver the states with.
    env_type m_env;
-   /// the game tree mapping information states to the associated game nodes.
+   /// the root game state.
    uptr< world_state_type > m_root_state;
-   /// the current policy $\pi^t$ that each player is following in this iteration (t).
+   /// a map of the current policy $\pi^t$ that each player is following in this iteration (t).
    std::unordered_map< Player, Policy > m_curr_policy;
    /// the average policy table. The values stored in this table are the UNNORMALIZED average state
-   /// policies. This means that the state policy p(s, . ) for a given info state s needs to
-   /// normalize its probabilities p(s, . ) by \sum_a p(s,a) when used for evaluation.
+   /// policy cumulative values. This means that the state policy p(s, . ) for a given info state s
+   /// needs to normalize its probabilities p(s, . ) by \sum_a p(s,a) when used for evaluation.
    std::unordered_map< Player, AveragePolicy > m_avg_policy;
    /// the next player to update when doing alternative updates. Otherwise this member will be
    /// unused.
@@ -282,7 +264,8 @@ class TabularCFRBase {
 template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
    requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
 Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle_player_to_update(
-   std::optional< Player > player_to_update)
+   std::optional< Player > player_to_update
+)
 {
    // we assert here that the chosen player to update is not the chance player.
    if(player_to_update.value_or(Player::alex) == Player::chance) {
@@ -298,7 +281,8 @@ Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle
    auto player_q_iter = std::find(
       m_player_update_schedule.begin(),
       m_player_update_schedule.end(),
-      player_to_update.value_or(m_player_update_schedule.front()));
+      player_to_update.value_or(m_player_update_schedule.front())
+   );
 
    if(player_q_iter == m_player_update_schedule.end()) {
       std::stringstream ssout;
@@ -319,7 +303,8 @@ template < bool alternating_updates, typename Env, typename Policy, typename Ave
 template < bool current_policy >
 auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_policy(
    const sptr< info_state_type >& infostate,
-   const std::vector< action_type >& actions)
+   const std::vector< action_type >& actions
+)
 {
    if constexpr(current_policy) {
       auto& player_policy = m_curr_policy[infostate->player()];
@@ -327,59 +312,6 @@ auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_p
    } else {
       auto& player_policy = m_avg_policy[infostate->player()];
       return player_policy[std::pair{*infostate, actions}];
-   }
-}
-
-template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
-auto TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
-   _fill_infostate_and_obs_buffers(
-      ObservationbufferMap observation_buffer,
-      InfostateMap infostate_map,
-      const auto& action_or_outcome,
-      const world_state_type& state)
-{
-   _fill_infostate_and_obs_buffers_inplace(
-      observation_buffer, infostate_map, action_or_outcome, state);
-   return std::tuple{observation_buffer, infostate_map};
-}
-
-template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
-void TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::
-   _fill_infostate_and_obs_buffers_inplace(
-      ObservationbufferMap& observation_buffer,
-      InfostateMap& infostate_map,
-      const auto& action_or_outcome,
-      const world_state_type& state)
-{
-   auto active_player = _env().active_player(state);
-   for(auto player : _env().players(state)) {
-      if(player == Player::chance) {
-         continue;
-      }
-      if(player != active_player) {
-         // for all but the active player we simply append action and state observation to the
-         // buffer. They will be written to an actual infostate once that player becomes the
-         // active player again
-         auto& player_infostate = observation_buffer.get().at(player);
-         player_infostate.emplace_back(_env().private_observation(player, action_or_outcome));
-         player_infostate.emplace_back(_env().private_observation(player, state));
-      } else {
-         // for the active player we first append all recent action and state observations to a
-         // info state copy, and then follow it up by adding the current action and state
-         // observations
-         auto& infostate_ptr_slot = infostate_map.get().at(active_player);
-         auto cloned_infostate_ptr = utils::clone_any_way(infostate_ptr_slot);
-         auto& obs_history = observation_buffer.get()[active_player];
-         for(auto& obs : obs_history) {
-            cloned_infostate_ptr->append(std::move(obs));
-         }
-         obs_history.clear();
-         cloned_infostate_ptr->append(_env().private_observation(player, action_or_outcome));
-         cloned_infostate_ptr->append(_env().private_observation(player, state));
-         infostate_ptr_slot = std::move(cloned_infostate_ptr);
-      }
    }
 }
 

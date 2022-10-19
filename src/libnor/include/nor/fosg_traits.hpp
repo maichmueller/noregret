@@ -16,17 +16,20 @@ struct action_type_trait {
 };
 
 template < typename HeadT, typename... TailTs >
-requires(concepts::has::trait::action_type< HeadT >) struct action_type_trait< HeadT, TailTs... > {
+   requires(concepts::has::trait::action_type< HeadT >)
+struct action_type_trait< HeadT, TailTs... > {
    using type = typename HeadT::action_type;
 };
 
 template < typename T >
-requires(not concepts::has::trait::action_type< T >) struct action_type_trait< T > {
+   requires(not concepts::has::trait::action_type< T >)
+struct action_type_trait< T > {
    using type = void;
 };
 
 template < typename T >
-requires(concepts::has::trait::action_type< T >) struct action_type_trait< T > {
+   requires(concepts::has::trait::action_type< T >)
+struct action_type_trait< T > {
    using type = typename T::action_type;
 };
 
@@ -41,18 +44,20 @@ struct chance_outcome_type_trait {
 };
 
 template < typename HeadT, typename... TailTs >
-requires(concepts::has::trait::chance_outcome_type<
-         HeadT >) struct chance_outcome_type_trait< HeadT, TailTs... > {
+   requires(concepts::has::trait::chance_outcome_type< HeadT >)
+struct chance_outcome_type_trait< HeadT, TailTs... > {
    using type = typename HeadT::chance_outcome_type;
 };
 
 template < typename T >
-requires(not concepts::has::trait::chance_outcome_type< T >) struct chance_outcome_type_trait< T > {
+   requires(not concepts::has::trait::chance_outcome_type< T >)
+struct chance_outcome_type_trait< T > {
    using type = void;
 };
 
 template < typename T >
-requires(concepts::has::trait::chance_outcome_type< T >) struct chance_outcome_type_trait< T > {
+   requires(concepts::has::trait::chance_outcome_type< T >)
+struct chance_outcome_type_trait< T > {
    using type = typename T::chance_outcome_type;
 };
 
@@ -67,20 +72,20 @@ struct chance_distribution_type_trait {
 };
 
 template < typename HeadT, typename... TailTs >
-requires(concepts::has::trait::chance_distribution_type<
-         HeadT >) struct chance_distribution_type_trait< HeadT, TailTs... > {
+   requires(concepts::has::trait::chance_distribution_type< HeadT >)
+struct chance_distribution_type_trait< HeadT, TailTs... > {
    using type = typename HeadT::chance_distribution_type;
 };
 
 template < typename T >
-requires(not concepts::has::trait::chance_distribution_type<
-         T >) struct chance_distribution_type_trait< T > {
+   requires(not concepts::has::trait::chance_distribution_type< T >)
+struct chance_distribution_type_trait< T > {
    using type = void;
 };
 
 template < typename T >
-requires(
-   concepts::has::trait::chance_distribution_type< T >) struct chance_distribution_type_trait< T > {
+   requires(concepts::has::trait::chance_distribution_type< T >)
+struct chance_distribution_type_trait< T > {
    using type = typename T::chance_distribution_type;
 };
 
@@ -95,18 +100,20 @@ struct info_state_type_trait {
 };
 
 template < typename HeadT, typename... TailTs >
-requires(concepts::has::trait::info_state_type<
-         HeadT >) struct info_state_type_trait< HeadT, TailTs... > {
+   requires(concepts::has::trait::info_state_type< HeadT >)
+struct info_state_type_trait< HeadT, TailTs... > {
    using type = typename HeadT::info_state_type;
 };
 
 template < typename T >
-requires(not concepts::has::trait::info_state_type< T >) struct info_state_type_trait< T > {
+   requires(not concepts::has::trait::info_state_type< T >)
+struct info_state_type_trait< T > {
    using type = void;
 };
 
 template < typename T >
-requires(concepts::has::trait::info_state_type< T >) struct info_state_type_trait< T > {
+   requires(concepts::has::trait::info_state_type< T >)
+struct info_state_type_trait< T > {
    using type = typename T::info_state_type;
 };
 
@@ -121,18 +128,20 @@ struct observation_type_trait {
 };
 
 template < typename HeadT, typename... TailTs >
-requires(concepts::has::trait::observation_type<
-         HeadT >) struct observation_type_trait< HeadT, TailTs... > {
+   requires(concepts::has::trait::observation_type< HeadT >)
+struct observation_type_trait< HeadT, TailTs... > {
    using type = typename HeadT::observation_type;
 };
 
 template < typename T >
-requires(not concepts::has::trait::observation_type< T >) struct observation_type_trait< T > {
+   requires(not concepts::has::trait::observation_type< T >)
+struct observation_type_trait< T > {
    using type = void;
 };
 
 template < typename T >
-requires(concepts::has::trait::observation_type< T >) struct observation_type_trait< T > {
+   requires(concepts::has::trait::observation_type< T >)
+struct observation_type_trait< T > {
    using type = typename T::observation_type;
 };
 
@@ -147,18 +156,20 @@ struct public_state_type_trait {
 };
 
 template < typename HeadT, typename... TailTs >
-requires(concepts::has::trait::public_state_type<
-         HeadT >) struct public_state_type_trait< HeadT, TailTs... > {
+   requires(concepts::has::trait::public_state_type< HeadT >)
+struct public_state_type_trait< HeadT, TailTs... > {
    using type = typename HeadT::public_state_type;
 };
 
 template < typename T >
-requires(not concepts::has::trait::public_state_type< T >) struct public_state_type_trait< T > {
+   requires(not concepts::has::trait::public_state_type< T >)
+struct public_state_type_trait< T > {
    using type = void;
 };
 
 template < typename T >
-requires(concepts::has::trait::public_state_type< T >) struct public_state_type_trait< T > {
+   requires(concepts::has::trait::public_state_type< T >)
+struct public_state_type_trait< T > {
    using type = typename T::public_state_type;
 };
 
@@ -173,18 +184,20 @@ struct world_state_type_trait {
 };
 
 template < typename HeadT, typename... TailTs >
-requires(concepts::has::trait::world_state_type<
-         HeadT >) struct world_state_type_trait< HeadT, TailTs... > {
+   requires(concepts::has::trait::world_state_type< HeadT >)
+struct world_state_type_trait< HeadT, TailTs... > {
    using type = typename HeadT::world_state_type;
 };
 
 template < typename T >
-requires(not concepts::has::trait::world_state_type< T >) struct world_state_type_trait< T > {
+   requires(not concepts::has::trait::world_state_type< T >)
+struct world_state_type_trait< T > {
    using type = void;
 };
 
 template < typename T >
-requires(concepts::has::trait::world_state_type< T >) struct world_state_type_trait< T > {
+   requires(concepts::has::trait::world_state_type< T >)
+struct world_state_type_trait< T > {
    using type = typename T::world_state_type;
 };
 
@@ -263,7 +276,8 @@ struct fosg_traits_partial_match {
                             typename nor::fosg_auto_traits< SubsetType >::observation_type,
                             typename nor::fosg_auto_traits< SupersetType >::observation_type >) {
                static_assert(
-                  always_false< SubsetType, SupersetType >, "Observation types do not match");
+                  always_false< SubsetType, SupersetType >, "Observation types do not match"
+               );
                return false;
             }
          }
@@ -272,7 +286,8 @@ struct fosg_traits_partial_match {
                             typename nor::fosg_auto_traits< SubsetType >::info_state_type,
                             typename nor::fosg_auto_traits< SupersetType >::info_state_type >) {
                static_assert(
-                  always_false< SubsetType, SupersetType >, "Infostate types do not match");
+                  always_false< SubsetType, SupersetType >, "Infostate types do not match"
+               );
                return false;
             }
          }
@@ -281,7 +296,8 @@ struct fosg_traits_partial_match {
                             typename nor::fosg_auto_traits< SubsetType >::public_state_type,
                             typename nor::fosg_auto_traits< SupersetType >::public_state_type >) {
                static_assert(
-                  always_false< SubsetType, SupersetType >, "Publicstate types do not match");
+                  always_false< SubsetType, SupersetType >, "Publicstate types do not match"
+               );
                return false;
             }
          }
@@ -290,7 +306,8 @@ struct fosg_traits_partial_match {
                             typename nor::fosg_auto_traits< SubsetType >::world_state_type,
                             typename nor::fosg_auto_traits< SupersetType >::world_state_type >) {
                static_assert(
-                  always_false< SubsetType, SupersetType >, "Worldstate types do not match");
+                  always_false< SubsetType, SupersetType >, "Worldstate types do not match"
+               );
                return false;
             }
          }

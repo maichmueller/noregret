@@ -31,7 +31,7 @@ enum class Player {
    victoria = 21,
    william = 22,
    xavier = 23,
-   yeet = 24,
+   yusuf = 24,
    zoey = 25
 };
 

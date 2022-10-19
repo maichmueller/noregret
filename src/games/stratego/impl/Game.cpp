@@ -25,10 +25,12 @@ Status Game::run(const sptr< utils::Plotter< State > >& plotter)
       Team active_team = state().active_team();
       auto action = agent(active_team)
                        ->decide_action(
-                          state(), state().logic()->valid_actions(state(), active_team));
+                          state(), state().logic()->valid_actions(state(), active_team)
+                       );
       LOGD2(
          "Possible Moves",
-         aze::utils::VectorPrinter{state().logic()->valid_actions(state(), active_team)});
+         aze::utils::VectorPrinter{state().logic()->valid_actions(state(), active_team)}
+      );
       LOGD2("Selected Action by team " + std::string(common::to_string(active_team)), action);
 
       m_state->transition(action);

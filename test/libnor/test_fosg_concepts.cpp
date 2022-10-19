@@ -3,7 +3,7 @@
 #include "dummy_classes.hpp"
 #include "nor/concepts.hpp"
 #include "nor/env.hpp"
-#include "nor/policy.hpp"
+#include "nor/policy/policy.hpp"
 
 TEST(concrete, iterable)
 {
@@ -35,7 +35,7 @@ TEST(concrete, action_policy)
 }
 
 template < typename Policy, typename Infostate, typename Action >
-   requires nor::concepts::memorizing_state_policy< Policy, Infostate, Action >
+   requires nor::concepts::reference_state_policy< Policy, Infostate, Action >
 void concept_state_policy_check();
 
 TEST(concrete, memorizing_state_policy)
@@ -45,7 +45,7 @@ TEST(concrete, memorizing_state_policy)
    //      dummy::Infostate,
    //      typename nor::fosg_auto_traits< dummy::Infostate >::observation_type >();
 
-   EXPECT_TRUE((nor::concepts::memorizing_state_policy<
+   EXPECT_TRUE((nor::concepts::reference_state_policy<
                 nor::TabularPolicy<
                    dummy::Infostate,
                    nor::HashmapActionPolicy< int >,

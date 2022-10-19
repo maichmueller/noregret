@@ -42,14 +42,13 @@ class PlayerInformedType {
    Player m_player;
 };
 
-}
+}  // namespace nor
 
 namespace common {
 
 template < typename T >
    requires printable_v< T >
-struct printable< nor::PlayerInformedType< T > >: std::true_type {
-};
+struct printable< nor::PlayerInformedType< T > >: std::true_type {};
 
 template < typename T >
    requires printable_v< T >

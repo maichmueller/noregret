@@ -104,22 +104,22 @@ concept actions = requires(T const t, Worldstate worldstate, Player player) {
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
-   typename Action = typename T::chance_outcome_type >
-concept chance_actions = requires(T const t, Worldstate worldstate, Player player) {
+   typename Outcome = typename T::chance_outcome_type >
+concept chance_actions = requires(T const t, Worldstate worldstate) {
                             // legal actions getter for the given player
                             {
-                               t.chance_actions(player, worldstate)
-                               } -> std::convertible_to< std::vector< Action > >;
+                               t.chance_actions(worldstate)
+                               } -> std::convertible_to< std::vector< Outcome > >;
                          };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
-   typename Action = typename T::chance_outcome_type >
-concept chance_probability = requires(T const t, Worldstate worldstate, Action action) {
+   typename Outcome = typename T::chance_outcome_type >
+concept chance_probability = requires(T const t, Worldstate worldstate, Outcome outcome) {
                                 // legal actions getter for the given player
                                 {
-                                   t.chance_probability(worldstate, action)
+                                   t.chance_probability(worldstate, outcome)
                                    } -> std::convertible_to< double >;
                              };
 
@@ -240,23 +240,23 @@ concept initial_world_state = requires(T t) {
 
 template <
    typename T,
-   typename Publicstate = typename T::public_state_type,
-   typename Worldstate = typename T::world_state_type >
-concept public_state = requires(T t, const Worldstate& wstate) {
-                          {
-                             t.public_state(wstate)
-                             } -> std::same_as< Publicstate >;
-                       };
+   typename Worldstate = typename T::world_state_type,
+   typename Infostate = typename T::info_state_type >
+concept adhoc_info_state = requires(T t, Worldstate wstate, Player player) {
+                             {
+                                t.adhoc_info_state(wstate, player)
+                                } -> std::same_as< Infostate >;
+                          };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Infostate = typename T::info_state_type >
-concept info_state = requires(T t, Worldstate wstate, Player player) {
-                        {
-                           t.info_states(wstate, player)
-                           } -> std::same_as< Infostate >;
-                     };
+concept adhoc_public_state = requires(T t, Worldstate wstate, Player player) {
+                             {
+                                t.adhoc_public_state(wstate, player)
+                                } -> std::same_as< Infostate >;
+                          };
 
 template <
    typename T,
