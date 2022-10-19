@@ -67,7 +67,7 @@ class GameTreeTraverser {
 
    using chance_outcome_conditional_type = std::
       conditional_t< concepts::deterministic_fosg< Env >, std::monostate, chance_outcome_type >;
-   using action_variant_type = std::variant< chance_outcome_conditional_type, action_type >;
+   using action_variant_type = std::variant< action_type, chance_outcome_conditional_type >;
 
    GameTreeTraverser(Env& env) : m_env(&env) {}
 
@@ -95,6 +95,7 @@ class GameTreeTraverser {
          VisitationData,  // the expected return type
          ChildVisitHook,  // the actual functor
          VisitationData&,  // current node's visitation data access
+         action_variant_type*,  // the action that lead to this child
          world_state_type*,  // current world state
          world_state_type*  // child world state
       >
@@ -105,14 +106,12 @@ class GameTreeTraverser {
       >
       and std::invocable<
          PostChildVisitHook,  // the actual functor
-         VisitationData&,  // current node's visitation data access
          world_state_type*  // current world state
       >
       and std::is_move_constructible_v< VisitationData >
    // clang-format on
    inline void walk(
       uptr< world_state_type > root_state,
-      TraversalStrategy traversal_strategy = &traverse_all_actions,
       VisitationData vis_data = {},
       TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook >&&
          hooks = {}
