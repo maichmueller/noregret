@@ -113,17 +113,17 @@ TEST(StatePolicyView, from_tabular_policy)
    auto istate_bob = Infostate{nor::Player::bob};
    auto actions = env.actions(nor::Player::alex, state);
    auto& action_policy_alex = policy_alex[std::tie(istate_alex, actions)];
-   action_policy_alex[Action{Team::one, Hand::paper}] = dist(rng);
-   action_policy_alex[Action{Team::one, Hand::scissors}] = dist(rng);
-   action_policy_alex[Action{Team::one, Hand::rock}] = dist(rng);
+   action_policy_alex[Action{Team::one, Action::paper}] = dist(rng);
+   action_policy_alex[Action{Team::one, Action::scissors}] = dist(rng);
+   action_policy_alex[Action{Team::one, Action::rock}] = dist(rng);
    nor::normalize_action_policy_inplace(action_policy_alex);
    auto& action_policy_bob = policy_bob[std::tie(istate_bob, actions)];
-   action_policy_bob[Action{Team::two, Hand::paper}] = dist(rng);
-   action_policy_bob[Action{Team::two, Hand::scissors}] = dist(rng);
-   action_policy_bob[Action{Team::two, Hand::rock}] = dist(rng);
+   action_policy_bob[Action{Team::two, Action::paper}] = dist(rng);
+   action_policy_bob[Action{Team::two, Action::scissors}] = dist(rng);
+   action_policy_bob[Action{Team::two, Action::rock}] = dist(rng);
    nor::normalize_action_policy_inplace(action_policy_bob);
 
-   for(auto hand : {Hand::paper, Hand::scissors, Hand::rock}) {
+   for(auto hand : {Action::paper, Action::scissors, Action::rock}) {
       ASSERT_EQ(
          (nor::StatePolicyView< Infostate, Action >{policy_bob}.at(
             istate_bob)[Action{Team::two, hand}]),
@@ -147,13 +147,13 @@ TEST(BestResponsePolicy, rock_paper_scissors)
    auto istate_bob = Infostate{nor::Player::bob};
    auto actions = env.actions(nor::Player::alex, state);
    auto& action_policy_alex = policy_alex[std::tie(istate_alex, actions)];
-   action_policy_alex[Action{Team::one, Hand::paper}] = 1.;
-   action_policy_alex[Action{Team::one, Hand::scissors}] = 0.;
-   action_policy_alex[Action{Team::one, Hand::rock}] = 0.;
+   action_policy_alex[Action{Team::one, Action::paper}] = 1.;
+   action_policy_alex[Action{Team::one, Action::scissors}] = 0.;
+   action_policy_alex[Action{Team::one, Action::rock}] = 0.;
    auto& action_policy_bob = policy_bob[std::tie(istate_bob, actions)];
-   action_policy_bob[Action{Team::two, Hand::paper}] = 1.;
-   action_policy_bob[Action{Team::two, Hand::scissors}] = 0.;
-   action_policy_bob[Action{Team::two, Hand::rock}] = 0.;
+   action_policy_bob[Action{Team::two, Action::paper}] = 1.;
+   action_policy_bob[Action{Team::two, Action::scissors}] = 0.;
+   action_policy_bob[Action{Team::two, Action::rock}] = 0.;
 
    auto best_response_alex = nor::factory::make_best_response_policy< Infostate, Action >(
       nor::Player::alex);

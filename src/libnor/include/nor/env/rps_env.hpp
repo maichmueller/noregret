@@ -43,7 +43,7 @@ class Environment {
    using world_state_type = State;
    using info_state_type = Infostate;
    using public_state_type = Publicstate;
-   using action_type = Hand;
+   using action_type = Action;
    using observation_type = Observation;
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
@@ -57,7 +57,7 @@ class Environment {
    {
       std::vector< action_type > valid_actions;
       valid_actions.reserve(3);
-      for(auto hand : {Hand::paper, Hand::rock, Hand::scissors}) {
+      for(auto hand : {Action::paper, Action::rock, Action::scissors}) {
          valid_actions.emplace_back(hand);
       }
       return valid_actions;
@@ -103,7 +103,7 @@ struct fosg_traits< games::rps::Environment > {
    using world_state_type = nor::games::rps::State;
    using info_state_type = nor::games::rps::Infostate;
    using public_state_type = nor::games::rps::Publicstate;
-   using action_type = nor::games::rps::Hand;
+   using action_type = nor::games::rps::Action;
    using observation_type = nor::games::rps::Observation;
 
    static constexpr size_t max_player_count = 2;

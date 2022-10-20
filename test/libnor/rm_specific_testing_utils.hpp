@@ -40,7 +40,8 @@ inline void evaluate_policies(
    CFRRunner& solver,
    std::unordered_map< nor::Player, Policy >& prev_policy_profile,
    size_t iteration,
-   std::string policy_name = "Average Policy")
+   std::string policy_name = "Average Policy"
+)
 {
    using namespace nor;
    auto policy_fetcher = [&](Player this_player) {
@@ -65,7 +66,8 @@ inline void evaluate_policies(
          for(const auto& [curr_pol_state_pol, prev_pol_state_pol] :
              ranges::views::zip(curr_istate_pol, prev_istate_pol)) {
             total_dev = std::abs(
-               std::get< 1 >(curr_pol_state_pol) - std::get< 1 >(prev_pol_state_pol));
+               std::get< 1 >(curr_pol_state_pol) - std::get< 1 >(prev_pol_state_pol)
+            );
          }
       }
    }
@@ -93,7 +95,8 @@ inline void evaluate_policies(
    CFRRunner& solver,
    ranges::range auto players,
    size_t iteration,
-   std::string policy_name = "Average Policy")
+   std::string policy_name = "Average Policy"
+)
 {
    using namespace nor;
    auto policy_fetcher = [&](Player this_player) {
@@ -129,53 +132,65 @@ inline auto kuhn_optimal(double alpha)
    alex_policy.emplace(
       "j?",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}});
+         std::unordered_map{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}}
+   );
    alex_policy.emplace(
       "j?|cb",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+   );
    alex_policy.emplace(
       "q?",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+   );
    alex_policy.emplace(
       "q?|cb",
       HashmapActionPolicy{std::unordered_map{
-         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}});
+         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}}
+   );
    alex_policy.emplace(
       "k?",
       HashmapActionPolicy{std::unordered_map{
-         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}});
+         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}}
+   );
    alex_policy.emplace(
       "k?|cb",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+   );
 
    std::unordered_map< std::string, HashmapActionPolicy< Action > > bob_policy;
    bob_policy.emplace(
       "?j|c",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}});
+         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}}
+   );
    bob_policy.emplace(
       "?j|b",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+   );
    bob_policy.emplace(
       "?q|c",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}});
+         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+   );
    bob_policy.emplace(
       "?q|b",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}});
+         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}}
+   );
    bob_policy.emplace(
       "?k|c",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+   );
    bob_policy.emplace(
       "?k|b",
       HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}});
+         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+   );
 
    return std::tuple{alex_policy, bob_policy};
 }
@@ -224,8 +239,7 @@ inline void assert_optimal_policy_kuhn(const auto& solver, auto& env, double pre
    auto policy_tables = std::vector{
       solver.average_policy().at(Player::alex).table(),
       solver.average_policy().at(Player::bob).table()};
-   double alpha = normalize_action_policy(
-      policy_tables[0].at(infostate_alex))[kuhn::Action::bet];
+   double alpha = normalize_action_policy(policy_tables[0].at(infostate_alex))[kuhn::Action::bet];
    auto [alex_optimal_table, bob_optimal_table] = kuhn_optimal(alpha);
    auto optimal_tables = std::vector{std::move(alex_optimal_table), std::move(bob_optimal_table)};
 
@@ -251,18 +265,21 @@ inline auto setup_rps_test()
 
    auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      factory::
-         make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
+      factory::make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >(
+      )
+   );
 
    auto tabular_policy_alex = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       factory::
-         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
+   );
 
    auto tabular_policy_bob = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       factory::
-         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >());
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
+   );
 
    auto infostate_alex = games::rps::Infostate{Player::alex};
    auto infostate_bob = games::rps::Infostate{Player::bob};
@@ -270,7 +287,7 @@ inline auto setup_rps_test()
    infostate_alex.append(env.private_observation(Player::alex, init_state));
    infostate_bob.append(env.private_observation(Player::bob, init_state));
 
-   auto action_alex = games::rps::Action{games::rps::Team::one, games::rps::Hand::rock};
+   auto action_alex = games::rps::Action::rock;
 
    env.transition(init_state, action_alex);
 
@@ -281,19 +298,19 @@ inline auto setup_rps_test()
    tabular_policy_alex.emplace(
       infostate_alex,
       HashmapActionPolicy< games::rps::Action >{std::unordered_map{
-         std::pair{games::rps::Action{games::rps::Team::one, games::rps::Hand::rock}, 1. / 10.},
-         std::pair{games::rps::Action{games::rps::Team::one, games::rps::Hand::paper}, 2. / 10.},
-         std::pair{
-            games::rps::Action{games::rps::Team::one, games::rps::Hand::scissors}, 7. / 10.}}});
+         std::pair{games::rps::Action::rock, 1. / 10.},
+         std::pair{games::rps::Action::paper, 2. / 10.},
+         std::pair{games::rps::Action::scissors, 7. / 10.}}}
+   );
 
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_bob.emplace(
       infostate_bob,
       HashmapActionPolicy< games::rps::Action >{std::unordered_map{
-         std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::rock}, 9. / 10.},
-         std::pair{games::rps::Action{games::rps::Team::two, games::rps::Hand::paper}, .5 / 10.},
-         std::pair{
-            games::rps::Action{games::rps::Team::two, games::rps::Hand::scissors}, .5 / 10.}}});
+         std::pair{games::rps::Action::rock, 9. / 10.},
+         std::pair{games::rps::Action::paper, .5 / 10.},
+         std::pair{games::rps::Action::scissors, .5 / 10.}}}
+   );
 
    return std::tuple{
       std::move(env),

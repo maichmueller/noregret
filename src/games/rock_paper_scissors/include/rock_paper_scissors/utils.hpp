@@ -9,10 +9,10 @@
 
 namespace rps {
 
-constexpr common::CEBijection< Hand, std::string_view, 3 > hand_name_bij = {
-   std::pair{Hand::rock, "rock"},
-   std::pair{Hand::paper, "paper"},
-   std::pair{Hand::scissors, "scissors"}};
+constexpr common::CEBijection< Action, std::string_view, 3 > hand_name_bij = {
+   std::pair{Action::rock, "rock"},
+   std::pair{Action::paper, "paper"},
+   std::pair{Action::scissors, "scissors"}};
 
 constexpr common::CEBijection< Team, std::string_view, 2 > team_name_bij = {
    std::pair{Team::one, "one"},
@@ -23,7 +23,7 @@ constexpr common::CEBijection< Team, std::string_view, 2 > team_name_bij = {
 namespace common {
 
 template <>
-inline std::string to_string(const rps::Hand& value)
+inline std::string to_string(const rps::Action& value)
 {
    return std::string(rps::hand_name_bij.at(value));
 }
@@ -35,7 +35,7 @@ inline std::string to_string(const rps::Team& value)
 }
 
 template <>
-struct printable< rps::Hand >: std::true_type {};
+struct printable< rps::Action >: std::true_type {};
 template <>
 struct printable< rps::Team >: std::true_type {};
 
@@ -43,7 +43,7 @@ struct printable< rps::Team >: std::true_type {};
 
 namespace std {
 
-inline auto& operator<<(std::ostream& os, const rps::Hand& action)
+inline auto& operator<<(std::ostream& os, const rps::Action& action)
 {
    os << common::to_string(action);
    return os;
