@@ -270,27 +270,27 @@ inline auto setup_rps_test()
    games::rps::Environment env{};
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Hand > >{},
-      factory::make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Hand > >()
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
+      factory::make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
    );
 
    auto tabular_policy_alex = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Hand > >{},
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       factory::
-         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Hand > >()
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
    );
 
    auto tabular_policy_bob = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Hand > >{},
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
       factory::
-         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Hand > >()
+         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
    );
 
    auto infostate_alex = games::rps::Infostate{Player::alex};
    auto infostate_bob = games::rps::Infostate{Player::bob};
    games::rps::State state{}, next_state{};
 
-   auto action_alex = games::rps::Hand::rock;
+   auto action_alex = games::rps::Action::rock;
 
    state = next_state;
    env.transition(next_state, action_alex);
@@ -303,19 +303,19 @@ inline auto setup_rps_test()
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_alex.emplace(
       infostate_alex,
-      HashmapActionPolicy< games::rps::Hand >{std::unordered_map{
-         std::pair{games::rps::Hand::rock, 1. / 10.},
-         std::pair{games::rps::Hand::paper, 2. / 10.},
-         std::pair{games::rps::Hand::scissors, 7. / 10.}}}
+      HashmapActionPolicy< games::rps::Action >{std::unordered_map{
+         std::pair{games::rps::Action::rock, 1. / 10.},
+         std::pair{games::rps::Action::paper, 2. / 10.},
+         std::pair{games::rps::Action::scissors, 7. / 10.}}}
    );
 
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_bob.emplace(
       infostate_bob,
-      HashmapActionPolicy< games::rps::Hand >{std::unordered_map{
-         std::pair{games::rps::Hand::rock, 9. / 10.},
-         std::pair{games::rps::Hand::paper, .5 / 10.},
-         std::pair{games::rps::Hand::scissors, .5 / 10.}}}
+      HashmapActionPolicy< games::rps::Action >{std::unordered_map{
+         std::pair{games::rps::Action::rock, 9. / 10.},
+         std::pair{games::rps::Action::paper, .5 / 10.},
+         std::pair{games::rps::Action::scissors, .5 / 10.}}}
    );
 
    return std::tuple{

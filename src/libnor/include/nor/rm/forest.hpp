@@ -112,8 +112,8 @@ class GameTreeTraverser {
    inline void walk(
       uptr< world_state_type > root_state,
       VisitationData vis_data = {},
-      TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook >
-         hooks = {}
+      TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook > hooks =
+         {}
    )
    {
       // we need to fill the root node's data (if desired) before entering the loop, since the
@@ -395,7 +395,8 @@ void InfostateTree< Env >::build(
       // than the visitation data objects. Hence, we can safely refer to reference wrappers of
       // those without seg-faulting
       std::unordered_map< Player, info_state_type > infostates;
-      std::unordered_map< Player, std::vector< observation_type > > observation_buffer;
+      std::unordered_map< Player, std::vector< std::pair< observation_type, observation_type > > >
+         observation_buffer;
    };
 
    // the visitation stack. Each node in this stack will be visited once according to the
@@ -438,8 +439,8 @@ void InfostateTree< Env >::build(
                   // the pure best response of the given player, we do not account for that
                   // player's action probability, but for each opponent, we do fetch their
                   // policy probability
-                  return std::pair{
-                     child_state(m_env, curr_state, action),
+                  return std::tuple{
+                     child_state(m_env, *curr_state, action),
                      rm::Probability{
                         action_prob.has_value()
                            ? action_prob.value().get()
@@ -456,10 +457,10 @@ void InfostateTree< Env >::build(
                         "This should not occur."
                      );
                      // this return is needed to silence the non-matching return types
-                     return std::pair{uptr< world_state_type >{nullptr}, rm::Probability{1.}};
+                     return std::tuple{uptr< world_state_type >{nullptr}, rm::Probability{1.}};
                   } else {
-                     return std::pair{
-                        child_state(m_env, curr_state, outcome),
+                     return std::tuple{
+                        child_state(m_env, *curr_state, outcome),
                         rm::Probability{m_env.chance_probability(*curr_state, outcome)}};
                   }
                }},
@@ -506,12 +507,13 @@ void InfostateTree< Env >::build(
                      return std::tuple{visit_data.observation_buffer, visit_data.infostates};
                   },
                   [&](const auto& action_or_outcome) {
-                     m_env.transition(*next_state, action_or_outcome);
                      auto [child_obs_buffer, child_istate_map] = update_infostate_and_obs_buffers(
                         m_env,
                         visit_data.observation_buffer,
                         visit_data.infostates,
-                        *curr_state, action_or_outcome, *next_state
+                        *curr_state,
+                        action_or_outcome,
+                        *next_state
                      );
                      return std::tuple{child_obs_buffer, child_istate_map};
                   }},

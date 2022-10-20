@@ -9,13 +9,13 @@ namespace rps {
 
 enum class Team { one = 0, two };
 
-enum class Hand { rock = 0, paper, scissors };
+enum class Action { rock = 0, paper, scissors };
 
 class State {
   public:
    State() = default;
 
-   void apply_action(Hand action);
+   void apply_action(Action action);
 
    double payoff(Team team) const;
    bool terminal() const;
@@ -25,7 +25,7 @@ class State {
 
   private:
    Team m_active_team = Team::one;
-   std::array< std::optional< Hand >, 2 > m_picks = {};
+   std::array< std::optional< Action >, 2 > m_picks = {};
 };
 
 }  // namespace rps

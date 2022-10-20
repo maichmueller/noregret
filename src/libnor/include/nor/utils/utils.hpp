@@ -313,7 +313,7 @@ template <
    typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
    typename Observation = typename fosg_auto_traits< Env >::observation_type >
 // clang-format off
-requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
+requires concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
        and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
          or concepts::map< InformationStateMap, Player, uptr< Infostate > >
          or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
@@ -359,7 +359,7 @@ void update_infostate_and_obs_buffers_inplace(
          auto& obs_history = observation_buffer[active_player];
          for(auto& obs : obs_history) {
             detail::update_infostate(
-               infostate_holder, std::move(std::get< 0 >(obs)), std::move(std::get< 1 >(obs))
+               infostate_holder, std::move(obs.first), std::move(obs.second)
             );
          }
          obs_history.clear();
@@ -380,7 +380,7 @@ template <
    typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
    typename Observation = typename fosg_auto_traits< Env >::observation_type >
 // clang-format off
-requires concepts::map< ObsBufferMap, Player, std::vector< Observation > >
+requires concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
        and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
          or concepts::map< InformationStateMap, Player, uptr< Infostate > >
          or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
@@ -424,7 +424,6 @@ auto update_infostate_and_obs_buffers(
       env,
       observation_buffer,
       infostate_map,
-      action_or_outcome,
       state,
       action_or_outcome,
       next_state

@@ -26,10 +26,11 @@ TEST(TabularPolicy, uniform_default)
 {
    auto tabular_policy = nor::factory::make_tabular_policy(
       std::unordered_map< TestInfostate, nor::HashmapActionPolicy< int > >{},
-      nor::factory::make_uniform_policy< TestInfostate, nor::HashmapActionPolicy< int > >());
+      nor::factory::make_uniform_policy< TestInfostate, nor::HashmapActionPolicy< int > >()
+   );
 
    auto istate1 = TestInfostate{nor::Player::alex};
-   istate1.append("case1");
+   istate1.update("case1", "case1priv");
    auto actions = std::vector< int >{1, 2, 3, 4, 5};
    auto& initial_policy = tabular_policy[std::pair{istate1, actions}];
    for(auto i : actions) {
@@ -47,24 +48,40 @@ TEST(TabularPolicy, uniform_default)
 
 TEST(TabularPolicy, kuhn_poker_states)
 {
-   auto tabular_policy = nor::factory::make_tabular_policy(
-      std::unordered_map< nor::games::kuhn::Infostate, nor::HashmapActionPolicy< int > >{},
-      nor::factory::
-         make_uniform_policy< nor::games::kuhn::Infostate, nor::HashmapActionPolicy< int > >());
+   using namespace nor;
+   using namespace nor::games::kuhn;
+   auto tabular_policy = factory::make_tabular_policy(
+      std::unordered_map< Infostate, HashmapActionPolicy< int > >{},
+      factory::make_uniform_policy< Infostate, HashmapActionPolicy< int > >()
+   );
 
-   nor::games::kuhn::Environment env{};
-   nor::games::kuhn::State state{};
-   auto istate_alex = nor::games::kuhn::Infostate{nor::Player::alex};
-   auto istate_bob = nor::games::kuhn::Infostate{nor::Player::bob};
-   state.apply_action(nor::games::kuhn::ChanceOutcome{
-      nor::games::kuhn::Player::one, nor::games::kuhn::Card::queen});
-   state.apply_action(
-      nor::games::kuhn::ChanceOutcome{nor::games::kuhn::Player::two, nor::games::kuhn::Card::king});
-   state.apply_action(nor::games::kuhn::Action::check);
-   state.apply_action(nor::games::kuhn::Action::bet);
+   Environment env{};
+   State state{}, next_state{};
 
-   istate_alex.append(env.private_observation(nor::Player::alex, state));
-   istate_bob.append(env.private_observation(nor::Player::bob, state));
+   auto istate_alex = Infostate{nor::Player::alex};
+   auto istate_bob = Infostate{nor::Player::bob};
+   for(auto action : std::vector< std::variant< ChanceOutcome, Action > >{
+          ChanceOutcome{kuhn::Player::one, Card::queen},
+          ChanceOutcome{kuhn::Player::two, Card::king},
+          Action::check,
+          Action::bet}) {
+      std::visit(
+         [&](const auto& a) {
+            state.apply_action(a);
+
+            istate_alex.update(
+               env.public_observation(state, Action::bet, next_state),
+               env.private_observation(nor::Player::alex, state, a, next_state)
+            );
+            istate_bob.update(
+               env.public_observation(state, Action::bet, next_state),
+               env.private_observation(nor::Player::bob, state, a, next_state)
+            );
+         },
+         action
+      );
+   }
+
    auto actions = std::vector{1, 2, 3, 4, 5};
    auto& policy = tabular_policy[std::pair{istate_alex, actions}];
    for(auto i : actions) {
@@ -102,10 +119,12 @@ TEST(StatePolicyView, from_tabular_policy)
 
    auto policy_alex = nor::factory::make_tabular_policy(
       std::unordered_map< Infostate, nor::HashmapActionPolicy< Action > >{},
-      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >());
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >()
+   );
    auto policy_bob = nor::factory::make_tabular_policy(
       std::unordered_map< Infostate, nor::HashmapActionPolicy< Action > >{},
-      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >());
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >()
+   );
 
    Environment env{};
    State state{};
@@ -113,21 +132,21 @@ TEST(StatePolicyView, from_tabular_policy)
    auto istate_bob = Infostate{nor::Player::bob};
    auto actions = env.actions(nor::Player::alex, state);
    auto& action_policy_alex = policy_alex[std::tie(istate_alex, actions)];
-   action_policy_alex[Action{Team::one, Hand::paper}] = dist(rng);
-   action_policy_alex[Action{Team::one, Hand::scissors}] = dist(rng);
-   action_policy_alex[Action{Team::one, Hand::rock}] = dist(rng);
+   action_policy_alex[Action::paper] = dist(rng);
+   action_policy_alex[Action::scissors] = dist(rng);
+   action_policy_alex[Action::rock] = dist(rng);
    nor::normalize_action_policy_inplace(action_policy_alex);
    auto& action_policy_bob = policy_bob[std::tie(istate_bob, actions)];
-   action_policy_bob[Action{Team::two, Hand::paper}] = dist(rng);
-   action_policy_bob[Action{Team::two, Hand::scissors}] = dist(rng);
-   action_policy_bob[Action{Team::two, Hand::rock}] = dist(rng);
+   action_policy_bob[Action::paper] = dist(rng);
+   action_policy_bob[Action::scissors] = dist(rng);
+   action_policy_bob[Action::rock] = dist(rng);
    nor::normalize_action_policy_inplace(action_policy_bob);
 
-   for(auto hand : {Hand::paper, Hand::scissors, Hand::rock}) {
+   for(auto hand : {Action::paper, Action::scissors, Action::rock}) {
       ASSERT_EQ(
-         (nor::StatePolicyView< Infostate, Action >{policy_bob}.at(
-            istate_bob)[Action{Team::two, hand}]),
-         (action_policy_bob[Action{Team::two, hand}]));
+         (nor::StatePolicyView< Infostate, Action >{policy_bob}.at(istate_bob)[hand]),
+         (action_policy_bob[hand])
+      );
    }
 }
 
@@ -136,10 +155,12 @@ TEST(BestResponsePolicy, rock_paper_scissors)
    using namespace nor::games::rps;
    auto policy_alex = nor::factory::make_tabular_policy(
       std::unordered_map< Infostate, nor::HashmapActionPolicy< Action > >{},
-      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >());
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >()
+   );
    auto policy_bob = nor::factory::make_tabular_policy(
       std::unordered_map< Infostate, nor::HashmapActionPolicy< Action > >{},
-      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >());
+      nor::factory::make_uniform_policy< Infostate, nor::HashmapActionPolicy< Action > >()
+   );
 
    Environment env{};
    State state{};
@@ -147,22 +168,24 @@ TEST(BestResponsePolicy, rock_paper_scissors)
    auto istate_bob = Infostate{nor::Player::bob};
    auto actions = env.actions(nor::Player::alex, state);
    auto& action_policy_alex = policy_alex[std::tie(istate_alex, actions)];
-   action_policy_alex[Action{Team::one, Hand::paper}] = 1.;
-   action_policy_alex[Action{Team::one, Hand::scissors}] = 0.;
-   action_policy_alex[Action{Team::one, Hand::rock}] = 0.;
+   action_policy_alex[Action::paper] = 1.;
+   action_policy_alex[Action::scissors] = 0.;
+   action_policy_alex[Action::rock] = 0.;
    auto& action_policy_bob = policy_bob[std::tie(istate_bob, actions)];
-   action_policy_bob[Action{Team::two, Hand::paper}] = 1.;
-   action_policy_bob[Action{Team::two, Hand::scissors}] = 0.;
-   action_policy_bob[Action{Team::two, Hand::rock}] = 0.;
+   action_policy_bob[Action::paper] = 1.;
+   action_policy_bob[Action::scissors] = 0.;
+   action_policy_bob[Action::rock] = 0.;
 
    auto best_response_alex = nor::factory::make_best_response_policy< Infostate, Action >(
-      nor::Player::alex);
+      nor::Player::alex
+   );
    best_response_alex.allocate(
-                       env,
-                       std::unordered_map< nor::Player, nor::StatePolicyView< Infostate, Action > >{
-                          {nor::Player::bob, nor::StatePolicyView< Infostate, Action >{policy_bob}}},
-                       std::make_unique< State >());
-   EXPECT_NEAR(best_response_alex.root_value(), 1. , 1e-5);
+      env,
+      std::unordered_map< nor::Player, nor::StatePolicyView< Infostate, Action > >{
+         {nor::Player::bob, nor::StatePolicyView< Infostate, Action >{policy_bob}}},
+      std::make_unique< State >()
+   );
+   EXPECT_NEAR(best_response_alex.root_value(), 1., 1e-5);
    //   policy_alex(auto i : actions)
    //   {
    //      ASSERT_NEAR(policy[i], .2, 1e-10);
