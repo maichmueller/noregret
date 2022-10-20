@@ -507,7 +507,7 @@ void InfostateTree< Env >::build(
                      return std::tuple{visit_data.observation_buffer, visit_data.infostates};
                   },
                   [&](const auto& action_or_outcome) {
-                     auto [child_obs_buffer, child_istate_map] = update_infostate_and_obs_buffers(
+                     auto [child_obs_buffer, child_istate_map] = next_infostate_and_obs_buffers(
                         m_env,
                         visit_data.observation_buffer,
                         visit_data.infostates,

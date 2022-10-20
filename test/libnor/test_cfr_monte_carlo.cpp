@@ -51,7 +51,8 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_alternating)
       std::pair{
          Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 200000;
+//      size_t n_iters = 200000;
+      size_t n_iters = 1;
    for(size_t i = 0; i < n_iters; i++) {
       solver.iterate(1);
 #ifndef NDEBUG

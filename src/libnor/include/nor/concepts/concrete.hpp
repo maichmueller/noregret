@@ -77,14 +77,14 @@ concept public_state =
    && is::hashable< T >
    && std::copy_constructible< T >
    && std::equality_comparable< T >
-   && has::method::update<
+   && has::method::update_publicstate<
          T,
-         std::pair< Observation, Observation>&,
+         Observation&,
          Observation
       >
    && has::method::getitem_r<
          T,
-         std::pair< Observation, Observation>&,
+         Observation&,
          size_t
       >;
 // clang-format on
@@ -92,8 +92,22 @@ concept public_state =
 template < typename T, typename Observation = typename fosg_auto_traits< T >::observation_type >
 // clang-format off
 concept info_state =
-/**/  public_state< T, Observation >
-   && has::method::player< const T >;
+/**/  observation< Observation >
+   && has::method::player< const T >
+   && is::sized< T >
+   && is::hashable< T >
+   && std::copy_constructible< T >
+   && std::equality_comparable< T >
+   && has::method::update_infostate<
+      T,
+      std::pair< Observation, Observation>&,
+      Observation
+   >
+   && has::method::getitem_r<
+      T,
+      std::pair< Observation, Observation>&,
+      size_t
+   >;
 // clang-format on
 
 template < typename T >

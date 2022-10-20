@@ -320,7 +320,7 @@ requires concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observatio
          or concepts::map< InformationStateMap, Player, Infostate* >
          or concepts::map< InformationStateMap, Player, Infostate >)
 // clang-format on
-void update_infostate_and_obs_buffers_inplace(
+void next_infostate_and_obs_buffers_inplace(
    const Env& env,
    ObsBufferMap& observation_buffer,
    InformationStateMap& infostate_map,
@@ -343,8 +343,7 @@ void update_infostate_and_obs_buffers_inplace(
          // active player again
          auto& player_obs_buffer = observation_buffer[player];
          player_obs_buffer.emplace_back(
-            public_obs,
-            env.private_observation(player, state, action_or_outcome, next_state)
+            public_obs, env.private_observation(player, state, action_or_outcome, next_state)
          );
       } else {
          // for the active player we first append all recent actions and state observations to the
@@ -358,9 +357,7 @@ void update_infostate_and_obs_buffers_inplace(
          // cleared observation buffer is still returned and reused, but is now empty.
          auto& obs_history = observation_buffer[active_player];
          for(auto& obs : obs_history) {
-            detail::update_infostate(
-               infostate_holder, std::move(obs.first), std::move(obs.second)
-            );
+            detail::update_infostate(infostate_holder, std::move(obs.first), std::move(obs.second));
          }
          obs_history.clear();
          detail::update_infostate(
@@ -387,7 +384,7 @@ requires concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observatio
          or concepts::map< InformationStateMap, Player, Infostate* >
          or concepts::map< InformationStateMap, Player, Infostate >)
 // clang-format on
-auto update_infostate_and_obs_buffers(
+auto next_infostate_and_obs_buffers(
    const Env& env,
    ObsBufferMap observation_buffer,
    InformationStateMap infostate_map,
@@ -416,22 +413,18 @@ auto update_infostate_and_obs_buffers(
       }
    } else if constexpr(std::same_as< mapped_infostate_type, uptr< Infostate > >) {
       for(auto& [player, mapped] : infostate_map) {
-         mapped = std::make_unique< Infostate >(*mapped);
+         mapped = std::make_unique< Infostate >(utils::clone_any_way(mapped));
       }
    }
 
-   update_infostate_and_obs_buffers_inplace(
-      env,
-      observation_buffer,
-      infostate_map,
-      state,
-      action_or_outcome,
-      next_state
+   next_infostate_and_obs_buffers_inplace(
+      env, observation_buffer, infostate_map, state, action_or_outcome, next_state
    );
    return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
 }
 
 template < concepts::fosg Env, typename Worldstate >
+   requires(not concepts::is::smart_pointer_like< Worldstate > and not concepts::is::pointer< Worldstate >)
 uptr< Worldstate > child_state(Env& env, const Worldstate& state, const auto& action_or_outcome)
 {
    // clone the current world state first before transitioniong it with this action

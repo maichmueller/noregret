@@ -15,8 +15,7 @@ inline void print_policy(const Policy& policy)
                                           return std::pair{std::get< 0 >(kv), std::get< 1 >(kv)};
                                        }));
    std::sort(policy_vec.begin(), policy_vec.end(), [](const auto& kv, const auto& other_kv) {
-      return std::get< 0 >(kv).history().to_string().size()
-             < std::get< 0 >(other_kv).history().to_string().size();
+      return std::get< 0 >(kv).to_string().size() < std::get< 0 >(other_kv).to_string().size();
    });
    auto action_policy_printer = [&](const auto& action_policy) {
       std::stringstream ss;
@@ -30,7 +29,8 @@ inline void print_policy(const Policy& policy)
    };
    for(const auto& [istate, action_policy] : policy_vec) {
       std::cout << std::setw(5) << istate.player() << " | " << std::setw(8)
-                << common::left(istate.history().to_string(), 5, " ") << " -> ";
+                << common::left(istate.to_string("|"), 5, " ")
+                << " -> ";
       std::cout << action_policy_printer(action_policy) << "\n";
    }
 }
@@ -271,7 +271,8 @@ inline auto setup_rps_test()
 
    auto avg_tabular_policy = factory::make_tabular_policy(
       std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      factory::make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
+      factory::make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >(
+      )
    );
 
    auto tabular_policy_alex = factory::make_tabular_policy(

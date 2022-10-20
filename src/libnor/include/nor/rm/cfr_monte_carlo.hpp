@@ -468,9 +468,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
    auto init_infostates = [&] {
       std::unordered_map< Player, sptr< info_state_type > > infostates;
       for(auto player : players | utils::is_actual_player_filter) {
-         auto& infostate = infostates.emplace(player, std::make_shared< info_state_type >(player))
-                              .first->second;
-         infostate->append(_env().private_observation(player, root_state()));
+         infostates.emplace(player, std::make_shared< info_state_type >(player));
       }
       return InfostateSptrMap{std::move(infostates)};
    };
@@ -482,9 +480,10 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
       return ReachProbabilityMap{std::move(rp_map)};
    };
    auto init_obs_buffer = [&] {
-      std::unordered_map< Player, std::vector< observation_type > > obs_map;
+      std::unordered_map< Player, std::vector< std::pair< observation_type, observation_type > > >
+         obs_map;
       for(auto player : players | utils::is_actual_player_filter) {
-         obs_map.emplace(player, std::vector< observation_type >{});
+         obs_map[player];
       }
       return ObservationbufferMap{std::move(obs_map)};
    };
@@ -576,14 +575,8 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          );
          _env().transition(state, chosen_outcome);
 
-         update_infostate_and_obs_buffers_inplace(
-            _env(),
-            observation_buffer.get(),
-            infostates.get(),
-            chosen_outcome,
-            *state_backup,
-            chosen_outcome,
-            state
+         next_infostate_and_obs_buffers_inplace(
+            _env(), observation_buffer.get(), infostates.get(), *state_backup, chosen_outcome, state
          );
 
          return _traverse(
@@ -642,14 +635,8 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
 
    _env().transition(state, sampled_action);
 
-   update_infostate_and_obs_buffers_inplace(
-      _env(),
-      observation_buffer.get(),
-      infostates.get(),
-      sampled_action,
-      *state_backup,
-      sampled_action,
-      state
+   next_infostate_and_obs_buffers_inplace(
+      _env(), observation_buffer.get(), infostates.get(), *state_backup, sampled_action, state
    );
 
    auto [action_value_map, tail_prob] = _traverse(
@@ -750,14 +737,8 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          );
          _env().transition(state, chosen_outcome);
 
-         update_infostate_and_obs_buffers_inplace(
-            _env(),
-            observation_buffer.get(),
-            infostates.get(),
-            chosen_outcome,
-            *state_backup,
-            chosen_outcome,
-            state
+         next_infostate_and_obs_buffers_inplace(
+            _env(), observation_buffer.get(), infostates.get(), *state_backup, chosen_outcome, state
          );
 
          return _traverse(
@@ -808,14 +789,8 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    );
    _env().transition(state, sampled_action);
 
-   update_infostate_and_obs_buffers_inplace(
-      _env(),
-      observation_buffer.get(),
-      infostates.get(),
-      sampled_action,
-      *state_backup,
-      sampled_action,
-      state
+   next_infostate_and_obs_buffers_inplace(
+      _env(), observation_buffer.get(), infostates.get(), *state_backup, sampled_action, state
    );
 
    auto [action_value_map, tail_prob] = _traverse(
@@ -1128,18 +1103,17 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          auto chosen_outcome = _sample_outcome< false >(*state);
 
          auto state_backup = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(state)
+            utils::clone_any_way(*state)
          );
-         _env().transition(state, chosen_outcome);
+         _env().transition(*state, chosen_outcome);
 
-         update_infostate_and_obs_buffers_inplace(
+         next_infostate_and_obs_buffers_inplace(
             _env(),
             observation_buffer.get(),
             infostates.get(),
-            chosen_outcome,
             *state_backup,
             chosen_outcome,
-            state
+            *state
          );
 
          return _traverse(
@@ -1179,9 +1153,9 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       value_estimates.reserve(infonode_data.actions().size());
 
       for(const auto& action : infonode_data.actions()) {
-         auto next_state = child_state(_env(), state, action);
+         auto next_state = child_state(_env(), *state, action);
 
-         auto [next_observation_buffer, next_infostates] = update_infostate_and_obs_buffers(
+         auto [next_observation_buffer, next_infostates] = next_infostate_and_obs_buffers(
             _env(), observation_buffer.get(), infostates.get(), *state, action, *next_state
          );
 
@@ -1210,18 +1184,12 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       );
 
       auto state_backup = utils::static_unique_ptr_downcast< world_state_type >(
-         utils::clone_any_way(state)
+         utils::clone_any_way(*state)
       );
-      _env().transition(state, sampled_action);
+      _env().transition(*state, sampled_action);
 
-      update_infostate_and_obs_buffers_inplace(
-         _env(),
-         observation_buffer.get(),
-         infostates.get(),
-         sampled_action,
-         *state_backup,
-         sampled_action,
-         state
+      next_infostate_and_obs_buffers_inplace(
+         _env(), observation_buffer.get(), infostates.get(), *state_backup, sampled_action, *state
       );
 
       double action_value_estimate = _traverse(

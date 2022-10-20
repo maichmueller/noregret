@@ -924,8 +924,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       auto child_reach_prob = reach_probability.get();
       child_reach_prob[active_player] *= action_prob;
 
-      uptr< world_state_type > next_wstate_uptr = child_state(_env(), state, action);
-      auto [child_observation_buffer, child_infostate_map] = update_infostate_and_obs_buffers(
+      uptr< world_state_type > next_wstate_uptr = child_state(_env(), *state, action);
+      auto [child_observation_buffer, child_infostate_map] = next_infostate_and_obs_buffers(
          _env(), observation_buffer.get(), infostate_map.get(), *state, action, *next_wstate_uptr
       );
 
@@ -959,13 +959,13 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
 )
 {
    for(auto&& outcome : _env().chance_actions(*state)) {
-      uptr< world_state_type > next_wstate_uptr = child_state(_env(), state, outcome);
+      uptr< world_state_type > next_wstate_uptr = child_state(_env(), *state, outcome);
 
       auto child_reach_prob = reach_probability.get();
       auto outcome_prob = _env().chance_probability(*state, outcome);
       child_reach_prob[active_player] *= outcome_prob;
 
-      auto [child_observation_buffer, child_infostate_map] = update_infostate_and_obs_buffers(
+      auto [child_observation_buffer, child_infostate_map] = next_infostate_and_obs_buffers(
          _env(), observation_buffer.get(), infostate_map.get(), *state, outcome, *next_wstate_uptr
       );
 

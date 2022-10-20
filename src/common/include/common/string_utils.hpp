@@ -132,6 +132,19 @@ inline std::string operator*(std::string str, std::size_t n)
    return repeat(std::move(str), n);
 }
 
+inline std::string replace(std::string str, std::string_view str_to_replace, std::string_view replacement) {
+   return str.replace(str.find(str_to_replace), sizeof(str_to_replace) - 1, replacement);
+}
+
+inline std::string replace_all(std::string str, std::string_view str_to_replace, std::string_view replacement) {
+   size_t curr_pos = str.find(str_to_replace);
+   while(curr_pos != std::string::npos) {
+      str = str.replace(curr_pos, str_to_replace.size(), replacement);
+      curr_pos = str.find(str_to_replace);
+   }
+   return str;
+}
+
 }  // namespace common
 
 #endif  // NOR_COMMON_STRING_UTILS_HPP

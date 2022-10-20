@@ -124,12 +124,20 @@ concept chance_probability = requires(T const t, Worldstate worldstate, Outcome 
                              };
 
 template < typename T, typename ReturnType, typename Observation >
-concept update = requires(T t, Observation public_obs, Observation private_obs) {
-                    // append objects Us... to t
-                    {
-                       t.update(public_obs, private_obs)
-                       } -> std::same_as< ReturnType >;
-                 };
+concept update_infostate = requires(T t, Observation public_obs, Observation private_obs) {
+                              // append objects Us... to t
+                              {
+                                 t.update(public_obs, private_obs)
+                                 } -> std::same_as< ReturnType >;
+                           };
+
+template < typename T, typename ReturnType, typename Observation >
+concept update_publicstate = requires(T t, Observation public_obs) {
+                              // append objects Us... to t
+                              {
+                                 t.update(public_obs)
+                                 } -> std::same_as< ReturnType >;
+                           };
 
 template <
    typename T,

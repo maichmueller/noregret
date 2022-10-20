@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "common/common.hpp"
+#include "nor/env/kuhn_env.hpp"
 #include "nor/utils/utils.hpp"
 
 using namespace nor;
@@ -133,4 +134,20 @@ TYPED_TEST(clone_any_way_fixture, test_all_paths)
       TypeParam::counter_access::clone_method_counter,
       expected_counts[TypeParam::index].clone_meth_count
    );
+}
+
+TEST(ChildState, create_kuhn_child) {
+   using namespace nor;
+   using namespace nor::games::kuhn;
+
+   auto env = Environment{};
+   auto state_ptr = std::make_shared<State>();
+
+   state_ptr->apply_action(ChanceOutcome{kuhn::Player::one, Card::king});
+   state_ptr->apply_action(ChanceOutcome{kuhn::Player::two, Card::queen});
+
+   uptr< State > child = child_state(env, *state_ptr, Action::check);
+   auto state_copy = *state_ptr;
+   state_copy.apply_action(Action::check);
+   ASSERT_EQ(child->history(), state_copy.history());
 }
