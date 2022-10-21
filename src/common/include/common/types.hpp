@@ -50,25 +50,65 @@ struct ref_wrapper_comparator {
    auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
 };
 
+namespace detail {
+
+template < typename T, typename U >
+concept pointer_like = requires(T t) {
+                          *t;
+                          requires std::same_as< U, std::remove_cvref_t< decltype(*t) > >;
+                       };
+
+}
+
 template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
-struct sptr_value_hasher {
+struct value_hasher {
    // allow for heterogenous lookup
    using is_transparent = std::true_type;
 
-   auto operator()(const sptr< T >& ptr) const { return Hasher{}(*ptr); }
+   auto operator()(const detail::pointer_like< T > auto& ptr) const { return Hasher{}(*ptr); }
+   auto operator()(std::reference_wrapper< T > ref) const { return Hasher{}(ref.get()); }
    auto operator()(const T& t) const { return Hasher{}(t); }
 };
 
 template < typename T >
    requires std::equality_comparable< T >
-struct sptr_value_comparator {
+struct value_comparator {
    // allow for heterogenous lookup
    using is_transparent = std::true_type;
 
-   auto operator()(const sptr< T >& ptr1, const sptr< T >& ptr2) const { return *ptr1 == *ptr2; }
-   auto operator()(const sptr< T >& ptr1, T& t2) const { return *ptr1 == t2; }
-   auto operator()(const T& t1, const sptr< T >& ptr2) const { return t1 == *ptr2; }
+   auto operator()(
+      const detail::pointer_like< T > auto& ptr1,
+      const detail::pointer_like< T > auto& ptr2
+   ) const
+   {
+      return *ptr1 == *ptr2;
+   }
+   auto operator()(std::reference_wrapper< T > ref1, std::reference_wrapper< T >& ref2) const
+   {
+      return ref1.get() == ref2.get();
+   }
    auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
+
+   auto operator()(const detail::pointer_like< T > auto& ptr1, std::reference_wrapper< T > ref2) const
+   {
+      return *ptr1 == ref2;
+   }
+   auto operator()(std::reference_wrapper< T > t1, const detail::pointer_like< T > auto& ptr2) const
+   {
+      return t1.get() == *ptr2;
+   }
+
+   auto operator()(const detail::pointer_like< T > auto& ptr1, const T& t2) const
+   {
+      return *ptr1 == t2;
+   }
+   auto operator()(const T& t1, const detail::pointer_like< T > auto& ptr2) const
+   {
+      return t1 == *ptr2;
+   }
+
+   auto operator()(std::reference_wrapper< T > ref1, const T& t2) const { return ref1.get() == t2; }
+   auto operator()(const T& t1, std::reference_wrapper< T > ref2) const { return t1 == ref2.get(); }
 };
 
 /**

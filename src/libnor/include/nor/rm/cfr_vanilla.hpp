@@ -316,8 +316,8 @@ class VanillaCFR:
    std::unordered_map<
       sptr< info_state_type >,
       infostate_data_type,
-      common::sptr_value_hasher< info_state_type >,
-      common::sptr_value_comparator< info_state_type > >
+      common::value_hasher< info_state_type >,
+      common::value_comparator< info_state_type > >
       m_infonode{};
 
    /// Discounted CFR specific parameters

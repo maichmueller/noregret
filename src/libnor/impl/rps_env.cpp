@@ -111,5 +111,5 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::pub
    const world_state_type& next_wstate
 ) const
 {
-   return common::to_string(active_player(wstate)) + "->?";
+   return common::to_string(active_player(wstate)) + ":?";
 }

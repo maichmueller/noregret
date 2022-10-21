@@ -22,7 +22,6 @@ struct action_type_trait< HeadT, TailTs... > {
 };
 
 template < typename T >
-   requires(not concepts::has::trait::action_type< T >)
 struct action_type_trait< T > {
    using type = void;
 };
@@ -50,7 +49,6 @@ struct chance_outcome_type_trait< HeadT, TailTs... > {
 };
 
 template < typename T >
-   requires(not concepts::has::trait::chance_outcome_type< T >)
 struct chance_outcome_type_trait< T > {
    using type = void;
 };
@@ -67,6 +65,33 @@ using chance_outcome_type_trait_t = typename chance_outcome_type_trait< Ts... >:
 ////
 
 template < typename HeadT, typename... TailTs >
+struct action_variant_type_trait {
+   using type = typename action_variant_type_trait< TailTs... >::type;
+};
+
+template < typename HeadT, typename... TailTs >
+   requires(concepts::has::trait::action_type< HeadT >)
+struct action_variant_type_trait< HeadT, TailTs... > {
+   using type = typename HeadT::action_variant_type;
+};
+
+template < typename T >
+struct action_variant_type_trait< T > {
+   using type = void;
+};
+
+template < typename T >
+   requires(concepts::has::trait::action_type< T >)
+struct action_variant_type_trait< T > {
+   using type = typename T::action_type;
+};
+
+template < typename... Ts >
+using action_type_trait_t = typename action_type_trait< Ts... >::type;
+
+////
+
+template < typename HeadT, typename... TailTs >
 struct chance_distribution_type_trait {
    using type = typename chance_distribution_type_trait< TailTs... >::type;
 };
@@ -78,7 +103,6 @@ struct chance_distribution_type_trait< HeadT, TailTs... > {
 };
 
 template < typename T >
-   requires(not concepts::has::trait::chance_distribution_type< T >)
 struct chance_distribution_type_trait< T > {
    using type = void;
 };
@@ -106,7 +130,6 @@ struct info_state_type_trait< HeadT, TailTs... > {
 };
 
 template < typename T >
-   requires(not concepts::has::trait::info_state_type< T >)
 struct info_state_type_trait< T > {
    using type = void;
 };
@@ -134,7 +157,6 @@ struct observation_type_trait< HeadT, TailTs... > {
 };
 
 template < typename T >
-   requires(not concepts::has::trait::observation_type< T >)
 struct observation_type_trait< T > {
    using type = void;
 };
@@ -162,7 +184,6 @@ struct public_state_type_trait< HeadT, TailTs... > {
 };
 
 template < typename T >
-   requires(not concepts::has::trait::public_state_type< T >)
 struct public_state_type_trait< T > {
    using type = void;
 };
@@ -190,7 +211,6 @@ struct world_state_type_trait< HeadT, TailTs... > {
 };
 
 template < typename T >
-   requires(not concepts::has::trait::world_state_type< T >)
 struct world_state_type_trait< T > {
    using type = void;
 };
@@ -206,18 +226,39 @@ using world_state_type_trait_t = typename world_state_type_trait< Ts... >::type;
 
 ////
 
+template < typename... Ts >
+struct action_variant_type_generator {
+   using type = void;
+};
+
+template < typename Action, typename ChanceOutcome >
+   requires(not std::is_void_v< Action > or not std::is_void_v< ChanceOutcome >)
+struct action_variant_type_generator< Action, ChanceOutcome > {
+   using type = std::variant<
+      std::conditional_t< std::is_void_v< Action >, std::monostate, Action >,
+      std::conditional_t< std::is_void_v< ChanceOutcome >, std::monostate, ChanceOutcome > >;
+};
+
+template < typename Action, typename ChanceOutcome >
+using action_variant_type_generator_t = typename action_variant_type_generator<
+   Action,
+   ChanceOutcome >::type;
+
+////
+
 template < typename T >
 struct fosg_auto_traits {
-   // auto traits will first select the relevant trait from T if it exists in T and only if not look
-   // for a trait definiton within fosg_traits< T >. If the trait class is also not specialized/does
-   // not hold the type either, then 'void' is the assigned type.
-   using action_type = action_type_trait_t< T, fosg_traits< T > >;
-   using chance_outcome_type = chance_outcome_type_trait_t< T, fosg_traits< T > >;
-   using chance_distribution_type = chance_distribution_type_trait_t< T, fosg_traits< T > >;
-   using observation_type = observation_type_trait_t< T, fosg_traits< T > >;
-   using info_state_type = info_state_type_trait_t< T, fosg_traits< T > >;
-   using public_state_type = public_state_type_trait_t< T, fosg_traits< T > >;
-   using world_state_type = world_state_type_trait_t< T, fosg_traits< T > >;
+   // auto traits will first select the relevant trait from fosg_traits< T > if it exists in
+   // fosg_traits< T > and only if not look for a trait definiton within T. If the trait class is
+   // also not specialized/does not hold the type either, then 'void' is the assigned type.
+   using action_type = action_type_trait_t< fosg_traits< T >, T >;
+   using chance_outcome_type = chance_outcome_type_trait_t< fosg_traits< T >, T >;
+   using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
+   using chance_distribution_type = chance_distribution_type_trait_t< fosg_traits< T >, T >;
+   using observation_type = observation_type_trait_t< fosg_traits< T >, T >;
+   using info_state_type = info_state_type_trait_t< fosg_traits< T >, T >;
+   using public_state_type = public_state_type_trait_t< fosg_traits< T >, T >;
+   using world_state_type = world_state_type_trait_t< fosg_traits< T >, T >;
 };
 
 template < class... T >

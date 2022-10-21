@@ -245,8 +245,8 @@ class MCCFR:
    std::unordered_map<
       sptr< info_state_type >,
       infostate_data_type,
-      common::sptr_value_hasher< info_state_type >,
-      common::sptr_value_comparator< info_state_type > >
+      common::value_hasher< info_state_type >,
+      common::value_comparator< info_state_type > >
       m_infonode{};
    /// the parameter to control the epsilon-on-policy epxloration
    double m_epsilon;
@@ -570,13 +570,18 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
 
          reach_probability.get()[Player::chance] *= chance_prob;
 
-         auto state_backup = utils::static_unique_ptr_downcast< world_state_type >(
+         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
             utils::clone_any_way(state)
          );
          _env().transition(state, chosen_outcome);
 
          next_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer.get(), infostates.get(), *state_backup, chosen_outcome, state
+            _env(),
+            observation_buffer.get(),
+            infostates.get(),
+            *state_before_transition,
+            chosen_outcome,
+            state
          );
 
          return _traverse(
@@ -629,14 +634,19 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
                                     std::cref(sampled_action)
                                  );
 
-   auto state_backup = utils::static_unique_ptr_downcast< world_state_type >(
+   auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
       utils::clone_any_way(state)
    );
 
    _env().transition(state, sampled_action);
 
    next_infostate_and_obs_buffers_inplace(
-      _env(), observation_buffer.get(), infostates.get(), *state_backup, sampled_action, state
+      _env(),
+      observation_buffer.get(),
+      infostates.get(),
+      *state_before_transition,
+      sampled_action,
+      state
    );
 
    auto [action_value_map, tail_prob] = _traverse(
@@ -732,13 +742,18 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
 
          reach_probability.get()[Player::chance] *= chance_prob;
 
-         auto state_backup = utils::static_unique_ptr_downcast< world_state_type >(
+         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
             utils::clone_any_way(state)
          );
          _env().transition(state, chosen_outcome);
 
          next_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer.get(), infostates.get(), *state_backup, chosen_outcome, state
+            _env(),
+            observation_buffer.get(),
+            infostates.get(),
+            *state_before_transition,
+            chosen_outcome,
+            state
          );
 
          return _traverse(
@@ -784,13 +799,18 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    auto next_reach_prob = reach_probability.get();
    next_reach_prob[active_player] *= action_policy_prob;
 
-   auto state_backup = utils::static_unique_ptr_downcast< world_state_type >(
+   auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
       utils::clone_any_way(state)
    );
    _env().transition(state, sampled_action);
 
    next_infostate_and_obs_buffers_inplace(
-      _env(), observation_buffer.get(), infostates.get(), *state_backup, sampled_action, state
+      _env(),
+      observation_buffer.get(),
+      infostates.get(),
+      *state_before_transition,
+      sampled_action,
+      state
    );
 
    auto [action_value_map, tail_prob] = _traverse(
@@ -1102,7 +1122,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       if(active_player == Player::chance) {
          auto chosen_outcome = _sample_outcome< false >(*state);
 
-         auto state_backup = utils::static_unique_ptr_downcast< world_state_type >(
+         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
             utils::clone_any_way(*state)
          );
          _env().transition(*state, chosen_outcome);
@@ -1111,7 +1131,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
             _env(),
             observation_buffer.get(),
             infostates.get(),
-            *state_backup,
+            *state_before_transition,
             chosen_outcome,
             *state
          );
@@ -1183,13 +1203,18 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng
       );
 
-      auto state_backup = utils::static_unique_ptr_downcast< world_state_type >(
+      auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
          utils::clone_any_way(*state)
       );
       _env().transition(*state, sampled_action);
 
       next_infostate_and_obs_buffers_inplace(
-         _env(), observation_buffer.get(), infostates.get(), *state_backup, sampled_action, *state
+         _env(),
+         observation_buffer.get(),
+         infostates.get(),
+         *state_before_transition,
+         sampled_action,
+         *state
       );
 
       double action_value_estimate = _traverse(

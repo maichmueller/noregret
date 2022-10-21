@@ -51,10 +51,6 @@ inline auto& choose(const RAContainer& cont, RNG& rng)
 {
    auto chooser = [&](const auto& actual_ra_container) -> auto&
    {
-      //      auto choice = std::uniform_int_distribution(
-      //         0ul, actual_ra_container.size())(rng);
-      //      LOGD2("Choice", choice);
-      //      return cont[choice];
       return actual_ra_container[std::uniform_int_distribution(
          0ul, actual_ra_container.size() - 1
       )(rng)];

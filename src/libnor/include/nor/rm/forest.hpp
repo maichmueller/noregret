@@ -64,10 +64,7 @@ class GameTreeTraverser {
    using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
    using public_state_type = typename fosg_auto_traits< Env >::public_state_type;
    using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
-
-   using chance_outcome_conditional_type = std::
-      conditional_t< concepts::deterministic_fosg< Env >, std::monostate, chance_outcome_type >;
-   using action_variant_type = std::variant< action_type, chance_outcome_conditional_type >;
+   using action_variant_type = typename fosg_auto_traits< Env >::action_variant_type;
 
    GameTreeTraverser(Env& env) : m_env(&env) {}
 

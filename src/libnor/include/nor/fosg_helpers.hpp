@@ -21,18 +21,20 @@ auto map_histories_to_infostates(
    using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
 
    auto game_tree_traverser = forest::GameTreeTraverser{env};
-   using action_variant = typename decltype(game_tree_traverser)::action_variant_type;
+   using action_variant_type = typename fosg_auto_traits< Env >::action_variant_type;
    // this hasher may be low quality given that boost's hash_combine paired with std::hash is not
    // necessarily a good hashing function (and long vectors may lead to many collisions)
-   using history_type = std::vector< action_variant >;
-   using history_sptr_hasher = decltype([](const sptr< history_type >& hist_vec_ptr) {
+   using history_type = std::vector< action_variant_type >;
+
+   using history_hasher = decltype([] (const history_type& hist_vec)
+   {
       size_t hash = 0;
-      ranges::for_each(*hist_vec_ptr, [&](const action_variant& av) {
+      ranges::for_each(hist_vec, [&](const action_variant_type& av) {
          common::hash_combine(
             hash,
             std::visit(
-               [&]< typename T >(const T& action_or_outcome) {
-                  return std::hash< T >{}(action_or_outcome);
+               [&]< typename U >(const U& action_or_outcome) {
+                  return std::hash< U >{}(action_or_outcome);
                },
                av
             )
@@ -46,15 +48,15 @@ auto map_histories_to_infostates(
    std::unordered_map<
       sptr< history_type >,
       info_state_type,
-      history_sptr_hasher,
-      common::sptr_value_comparator< history_type > >
+      common::value_hasher< history_type, history_hasher >,
+      common::value_comparator< history_type > >
       active_infostate_set;
 
    std::unordered_map<
       sptr< history_type >,
       infostate_map_type,
-      history_sptr_hasher,
-      common::sptr_value_comparator< history_type > >
+      common::value_hasher< history_type, history_hasher >,
+      common::value_comparator< history_type > >
       inactive_infostate_set;
 
    // terminal states do not have an information state associated
@@ -65,11 +67,11 @@ auto map_histories_to_infostates(
       sptr< history_type > action_sequence;
    };
 
-   auto root_action_sequence = std::make_shared< std::vector< action_variant > >();
+   auto root_action_sequence = std::make_shared< std::vector< action_variant_type > >();
 
    auto child_hook = [&](
                         const VisitData& visit_data,
-                        const action_variant* curr_action,
+                        const action_variant_type* curr_action,
                         world_state_type* curr_state,
                         world_state_type* next_state
                      ) {
@@ -122,7 +124,7 @@ auto map_histories_to_infostates(
                }
                return root_istate_map;
             }(),
-         .action_sequence = std::make_shared< std::vector< action_variant > >()},
+         .action_sequence = std::make_shared< std::vector< action_variant_type > >()},
       forest::TraversalHooks{.child_hook = std::move(child_hook)}
    );
 

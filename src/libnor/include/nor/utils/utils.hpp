@@ -332,8 +332,8 @@ void next_infostate_and_obs_buffers_inplace(
    // the public observation will be given to every player, so we can establish it outside the loop
    auto public_obs = env.public_observation(state, action_or_outcome, next_state);
 
-   auto active_player = env.active_player(state);
-   for(auto player : env.players(state)) {
+   auto active_player = env.active_player(next_state);
+   for(auto player : env.players(next_state)) {
       if(player == Player::chance) {
          continue;
       }

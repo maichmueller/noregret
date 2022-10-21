@@ -28,7 +28,7 @@ std::string nor::games::kuhn::Environment::private_observation(
    const action_type&,
    const world_state_type&) const
 {
-   return {};
+   return "-";
 }
 std::string nor::games::kuhn::Environment::public_observation(
    const world_state_type&,
@@ -47,7 +47,7 @@ nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::p
    if(outcome.player == to_kuhn_player(observer)) {
       return std::string(common::to_string(outcome));
    } else {
-      return "";
+      return "-";
    }
 }
 
@@ -56,7 +56,7 @@ nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::p
    const chance_outcome_type& action,
    const world_state_type& next_wstate) const
 {
-   return "?->" + std::to_string(static_cast<int>(action.player));
+   return std::to_string(static_cast<int>(action.player)) + ":?";
 }
 
 

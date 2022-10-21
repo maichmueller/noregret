@@ -8,30 +8,92 @@
 #include "nor/env.hpp"
 #include "nor/nor.hpp"
 
+template < typename ActionPolicy >
+inline std::string print_action_policy(const ActionPolicy& action_policy)
+{
+   size_t max_len_action = ranges::max(
+      action_policy | ranges::views::keys
+      | ranges::views::transform([](auto p) { return common::to_string(p).size(); })
+   );
+
+   std::stringstream ss;
+   ss << "[ ";
+   for(const auto& [key, value] : action_policy) {
+      ss << std::setw(static_cast< int >(max_len_action)) << common::to_string(key) + ": ";
+      ss << std::setw(6) << std::setprecision(3) << value << " ";
+   }
+   ss << "]";
+   return ss.str();
+}
+
 template < typename Policy >
-inline void print_policy(const Policy& policy)
+inline std::string print_policy(
+   const Policy& policy,
+   int max_len_player_str,
+   int max_len_istate_str,
+   std::string istate_to_string_delim = "|"
+)
 {
    auto policy_vec = ranges::to_vector(policy | ranges::views::transform([](const auto& kv) {
                                           return std::pair{std::get< 0 >(kv), std::get< 1 >(kv)};
                                        }));
-   std::sort(policy_vec.begin(), policy_vec.end(), [](const auto& kv, const auto& other_kv) {
-      return std::get< 0 >(kv).to_string().size() < std::get< 0 >(other_kv).to_string().size();
+   ranges::actions::sort(policy_vec, [](const auto& kv, const auto& other_kv) {
+      const auto& istate_0 = std::get< 0 >(kv);
+      const auto& istate_1 = std::get< 0 >(other_kv);
+      return istate_0.to_string("|").size() < istate_1.to_string("|").size();
    });
-   auto action_policy_printer = [&](const auto& action_policy) {
-      std::stringstream ss;
-      ss << "[ ";
-      for(const auto& [key, value] : action_policy) {
-         ss << std::setw(5) << common::to_string(key) + ": " << std::setw(6) << std::setprecision(3)
-            << value << " ";
-      }
-      ss << "]";
-      return ss.str();
-   };
+
+   std::stringstream ss;
    for(const auto& [istate, action_policy] : policy_vec) {
-      std::cout << std::setw(5) << istate.player() << " | " << std::setw(8)
-                << common::left(istate.to_string("|"), 5, " ")
-                << " -> ";
-      std::cout << action_policy_printer(action_policy) << "\n";
+      ss << std::setw(max_len_player_str) << istate.player() << " | "
+         << std::setw(max_len_istate_str)
+         << common::left(istate.to_string(istate_to_string_delim), max_len_istate_str, " ")
+         << " -> " << print_action_policy(action_policy) << "\n";
+   }
+   return ss.str();
+}
+
+template < typename PolicyMap >
+inline void print_policy_profile(const PolicyMap& policy_map)
+{
+   // we expect the policy profile to be a map of the type:
+   //    nor::Player --> state policy
+
+   std::string to_string_delim = "|";
+
+   auto players = ranges::to_vector(policy_map | ranges::views::keys);
+   ranges::actions::sort(players, [](auto p1, auto p2) {
+      return static_cast< int >(p1) < static_cast< int >(p2);
+   });
+
+   size_t max_len_names = ranges::max(players | ranges::views::transform([](auto p) {
+                                         return common::to_string(p).size();
+                                      }));
+
+   size_t max_len_istate_str = ranges::max(
+      policy_map
+      | ranges::views::values /*the actual policy of the player, i.e. istate -> action_policy*/
+      | ranges::views::transform([&](const auto& kv) {
+           if(kv.begin() == kv.end()) {
+              return size_t(0);
+           }
+           return ranges::max(
+              kv | ranges::views::keys /*the actual policy of the player, i.e.
+                                          istate -> action_policy*/
+              | ranges::views::transform([&](const auto& istate) {
+                   return istate.to_string(to_string_delim).size();
+                })
+           );
+        })
+   );
+
+   for(auto player : players) {
+      std::cout << print_policy(
+         policy_map.at(player),
+         static_cast< int >(max_len_names),
+         static_cast< int >(max_len_istate_str),
+         to_string_delim
+      );
    }
 }
 
@@ -73,9 +135,7 @@ inline void evaluate_policies(
    }
 
    std::cout << policy_name + ":\n";
-   for(const auto& [p, policy] : policy_profile_this_iter) {
-      print_policy(policy);
-   }
+   print_policy_profile(policy_profile_this_iter);
 
    prev_policy_profile = std::move(policy_profile_this_iter);
    if constexpr(requires { solver.game_value(); }) {
@@ -111,8 +171,9 @@ inline void evaluate_policies(
    std::cout << policy_name + ":\n";
    for(auto player : players) {
       policy_profile_this_iter[player] = policy_fetcher(player);
-      print_policy(policy_profile_this_iter[player]);
    }
+   print_policy_profile(policy_profile_this_iter);
+
    if constexpr(requires { solver.game_value(); }) {
       if(solver.iteration() > 1) {
          auto game_value_map = solver.game_value();
@@ -128,66 +189,206 @@ inline auto kuhn_optimal(double alpha)
 {
    using namespace nor;
    using namespace games::kuhn;
-   std::unordered_map< std::string, HashmapActionPolicy< Action > > alex_policy;
+
+   std::unordered_map< Infostate, HashmapActionPolicy< Action > > alex_policy;
+
+   auto env = Environment{};
+   auto state = State{};
+   auto [_, history_to_istate, __] = map_histories_to_infostates(env, state);
+
+   using action_variant_type = typename fosg_auto_traits< Environment >::action_variant_type;
+
    alex_policy.emplace(
-      "j?",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::jack,
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::queen,  // which card here does not matter
+            }})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}}
    );
    alex_policy.emplace(
-      "j?|cb",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::jack,
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::queen,  // which card here does not matter
+            },
+            Action::check,
+            Action::bet})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
    );
    alex_policy.emplace(
-      "q?",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::queen,
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::king,  // which card here does not matter
+            }})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
    );
    alex_policy.emplace(
-      "q?|cb",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::queen,
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::king,  // which card here does not matter
+            },
+            Action::check,
+            Action::bet})
+         ->second,
       HashmapActionPolicy{std::unordered_map{
          std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}}
    );
    alex_policy.emplace(
-      "k?",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::king,
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::jack, // which card here does not matter
+            }})
+         ->second,
       HashmapActionPolicy{std::unordered_map{
          std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}}
    );
    alex_policy.emplace(
-      "k?|cb",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::king,
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::queen,  // which card here does not matter
+            },
+            Action::check,
+            Action::bet})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
    );
 
-   std::unordered_map< std::string, HashmapActionPolicy< Action > > bob_policy;
+   std::unordered_map< Infostate, HashmapActionPolicy< Action > > bob_policy;
    bob_policy.emplace(
-      "?j|c",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::king,  // which card here does not matter
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::jack,
+            },
+            Action::check})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}}
    );
    bob_policy.emplace(
-      "?j|b",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::king,  // which card here does not matter
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::jack,
+            },
+            Action::bet})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
    );
    bob_policy.emplace(
-      "?q|c",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::king,  // which card here does not matter
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::queen,
+            },
+            Action::check})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
    );
    bob_policy.emplace(
-      "?q|b",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::king,  // which card here does not matter
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::queen,
+            },
+            Action::bet})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}}
    );
    bob_policy.emplace(
-      "?k|c",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::queen,  // which card here does not matter
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::king,
+            },
+            Action::check})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
    );
    bob_policy.emplace(
-      "?k|b",
+      history_to_istate
+         .find(std::vector< action_variant_type >{
+            ChanceOutcome{
+               .player = kuhn::Player::one,
+               .card = Card::queen,  // which card here does not matter
+            },
+            ChanceOutcome{
+               .player = kuhn::Player::two,
+               .card = Card::king,
+            },
+            Action::bet})
+         ->second,
       HashmapActionPolicy{
          std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
    );
@@ -255,7 +456,7 @@ inline void assert_optimal_policy_kuhn(const auto& solver, auto& env, double pre
          const auto& [istate, action_policy] = computed_state_policy;
          auto normalized_ap = normalize_action_policy(action_policy);
          for(const auto& [optim_action_and_prob, action_and_prob] :
-             ranges::views::zip(optimal_table.at(istate.to_string()), normalized_ap)) {
+             ranges::views::zip(optimal_table.at(istate), normalized_ap)) {
             auto found_action_prob = std::get< 1 >(action_and_prob);
             auto optimal_action_prob = std::get< 1 >(optim_action_and_prob);
             ASSERT_NEAR(found_action_prob, optimal_action_prob, precision);

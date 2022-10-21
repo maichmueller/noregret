@@ -119,13 +119,12 @@ class DefaultInfostate {
 
    [[nodiscard]] size_t hash() const { return m_hash_cache; }
 
-   auto to_string(std::string delim = "\n") const
+   auto to_string(std::string delim = "\n", std::string sep = ",") const
       requires std::is_same_v< observation_type, std::string >
    {
       std::string s;
       for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
-         s += std::get< 0 >(observation) + delim;
-         s += std::get< 1 >(observation) + delim;
+         s += "{" + std::get< 0 >(observation) + sep + std::get< 1 >(observation) + "}" + delim;
       }
       return s;
    }

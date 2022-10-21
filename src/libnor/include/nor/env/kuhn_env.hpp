@@ -143,7 +143,7 @@ struct fosg_traits< games::kuhn::Environment > {
    using info_state_type = nor::games::kuhn::Infostate;
    using public_state_type = nor::games::kuhn::Publicstate;
    using action_type = nor::games::kuhn::Action;
-   using chance_outcome_type = nor::games::kuhn::Card;
+   using chance_outcome_type = nor::games::kuhn::ChanceOutcome;
    using observation_type = nor::games::kuhn::Observation;
 
    static constexpr size_t max_player_count = 2;
