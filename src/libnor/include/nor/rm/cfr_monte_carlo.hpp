@@ -596,7 +596,9 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       }
    }
 
-   auto infostate = infostates.get().at(active_player);
+   // we have to clone the infostate to ensure that it is not written to upon further traversal (we
+   // need this state after traversal to update policy and regrets)
+   auto infostate = sptr{utils::clone_any_way(infostates.get().at(active_player))};
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
       infostate, infostate_data_type{}
    );
@@ -766,8 +768,9 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          );
       }
    }
-
-   auto infostate = infostates.get().at(active_player);
+   // we have to clone the infostate to ensure that it is not written to upon further traversal (we
+   // need this state after traversal to update policy and regrets)
+   auto infostate = sptr{utils::clone_any_way(infostates.get().at(active_player))};
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
       infostate, infostate_data_type{}
    );
@@ -1029,7 +1032,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
 
    // 2. Epsilon-On-Policy sampling with respect to the policy map executes two steps: first, it
    // decides whether we sample uniformly from the actions or not. If so, it executes a separate
-   // branch for uniform sampling. Alternatively it reverts back to sampling procedure 1. and
+   // branch for uniform sampling. Alternatively it reverts to sampling procedure 1. and
    // adapts the sampling likelihood for the chosen sample.
    // This samples values according to the policy:
    //    epsilon * uniform(A(I)) + (1 - epsilon) * policy(I)
@@ -1142,7 +1145,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   auto infostate = infostates.get().at(active_player);
+   auto infostate = sptr{utils::clone_any_way(infostates.get().at(active_player))};
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
       infostate, infostate_data_type{}
    );

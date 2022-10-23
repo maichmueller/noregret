@@ -308,6 +308,7 @@ struct fosg_traits_partial_match {
             if constexpr(not std::is_same_v<
                             typename nor::fosg_auto_traits< SubsetType >::action_type,
                             typename nor::fosg_auto_traits< SupersetType >::action_type >) {
+               common::debug<typename nor::fosg_auto_traits< SubsetType >::action_type, typename nor::fosg_auto_traits< SupersetType >::action_type>{};
                static_assert(always_false< SubsetType, SupersetType >, "Action types do not match");
                return false;
             }

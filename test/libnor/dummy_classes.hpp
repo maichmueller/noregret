@@ -86,15 +86,15 @@ class Env {
 
 struct Traits {
    using action_type = int;
-   using info_state_type = double;
+   using info_state_type = std::string;
 };
 
 struct TraitsSuperClass {
    using action_type = int;
-   using info_state_type = double;
+   using info_state_type = std::string;
 
-   using world_state_type = std::string;
-   using public_state_type = double;
+   using world_state_type = std::size_t;
+   using public_state_type = uint8_t;
 };
 
 }  // namespace dummy
@@ -102,9 +102,9 @@ struct TraitsSuperClass {
 namespace nor {
 template <>
 struct fosg_traits< dummy::Traits > {
-   using action_type = double;
-   using info_state_type = size_t;
-   using world_state_type = std::string;
+   using action_type = int;
+   using info_state_type = std::string;
+   using world_state_type = std::size_t;
 };
 
 }  // namespace nor
