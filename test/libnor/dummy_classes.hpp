@@ -15,14 +15,25 @@ class Publicstate {
    size_t size() const;
    bool operator==(const Publicstate&) const;
 
-   observation_type& append(observation_type);
+   observation_type& update(observation_type);
 
    observation_type& operator[](size_t);
 };
 
-class Infostate: public Publicstate {
+class Infostate {
   public:
+
+   using action_type = int;
+   using observation_type = std::string;
+
    nor::Player player() const;
+
+   size_t size() const;
+   bool operator==(const Infostate&) const;
+
+   std::pair<observation_type, observation_type>& update(observation_type, observation_type);
+
+   std::pair<observation_type, observation_type>& operator[](size_t);
 };
 }  // namespace dummy
 namespace std {
@@ -69,10 +80,8 @@ class Env {
    bool is_terminal(world_state_type& wstate);
    double reward(nor::Player player, world_state_type& wstate) const;
    void transition(world_state_type& worldstate, const action_type& action);
-   observation_type private_observation(nor::Player player, const world_state_type& wstate);
-   observation_type private_observation(nor::Player player, const action_type& action);
-   observation_type public_observation(const world_state_type& wstate);
-   observation_type public_observation(const action_type& action);
+   observation_type private_observation(nor::Player, const world_state_type&, const action_type&, const world_state_type&);
+   observation_type public_observation(const world_state_type&, const action_type&, const world_state_type&);
 };
 
 struct Traits {
