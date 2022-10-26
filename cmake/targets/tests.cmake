@@ -36,7 +36,8 @@ register_nor_target(
 )
 register_nor_target(
         ${nor_test}_cfr_exponential
-        test_cfr_exponential.cpp)
+        test_cfr_exponential.cpp
+)
 register_nor_target(
         ${nor_test}_cfr_monte_carlo
         test_cfr_monte_carlo.cpp

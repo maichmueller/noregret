@@ -51,11 +51,19 @@ concept mapping = requires(MapLike m) {
                      ranges::views::values(m);
                   };
 
+template < typename MapLike, typename KeyType >
+concept maps = mapping< MapLike > and requires(MapLike m) {
+                        // value type has to be convertible to the Mapped Type
+                        requires std::is_convertible_v<
+                           decltype(*(ranges::views::keys(m).begin())),
+                           KeyType >;
+                     };
+
 template < typename MapLike, typename MappedType = double >
 concept mapping_of = requires(MapLike m) {
-                        mapping< MapLike >;
+                        requires mapping< MapLike >;
                         // value type has to be convertible to the Mapped Type
-                        std::is_convertible_v<
+                        requires std::is_convertible_v<
                            decltype(*(ranges::views::values(m).begin())),
                            MappedType >;
                      };
@@ -149,12 +157,12 @@ concept reference_state_policy =
    && has::method::getitem_r<
          T,
          ActionPolicy&,
-         std::tuple<const Infostate&, const std::vector< Action >& >
+         std::tuple< const Infostate&, const std::vector< Action >& >
       >
    && has::method::at_r<
          const T,
          const ActionPolicy&,
-         std::tuple<const Infostate&, const std::vector< Action >& >
+         std::tuple< const Infostate&, const std::vector< Action >& >
       >;
 // clang-format on
 

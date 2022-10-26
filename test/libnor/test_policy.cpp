@@ -144,7 +144,7 @@ TEST(StatePolicyView, from_tabular_policy)
 
    for(auto hand : {Action::paper, Action::scissors, Action::rock}) {
       ASSERT_EQ(
-         (nor::StatePolicyView< Infostate, Action >{policy_bob}.at(istate_bob)[hand]),
+         (nor::StatePolicyView< Infostate, Action >{policy_bob}.at(istate_bob).at(hand)),
          (action_policy_bob[hand])
       );
    }
@@ -163,10 +163,15 @@ TEST(BestResponsePolicy, rock_paper_scissors)
    );
 
    Environment env{};
-   State state{};
+   State state{}, next_state{};
    auto istate_alex = Infostate{nor::Player::alex};
    auto istate_bob = Infostate{nor::Player::bob};
    auto actions = env.actions(nor::Player::alex, state);
+   next_state.apply_action(actions[0]);
+   istate_bob.update(
+      env.public_observation(state, actions[0], next_state),
+      env.private_observation(nor::Player::bob, state, actions[0], next_state)
+   );
    auto& action_policy_alex = policy_alex[std::tie(istate_alex, actions)];
    action_policy_alex[Action::paper] = 1.;
    action_policy_alex[Action::scissors] = 0.;
@@ -186,6 +191,8 @@ TEST(BestResponsePolicy, rock_paper_scissors)
       std::make_unique< State >()
    );
    EXPECT_NEAR(best_response_alex.root_value(), 1., 1e-5);
+   auto br_prob = best_response_alex[istate_alex][Action::scissors];
+   EXPECT_EQ(br_prob, 1.);
    //   policy_alex(auto i : actions)
    //   {
    //      ASSERT_NEAR(policy[i], .2, 1e-10);

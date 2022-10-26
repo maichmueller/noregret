@@ -134,6 +134,7 @@ target_compile_options(
 set(CONAN_EXTRA_REQUIRES "")
 set(CONAN_EXTRA_OPTIONS "")
 
+include("${_cmake_DIR}/settings/Utilities.cmake")
 include(${_cmake_DIR}/settings/Conan.cmake)
 run_conan()
 include(${PROJECT_BINARY_DIR}/conanbuildinfo.cmake)
@@ -178,6 +179,7 @@ endif ()
 find_package(pybind11 REQUIRED)
 find_package(range-v3 REQUIRED)
 
+include(${_cmake_DIR}/targets/shared_libs.cmake)
 include(${_cmake_DIR}/targets/nor.cmake)
 if (ENABLE_BUILD_PYTHON_EXTENSION)
     message(STATUS "Configuring Python Extension ${nor_pymodule}.")

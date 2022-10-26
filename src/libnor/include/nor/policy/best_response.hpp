@@ -46,17 +46,17 @@ class BestResponsePolicy {
 
    auto operator[](const info_state_type& infostate) const
    {
-      return HashmapActionPolicy< action_type >{{m_best_response.at(infostate), 1.}};
+      return HashmapActionPolicy< action_type >{std::array{std::pair{m_best_response.at(infostate), 1.}}};
    }
 
    template < typename Any >
-   auto operator[](std::pair< const info_state_type&, Any > infostate_and_rest) const
+   auto operator[](std::tuple< const info_state_type&, Any&& > infostate_and_rest) const
    {
       return operator[](std::get< 0 >(infostate_and_rest));
    }
 
    template < typename... Any >
-   auto operator[](std::tuple< const info_state_type&, Any... > infostate_and_rest) const
+   auto operator[](std::tuple< const info_state_type&, Any&&... > infostate_and_rest) const
    {
       return operator[](std::get< 0 >(infostate_and_rest));
    }
@@ -116,7 +116,7 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
       child_traverser([&](const auto& action_variant, rm::Probability, double child_value) {
          if(child_value > state_value) {
             // the action variant holds the action type in the second slot
-            best_action = std::get< action_type >(action_variant);
+            best_action = std::get< 0 >(action_variant);
             state_value = child_value;
             LOGD2("New state value", state_value);
          }
@@ -129,7 +129,8 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
       // we return value(I) back up as this infostate's value to the BR player.
       child_traverser([&](const auto&, rm::Probability action_prob, double child_value) {
          LOGD2("Old state value opponent", state_value);
-        LOGD2("Action prob opponent", action_prob.get());
+         LOGD2("Action prob opponent", action_prob.get());
+         LOGD2("Raw child value", child_value);
         state_value += action_prob.get() * child_value;
          LOGD2("New state value opponent", state_value);
       });

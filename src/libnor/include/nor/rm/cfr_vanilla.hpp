@@ -1001,7 +1001,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
          return fetch_policy< PolicyLabel::average >(infostate, actions);
       } else {
-         // this value will be ignored so we can simply return anything that is cheap to fetch (it
+         // this value will be ignored, so we can simply return anything that is cheap to fetch (it
          // has to be an l-value so can't return an r-value like simply 0
          return _env();
       }
@@ -1015,7 +1015,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    for(const auto& [action_variant, q_value] : action_value) {
       // we only call this function with action values from a non-chance player, so we can safely
       // assume that the action is of action_type
-      const auto& action = std::get< action_type >(action_variant);
+      const auto& action = std::get< 0 >(action_variant);
       // update the cumulative regret according to the formula:
       // let I be the infostate, p be the player, r the cumulative regret
       //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
