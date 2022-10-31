@@ -11,49 +11,43 @@
 #include <tuple>
 #include <unordered_map>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "common/common.hpp"
-// #include "nor/nor.hpp"
+#include "nor/nor.hpp"
 
-#include <variant>
 
-enum class A { one = 4, two = 4534 };
-enum class B { one = 11111111, two = 33 };
+struct M {
 
-using var = std::variant< A, std::monostate >;
 
-struct Visitor {
-   auto operator()(A a) { return std::hash< A >{}(a); }
-   auto operator()(B b) { return std::hash< B >{}(b); }
+   inline auto begin() { return m_map.begin(); }
+   [[nodiscard]] inline auto begin() const { return m_map.begin(); }
+   inline auto end() { return m_map.end(); }
+   [[nodiscard]] inline auto end() const { return m_map.end(); }
+   std::unordered_map< int, double> m_map;
 };
-
-using av_vector_sptr_hasher = decltype([](const sptr< std::vector< var > >& av_vec_ptr) {
-   size_t start = 0;
-   ranges::for_each(*av_vec_ptr, [&](const var& av) {
-      common::hash_combine(
-         start,
-         std::visit(
-            [&]< typename T >(const T& action_or_outcome) {
-               return std::hash< T >{}(action_or_outcome);
-            },
-            av
-         )
-      );
-   });
-   return start;
-});
 
 int main()
 {
-   sptr< std::vector< var > > ptr = std::make_shared< std::vector< var > >(std::vector< var >{
-      A::one, A::two});
-   using av_sequence_infostate_map = std::unordered_map<
-      sptr< std::vector< var > >,
-      std::string,
-      av_vector_sptr_hasher,
-      common::sptr_value_comparator< std::vector<  var > > > ;
+   using list_type = std::initializer_list< std::pair< int, double > >;
+   auto list = std::initializer_list< std::pair< int, double > >{
+      std::pair{10, 1}, std::pair{11, 4}, std::pair{12, 7}};
+   std::cout << nor::concepts::maps< list_type, int > << "\n";
+   std::cout << nor::concepts::mapping< list_type > << "\n";
 
-   av_sequence_infostate_map map;
-   map.emplace(ptr, std::string("Mydear"));
-   std::cout << map[ptr];
+   std::cout << std::convertible_to< int, decltype(*(std::ranges::views::keys(list).begin())) >
+             << "\n";
+   std::cout << nor::concepts::mapping< std::unordered_map< int, double > > << "\n";
+   std::cout << nor::concepts::mapping< list_type > << "\n";
+
+   for(auto v : list | ranges::views::keys) {
+      std::cout << v << "\n";
+   }
+
+   nor::HashmapActionPolicy< int > policy{std::pair{0, 5.}, std::pair{1, 2.}, std::pair{2, 3.}};
+   nor::HashmapActionPolicy< int > policy2(M{std::unordered_map< int, double >{
+      std::pair{0, 5.}, std::pair{1, 2.}, std::pair{2, 3.}}});
+   nor::HashmapActionPolicy< int > policy3(std::unordered_map< int, double >{
+      std::pair{0, 5.}, std::pair{1, 2.}, std::pair{2, 3.}});
 }

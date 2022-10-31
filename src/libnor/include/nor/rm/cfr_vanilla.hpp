@@ -812,7 +812,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    sptr< info_state_type > this_infostate = nullptr;
    // the state's value for each player. To be filled by the action traversal functions.
    StateValueMap state_value{{}};
-   // each actions's value for each player. To be filled by the action traversal functions.
+   // each action's value for each player. To be filled by the action traversal functions.
    std::unordered_map< action_variant_type, StateValueMap > action_value;
    // traverse all child states from this state. The constexpr check for determinism in the env
    // allows deterministic envs to not provide certain functions that are only needed in the

@@ -2,6 +2,7 @@
 #ifndef NOR_POLICY_VIEW_HPP
 #define NOR_POLICY_VIEW_HPP
 
+#include "default_policy.hpp"
 #include "nor/concepts.hpp"
 #include "nor/utils/utils.hpp"
 
@@ -144,7 +145,11 @@ class StatePolicyView {
    using getitem_sig = typename StatePolicyInterface< info_state_type, action_type >::getitem_sig;
 
    template < typename StatePolicy >
-      requires concepts::action_policy< std::remove_cvref_t< StatePolicy >, action_type >
+      requires concepts::state_policy<
+                  std::remove_cvref_t< StatePolicy >,
+                  UniformPolicy< info_state_type, action_policy_view_type >,
+                  info_state_type,
+                  action_type >
                and (not std::is_same_v< std::remove_cvref_t< StatePolicy >, StatePolicyView >)
    StatePolicyView(StatePolicy&& obj) : view(_init(std::forward< StatePolicy >(obj)))
    {

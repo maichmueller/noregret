@@ -170,7 +170,7 @@ if (ENABLE_PCH)
             INTERFACE <vector> <string> <map> <utility> <memory> <array>)
 endif ()
 
-if (USE_PYBIND11_FINDPYTHON)
+if (NOT USE_PYBIND11_FINDPYTHON)
     set(PYBIND11_FINDPYTHON TRUE)
 else ()
     set(PYBIND11_FINDPYTHON FALSE)

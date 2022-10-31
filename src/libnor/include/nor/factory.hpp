@@ -460,29 +460,20 @@ struct factory {
    ////////////////////////////////// Policy Table Factory /////////////////////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
-   template <
-      typename Infostate,
-      typename ActionPolicy,
-      typename Table,
-      typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy > >
-   static TabularPolicy< Infostate, ActionPolicy, DefaultPolicy, Table >
-   make_tabular_policy(Table&& table = Table(), DefaultPolicy&& def_policy = DefaultPolicy())
+   template < typename Infostate, typename ActionPolicy, typename Table >
+   static TabularPolicy< Infostate, ActionPolicy, Table > make_tabular_policy(
+      Table&& table = Table()
+   )
    {
-      return {std::forward< Table >(table), std::forward< DefaultPolicy >(def_policy)};
+      return {std::forward< Table >(table)};
    }
 
-   template <
-      typename Table,
-      typename DefaultPolicy =
-         UniformPolicy< typename Table::key_type, typename Table::mapped_type > >
-   static TabularPolicy<
-      typename Table::key_type,
-      typename Table::mapped_type,
-      DefaultPolicy,
-      Table >
-   make_tabular_policy(Table&& table = Table(), DefaultPolicy&& def_policy = DefaultPolicy())
+   template < typename Table >
+   requires concepts::map< Table >
+   static TabularPolicy< typename Table::key_type, typename Table::mapped_type, Table >
+   make_tabular_policy(Table&& table = Table())
    {
-      return {std::forward< Table >(table), std::forward< DefaultPolicy >(def_policy)};
+      return {std::forward< Table >(table)};
    }
 
    template < typename Infostate, typename ActionPolicy, size_t extent = std::dynamic_extent >

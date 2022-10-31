@@ -35,7 +35,16 @@ namespace nor::rm {
  *
  */
 template < bool alternating_update, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+   requires concepts::tabular_cfr_requirements<
+      Env,
+      Policy,
+      AveragePolicy,
+      UniformPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Policy >::action_policy_type >,
+      ZeroDefaultPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
 class TabularCFRBase {
    ////////////////////////////
    /// API: public typedefs ///
@@ -54,6 +63,13 @@ class TabularCFRBase {
    using observation_type = typename fosg_auto_traits< Env >::observation_type;
    using chance_outcome_type = typename fosg_auto_traits< Env >::chance_outcome_type;
    using chance_distribution_type = typename fosg_auto_traits< Env >::chance_distribution_type;
+
+   using uniform_policy_type = UniformPolicy<
+      typename fosg_auto_traits< Env >::info_state_type,
+      typename fosg_auto_traits< Policy >::action_policy_type >;
+   using zero_policy_type = UniformPolicy<
+      typename fosg_auto_traits< Env >::info_state_type,
+      typename fosg_auto_traits< Policy >::action_policy_type >;
 
    /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
@@ -262,7 +278,16 @@ class TabularCFRBase {
 };
 
 template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+   requires concepts::tabular_cfr_requirements<
+      Env,
+      Policy,
+      AveragePolicy,
+      UniformPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Policy >::action_policy_type >,
+      ZeroDefaultPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
 Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle_player_to_update(
    std::optional< Player > player_to_update
 )
@@ -299,7 +324,16 @@ Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle
 }
 
 template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+   requires concepts::tabular_cfr_requirements<
+      Env,
+      Policy,
+      AveragePolicy,
+      UniformPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Policy >::action_policy_type >,
+      ZeroDefaultPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
 template < bool current_policy >
 auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_policy(
    const sptr< info_state_type >& infostate,
@@ -308,10 +342,10 @@ auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_p
 {
    if constexpr(current_policy) {
       auto& player_policy = m_curr_policy[infostate->player()];
-      return player_policy[std::pair{*infostate, actions}];
+      return player_policy(*infostate, actions, uniform_policy_type{});
    } else {
       auto& player_policy = m_avg_policy[infostate->player()];
-      return player_policy[std::pair{*infostate, actions}];
+      return player_policy(*infostate, actions, zero_policy_type{});
    }
 }
 

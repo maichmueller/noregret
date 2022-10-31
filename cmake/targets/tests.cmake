@@ -20,7 +20,7 @@ register_nor_target(
 )
 register_nor_target(
         ${nor_test}_cfr_vanilla
-        test_cfr.cpp
+        test_cfr_vanilla.cpp
 )
 register_nor_target(
         ${nor_test}_cfr_plus

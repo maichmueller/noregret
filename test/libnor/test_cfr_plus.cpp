@@ -16,15 +16,10 @@ TEST(KuhnPoker, CFR_PLUS)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto solver = factory::make_cfr_plus< true >(
       std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy);

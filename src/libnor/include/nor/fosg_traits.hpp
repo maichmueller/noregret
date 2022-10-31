@@ -92,6 +92,34 @@ using action_type_trait_t = typename action_type_trait< Ts... >::type;
 ////
 
 template < typename HeadT, typename... TailTs >
+struct action_policy_type_trait {
+   using type = typename action_policy_type_trait< TailTs... >::type;
+};
+
+template < typename HeadT, typename... TailTs >
+   requires(concepts::has::trait::action_policy_type< HeadT >)
+struct action_policy_type_trait< HeadT, TailTs... > {
+   using type = typename HeadT::action_policy_type;
+};
+
+template < typename T >
+struct action_policy_type_trait< T > {
+   using type = void;
+};
+
+template < typename T >
+   requires(concepts::has::trait::action_policy_type< T >)
+struct action_policy_type_trait< T > {
+   using type = typename T::action_policy_type;
+};
+
+template < typename... Ts >
+using action_policy_type_trait_t = typename action_policy_type_trait< Ts... >::type;
+
+////
+
+
+template < typename HeadT, typename... TailTs >
 struct chance_distribution_type_trait {
    using type = typename chance_distribution_type_trait< TailTs... >::type;
 };
@@ -253,12 +281,14 @@ struct fosg_auto_traits {
    // also not specialized/does not hold the type either, then 'void' is the assigned type.
    using action_type = action_type_trait_t< fosg_traits< T >, T >;
    using chance_outcome_type = chance_outcome_type_trait_t< fosg_traits< T >, T >;
-   using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
+   using action_policy_type = action_policy_type_trait_t< fosg_traits< T >, T >;
    using chance_distribution_type = chance_distribution_type_trait_t< fosg_traits< T >, T >;
    using observation_type = observation_type_trait_t< fosg_traits< T >, T >;
    using info_state_type = info_state_type_trait_t< fosg_traits< T >, T >;
    using public_state_type = public_state_type_trait_t< fosg_traits< T >, T >;
    using world_state_type = world_state_type_trait_t< fosg_traits< T >, T >;
+
+   using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
 };
 
 template < class... T >
@@ -308,7 +338,9 @@ struct fosg_traits_partial_match {
             if constexpr(not std::is_same_v<
                             typename nor::fosg_auto_traits< SubsetType >::action_type,
                             typename nor::fosg_auto_traits< SupersetType >::action_type >) {
-               common::debug<typename nor::fosg_auto_traits< SubsetType >::action_type, typename nor::fosg_auto_traits< SupersetType >::action_type>{};
+               common::debug<
+                  typename nor::fosg_auto_traits< SubsetType >::action_type,
+                  typename nor::fosg_auto_traits< SupersetType >::action_type >{};
                static_assert(always_false< SubsetType, SupersetType >, "Action types do not match");
                return false;
             }

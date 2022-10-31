@@ -4,6 +4,7 @@
 
 #include <concepts>
 #include <range/v3/all.hpp>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -45,27 +46,33 @@ concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
                                        };
 
 template < typename MapLike >
-concept mapping = requires(MapLike m) {
-                     // has to be key-value-like to iterate over values and keys only repsectively
-                     ranges::views::keys(m);
-                     ranges::views::values(m);
-                  };
+concept mapping =
+   (not common::is_specialization_v< MapLike, ranges::ref_view >)
+   // the first condition is merely a bugfix for an error associated with the range
+   // library which IMO should not occur: https://stackoverflow.com/q/74263486/6798071
+   and requires(MapLike m) {
+          // has to be key-value-like
+          // to iterate over values and
+          // keys only repsectively
+          std::ranges::views::keys(m);
+          std::ranges::views::values(m);
+       };
 
 template < typename MapLike, typename KeyType >
 concept maps = mapping< MapLike > and requires(MapLike m) {
-                        // value type has to be convertible to the Mapped Type
-                        requires std::is_convertible_v<
-                           decltype(*(ranges::views::keys(m).begin())),
-                           KeyType >;
-                     };
+                                         std::convertible_to<  // given key type has to be
+                                                               // convertible to actual key type
+                                            KeyType,
+                                            decltype(*(std::ranges::views::keys(m).begin())) >;
+                                      };
 
 template < typename MapLike, typename MappedType = double >
 concept mapping_of = requires(MapLike m) {
-                        requires mapping< MapLike >;
-                        // value type has to be convertible to the Mapped Type
-                        requires std::is_convertible_v<
-                           decltype(*(ranges::views::values(m).begin())),
-                           MappedType >;
+                        mapping< MapLike >;
+                        // mapped type has to be convertible to the value type
+                        std::is_convertible_v<
+                           MappedType,
+                           decltype(*(std::ranges::views::values(m).begin())) >;
                      };
 
 template < typename T >
@@ -130,39 +137,64 @@ concept action_policy =
    && has::method::at_r< const T, double, Action >;
 // clang-format on
 
-namespace detail {
-
 template <
    typename T,
    typename Infostate,
    typename Action,
-   typename ActionPolicy = typename T::action_policy_type >
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+// clang-format off
+concept default_state_policy =
+/**/  info_state< Infostate, typename fosg_auto_traits< Infostate >::observation_type >
+   && action_policy< ActionPolicy >
+   && has::method::call_r<
+         T const,
+         ActionPolicy,
+         const Infostate&,
+         const std::vector< Action >&
+      >;
+// clang-format on
+
+namespace detail {
+
+template <
+   typename T,
+   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
+   typename Action = typename fosg_auto_traits< T >::action_type,
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
 concept state_policy_base =
 /**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
-   && action_policy< ActionPolicy >
-   && has::trait::action_policy_type< T >;
+   && action_policy< ActionPolicy >;
 // clang-format on
 
 }  // namespace detail
 
 template <
    typename T,
-   typename Infostate,
-   typename Action,
-   typename ActionPolicy = typename T::action_policy_type >
+   typename DefaultPolicy,
+   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
+   typename Action = typename fosg_auto_traits< T >::action_type,
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
 concept reference_state_policy =
 /**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
-   && has::method::getitem_r<
+   && default_state_policy< DefaultPolicy, Infostate, Action, ActionPolicy >
+   && has::method::call_r<
          T,
          ActionPolicy&,
-         std::tuple< const Infostate&, const std::vector< Action >& >
+         const Infostate&
+      >
+   && has::method::call_r<
+         T,
+         ActionPolicy&,
+         const Infostate&,
+         const std::vector< Action >&,
+         DefaultPolicy
       >
    && has::method::at_r<
          const T,
          const ActionPolicy&,
-         std::tuple< const Infostate&, const std::vector< Action >& >
+         const Infostate&
       >;
 // clang-format on
 
@@ -171,64 +203,49 @@ concept reference_state_policy =
 /// E.g. neural network based policies would fall under this concept
 template <
    typename T,
-   typename Infostate,
-   typename Action,
-   typename ActionPolicy = typename T::action_policy_type >
+   typename DefaultPolicy,
+   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
+   typename Action = typename fosg_auto_traits< T >::action_type,
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
 concept value_state_policy =
 /**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
-   && has::method::getitem_r<
+   && default_state_policy< DefaultPolicy, Infostate, Action, ActionPolicy >
+   && has::method::call_r<
          T,
          ActionPolicy,
-         std::tuple<const Infostate&, const std::vector< Action >& >
+         const Infostate&
+      >
+   && has::method::call_r<
+         T,
+         ActionPolicy,
+         const Infostate&,
+         DefaultPolicy
       >
    && has::method::at_r<
          const T,
          ActionPolicy,
-         std::tuple<const Infostate&, const std::vector< Action >& >
+         const Infostate&
       >;
 // clang-format on
 
 template <
    typename T,
+   typename DefaultPolicy,
    typename Infostate,
    typename Action,
-   typename ActionPolicy = typename T::action_policy_type >
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
 concept state_policy =
-/**/  reference_state_policy< T, Infostate, Action, ActionPolicy >
-   or value_state_policy< T, Infostate, Action, ActionPolicy >;
-// clang-format on
-
-template < typename T, typename Infostate, typename ActionPolicy = typename T::action_policy_type >
-// clang-format off
-concept default_state_policy =
-/**/  info_state< Infostate, typename fosg_auto_traits< Infostate >::observation_type >
-   && action_policy< ActionPolicy >
-   && has::trait::action_policy_type< T >
-   && (has::method::getitem_r<
-         T,
-         ActionPolicy,
-         const std::pair<
-            Infostate,
-            std::vector<typename fosg_auto_traits<ActionPolicy>::action_type>
-         >&
-      >
-      or has::method::getitem_r<
-         T const,
-         ActionPolicy,
-         const std::pair<
-            Infostate,
-            std::vector<typename fosg_auto_traits<ActionPolicy>::action_type>
-         >&
-      >);
+/**/  reference_state_policy< T,DefaultPolicy, Infostate, Action, ActionPolicy >
+   or value_state_policy< T , DefaultPolicy, Infostate, Action, ActionPolicy >;
 // clang-format on
 
 template < typename T, typename Worldstate, typename Action >
 // clang-format off
 concept chance_distribution =
 /**/  world_state< Worldstate >
-   && has::method::getitem_r<
+   && has::method::call_r<
          T,
          double,
          const std::pair<
@@ -368,19 +385,26 @@ concept stochastic_fosg =
    && deterministic_env< Env >;
 // clang-format on
 
-template < typename Env, typename Policy, typename AveragePolicy >
+template <
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename DefaultPolicy,
+   typename DefaultAveragePolicy >
 // clang-format off
 concept tabular_cfr_requirements =
    concepts::fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && fosg_traits_partial_match< AveragePolicy, Env >::value
    && concepts::reference_state_policy<
-       Policy,
-       typename fosg_auto_traits< Env >::info_state_type,
-       typename fosg_auto_traits< Env >::action_type
+         Policy,
+         DefaultPolicy,
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Env >::action_type
       >
    && concepts::reference_state_policy<
          AveragePolicy,
+         DefaultAveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::action_type
       >;

@@ -17,15 +17,10 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_alternating)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::alternating,
@@ -73,15 +68,10 @@ TEST(KuhnPoker, MCCFR_OS_optimistic_simultaneous)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::simultaneous,
@@ -128,15 +118,10 @@ TEST(KuhnPoker, MCCFR_OS_lazy_alternating)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::alternating,
@@ -183,15 +168,10 @@ TEST(KuhnPoker, MCCFR_OS_lazy_simultaneous)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::simultaneous,
@@ -238,15 +218,10 @@ TEST(KuhnPoker, MCCFR_OS_stochastic_alternating)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::alternating,
@@ -293,15 +268,10 @@ TEST(KuhnPoker, MCCFR_OS_stochastic_simultaneous)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::simultaneous,
@@ -348,15 +318,10 @@ TEST(KuhnPoker, MCCFR_ES_stochastic)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::
-         make_zero_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{},
-      factory::make_uniform_policy<
-         games::kuhn::Infostate,
-         HashmapActionPolicy< games::kuhn::Action > >());
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
 
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::alternating,

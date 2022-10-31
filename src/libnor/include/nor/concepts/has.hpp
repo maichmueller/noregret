@@ -346,31 +346,46 @@ concept copy = requires(T const t) {
                      } -> std::same_as< U >;
                };
 
-template < typename T, typename InputT >
-concept getitem = requires(T t, InputT inp) {
-                     /// getitem method for input type. No return type check
-                     t[inp];
-                  };
+template < typename T, typename... InputTs>
+concept call = requires(T t, InputTs&&... inp) {
+                  /// call method for input type. No return type check
+                  t(std::forward<InputTs>(inp)...);
+               };
+
+template < typename T, typename OutputT, typename... InputTs >
+concept call_r = requires(T t, InputTs&&... inp) {
+                    /// call method for input type returning an output type
+                    {
+                       t(std::forward<InputTs>(inp)...)
+                       } -> std::same_as< OutputT >;
+                 };
+
+
+template < typename T, typename InputT>
+concept getitem = requires(T t, InputT&& inp) {
+                  /// getitem method for input type. No return type check
+                  t[std::forward<InputT>(inp)];
+               };
 
 template < typename T, typename OutputT, typename InputT >
-concept getitem_r = requires(T t, InputT inp) {
-                       /// getitem method for input type returning an output type
-                       {
-                          t[inp]
-                          } -> std::same_as< OutputT >;
-                    };
+concept getitem_r = requires(T t, InputT&& inp) {
+                    /// getitem method for input type returning an output type
+                    {
+                       t[std::forward<InputT>(inp)]
+                       } -> std::same_as< OutputT >;
+                 };
 
-template < typename T, typename InputT >
-concept at = requires(T t, InputT inp) {
+template < typename T, typename... InputTs>
+concept at = requires(T t, InputTs&&... inp) {
                 /// getitem method for input type returning an output type
-                t.at(inp);
+                t.at(std::forward<InputTs>(inp)...);
              };
 
-template < typename T, typename OutputT, typename InputT >
-concept at_r = requires(T t, InputT inp) {
+template < typename T, typename OutputT, typename... InputTs >
+concept at_r = requires(T t, InputTs&&... inp) {
                   /// getitem method for input type returning an output type
                   {
-                     t.at(inp)
+                     t.at(std::forward<InputTs>(inp)...)
                      } -> std::same_as< OutputT >;
                };
 

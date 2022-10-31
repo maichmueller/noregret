@@ -11,6 +11,7 @@
 
 namespace nor {
 
+
 /**
  * @brief A default Publicstate type building on vectors of observations for environments to use as
  * plugin.

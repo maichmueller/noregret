@@ -210,8 +210,7 @@ inline auto kuhn_optimal(double alpha)
                .card = Card::queen,  // which card here does not matter
             }})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}}
+      HashmapActionPolicy{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}
    );
    alex_policy.emplace(
       history_to_istate
@@ -227,8 +226,7 @@ inline auto kuhn_optimal(double alpha)
             Action::check,
             Action::bet})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+      HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
    );
    alex_policy.emplace(
       history_to_istate
@@ -242,8 +240,7 @@ inline auto kuhn_optimal(double alpha)
                .card = Card::king,  // which card here does not matter
             }})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+      HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
    );
    alex_policy.emplace(
       history_to_istate
@@ -259,8 +256,8 @@ inline auto kuhn_optimal(double alpha)
             Action::check,
             Action::bet})
          ->second,
-      HashmapActionPolicy{std::unordered_map{
-         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}}
+      HashmapActionPolicy{
+         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}
    );
    alex_policy.emplace(
       history_to_istate
@@ -271,11 +268,11 @@ inline auto kuhn_optimal(double alpha)
             },
             ChanceOutcome{
                .player = kuhn::Player::two,
-               .card = Card::jack, // which card here does not matter
+               .card = Card::jack,  // which card here does not matter
             }})
          ->second,
-      HashmapActionPolicy{std::unordered_map{
-         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}}
+      HashmapActionPolicy{
+         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}
    );
    alex_policy.emplace(
       history_to_istate
@@ -291,8 +288,7 @@ inline auto kuhn_optimal(double alpha)
             Action::check,
             Action::bet})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+      HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
    );
 
    std::unordered_map< Infostate, HashmapActionPolicy< Action > > bob_policy;
@@ -309,8 +305,7 @@ inline auto kuhn_optimal(double alpha)
             },
             Action::check})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}}
+      HashmapActionPolicy{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}
    );
    bob_policy.emplace(
       history_to_istate
@@ -325,8 +320,7 @@ inline auto kuhn_optimal(double alpha)
             },
             Action::bet})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+      HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
    );
    bob_policy.emplace(
       history_to_istate
@@ -341,8 +335,7 @@ inline auto kuhn_optimal(double alpha)
             },
             Action::check})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}}
+      HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
    );
    bob_policy.emplace(
       history_to_istate
@@ -357,8 +350,7 @@ inline auto kuhn_optimal(double alpha)
             },
             Action::bet})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}}
+      HashmapActionPolicy{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}
    );
    bob_policy.emplace(
       history_to_istate
@@ -373,8 +365,7 @@ inline auto kuhn_optimal(double alpha)
             },
             Action::check})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+      HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
    );
    bob_policy.emplace(
       history_to_istate
@@ -389,8 +380,7 @@ inline auto kuhn_optimal(double alpha)
             },
             Action::bet})
          ->second,
-      HashmapActionPolicy{
-         std::unordered_map{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}}
+      HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
    );
 
    return std::tuple{alex_policy, bob_policy};
@@ -471,21 +461,15 @@ inline auto setup_rps_test()
    games::rps::Environment env{};
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      factory::make_zero_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >(
-      )
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{}
    );
 
    auto tabular_policy_alex = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      factory::
-         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{}
    );
 
    auto tabular_policy_bob = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{},
-      factory::
-         make_uniform_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >()
+      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{}
    );
 
    auto infostate_alex = games::rps::Infostate{Player::alex};
@@ -505,19 +489,17 @@ inline auto setup_rps_test()
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_alex.emplace(
       infostate_alex,
-      HashmapActionPolicy< games::rps::Action >{std::unordered_map{
          std::pair{games::rps::Action::rock, 1. / 10.},
          std::pair{games::rps::Action::paper, 2. / 10.},
-         std::pair{games::rps::Action::scissors, 7. / 10.}}}
+         std::pair{games::rps::Action::scissors, 7. / 10.}
    );
 
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_bob.emplace(
       infostate_bob,
-      HashmapActionPolicy< games::rps::Action >{std::unordered_map{
          std::pair{games::rps::Action::rock, 9. / 10.},
          std::pair{games::rps::Action::paper, .5 / 10.},
-         std::pair{games::rps::Action::scissors, .5 / 10.}}}
+         std::pair{games::rps::Action::scissors, .5 / 10.}
    );
 
    return std::tuple{
