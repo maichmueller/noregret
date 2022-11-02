@@ -469,7 +469,7 @@ struct factory {
    }
 
    template < typename Table >
-   requires concepts::map< Table >
+      requires concepts::map< Table >
    static TabularPolicy< typename Table::key_type, typename Table::mapped_type, Table >
    make_tabular_policy(Table&& table = Table())
    {
@@ -491,7 +491,7 @@ struct factory {
    template < typename Infostate, typename Action >
    static BestResponsePolicy< Infostate, Action > make_best_response_policy(
       Player best_response_player,
-      std::unordered_map< Infostate, Action > best_response_map = {}
+      std::unordered_map< Infostate, std::pair< Action, double > > best_response_map = {}
    )
    {
       return {best_response_player, std::move(best_response_map)};

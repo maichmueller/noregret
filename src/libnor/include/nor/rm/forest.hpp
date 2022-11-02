@@ -441,10 +441,11 @@ void InfostateTree< Env >::build(
                      rm::Probability{
                         action_prob.has_value()
                            ? action_prob.value().get()
-                           : (curr_player == br_player ? 1.
-                                                       : player_policies.at(curr_player)[std::tuple{
-                                                          visit_data.infostates.at(curr_player),
-                                                          std::vector< action_type >{}}][action])}};
+                           : (curr_player == br_player
+                                 ? 1.
+                                 : player_policies.at(curr_player)
+                                      .at(visit_data.infostates.at(curr_player))
+                                      .at(action))}};
                },
                [&](const chance_outcome_conditional_type& outcome) {
                   if constexpr(concepts::deterministic_fosg< Env >) {

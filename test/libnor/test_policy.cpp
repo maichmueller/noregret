@@ -143,7 +143,7 @@ TEST(StatePolicyView, from_tabular_policy)
    nor::normalize_action_policy_inplace(action_policy_bob);
 
    for(auto hand : {Action::paper, Action::scissors, Action::rock}) {
-      ASSERT_EQ(
+      EXPECT_EQ(
          (nor::StatePolicyView< Infostate, Action >{policy_bob}.at(istate_bob).at(hand)),
          (action_policy_bob[hand])
       );
@@ -175,22 +175,27 @@ TEST(BestResponsePolicy, rock_paper_scissors)
    action_policy_alex[Action::scissors] = 0.;
    action_policy_alex[Action::rock] = 0.;
    auto& action_policy_bob = policy_bob(istate_bob, actions);
-   action_policy_bob[Action::paper] = 1.;
+   action_policy_bob[Action::paper] = 0.;
    action_policy_bob[Action::scissors] = 0.;
-   action_policy_bob[Action::rock] = 0.;
+   action_policy_bob[Action::rock] = 1.;
 
    auto best_response_alex = nor::factory::make_best_response_policy< Infostate, Action >(
       nor::Player::alex
    );
    best_response_alex.allocate(
       env,
-      std::unordered_map< nor::Player, nor::StatePolicyView< Infostate, Action > >{
-         {nor::Player::bob, nor::StatePolicyView< Infostate, Action >{policy_bob}}},
+      std::unordered_map{
+         std::pair{nor::Player::bob, nor::StatePolicyView< Infostate, Action >{policy_bob}}},
       std::make_unique< State >()
    );
-   EXPECT_NEAR(best_response_alex.root_value(), 1., 1e-5);
-   auto br_prob = best_response_alex(istate_alex)[Action::scissors];
-   EXPECT_EQ(br_prob, 1.);
+   EXPECT_NEAR(best_response_alex.value(istate_alex), 1., 1e-5);
+   auto br_map = best_response_alex(istate_alex);
+   std::cout << br_map[Action::rock] << "\n";
+   std::cout << br_map[Action::paper]<< "\n";
+   std::cout << br_map[Action::scissors]<< "\n";
+   EXPECT_EQ(br_map[Action::scissors], 1.);
+   EXPECT_EQ(br_map[Action::rock], 0.);
+   EXPECT_EQ(br_map[Action::paper], 0.);
    //   policy_alex(auto i : actions)
    //   {
    //      ASSERT_NEAR(policy[i], .2, 1e-10);

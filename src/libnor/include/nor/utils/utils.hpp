@@ -477,4 +477,14 @@ auto normalize_state_policy(const Policy& policy)
 
 }  // namespace nor
 
+namespace common {
+
+template<>
+inline std::string to_string<std::monostate>(const std::monostate&) {
+   throw std::logic_error("A monostate should not be converted to string.");
+   return "";
+}
+
+}
+
 #endif  // NOR_UTILS_HPP

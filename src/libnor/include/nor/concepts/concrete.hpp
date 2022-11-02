@@ -130,11 +130,17 @@ concept world_state = std::is_move_constructible_v< T > and is::copyable_someway
 
 template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
 // clang-format off
-concept action_policy =
+concept action_policy_view =
       is::sized< T >
    && iterable< T >
-   && has::method::getitem_r< T, double&, Action >
    && has::method::at_r< const T, double, Action >;
+// clang-format on
+
+template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
+// clang-format off
+concept action_policy =
+      action_policy_view<T, Action>
+   && has::method::getitem_r< T, double&, Action >;
 // clang-format on
 
 template <
@@ -171,25 +177,31 @@ concept state_policy_base =
 
 template <
    typename T,
-   typename DefaultPolicy,
+   typename ActionPolicyView,
+   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
+   typename Action = typename fosg_auto_traits< T >::action_type >
+// clang-format off
+concept state_policy_view =
+/**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
+   && has::method::at_r<
+         const T,
+         ActionPolicyView,
+         const Infostate&
+      >;
+// clang-format on
+
+template <
+   typename T,
    typename Infostate = typename fosg_auto_traits< T >::info_state_type,
    typename Action = typename fosg_auto_traits< T >::action_type,
    typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
-concept reference_state_policy =
+concept reference_state_policy_no_default =
 /**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
-   && default_state_policy< DefaultPolicy, Infostate, Action, ActionPolicy >
    && has::method::call_r<
          T,
          ActionPolicy&,
          const Infostate&
-      >
-   && has::method::call_r<
-         T,
-         ActionPolicy&,
-         const Infostate&,
-         const std::vector< Action >&,
-         DefaultPolicy
       >
    && has::method::at_r<
          const T,
@@ -198,9 +210,50 @@ concept reference_state_policy =
       >;
 // clang-format on
 
+template <
+   typename T,
+   typename DefaultPolicy,
+   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
+   typename Action = typename fosg_auto_traits< T >::action_type,
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+// clang-format off
+concept reference_state_policy =
+/**/  reference_state_policy_no_default< T, Infostate, Action, ActionPolicy >
+   && default_state_policy< DefaultPolicy, Infostate, Action, ActionPolicy >
+   && has::method::call_r<
+         T,
+         ActionPolicy&,
+         const Infostate&,
+         const std::vector< Action >&,
+         DefaultPolicy
+      >
+;
+// clang-format on
+
+
 /// The value state policy concept returns values, instead of references upon queries to its bracket
 /// operator. Such queries cannot be written back to, in order to change the state policy.
 /// E.g. neural network based policies would fall under this concept
+template <
+   typename T,
+   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
+   typename Action = typename fosg_auto_traits< T >::action_type,
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+// clang-format off
+concept value_state_policy_no_default =
+/**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
+   && has::method::call_r<
+         T,
+         ActionPolicy,
+         const Infostate&
+      >
+   && has::method::at_r<
+         const T,
+         ActionPolicy,
+         const Infostate&
+      >;
+// clang-format on
+
 template <
    typename T,
    typename DefaultPolicy,
@@ -209,24 +262,25 @@ template <
    typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
 concept value_state_policy =
-/**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
+/**/  value_state_policy_no_default< T, Infostate, Action, ActionPolicy >
    && default_state_policy< DefaultPolicy, Infostate, Action, ActionPolicy >
-   && has::method::call_r<
-         T,
-         ActionPolicy,
-         const Infostate&
-      >
    && has::method::call_r<
          T,
          ActionPolicy,
          const Infostate&,
          DefaultPolicy
-      >
-   && has::method::at_r<
-         const T,
-         ActionPolicy,
-         const Infostate&
       >;
+// clang-format on
+
+template <
+   typename T,
+   typename Infostate,
+   typename Action,
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+// clang-format off
+concept state_policy_no_default =
+/**/  reference_state_policy_no_default< T, Infostate, Action, ActionPolicy >
+   or value_state_policy_no_default< T, Infostate, Action, ActionPolicy >;
 // clang-format on
 
 template <
