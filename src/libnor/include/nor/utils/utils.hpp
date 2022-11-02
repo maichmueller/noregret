@@ -265,6 +265,23 @@ inline std::string operator+(Enum e, const T& other)
 
 namespace nor {
 
+// Thse are the GTest fixes to suppress their printer errors which cannot lookup the defintions inside nor for some reason
+inline auto &operator<<(std::ostream &os, nor::TurnDynamic e)
+{
+   os << common::to_string(e);
+   return os;
+}
+inline auto &operator<<(std::ostream &os, nor::Player e)
+{
+   os << common::to_string(e);
+   return os;
+}
+inline auto &operator<<(std::ostream &os, nor::Stochasticity e)
+{
+   os << common::to_string(e);
+   return os;
+}
+
 #ifndef NEW_EMPTY_TYPE
    #define NEW_EMPTY_TYPE decltype([]() {})
 #endif

@@ -97,7 +97,7 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
                                  ? action_value_opt.value()
                                  : _compute_best_responses< Env >(*child_node_uptr);
          // the state value is updated depending on the given update rule
-         LOGD2("Child value", child_value);
+         LOGD2("child-value", child_value);
          state_value_updater(action_variant, action_prob.value(), child_value);
       }
    };
@@ -116,15 +116,15 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
             // if we reach here the action variant must hold a player action, otherwise there was a
             // logic error beforehand
             LOGD2(
-               "Action in player eval",
+               "BRP action",
                std::visit([](const auto& av) { return common::to_string(av); }, action_variant)
             );
             best_action = std::get< 0 >(action_variant);
             state_value = child_value;
-            LOGD2("New state value", state_value);
+            LOGD2("BRP new state-value", state_value);
          }
       });
-      // store this value to full the BR policy with the answer for this infostate
+      // store this value to fill the BR policy with the answer for this infostate
       m_best_response.emplace(
          std::piecewise_construct,
          std::forward_as_tuple(*(curr_node.infostate)),
@@ -136,14 +136,14 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
       // we return value(I) back up as this infostate's value to the BR player.
       child_traverser([&](const auto& action, rm::Probability action_prob, double child_value) {
          LOGD2(
-            "Action in opponent eval",
+            "OPP action",
             std::visit([](const auto& av) { return common::to_string(av); }, action)
          );
-         LOGD2("Old state value opponent", state_value);
-         LOGD2("Action prob opponent", action_prob.get());
-         LOGD2("Raw child value", child_value);
+         LOGD2("OPP old state-value ", state_value);
+         LOGD2("OPP action Prob ", action_prob.get());
+         LOGD2("OPP child-value", child_value);
          state_value += action_prob.get() * child_value;
-         LOGD2("New state value opponent", state_value);
+         LOGD2("OPP new state-value", state_value);
       });
    }
    // store this value to not trigger a recomputation upon visit from another Infostate.

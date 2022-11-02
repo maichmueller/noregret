@@ -2,6 +2,8 @@
 
 #include "stratego/Action.hpp"
 
+#include "common/common.hpp"
+
 namespace stratego::utils {
 
 std::string print_board(const Board& board, std::optional< aze::Team > team, bool hide_unknowns)
@@ -159,13 +161,13 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
    return board_print.str();
 }
 
-constexpr aze::utils::CEBijection< Status, std::string_view, 4 > status_name_bij = {
+constexpr common::CEBijection< Status, std::string_view, 4 > status_name_bij = {
    std::pair{Status::TIE, "TIE"},
    std::pair{Status::WIN_RED, "WIN_RED"},
    std::pair{Status::WIN_BLUE, "WIN_BLUE"},
    std::pair{Status::ONGOING, "ONGOING"},
 };
-constexpr aze::utils::CEBijection< Token, std::string_view, 13 > token_name_bij = {
+constexpr common::CEBijection< Token, std::string_view, 13 > token_name_bij = {
    std::pair{Token::flag, "Flag"},
    std::pair{Token::spy, "spy"},
    std::pair{Token::scout, "scout"},
@@ -180,17 +182,17 @@ constexpr aze::utils::CEBijection< Token, std::string_view, 13 > token_name_bij 
    std::pair{Token::bomb, "bomb"},
    std::pair{Token::hole, "hole"},
 };
-constexpr aze::utils::CEBijection< Team, std::string_view, 3 > team_name_bij = {
+constexpr common::CEBijection< Team, std::string_view, 3 > team_name_bij = {
    std::pair{Team::BLUE, "BLUE"},
    std::pair{Team::RED, "RED"},
    std::pair{Team::NEUTRAL, "NEUTRAL"},
 };
-constexpr aze::utils::CEBijection< FightOutcome, std::string_view, 3 > fightoutcome_name_bij = {
+constexpr common::CEBijection< FightOutcome, std::string_view, 3 > fightoutcome_name_bij = {
    std::pair{FightOutcome::kill, "kill"},
    std::pair{FightOutcome::death, "death"},
    std::pair{FightOutcome::tie, "tie"},
 };
-constexpr aze::utils::CEBijection< DefinedBoardSizes, std::string_view, 3 >
+constexpr common::CEBijection< DefinedBoardSizes, std::string_view, 3 >
    definedboardsizes_name_bij = {
       std::pair{DefinedBoardSizes::small, "small"},
       std::pair{DefinedBoardSizes::medium, "medium"},

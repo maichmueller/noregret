@@ -328,8 +328,13 @@ class InfostateTree {
       action_emplacer(m_root_node, *m_root_state);
    }
 
+   /**
+    *
+    * @param owning_player, the player whose infostate tree is being built
+    * @param player_policies, a map of the policies each player uses
+    */
    void build(
-      Player br_player,
+      Player owning_player,
       std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies
    );
 
@@ -377,7 +382,7 @@ auto InfostateTree< Env >::action_emplacer(
 
 template < concepts::fosg Env >
 void InfostateTree< Env >::build(
-   Player br_player,
+   Player owning_player,
    std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies
 )
 {
@@ -441,7 +446,7 @@ void InfostateTree< Env >::build(
                      rm::Probability{
                         action_prob.has_value()
                            ? action_prob.value().get()
-                           : (curr_player == br_player
+                           : (curr_player == owning_player
                                  ? 1.
                                  : player_policies.at(curr_player)
                                       .at(visit_data.infostates.at(curr_player))
@@ -472,29 +477,11 @@ void InfostateTree< Env >::build(
          LOGD2("Action prob before", (action_prob.has_value() ? action_prob.value().get() : 404.));
          action_prob = curr_action_prob;
          LOGD2("Action prob after", (action_prob.has_value() ? action_prob.value().get() : 404.));
-         Player next_active_player = m_env.active_player(*next_state);
-
-         if(not next_node_uptr) {
-            // create the child node unique ptr. The parent takes ownership of the child node.
-            next_node_uptr = std::make_unique< Node >(Node{
-               .active_player = next_active_player,
-               .infostate = next_active_player != Player::chance
-                               ? std::make_unique< info_state_type >(
-                                  visit_data.infostates.at(m_env.active_player(*next_state))
-                               )
-                               : nullptr});
-         }
-         // if the actions/outcomes have not yet been emplaced into this infostate node
-         // then we do this here. (They could have been already emplaced by another
-         // trajectory passing through this infostate before and emplacing them there)
-         // we also compute the probability of this action being played depending on whether
-         // it is a chance action or a player action
-         action_emplacer(*next_node_uptr, *next_state);
 
          if(m_env.is_terminal(*next_state)) {
-            // if the child is a terminal state then we would like to take the reward and add
-            // that to the value of the infostate node
-            action_value = action_value.value_or(0.) + m_env.reward(curr_player, *next_state);
+            // if the child is a terminal state then we take the payoff of this history and add
+            // that to the overall payoff of the infostate (node)
+            action_value = action_value.value_or(0.) + m_env.reward(owning_player, *next_state);
          } else {
             // since it isn't a terminal state we emplace the child state to visit further
             auto [child_observation_buffer, child_infostate_map] = std::visit(
@@ -517,6 +504,24 @@ void InfostateTree< Env >::build(
                   }},
                action_variant
             );
+
+            Player next_active_player = m_env.active_player(*next_state);
+
+            if(not next_node_uptr) {
+               // create the child node unique ptr. The parent takes ownership of the child node.
+               next_node_uptr = std::make_unique< Node >(Node{
+                  .active_player = next_active_player,
+                  .infostate = next_active_player != Player::chance
+                                  ? std::make_unique< info_state_type >(
+                                     child_infostate_map.at(next_active_player)
+                                  )
+                                  : nullptr});
+
+               // if the actions/outcomes have not yet been emplaced into this infostate node
+               // then we do this here. (They could have been already emplaced by another
+               // trajectory passing through this infostate before and emplacing them there)
+               action_emplacer(*next_node_uptr, *next_state);
+            }
 
             visit_stack.emplace(
                std::move(next_state),

@@ -49,4 +49,5 @@ enum class Stochasticity {
 
 }  // namespace nor
 
+
 #endif  // NOR_GAME_DEFS_HPP
