@@ -99,11 +99,11 @@ class HashmapActionPolicy {
    {
    }
 
-   HashmapActionPolicy(ranges::range auto const& actions, double value, std::function< double() > dvg = &_zero< double >)
+   HashmapActionPolicy(ranges::range auto&& actions, double value, std::function< double() > dvg = &_zero< double >)
        : m_map(), m_def_value_gen(std::move(dvg))
    {
-      for(const auto& action : actions) {
-         emplace(action, value);
+      for(auto&& action : actions) {
+         emplace(std::forward< decltype(action) >(action), value);
       }
    }
 
@@ -112,16 +112,16 @@ class HashmapActionPolicy {
    HashmapActionPolicy(T&& action_value_pairs, std::function< double() > dvg = &_zero< double >)
        : m_map(), m_def_value_gen(std::move(dvg))
    {
-      for(const auto& [action, value] : action_value_pairs) {
-         emplace(action, value);
+      for(auto&& [action, value] : action_value_pairs) {
+         emplace(std::forward< decltype(action) >(action), std::forward< decltype(value) >(value));
       }
    }
 
    HashmapActionPolicy(std::initializer_list< std::pair< action_type, double > > init_list)
        : m_map(), m_def_value_gen(&_zero< double >)
    {
-      for(const auto& [action, value] : init_list) {
-         emplace(action, value);
+      for(auto&& [action, value] : init_list) {
+         emplace(std::move(action), std::move(value));
       }
    }
    HashmapActionPolicy(size_t n_actions, std::function< double() > dvg = &_zero< double >)

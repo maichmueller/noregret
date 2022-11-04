@@ -240,146 +240,99 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
          std::pair{opponent, nor::StatePolicyView< Infostate, Action >{opp_policy}}},
       std::make_unique< State >()
    );
+   // check if the BR value of the computed policy is close to the expected value
    EXPECT_NEAR(best_response.value(infostate), br_value, 1e-5);
+   // check if the BR action is one of the expected ones and whether the returned probabilities make
+   // sense
    auto br_map = best_response(infostate);
-   EXPECT_TRUE(ranges::any_of(br_map, [&](const auto& action_prob_pair) {
-      return ranges::contains(probable_br_actions, std::get< 0 >(action_prob_pair));
-   }));
-   for(auto action : {Action::scissors, Action::rock, Action::paper}) {
-      EXPECT_EQ(br_map[action], 1. * ranges::contains(probable_br_actions, action));
+   if(probable_br_actions.size() == 1) {
+      // for better failure output we distinguish here
+      auto br_action_expected = *probable_br_actions.begin();
+      auto [br_action_actual, br_prob_actual] = *br_map.begin();
+      EXPECT_TRUE(br_map.size() == 1);
+      EXPECT_EQ(br_prob_actual, 1.);
+      EXPECT_EQ(br_action_actual, br_action_expected);
+   } else {
+      EXPECT_TRUE(ranges::any_of(br_map, [&](const auto& action_prob_pair) {
+         return ranges::contains(probable_br_actions, std::get< 0 >(action_prob_pair));
+      }));
+      for(auto action : {Action::scissors, Action::rock, Action::paper}) {
+         EXPECT_EQ(br_map[action], 1. * ranges::contains(probable_br_actions, action));
+      }
    }
 }
 
 namespace {
 using namespace nor::games::rps;
 
+template < typename T1, typename... Ts >
+std::tuple< Ts... > leftshift_tuple(std::tuple< T1, Ts... > tuple);
+
+using no_player_param_tuple = std::remove_cvref_t<
+   decltype(leftshift_tuple(std::declval< typename BestResponse_RPS_ParamsF::ParamType >())) >;
+
 using param_tuple = typename BestResponse_RPS_ParamsF::ParamType;
 
-INSTANTIATE_TEST_SUITE_P(
-   best_responses_in_rock_paper_scissors_alex,
-   BestResponse_RPS_ParamsF,
-   ::testing::Values(
-      param_tuple{
-         nor::Player::alex,
+auto params = [] {
+   auto br_rps_values = std::array{
+      no_player_param_tuple{
          {std::pair{Action::rock, 1.},
           std::pair{Action::paper, 0.},
           std::pair{Action::scissors, 0.}},
          std::vector{Action::paper},
          1.},
-      param_tuple{
-         nor::Player::alex,
+      no_player_param_tuple{
          {std::pair{Action::rock, 0.},
           std::pair{Action::paper, 1.},
           std::pair{Action::scissors, 0.}},
          std::vector{Action::scissors},
          1.},
-      param_tuple{
-         nor::Player::alex,
+      no_player_param_tuple{
          {std::pair{Action::rock, 0.},
           std::pair{Action::paper, 0.},
           std::pair{Action::scissors, 1.}},
          std::vector{Action::rock},
          1.},
-      param_tuple{
-         nor::Player::alex,
+      no_player_param_tuple{
          {std::pair{Action::rock, .5},
           std::pair{Action::paper, .5},
           std::pair{Action::scissors, 0.}},
          std::vector{Action::paper},
          .5},
-      param_tuple{
-         nor::Player::alex,
+      no_player_param_tuple{
          {std::pair{Action::rock, .3},
           std::pair{Action::paper, .7},
           std::pair{Action::scissors, 0.}},
          std::vector{Action::scissors},
          .4},
-      param_tuple{
-         nor::Player::alex,
+      no_player_param_tuple{
          {std::pair{Action::rock, .2},
           std::pair{Action::paper, .2},
           std::pair{Action::scissors, 0.6}},
          std::vector{Action::rock},
          .4},
-      param_tuple{
-         nor::Player::alex,
+      no_player_param_tuple{
          {std::pair{Action::rock, .3},
           std::pair{Action::paper, .3},
           std::pair{Action::scissors, 0.4}},
          std::vector{Action::rock},
          .1},
-      param_tuple{
-         nor::Player::alex,
+      no_player_param_tuple{
          {std::pair{Action::rock, .5},
           std::pair{Action::paper, .25},
           std::pair{Action::scissors, 0.25}},
          std::vector{Action::paper},
-         .25}
-   )
-);
+         .25}};
 
+   std::vector< param_tuple > vec_out;
+   for(const auto& param_tuple : br_rps_values) {
+      for(auto player : {nor::Player::alex, nor::Player::bob}) {
+         vec_out.emplace_back(std::tuple_cat(std::forward_as_tuple(player), param_tuple));
+      }
+   }
+   return vec_out;
+}();
 
-INSTANTIATE_TEST_SUITE_P(
-   best_responses_in_rock_paper_scissors_bob,
-   BestResponse_RPS_ParamsF,
-   ::testing::Values(
-      param_tuple{
-         nor::Player::bob,
-         {std::pair{Action::rock, 1.},
-          std::pair{Action::paper, 0.},
-          std::pair{Action::scissors, 0.}},
-         std::vector{Action::paper},
-         1.},
-      param_tuple{
-         nor::Player::bob,
-         {std::pair{Action::rock, 0.},
-          std::pair{Action::paper, 1.},
-          std::pair{Action::scissors, 0.}},
-         std::vector{Action::scissors},
-         1.},
-      param_tuple{
-         nor::Player::bob,
-         {std::pair{Action::rock, 0.},
-          std::pair{Action::paper, 0.},
-          std::pair{Action::scissors, 1.}},
-         std::vector{Action::rock},
-         1.},
-      param_tuple{
-         nor::Player::bob,
-         {std::pair{Action::rock, .5},
-          std::pair{Action::paper, .5},
-          std::pair{Action::scissors, 0.}},
-         std::vector{Action::paper},
-         .5},
-      param_tuple{
-         nor::Player::bob,
-         {std::pair{Action::rock, .3},
-          std::pair{Action::paper, .7},
-          std::pair{Action::scissors, 0.}},
-         std::vector{Action::scissors},
-         .4},
-      param_tuple{
-         nor::Player::bob,
-         {std::pair{Action::rock, .2},
-          std::pair{Action::paper, .2},
-          std::pair{Action::scissors, 0.6}},
-         std::vector{Action::rock},
-         .4},
-      param_tuple{
-         nor::Player::bob,
-         {std::pair{Action::rock, .3},
-          std::pair{Action::paper, .3},
-          std::pair{Action::scissors, 0.4}},
-         std::vector{Action::rock},
-         .1},
-      param_tuple{
-         nor::Player::bob,
-         {std::pair{Action::rock, .5},
-          std::pair{Action::paper, .25},
-          std::pair{Action::scissors, 0.25}},
-         std::vector{Action::paper},
-         .25}
-   )
-);
+INSTANTIATE_TEST_SUITE_P(all, BestResponse_RPS_ParamsF, testing::ValuesIn(params));
 
 }  // namespace

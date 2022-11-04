@@ -97,7 +97,6 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
                                  ? action_value_opt.value()
                                  : _compute_best_responses< Env >(*child_node_uptr);
          // the state value is updated depending on the given update rule
-         LOGD2("child-value", child_value);
          state_value_updater(action_variant, action_prob.value(), child_value);
       }
    };
@@ -112,16 +111,23 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
       std::optional< action_type > best_action = std::nullopt;
       state_value = std::numeric_limits< double >::lowest();
       child_traverser([&](const auto& action_variant, rm::Probability, double child_value) {
+         LOGD2(
+            "BRP action",
+            std::visit([](const auto& av) { return common::to_string(av); }, action_variant)
+         );
+         LOGD2("child-value", child_value);
          if(child_value > state_value) {
             // if we reach here the action variant must hold a player action, otherwise there was a
             // logic error beforehand
-            LOGD2(
-               "BRP action",
-               std::visit([](const auto& av) { return common::to_string(av); }, action_variant)
-            );
+
             best_action = std::get< 0 >(action_variant);
+            LOGD2("BRP old state-value", state_value);
             state_value = child_value;
             LOGD2("BRP new state-value", state_value);
+            LOGD2(
+               "BRP new best response action",
+               std::visit([](const auto& av) { return common::to_string(av); }, action_variant)
+            );
          }
       });
       // store this value to fill the BR policy with the answer for this infostate
@@ -136,12 +142,11 @@ double BestResponsePolicy< Infostate, Action >::_compute_best_responses(
       // we return value(I) back up as this infostate's value to the BR player.
       child_traverser([&](const auto& action, rm::Probability action_prob, double child_value) {
          LOGD2(
-            "OPP action",
-            std::visit([](const auto& av) { return common::to_string(av); }, action)
+            "OPP action", std::visit([](const auto& av) { return common::to_string(av); }, action)
          );
-         LOGD2("OPP old state-value ", state_value);
-         LOGD2("OPP action Prob ", action_prob.get());
          LOGD2("OPP child-value", child_value);
+         LOGD2("OPP action Prob ", action_prob.get());
+         LOGD2("OPP old state-value ", state_value);
          state_value += action_prob.get() * child_value;
          LOGD2("OPP new state-value", state_value);
       });

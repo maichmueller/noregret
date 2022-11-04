@@ -164,6 +164,9 @@ class GameTreeTraverser {
                 auto actions = m_env->actions(curr_player, *curr_wstate_uptr.get());
                 return ranges::to< std::vector >(actions | to_variant_transform);
              }()) {
+
+            // beginning of for loop body
+
             auto next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
                utils::clone_any_way(curr_wstate_uptr)
             );
@@ -474,14 +477,20 @@ void InfostateTree< Env >::build(
          // choose according to the knowledge they have in the information state and chance
          // states will simply assign the same value again.)
          LOGD2("Active player", curr_player);
-         LOGD2("Action prob before", (action_prob.has_value() ? action_prob.value().get() : 404.));
+         LOGD2(
+            "Action",
+            std::visit([](const auto& av) { return common::to_string(av); }, action_variant)
+         );
          action_prob = curr_action_prob;
          LOGD2("Action prob after", (action_prob.has_value() ? action_prob.value().get() : 404.));
 
          if(m_env.is_terminal(*next_state)) {
             // if the child is a terminal state then we take the payoff of this history and add
             // that to the overall payoff of the infostate (node)
+            LOGD2("Terminal action value before update", action_value.value_or(404));
             action_value = action_value.value_or(0.) + m_env.reward(owning_player, *next_state);
+            LOGD2("Terminal action value after update", action_value.value_or(404));
+
          } else {
             // since it isn't a terminal state we emplace the child state to visit further
             auto [child_observation_buffer, child_infostate_map] = std::visit(
@@ -511,6 +520,7 @@ void InfostateTree< Env >::build(
                // create the child node unique ptr. The parent takes ownership of the child node.
                next_node_uptr = std::make_unique< Node >(Node{
                   .active_player = next_active_player,
+                  .parent = curr_node,
                   .infostate = next_active_player != Player::chance
                                   ? std::make_unique< info_state_type >(
                                      child_infostate_map.at(next_active_player)
