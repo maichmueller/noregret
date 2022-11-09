@@ -271,7 +271,7 @@ std::tuple< Ts... > leftshift_tuple(std::tuple< T1, Ts... > tuple);
 using no_player_param_tuple = std::remove_cvref_t<
    decltype(leftshift_tuple(std::declval< typename BestResponse_RPS_ParamsF::ParamType >())) >;
 
-using param_tuple = typename BestResponse_RPS_ParamsF::ParamType;
+using param_tuple_type = typename BestResponse_RPS_ParamsF::ParamType;
 
 auto params = [] {
    auto br_rps_values = std::array{
@@ -324,7 +324,7 @@ auto params = [] {
          std::vector{Action::paper},
          .25}};
 
-   std::vector< param_tuple > vec_out;
+   std::vector< param_tuple_type > vec_out;
    for(const auto& param_tuple : br_rps_values) {
       for(auto player : {nor::Player::alex, nor::Player::bob}) {
          vec_out.emplace_back(std::tuple_cat(std::forward_as_tuple(player), param_tuple));
