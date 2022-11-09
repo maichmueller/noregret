@@ -95,7 +95,7 @@ class BestResponsePolicy {
             .infostate_ptr = &root_infostates.at(root_player)};
       }();
 
-      associated_nodes_map< Env > consistent_worldstates;
+      reachable_childnodes_map< Env > consistent_worldstates;
 
       struct VisitData {
          std::unordered_map< Player, info_state_type > infostates;
@@ -112,7 +112,8 @@ class BestResponsePolicy {
                            world_state_type* next_state
                         ) {
          auto curr_player = env.active_player(*curr_state);
-         // emplace private and public observation to each player's information states copies
+         // emplace private and public observation to each player's information states copies and
+         // get the action probability for the current scenario
          auto [action_prob, child_observation_buffer, child_infostate_map] = std::visit(
             common::Overload{
                [&]< typename ActionT >(const ActionT& action_or_outcome) {
@@ -141,11 +142,10 @@ class BestResponsePolicy {
                      return std::tuple{
                         prob, std::move(child_obs_buffer), std::move(child_istate_map)};
                   } else {
-                     if constexpr(concepts::deterministic_env< Env >) {
-                        static_assert(
-                           always_false< Env >, "A deterministic environment should not reach here."
-                        );
-                     }
+                     // the constexpr check for the action type ensures that we will never reach
+                     // this case for a deterministic environment! This is important since
+                     // deterministic envs are not required to provide the chance_probability
+                     // function and so this code would otherwise not compile for them
                      return std::tuple{
                         env.chance_probability(*curr_state, action_or_outcome),
                         std::move(child_obs_buffer),
@@ -225,7 +225,7 @@ class BestResponsePolicy {
    /// thus offers the options to choose. But in each case a different child worldstate is reached.
    /// Precisely those are captured in these vectors.
    template < typename Env >
-   using associated_nodes_map = std::unordered_map<
+   using reachable_childnodes_map = std::unordered_map<
       info_state_type,
       std::unordered_map<
          typename fosg_auto_traits< Env >::action_variant_type,
@@ -233,25 +233,26 @@ class BestResponsePolicy {
          common::variant_hasher< typename fosg_auto_traits< Env >::action_variant_type > > >;
 
    template < typename Env >
-   void _compute_best_responses(associated_nodes_map< Env > istate_to_nodes);
+   void _compute_best_responses(reachable_childnodes_map< Env > istate_to_nodes);
 
    template < typename Env >
    auto
-   _best_response(const info_state_type& infostate, associated_nodes_map< Env >& istate_to_nodes);
+   _best_response(const info_state_type& infostate,
+      reachable_childnodes_map< Env >& istate_to_nodes);
 
    template < typename Env >
-   double _value(WorldNode< Env >& node, associated_nodes_map< Env >& istate_to_nodes);
+   double _value(WorldNode< Env >& node, reachable_childnodes_map< Env >& istate_to_nodes);
 };
 
 template < concepts::info_state Infostate, concepts::action Action >
 template < typename Env >
 void BestResponsePolicy< Infostate, Action >::_compute_best_responses(
-   associated_nodes_map< Env > istate_to_nodes
+   reachable_childnodes_map< Env > istate_to_nodes
 )
 {
    for(const auto& infostate : istate_to_nodes | ranges::views::keys) {
-      // first check if this node's value is already in the br map
-      if(infostate.player() != m_br_player or m_best_response.contains(infostate)) {
+      // we compute best respones only for the br player
+      if(infostate.player() != m_br_player) {
          continue;
       }
       auto br = _best_response(infostate, istate_to_nodes);
@@ -267,7 +268,7 @@ template < concepts::info_state Infostate, concepts::action Action >
 template < typename Env >
 auto BestResponsePolicy< Infostate, Action >::_best_response(
    const info_state_type& infostate,
-   associated_nodes_map< Env >& istate_to_nodes
+   reachable_childnodes_map< Env >& istate_to_nodes
 )
 {
    if(infostate.player() != m_br_player) {
@@ -279,13 +280,14 @@ auto BestResponsePolicy< Infostate, Action >::_best_response(
    for(const auto& [action_variant, node_vec] : istate_to_nodes.at(infostate)) {
       double action_value = ranges::accumulate(
          node_vec | ranges::views::transform([&](const uptr< WorldNode< Env > >& child_node_uptr) {
-            double v = _value(*child_node_uptr, istate_to_nodes);
-            LOGD2("Action raw value", v);
-            LOGD2("Action prob", _value(*child_node_uptr, istate_to_nodes));
-            LOGD2(
-               "Action expected value",
-               _value(*child_node_uptr, istate_to_nodes) * child_node_uptr->opp_reach_prob
-            );
+            //            double v = _value(*child_node_uptr, istate_to_nodes);
+            //            LOGD2("Action raw value", v);
+            //            LOGD2("Action prob", _value(*child_node_uptr, istate_to_nodes));
+            //            LOGD2(
+            //               "Action expected value",
+            //               _value(*child_node_uptr, istate_to_nodes) *
+            //               child_node_uptr->opp_reach_prob
+            //            );
             return _value(*child_node_uptr, istate_to_nodes) * child_node_uptr->opp_reach_prob;
          }),
          double(0.),
@@ -294,16 +296,16 @@ auto BestResponsePolicy< Infostate, Action >::_best_response(
 
       LOGD2("child-value", action_value);
       if(action_value > state_value) {
-         if(best_action.has_value()) {
-            LOGD2("BRP old best response action", best_action.value());
-         } else {
-            LOGD2("BRP old best response action", "None");
-         }
+         //         if(best_action.has_value()) {
+         //            LOGD2("BRP old best response action", best_action.value());
+         //         } else {
+         //            LOGD2("BRP old best response action", "None");
+         //         }
          best_action = std::get< 0 >(action_variant);
-         LOGD2("BRP new best response action", best_action.value());
-         LOGD2("BRP old state-value", state_value);
+         //         LOGD2("BRP new best response action", best_action.value());
+         //         LOGD2("BRP old state-value", state_value);
          state_value = action_value;
-         LOGD2("BRP new state-value", state_value);
+         //         LOGD2("BRP new state-value", state_value);
       }
    }
    return [&] {
@@ -319,7 +321,7 @@ template < concepts::info_state Infostate, concepts::action Action >
 template < typename Env >
 double BestResponsePolicy< Infostate, Action >::_value(
    WorldNode< Env >& node,
-   associated_nodes_map< Env >& istate_to_nodes
+   reachable_childnodes_map< Env >& istate_to_nodes
 )
 {
    // first check if this node's value hasn't been already computed by another visit or is
