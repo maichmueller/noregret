@@ -20,7 +20,6 @@ auto map_histories_to_infostates(
    using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
    using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
 
-   auto game_tree_traverser = forest::GameTreeTraverser{env};
    using action_variant_type = typename fosg_auto_traits< Env >::action_variant_type;
    // this hasher may be low quality given that boost's hash_combine paired with std::hash is not
    // necessarily a good hashing function (and long vectors may lead to many collisions)
@@ -111,7 +110,7 @@ auto map_histories_to_infostates(
       return child_visit_data;
    };
 
-   game_tree_traverser.walk(
+   forest::GameTreeTraverser{env}.walk(
       utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(root)),
       VisitData{
          .istate_map =
