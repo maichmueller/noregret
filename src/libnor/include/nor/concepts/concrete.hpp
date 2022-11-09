@@ -61,8 +61,8 @@ concept mapping =
 template < typename MapLike, typename KeyType >
 concept maps = mapping< MapLike >
                and requires(MapLike m) {
-                      std::convertible_to<  // given key type has to be
-                                            // convertible to actual key type
+                      requires std::convertible_to<  // given key type has to be
+                                                     // convertible to actual key type
                          KeyType,
                          std::remove_cvref_t< decltype(*(std::ranges::views::keys(m).begin())) > >;
                    };
@@ -71,7 +71,7 @@ template < typename MapLike, typename MappedType = double >
 concept mapping_of = requires(MapLike m) {
                         mapping< MapLike >;
                         // mapped type has to be convertible to the value type
-                        std::is_convertible_v<
+                        requires std::is_convertible_v<
                            MappedType,
                            std::remove_cvref_t< decltype(*(std::ranges::views::values(m).begin())
                            ) > >;

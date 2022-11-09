@@ -75,7 +75,7 @@ template < typename T >
 concept smart_pointer_like = requires(T t) {
                                 // this would be true if T was a raw pointer (hence we cannot allow
                                 // this to be true)
-                                not std::is_pointer_v< T >;
+                                requires not std::is_pointer_v< T >;
                                 // needs to be convertible to bool (nullptr or not nullptr)
                                 bool(t);
                                 // needs to have the underlying type stored in it as typedef
