@@ -230,4 +230,18 @@ constexpr auto min(first f, second s)
    return std::min(f, s);
 }
 
+template<class T, std::size_t N>
+auto make_vector( std::array<T,N>&& a )
+   -> std::vector<T>
+{
+   return { std::make_move_iterator(std::begin(a)), std::make_move_iterator(std::end(a)) };
+}
+
+template<class... T>
+auto make_vector( T&& ... t )
+{
+   return make_vector( std::to_array({ std::forward<T>(t)... }) );
+}
+
+
 };  // namespace common
