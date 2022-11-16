@@ -25,8 +25,7 @@ auto map_histories_to_infostates(
    // necessarily a good hashing function (and long vectors may lead to many collisions)
    using history_type = std::vector< action_variant_type >;
 
-   using history_hasher = decltype([] (const history_type& hist_vec)
-   {
+   using history_hasher = decltype([](const history_type& hist_vec) {
       size_t hash = 0;
       ranges::for_each(hist_vec, [&](const action_variant_type& av) {
          common::hash_combine(
@@ -49,14 +48,7 @@ auto map_histories_to_infostates(
       info_state_type,
       common::value_hasher< history_type, history_hasher >,
       common::value_comparator< history_type > >
-      active_infostate_set;
-
-   std::unordered_map<
-      sptr< history_type >,
-      infostate_map_type,
-      common::value_hasher< history_type, history_hasher >,
-      common::value_comparator< history_type > >
-      inactive_infostate_set;
+      active_infostate_set{}, inactive_infostate_set{};
 
    // terminal states do not have an information state associated
    std::vector< sptr< history_type > > terminal_histories;

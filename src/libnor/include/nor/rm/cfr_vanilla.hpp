@@ -184,6 +184,7 @@ class VanillaCFR:
       ))
    VanillaCFR(Args&&... args) : base(std::forward< Args >(args)...)
    {
+      _assert_serialized_unrolled();
    }
 
    template < typename... Args >

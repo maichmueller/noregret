@@ -417,11 +417,18 @@ concept player_count = requires(T t) {
                        };
 
 template < typename T >
-concept turn_dynamic = requires(T t) {
-                          {
-                             t.turn_dynamic()
-                             } -> std::same_as< TurnDynamic >;
-                       };
+concept serialized = requires(T t) {
+                        {
+                           t.serialized()
+                           } -> std::convertible_to< bool >;
+                     };
+
+template < typename T >
+concept unrolled = requires(T t) {
+                        {
+                           t.unrolled()
+                           } -> std::convertible_to< bool >;
+                     };
 
 template < typename T >
 concept stochasticity = requires(T t) {

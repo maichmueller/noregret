@@ -35,10 +35,6 @@ enum class Player {
    zoey = 25
 };
 
-enum class TurnDynamic {
-   sequential = 0,  // sequential actions (only one player acts in a turn)
-   simultaneous  // simultaneous actions (every player acts in a turn)
-};
 
 enum class Stochasticity {
    deterministic = 0,  // the environment is deterministic

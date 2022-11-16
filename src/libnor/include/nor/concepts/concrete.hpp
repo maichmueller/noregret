@@ -317,9 +317,7 @@ concept deterministic_env =
          // checks if the stochasticity function is static and constexpr
          {std::bool_constant< (Env::stochasticity(), true) >() } -> std::same_as<std::true_type>;
          // checks if the function is also giving the correct value
-         requires(
-            Env::stochasticity() == Stochasticity::deterministic
-         );
+         requires is::deterministic< Env >;
       };
 // clang-format on
 
@@ -363,7 +361,7 @@ concept fosg =
    && has::method::player_count< Env >
    && has::method::stochasticity< Env >
    && has::method::turn_dynamic< Env >
-   && (not std::is_same_v< Action, Outcome >)
+   && (not std::same_as< Action, Outcome >)
    && (deterministic_env < Env > or stochastic_env< Env, Worldstate, Outcome >);
 // clang-format on
 
