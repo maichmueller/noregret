@@ -87,14 +87,6 @@ class BestResponsePolicy {
          }
       }
 
-      auto root_node = [&] {
-         auto root_player = env.active_player(*root_state);
-         return WorldNode< Env >{
-            .opp_reach_prob = 1.,
-            .active_player = root_player,
-            .infostate_ptr = &root_infostates.at(root_player)};
-      }();
-
       reachable_childnodes_map< Env > consistent_worldstates;
 
       struct VisitData {
@@ -163,16 +155,17 @@ class BestResponsePolicy {
          auto [iter, _] = consistent_worldstates.try_emplace(visit_data.infostates.at(curr_player));
          auto& [infostate, child_nodes] = *iter;
 
-         WorldNode< Env >* child_node_ptr;
-
-         child_node_ptr = child_nodes[*curr_action]
-                             .emplace_back(std::make_unique< WorldNode< Env > >(WorldNode< Env >{
-                                .opp_reach_prob = visit_data.parent->opp_reach_prob
-                                                  * (1. + action_prob * (curr_player != m_br_player)
-                                                  ),
-                                .active_player = env.active_player(*next_state),
-                                .infostate_ptr = &infostate}))
-                             .get();
+         auto child_node_ptr = child_nodes[*curr_action]
+                                  .emplace_back(
+                                     std::make_unique< WorldNode< Env > >(WorldNode< Env >{
+                                        .opp_reach_prob = visit_data.parent->opp_reach_prob
+                                                          * (1.
+                                                             + action_prob
+                                                                  * (curr_player != m_br_player)),
+                                        .active_player = env.active_player(*next_state),
+                                        .infostate_ptr = &infostate})
+                                  )
+                                  .get();
 
          visit_data.parent->children.emplace(*curr_action, child_node_ptr);
 
@@ -185,6 +178,15 @@ class BestResponsePolicy {
             .parent = child_node_ptr,
          };
       };
+
+      auto root_node = [&] {
+         auto root_player = env.active_player(*root_state);
+         return WorldNode< Env >{
+            .opp_reach_prob = 1.,
+            .active_player = root_player,
+            .infostate_ptr = &root_infostates.at(root_player)};
+      }();
+
       forest::GameTreeTraverser(env).walk(
          std::move(root_state),
          VisitData{
@@ -236,9 +238,10 @@ class BestResponsePolicy {
    void _compute_best_responses(reachable_childnodes_map< Env > istate_to_nodes);
 
    template < typename Env >
-   auto
-   _best_response(const info_state_type& infostate,
-      reachable_childnodes_map< Env >& istate_to_nodes);
+   auto _best_response(
+      const info_state_type& infostate,
+      reachable_childnodes_map< Env >& istate_to_nodes
+   );
 
    template < typename Env >
    double _value(WorldNode< Env >& node, reachable_childnodes_map< Env >& istate_to_nodes);
