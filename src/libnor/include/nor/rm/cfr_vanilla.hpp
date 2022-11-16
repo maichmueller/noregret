@@ -19,6 +19,7 @@
 #include "common/common.hpp"
 #include "forest.hpp"
 #include "node.hpp"
+#include "nor/at_runtime.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/type_defs.hpp"
@@ -184,7 +185,7 @@ class VanillaCFR:
       ))
    VanillaCFR(Args&&... args) : base(std::forward< Args >(args)...)
    {
-      _assert_serialized_unrolled();
+      assert_serialized_and_unrolled(_env());
    }
 
    template < typename... Args >
@@ -192,6 +193,7 @@ class VanillaCFR:
    VanillaCFR(CFRDiscountedParameters params, Args&&... args)
        : base(std::forward< Args >(args)...), m_dcfr_params(std::move(params))
    {
+      assert_serialized_and_unrolled(_env());
    }
 
    template < typename... Args >
@@ -199,6 +201,7 @@ class VanillaCFR:
    VanillaCFR(CFRExponentialParameters params, Args&&... args)
        : base(std::forward< Args >(args)...), m_expcfr_params(std::move(params))
    {
+      assert_serialized_and_unrolled(_env());
    }
 
    ////////////////////////////////////

@@ -9,7 +9,7 @@ namespace nor {
 template < typename Env >
 constexpr void assert_serialized_and_unrolled(const Env& e)
 {
-   if(not e.serialized()) {
+   if(not (e.serialized() and e.unrolled())) {
       throw std::invalid_argument("The environment needs to be a serialized and unrolled fosg.");
    }
 }

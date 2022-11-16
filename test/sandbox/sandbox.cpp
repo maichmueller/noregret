@@ -111,6 +111,19 @@ struct visitor {
    void operator()(int val) { std::cout << val; }
 };
 
+template < typename Derived >
+struct A {
+   bool f()
+      requires(not requires(Derived d) { d.f(); })
+   {
+         return false;
+   }
+};
+
+struct B: public A< B > {
+   bool f() { return true; }
+};
+
 int main()
 {
    using var_type = std::variant< int, std::monostate >;
@@ -133,7 +146,6 @@ int main()
       << "\n";
    //      detail::monostate_error_visitor< void > vis;
    var_type v;
-   common::debug< std::invoke_result_t< decltype(&std::visit<visitor, var_type>), visitor, var_type> {};
-//   make_overload_with_monostate< var_type >(visitor{});
+   //   make_overload_with_monostate< var_type >(visitor{});
    //   std::visit(common::Overload{[](auto value) { std::cout << value; }, vis}, v);
 }

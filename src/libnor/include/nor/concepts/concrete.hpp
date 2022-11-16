@@ -359,8 +359,9 @@ concept fosg =
    && has::method::players< Env, Worldstate >
    && has::method::max_player_count< Env >
    && has::method::player_count< Env >
-   && has::method::stochasticity< Env >
-   && has::method::turn_dynamic< Env >
+   && has::method::stochasticity< const Env >
+   && has::method::serialized< const Env >
+   && has::method::unrolled< const Env >
    && (not std::same_as< Action, Outcome >)
    && (deterministic_env < Env > or stochastic_env< Env, Worldstate, Outcome >);
 // clang-format on

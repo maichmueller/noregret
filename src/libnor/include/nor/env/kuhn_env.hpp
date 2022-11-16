@@ -51,7 +51,8 @@ class Environment {
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
-   static constexpr TurnDynamic turn_dynamic() { return TurnDynamic::sequential; }
+   static constexpr bool serialized() { return true; }
+   static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::choice; }
 
    Environment() = default;
@@ -145,10 +146,6 @@ struct fosg_traits< games::kuhn::Environment > {
    using action_type = nor::games::kuhn::Action;
    using chance_outcome_type = nor::games::kuhn::ChanceOutcome;
    using observation_type = nor::games::kuhn::Observation;
-
-   static constexpr size_t max_player_count = 2;
-   static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
-   static constexpr Stochasticity stochasticity = Stochasticity::choice;
 };
 
 }  // namespace nor

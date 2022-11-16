@@ -104,7 +104,6 @@ class TabularCFRBase {
    // clang-format on
    : m_env(std::move(game)), m_root_state(std::move(root_state)), m_curr_policy(), m_avg_policy()
    {
-      _assert_sequential_game();
       for(auto player : game.players(*m_root_state) | utils::is_actual_player_filter) {
          m_curr_policy.emplace(player, policy);
          m_avg_policy.emplace(player, avg_policy);
@@ -139,7 +138,6 @@ class TabularCFRBase {
          m_curr_policy(std::move(policy)),
          m_avg_policy(std::move(avg_policy))
    {
-      _assert_sequential_game();
       _init_player_update_schedule();
    }
 
@@ -228,18 +226,6 @@ class TabularCFRBase {
    Player _cycle_player_to_update(std::optional< Player > player_to_update = std::nullopt);
 
    Player _preview_next_player_to_update() const { return m_player_update_schedule.front(); }
-
-   /**
-    * @brief simple check to see if the environment fulfills the necessary game dynamics
-    */
-   inline void _assert_sequential_game()
-   {
-      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
-         throw std::invalid_argument(
-            "VanillaCFR can only be performed on a sequential turn-based game."
-         );
-      }
-   }
 
    /**
     * @brief initializes the player cycle buffer with all available players at the current state

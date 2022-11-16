@@ -49,7 +49,8 @@ class Environment {
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
-   static constexpr TurnDynamic turn_dynamic() { return TurnDynamic::sequential; }
+   static constexpr bool serialized() { return true; }
+   static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
    Environment() = default;

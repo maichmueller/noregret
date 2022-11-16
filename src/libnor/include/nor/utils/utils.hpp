@@ -207,10 +207,6 @@ constexpr CEBijection< Player, std::string_view, 28 > player_name_bij = {
    std::pair{Player::xavier, "xavier"},     std::pair{Player::yusuf, "yusuf"},
    std::pair{Player::zoey, "zoey"},         std::pair{Player::unknown, "unknown"}};
 
-constexpr CEBijection< TurnDynamic, std::string_view, 2 > turndynamic_name_bij = {
-   std::pair{TurnDynamic::sequential, "sequential"},
-   std::pair{TurnDynamic::simultaneous, "simultaneous"}};
-
 constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_bij = {
    std::pair{Stochasticity::deterministic, "deterministic"},
    std::pair{Stochasticity::sample, "sample"},
@@ -225,11 +221,6 @@ inline std::string to_string(const nor::Player& e)
    return std::string(nor::utils::player_name_bij.at(e));
 }
 template <>
-inline std::string to_string(const nor::TurnDynamic& e)
-{
-   return std::string(nor::utils::turndynamic_name_bij.at(e));
-}
-template <>
 inline std::string to_string(const nor::Stochasticity& e)
 {
    return std::string(nor::utils::stochasticity_name_bij.at(e));
@@ -237,8 +228,6 @@ inline std::string to_string(const nor::Stochasticity& e)
 
 template <>
 struct printable< nor::Player >: std::true_type {};
-template <>
-struct printable< nor::TurnDynamic >: std::true_type {};
 template <>
 struct printable< nor::Stochasticity >: std::true_type {};
 
@@ -251,13 +240,13 @@ inline nor::Player from_string< nor::Player >(std::string_view str)
 }  // namespace common
 
 template < nor::concepts::is::enum_ Enum, typename T >
-   requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+   requires nor::concepts::is::any_of< Enum, nor::Player, nor::Stochasticity >
 inline std::string operator+(const T& other, Enum e)
 {
    return std::string_view(other) + common::to_string(e);
 }
 template < nor::concepts::is::enum_ Enum, typename T >
-   requires nor::concepts::is::any_of< Enum, nor::Player, nor::TurnDynamic, nor::Stochasticity >
+   requires nor::concepts::is::any_of< Enum, nor::Player, nor::Stochasticity >
 inline std::string operator+(Enum e, const T& other)
 {
    return common::to_string(e) + std::string_view(other);
@@ -265,18 +254,14 @@ inline std::string operator+(Enum e, const T& other)
 
 namespace nor {
 
-// Thse are the GTest fixes to suppress their printer errors which cannot lookup the defintions inside nor for some reason
-inline auto &operator<<(std::ostream &os, nor::TurnDynamic e)
+// Thse are the GTest fixes to suppress their printer errors which cannot lookup the defintions
+// inside nor for some reason
+inline auto& operator<<(std::ostream& os, nor::Player e)
 {
    os << common::to_string(e);
    return os;
 }
-inline auto &operator<<(std::ostream &os, nor::Player e)
-{
-   os << common::to_string(e);
-   return os;
-}
-inline auto &operator<<(std::ostream &os, nor::Stochasticity e)
+inline auto& operator<<(std::ostream& os, nor::Stochasticity e)
 {
    os << common::to_string(e);
    return os;
@@ -496,12 +481,13 @@ auto normalize_state_policy(const Policy& policy)
 
 namespace common {
 
-template<>
-inline std::string to_string<std::monostate>(const std::monostate&) {
+template <>
+inline std::string to_string< std::monostate >(const std::monostate&)
+{
    throw std::logic_error("A monostate should not be converted to string.");
    return "";
 }
 
-}
+}  // namespace common
 
 #endif  // NOR_UTILS_HPP

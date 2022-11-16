@@ -136,6 +136,7 @@ class MCCFR:
          m_rng(seed)
    {
       _sanity_check_config();
+      assert_serialized_and_unrolled(_env());
    }
 
    MCCFR(
@@ -154,6 +155,7 @@ class MCCFR:
           seed
        )
    {
+      assert_serialized_and_unrolled(_env());
    }
 
    MCCFR(
@@ -169,6 +171,7 @@ class MCCFR:
          m_rng(seed)
    {
       _sanity_check_config();
+      assert_serialized_and_unrolled(_env());
    }
 
    ////////////////////////////////////
