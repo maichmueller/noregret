@@ -194,13 +194,17 @@ inline auto kuhn_optimal(double alpha)
 
    auto env = Environment{};
    auto state = State{};
-   auto [_, history_to_istate, __] = map_histories_to_infostates(env, state);
+   auto [_, history_to_istate] = map_histories_to_infostates(env, state);
 
    using action_variant_type = typename fosg_auto_traits< Environment >::action_variant_type;
 
+   auto fetch_infostate = [&](auto&& history, nor::Player player) {
+      return *(history_to_istate.find(history)->second.second.at(player));
+   };
+
    alex_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::jack,
@@ -208,13 +212,14 @@ inline auto kuhn_optimal(double alpha)
             ChanceOutcome{
                .player = kuhn::Player::two,
                .card = Card::queen,  // which card here does not matter
-            }})
-         ->second,
+            }},
+         nor::Player::alex
+      ),
       HashmapActionPolicy{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}
    );
    alex_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::jack,
@@ -224,13 +229,14 @@ inline auto kuhn_optimal(double alpha)
                .card = Card::queen,  // which card here does not matter
             },
             Action::check,
-            Action::bet})
-         ->second,
+            Action::bet},
+         nor::Player::alex
+      ),
       HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
    );
    alex_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::queen,
@@ -238,13 +244,14 @@ inline auto kuhn_optimal(double alpha)
             ChanceOutcome{
                .player = kuhn::Player::two,
                .card = Card::king,  // which card here does not matter
-            }})
-         ->second,
+            }},
+         nor::Player::alex
+      ),
       HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
    );
    alex_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::queen,
@@ -254,14 +261,15 @@ inline auto kuhn_optimal(double alpha)
                .card = Card::king,  // which card here does not matter
             },
             Action::check,
-            Action::bet})
-         ->second,
+            Action::bet},
+         nor::Player::alex
+      ),
       HashmapActionPolicy{
          std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}
    );
    alex_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::king,
@@ -269,14 +277,15 @@ inline auto kuhn_optimal(double alpha)
             ChanceOutcome{
                .player = kuhn::Player::two,
                .card = Card::jack,  // which card here does not matter
-            }})
-         ->second,
+            }},
+         nor::Player::alex
+      ),
       HashmapActionPolicy{
          std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}
    );
    alex_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::king,
@@ -286,15 +295,16 @@ inline auto kuhn_optimal(double alpha)
                .card = Card::queen,  // which card here does not matter
             },
             Action::check,
-            Action::bet})
-         ->second,
+            Action::bet},
+         nor::Player::alex
+      ),
       HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
    );
 
    std::unordered_map< Infostate, HashmapActionPolicy< Action > > bob_policy;
    bob_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::king,  // which card here does not matter
@@ -303,13 +313,14 @@ inline auto kuhn_optimal(double alpha)
                .player = kuhn::Player::two,
                .card = Card::jack,
             },
-            Action::check})
-         ->second,
+            Action::check},
+         nor::Player::bob
+      ),
       HashmapActionPolicy{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}
    );
    bob_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::king,  // which card here does not matter
@@ -318,13 +329,14 @@ inline auto kuhn_optimal(double alpha)
                .player = kuhn::Player::two,
                .card = Card::jack,
             },
-            Action::bet})
-         ->second,
+            Action::bet},
+         nor::Player::bob
+      ),
       HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
    );
    bob_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::king,  // which card here does not matter
@@ -333,13 +345,14 @@ inline auto kuhn_optimal(double alpha)
                .player = kuhn::Player::two,
                .card = Card::queen,
             },
-            Action::check})
-         ->second,
+            Action::check},
+         nor::Player::bob
+      ),
       HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
    );
    bob_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::king,  // which card here does not matter
@@ -348,13 +361,14 @@ inline auto kuhn_optimal(double alpha)
                .player = kuhn::Player::two,
                .card = Card::queen,
             },
-            Action::bet})
-         ->second,
+            Action::bet},
+         nor::Player::bob
+      ),
       HashmapActionPolicy{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}
    );
    bob_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::queen,  // which card here does not matter
@@ -363,13 +377,14 @@ inline auto kuhn_optimal(double alpha)
                .player = kuhn::Player::two,
                .card = Card::king,
             },
-            Action::check})
-         ->second,
+            Action::check},
+         nor::Player::bob
+      ),
       HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
    );
    bob_policy.emplace(
-      history_to_istate
-         .find(std::vector< action_variant_type >{
+      fetch_infostate(
+         std::vector< action_variant_type >{
             ChanceOutcome{
                .player = kuhn::Player::one,
                .card = Card::queen,  // which card here does not matter
@@ -378,8 +393,9 @@ inline auto kuhn_optimal(double alpha)
                .player = kuhn::Player::two,
                .card = Card::king,
             },
-            Action::bet})
-         ->second,
+            Action::bet},
+         nor::Player::bob
+      ),
       HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
    );
 
@@ -489,17 +505,17 @@ inline auto setup_rps_test()
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_alex.emplace(
       infostate_alex,
-         std::pair{games::rps::Action::rock, 1. / 10.},
-         std::pair{games::rps::Action::paper, 2. / 10.},
-         std::pair{games::rps::Action::scissors, 7. / 10.}
+      std::pair{games::rps::Action::rock, 1. / 10.},
+      std::pair{games::rps::Action::paper, 2. / 10.},
+      std::pair{games::rps::Action::scissors, 7. / 10.}
    );
 
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_bob.emplace(
       infostate_bob,
-         std::pair{games::rps::Action::rock, 9. / 10.},
-         std::pair{games::rps::Action::paper, .5 / 10.},
-         std::pair{games::rps::Action::scissors, .5 / 10.}
+      std::pair{games::rps::Action::rock, 9. / 10.},
+      std::pair{games::rps::Action::paper, .5 / 10.},
+      std::pair{games::rps::Action::scissors, .5 / 10.}
    );
 
    return std::tuple{

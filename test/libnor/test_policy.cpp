@@ -6,6 +6,7 @@
 #include "common/common.hpp"
 #include "nor/env.hpp"
 #include "nor/factory.hpp"
+#include "nor/fosg_helpers.hpp"
 #include "nor/fosg_states.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/policy/policy.hpp"
@@ -232,12 +233,10 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
 
    auto best_response = nor::factory::make_best_response_policy< Infostate, Action >(best_responder
    );
-   auto view = nor::StatePolicyView< Infostate, Action >{opp_policy};
-   auto res = view.at(player_infostate(opponent));
+
    best_response.allocate(
       env,
-      std::unordered_map{
-         std::pair{opponent, nor::StatePolicyView< Infostate, Action >{opp_policy}}},
+      std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}},
       std::make_unique< State >()
    );
    // check if the BR value of the computed policy is close to the expected value
@@ -256,83 +255,226 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
       EXPECT_TRUE(ranges::any_of(br_map, [&](const auto& action_prob_pair) {
          return ranges::contains(probable_br_actions, std::get< 0 >(action_prob_pair));
       }));
-      for(auto action : {Action::scissors, Action::rock, Action::paper}) {
-         EXPECT_EQ(br_map[action], 1. * ranges::contains(probable_br_actions, action));
-      }
    }
 }
 
-namespace {
+namespace rps_tests {
 using namespace nor::games::rps;
 
 template < typename T1, typename... Ts >
 std::tuple< Ts... > leftshift_tuple(std::tuple< T1, Ts... > tuple);
 
-using no_player_param_tuple = std::remove_cvref_t<
-   decltype(leftshift_tuple(std::declval< typename BestResponse_RPS_ParamsF::ParamType >())) >;
-
 using param_tuple_type = typename BestResponse_RPS_ParamsF::ParamType;
+using no_player_param_tuple = decltype(leftshift_tuple(std::declval< param_tuple_type >()));
 
-auto params = [] {
-   auto br_rps_values = std::array{
-      no_player_param_tuple{
-         {std::pair{Action::rock, 1.},
-          std::pair{Action::paper, 0.},
-          std::pair{Action::scissors, 0.}},
-         std::vector{Action::paper},
-         1.},
-      no_player_param_tuple{
-         {std::pair{Action::rock, 0.},
-          std::pair{Action::paper, 1.},
-          std::pair{Action::scissors, 0.}},
-         std::vector{Action::scissors},
-         1.},
-      no_player_param_tuple{
-         {std::pair{Action::rock, 0.},
-          std::pair{Action::paper, 0.},
-          std::pair{Action::scissors, 1.}},
-         std::vector{Action::rock},
-         1.},
-      no_player_param_tuple{
-         {std::pair{Action::rock, .5},
-          std::pair{Action::paper, .5},
-          std::pair{Action::scissors, 0.}},
-         std::vector{Action::paper},
-         .5},
-      no_player_param_tuple{
-         {std::pair{Action::rock, .3},
-          std::pair{Action::paper, .7},
-          std::pair{Action::scissors, 0.}},
-         std::vector{Action::scissors},
-         .4},
-      no_player_param_tuple{
-         {std::pair{Action::rock, .2},
-          std::pair{Action::paper, .2},
-          std::pair{Action::scissors, 0.6}},
-         std::vector{Action::rock},
-         .4},
-      no_player_param_tuple{
-         {std::pair{Action::rock, .3},
-          std::pair{Action::paper, .3},
-          std::pair{Action::scissors, 0.4}},
-         std::vector{Action::rock},
-         .1},
-      no_player_param_tuple{
-         {std::pair{Action::rock, .5},
-          std::pair{Action::paper, .25},
-          std::pair{Action::scissors, 0.25}},
-         std::vector{Action::paper},
-         .25}};
+INSTANTIATE_TEST_SUITE_P(all, BestResponse_RPS_ParamsF, testing::ValuesIn(std::invoke([] {
+                            auto br_rps_values = std::array{
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, 1.},
+                                   std::pair{Action::paper, 0.},
+                                   std::pair{Action::scissors, 0.}},
+                                  std::vector{Action::paper},
+                                  1.},
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, 0.},
+                                   std::pair{Action::paper, 1.},
+                                   std::pair{Action::scissors, 0.}},
+                                  std::vector{Action::scissors},
+                                  1.},
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, 0.},
+                                   std::pair{Action::paper, 0.},
+                                   std::pair{Action::scissors, 1.}},
+                                  std::vector{Action::rock},
+                                  1.},
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, .5},
+                                   std::pair{Action::paper, .5},
+                                   std::pair{Action::scissors, 0.}},
+                                  std::vector{Action::paper},
+                                  .5},
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, .3},
+                                   std::pair{Action::paper, .7},
+                                   std::pair{Action::scissors, 0.}},
+                                  std::vector{Action::scissors},
+                                  .4},
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, .2},
+                                   std::pair{Action::paper, .2},
+                                   std::pair{Action::scissors, 0.6}},
+                                  std::vector{Action::rock},
+                                  .4},
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, .3},
+                                   std::pair{Action::paper, .3},
+                                   std::pair{Action::scissors, 0.4}},
+                                  std::vector{Action::rock},
+                                  .1},
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, 1. / .3},
+                                   std::pair{Action::paper, 1. / .3},
+                                   std::pair{Action::scissors, 1. / .3}},
+                                  std::vector{Action::rock, Action::paper, Action::scissors},
+                                  0.},
+                               no_player_param_tuple{
+                                  {std::pair{Action::rock, .5},
+                                   std::pair{Action::paper, .25},
+                                   std::pair{Action::scissors, 0.25}},
+                                  std::vector{Action::paper},
+                                  .25}};
 
-   std::vector< param_tuple_type > vec_out;
-   for(const auto& param_tuple : br_rps_values) {
-      for(auto player : {nor::Player::alex, nor::Player::bob}) {
-         vec_out.emplace_back(std::tuple_cat(std::forward_as_tuple(player), param_tuple));
-      }
-   }
-   return vec_out;
-}();
+                            std::vector< param_tuple_type > vec_out;
+                            for(const auto& param_tuple : br_rps_values) {
+                               for(auto player : {nor::Player::alex, nor::Player::bob}) {
+                                  vec_out.emplace_back(
+                                     std::tuple_cat(std::forward_as_tuple(player), param_tuple)
+                                  );
+                               }
+                            }
+                            return vec_out;
+                         })));
 
-INSTANTIATE_TEST_SUITE_P(all, BestResponse_RPS_ParamsF, testing::ValuesIn(params));
-
-}  // namespace
+}  // namespace rps_tests
+//
+//class BestResponse_KuhnPoker_ParamsF:
+//    public ::testing::TestWithParam< std::tuple<
+//       nor::Player,  // the best responder
+//       nor::TabularPolicy<
+//          nor::games::kuhn::Infostate,
+//          nor::HashmapActionPolicy< nor::games::kuhn::Action > >,  // the input policy
+//       nor::TabularPolicy<
+//          nor::games::kuhn::Infostate,
+//          nor::HashmapActionPolicy< nor::games::kuhn::Action > >,  // expected best response policy
+//       double  // the br value at root
+//       > > {
+//  public:
+//   BestResponse_KuhnPoker_ParamsF() = default;
+//
+//  protected:
+//   nor::games::kuhn::Environment env{};
+//};
+//
+//TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
+//{
+//   auto [best_responder, opp_policy, expected_br_policy, br_root_value] = GetParam();
+//   using namespace nor::games::kuhn;
+//
+//   nor::Player opponent = nor::Player(1 - static_cast< int >(best_responder));
+//
+//   auto root_state = State{};
+//   auto [terminals, infostate_map] = nor::map_histories_to_infostates(env, root_state);
+//   using history_type = typename decltype(terminals)::value_type;
+//   auto best_response = nor::factory::make_best_response_policy< Infostate, Action >(best_responder
+//   );
+//
+//   best_response.allocate(
+//      env,
+//      std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}},
+//      std::make_unique< State >()
+//   );
+//
+//   for(const auto& [history, active_player_vec_infostate_map] : infostate_map) {
+//      const auto& [active_players, infostates] = active_player_vec_infostate_map;
+//      if(common::contains(active_players, best_responder)) {
+//         const auto& infostate = *infostates.at(best_responder);
+//         EXPECT_EQ(best_response(infostate), expected_br_policy(infostate));
+//      }
+//   }
+//   // check if the BR value of the computed policy is close to the expected value
+//   EXPECT_NEAR(best_response.value(infostate_map[history_type{}]), br_value, 1e-5);
+//   // check if the BR action is one of the expected ones and whether the returned probabilities make
+//   // sense
+//   auto br_map = best_response(infostate);
+//   if(probable_br_actions.size() == 1) {
+//      // for better failure output we distinguish here
+//      auto br_action_expected = *probable_br_actions.begin();
+//      auto [br_action_actual, br_prob_actual] = *br_map.begin();
+//      EXPECT_TRUE(br_map.size() == 1);
+//      EXPECT_EQ(br_prob_actual, 1.);
+//      EXPECT_EQ(br_action_actual, br_action_expected);
+//   } else {
+//      EXPECT_TRUE(ranges::any_of(br_map, [&](const auto& action_prob_pair) {
+//         return ranges::contains(probable_br_actions, std::get< 0 >(action_prob_pair));
+//      }));
+//   }
+//}
+//
+//namespace kuhn_tests {
+//using namespace nor::games::kuhn;
+//
+//template < typename T1, typename... Ts >
+//std::tuple< Ts... > leftshift_tuple(std::tuple< T1, Ts... > tuple);
+//
+//using param_tuple_type = typename BestResponse_RPS_ParamsF::ParamType;
+//using no_player_param_tuple = decltype(leftshift_tuple(std::declval< param_tuple_type >()));
+//
+//INSTANTIATE_TEST_SUITE_P(all, BestResponse_RPS_ParamsF, testing::ValuesIn(std::invoke([] {
+//                            auto br_rps_values = std::array{
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, 1.},
+//                                   std::pair{Action::paper, 0.},
+//                                   std::pair{Action::scissors, 0.}},
+//                                  std::vector{Action::paper},
+//                                  1.},
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, 0.},
+//                                   std::pair{Action::paper, 1.},
+//                                   std::pair{Action::scissors, 0.}},
+//                                  std::vector{Action::scissors},
+//                                  1.},
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, 0.},
+//                                   std::pair{Action::paper, 0.},
+//                                   std::pair{Action::scissors, 1.}},
+//                                  std::vector{Action::rock},
+//                                  1.},
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, .5},
+//                                   std::pair{Action::paper, .5},
+//                                   std::pair{Action::scissors, 0.}},
+//                                  std::vector{Action::paper},
+//                                  .5},
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, .3},
+//                                   std::pair{Action::paper, .7},
+//                                   std::pair{Action::scissors, 0.}},
+//                                  std::vector{Action::scissors},
+//                                  .4},
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, .2},
+//                                   std::pair{Action::paper, .2},
+//                                   std::pair{Action::scissors, 0.6}},
+//                                  std::vector{Action::rock},
+//                                  .4},
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, .3},
+//                                   std::pair{Action::paper, .3},
+//                                   std::pair{Action::scissors, 0.4}},
+//                                  std::vector{Action::rock},
+//                                  .1},
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, 1. / .3},
+//                                   std::pair{Action::paper, 1. / .3},
+//                                   std::pair{Action::scissors, 1. / .3}},
+//                                  std::vector{Action::rock, Action::paper, Action::scissors},
+//                                  0.},
+//                               no_player_param_tuple{
+//                                  {std::pair{Action::rock, .5},
+//                                   std::pair{Action::paper, .25},
+//                                   std::pair{Action::scissors, 0.25}},
+//                                  std::vector{Action::paper},
+//                                  .25}};
+//
+//                            std::vector< param_tuple_type > vec_out;
+//                            for(const auto& param_tuple : br_rps_values) {
+//                               for(auto player : {nor::Player::alex, nor::Player::bob}) {
+//                                  vec_out.emplace_back(
+//                                     std::tuple_cat(std::forward_as_tuple(player), param_tuple)
+//                                  );
+//                               }
+//                            }
+//                            return vec_out;
+//                         })));
+//
+//}  // namespace kuhn_tests

@@ -11,7 +11,6 @@
 
 namespace nor {
 
-
 /**
  * @brief A default Publicstate type building on vectors of observations for environments to use as
  * plugin.
@@ -103,7 +102,10 @@ class DefaultInfostate {
    using derived_type = Derived;
    using observation_type = Observation;
 
-   DefaultInfostate(Player player) : m_player(player){};
+   DefaultInfostate(Player player) : m_player(player)
+   {
+      m_hash_cache = std::hash< int >{}(static_cast< int >(player));
+   };
 
    auto& operator[](std::convertible_to< size_t > auto index) { return m_history[size_t(index)]; }
 
@@ -132,7 +134,7 @@ class DefaultInfostate {
 
    bool operator==(const DefaultInfostate& other) const
    {
-      if(size() != other.size()) {
+      if(size() != other.size() or m_player != other.player()) {
          return false;
       }
       return ranges::all_of(ranges::views::zip(m_history, other.history()), [](const auto& pair) {

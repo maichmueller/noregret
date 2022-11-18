@@ -212,11 +212,33 @@ constexpr bool is_constexpr(...)
    return false;
 }
 
-template < typename Container, typename T >
-constexpr bool contains(Container cont, T value)
-{
-   return std::find(cont.begin(), cont.end(), value) != cont.end();
+template <typename Container, typename T>
+constexpr bool contains(Container&& cont, T&& value) {
+   if constexpr (requires { cont.contains(value); }) {
+      if (std::is_constant_evaluated()) {
+         if constexpr (is_constexpr([] { Container{}.contains(T{}); })) {
+            return cont.contains(value);
+         } else {
+            return std::find(cont.begin(), cont.end(), value) != cont.end();
+         }
+      } else {
+         return cont.contains(value);
+      }
+   } else if constexpr (requires { cont.find(value); }) {
+      if (std::is_constant_evaluated()) {
+         if constexpr (is_constexpr([] { Container{}.find(T{}); })) {
+            return cont.find(value) != cont.end();
+         } else {
+            return std::find(cont.begin(), cont.end(), value) != cont.end();
+         }
+      } else {
+         return cont.find(value) != cont.end();
+      }
+   } else {
+      return std::find(cont.begin(), cont.end(), value) != cont.end();
+   }
 }
+
 
 template < class first, class second, class... types >
 constexpr auto min(first f, second s, types... t)
@@ -230,18 +252,16 @@ constexpr auto min(first f, second s)
    return std::min(f, s);
 }
 
-template<class T, std::size_t N>
-auto make_vector( std::array<T,N>&& a )
-   -> std::vector<T>
+template < class T, std::size_t N >
+auto make_vector(std::array< T, N >&& a) -> std::vector< T >
 {
-   return { std::make_move_iterator(std::begin(a)), std::make_move_iterator(std::end(a)) };
+   return {std::make_move_iterator(std::begin(a)), std::make_move_iterator(std::end(a))};
 }
 
-template<class... T>
-auto make_vector( T&& ... t )
+template < class... T >
+auto make_vector(T&&... t)
 {
-   return make_vector( std::to_array({ std::forward<T>(t)... }) );
+   return make_vector(std::to_array({std::forward< T >(t)...}));
 }
-
 
 };  // namespace common
