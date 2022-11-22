@@ -13,9 +13,6 @@
 #include "nor/utils/utils.hpp"
 #include "rm_utils.hpp"
 
-namespace nor::concepts {
-
-}
 
 namespace nor::forest {
 

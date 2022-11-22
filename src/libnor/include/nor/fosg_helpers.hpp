@@ -138,7 +138,9 @@ auto map_histories_to_infostates(
                auto root_istate_map = infostate_map_type{};
                for(auto player : env.players(root)) {
                   if(player != Player::chance) {
-                     auto [iter, _] = root_istate_map.emplace(player, std::make_shared< info_state_type >(player));
+                     auto [iter, _] = root_istate_map.emplace(
+                        player, std::make_shared< info_state_type >(player)
+                     );
                      existing_infostates.emplace(iter->second);
                   }
                }

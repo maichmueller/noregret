@@ -172,42 +172,58 @@ class VanillaCFR:
    ////////////////////
 
    /// inherit all constructors from base
+  public:
    VanillaCFR(const VanillaCFR&) = delete;
    VanillaCFR(VanillaCFR&&) = default;
    ~VanillaCFR() = default;
    VanillaCFR& operator=(const VanillaCFR&) = delete;
    VanillaCFR& operator=(VanillaCFR&&) = default;
 
+  private:
+   // tag dispatch to explicitly call private constructor from public facing generic one.
+   struct internal_construct_tag {};
+
+  public:
+   // wrapper constructor around all
+   template < typename T1, typename... Args >
+   // exclude potential recursion traps by elminating the internal construct tag and class
+   // references itself as acceptable first argument type
+      requires common::is_none_v< std::remove_cvref_t< T1 >, internal_construct_tag, VanillaCFR >
+   VanillaCFR(T1&& t, Args&&... args)
+       : VanillaCFR(internal_construct_tag{}, std::forward< T1 >(t), std::forward< Args >(args)...)
+   {
+      assert_serialized_and_unrolled(_env());
+   }
+
+  private:
    template < typename... Args >
       requires(not common::contains(
          std::array{CFRWeightingMode::discounted, CFRWeightingMode::exponential},
          config.weighting_mode
       ))
-   VanillaCFR(Args&&... args) : base(std::forward< Args >(args)...)
+   VanillaCFR(internal_construct_tag, Args&&... args) : base(std::forward< Args >(args)...)
    {
-      assert_serialized_and_unrolled(_env());
    }
 
    template < typename... Args >
       requires(config.weighting_mode == CFRWeightingMode::discounted)
-   VanillaCFR(CFRDiscountedParameters params, Args&&... args)
+   VanillaCFR(internal_construct_tag, CFRDiscountedParameters params, Args&&... args)
        : base(std::forward< Args >(args)...), m_dcfr_params(std::move(params))
    {
-      assert_serialized_and_unrolled(_env());
    }
 
    template < typename... Args >
       requires(config.weighting_mode == CFRWeightingMode::exponential)
-   VanillaCFR(CFRExponentialParameters params, Args&&... args)
+   VanillaCFR(internal_construct_tag, CFRExponentialParameters params, Args&&... args)
        : base(std::forward< Args >(args)...), m_expcfr_params(std::move(params))
    {
-      assert_serialized_and_unrolled(_env());
    }
 
    ////////////////////////////////////
    /// API: public member functions ///
    ////////////////////////////////////
 
+  public:
    /// import public getters
 
    using base::env;
@@ -448,15 +464,15 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
       StateValueMap value = [&] {
          if constexpr(config.update_mode == UpdateMode::alternating) {
             auto player_to_update = _cycle_player_to_update();
-            if(_iteration() < _env().players(*_root_state_uptr()).size() - 1) {
+            if(_iteration() < _env().players(*_root_state_uptr()).size() - 1) [[unlikely]] {
                return _iterate< true >(player_to_update);
-            } else {
+            } else [[likely]] {
                return _iterate< false >(player_to_update);
             }
          } else {
-            if(_iteration() == 0) {
+            if(_iteration() == 0) [[unlikely]] {
                return _iterate< true >(std::nullopt);
-            } else {
+            } else [[likely]] {
                return _iterate< false >(std::nullopt);
             }
          }
@@ -769,8 +785,8 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    if constexpr(config.pruning_mode == CFRPruningMode::partial) {
       // if all players have 0 reach probability for reaching this infostate then the
       // entire subtree visited from this infostate can be pruned, since both the regret
-      // updates (depending on the counterfactual values, i.e. pi_{-i}) will be 0, as well
-      // as the average strategy updates (depending on pi_i) will be 0. If only the
+      // updates (depending on the counterfactual values, i.e. pi_{-i}) will be 0, and
+      // the average strategy updates (depending on pi_i) will be 0. If only the
       // opponent reach prob is 0, then we can only skip regret updates which does not
       // improve the speed much in this implementation.
       if([&] {
@@ -881,7 +897,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
          update_regret_and_policy(this_infostate, reach_probability, state_value, action_value);
       }
    }
-   return StateValueMap{state_value};
+   return StateValueMap{std::move(state_value)};
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -1055,9 +1071,12 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       }
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
          // update the cumulative policy according to the formula:
-         // let I be the infostate, p be the player, a the chosen action, sigma^t the current
-         // policy
-         //    avg_sigma^{t+1} = \sum_a reach_prob_{p}(I) * sigma^t(I, a)
+         // let
+         //    'I' be the infostate,
+         //    'p' be the player,
+         //    'a' be the chosen action,
+         //    'sigma^t' the current policy
+         //  -->  avg_sigma^{t+1} = \sum_a reach_prob_{p}(I) * sigma^t(I, a)
          avg_action_policy[action] += player_reach_prob * curr_action_policy[action];
          // For exponential CFR we update the average policy after the tree traversal
       }

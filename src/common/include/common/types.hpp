@@ -498,29 +498,26 @@ struct Overload: Ts... {
 template < typename... Ts >
 Overload(Ts...) -> Overload< Ts... >;
 
-namespace detail {
-
 template < typename ReturnType >
 struct monostate_error_visitor {
    ReturnType operator()(std::monostate)
    {
       // this should never be visited, but if so --> error
       throw std::logic_error("We entered a std::monostate visit branch.");
-      if constexpr(not std::same_as< ReturnType, void >) {
-         return {};
-      } else {
+      if constexpr(std::is_void_v< ReturnType >) {
          return;
+      } else {
+         return {};
       }
    }
 };
 
-}  // namespace detail
 
 template < typename TargetVariant, typename... Ts >
 auto make_overload_with_monostate(Ts... ts)
 {
    return Overload{
-      detail::monostate_error_visitor< std::invoke_result_t<
+      monostate_error_visitor< std::invoke_result_t<
          decltype([] { return std::visit< Overload< Ts... >, TargetVariant >; }),
          Overload< Ts... >,
          TargetVariant > >{},
@@ -538,9 +535,9 @@ template < class T, class... Ts >
 inline constexpr bool is_none_v = is_none< T, Ts... >::value;
 
 template < class T, class... Ts >
-struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {};
+struct all_same: ::std::conjunction< ::std::is_same< T, Ts >... > {};
 template < class T, class... Ts >
-inline constexpr bool is_same_v = is_same< T, Ts... >::value;
+inline constexpr bool all_same_v = all_same< T, Ts... >::value;
 
 template < typename Key, typename Value, std::size_t Size >
 struct CEMap {

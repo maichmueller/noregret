@@ -35,6 +35,8 @@ enum class Player {
    zoey = 25
 };
 
+template < typename Value >
+using player_hash_map = std::unordered_map< Player, Value >;
 
 enum class Stochasticity {
    deterministic = 0,  // the environment is deterministic
@@ -44,6 +46,5 @@ enum class Stochasticity {
 };
 
 }  // namespace nor
-
 
 #endif  // NOR_GAME_DEFS_HPP
