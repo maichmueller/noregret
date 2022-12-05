@@ -291,6 +291,25 @@ struct fosg_auto_traits {
    using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
 };
 
+template < typename T >
+using auto_action_type = typename fosg_auto_traits< T >::action_type;
+template < typename T >
+using auto_chance_outcome_type = typename fosg_auto_traits< T >::chance_outcome_type;
+template < typename T >
+using auto_action_policy_type = typename fosg_auto_traits< T >::action_policy_type;
+template < typename T >
+using auto_chance_distribution_type = typename fosg_auto_traits< T >::chance_distribution_type;
+template < typename T >
+using auto_observation_type = typename fosg_auto_traits< T >::observation_type;
+template < typename T >
+using auto_info_state_type = typename fosg_auto_traits< T >::info_state_type;
+template < typename T >
+using auto_public_state_type = typename fosg_auto_traits< T >::public_state_type;
+template < typename T >
+using auto_world_state_type = typename fosg_auto_traits< T >::world_state_type;
+template < typename T >
+using auto_action_variant_type = typename fosg_auto_traits< T >::action_variant_type;
+
 template < class... T >
 constexpr bool always_false = false;
 
