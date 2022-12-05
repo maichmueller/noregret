@@ -49,8 +49,7 @@ template < typename RAContainer >
    requires ranges::range< RAContainer >
 inline auto& choose(const RAContainer& cont, RNG& rng)
 {
-   auto chooser = [&](const auto& actual_ra_container) -> auto&
-   {
+   auto chooser = [&](const auto& actual_ra_container) -> auto& {
       return actual_ra_container[std::uniform_int_distribution(
          0ul, actual_ra_container.size() - 1
       )(rng)];
@@ -77,7 +76,7 @@ template < typename RAContainer, typename Policy >
                       // probability of the input matching the
                       // container's contained type
                       p(std::declval< decltype(*(std::declval< RAContainer >().begin())) >())
-                      } -> std::convertible_to< double >;
+                   } -> std::convertible_to< double >;
                 }
 inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
 {
@@ -237,6 +236,12 @@ constexpr bool contains(Container&& cont, T&& value)
    } else {
       return std::find(cont.begin(), cont.end(), value) != cont.end();
    }
+}
+
+template < typename T, typename Container >
+constexpr bool isin(T&& value, Container&& cont)
+{
+   return contains(std::forward< Container >(cont), std::forward< T >(value));
 }
 
 template < class first, class second, class... types >
