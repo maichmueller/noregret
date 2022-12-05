@@ -512,7 +512,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
    std::optional< Player > player_to_update
 )
 {
-   auto root_players = env.players(root_state);
+   auto root_players = _env().players(root_state());
    auto root_game_value = _traverse< initializing_run, use_current_policy >(
       player_to_update,
       utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(_root_state_uptr())
