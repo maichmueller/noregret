@@ -312,21 +312,24 @@ void regret_matching_plus(
  * non-terminal states would be problematic is dependant on the environment.
  * @param[in] terminal_wstate the terminal state to collect rewards for.
  */
-template < typename Env, typename Worldstate = typename fosg_auto_traits< Env >::world_state_type >
-   requires concepts::fosg< Env >
+template <
+   typename Env,
+   typename Worldstate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::world_state_type >
+   requires concepts::fosg< std::remove_cvref_t< Env > >
 // clang-format off
 auto collect_rewards(
-   Env& env,
+   Env&& env,
    common::const_ref_if_t<   // the fosg concept asserts a reward function taking world_state_type.
                      // But if it can be passed a const world state then do so instead
-      nor::concepts::has::method::reward_multi< Env, const Worldstate& >
-         or concepts::has::method::reward< Env, const Worldstate& >,
+      nor::concepts::has::method::reward_multi< std::remove_cvref_t< Env >, const Worldstate& >
+         or concepts::has::method::reward< std::remove_cvref_t< Env >, const Worldstate& >,
       Worldstate > terminal_wstate)
 // clang-format on
 {
+   using env_type = std::remove_cvref_t< Env >;
    std::unordered_map< Player, double > rewards;
    auto players = env.players(terminal_wstate);
-   if constexpr(nor::concepts::has::method::reward_multi< Env >) {
+   if constexpr(nor::concepts::has::method::reward_multi< env_type >) {
       // if the environment has a method for returning all rewards for given players at
       // once, then we will assume this is a more performant alternative and use it
       // instead (e.g. when it is costly to compute the reward of each player

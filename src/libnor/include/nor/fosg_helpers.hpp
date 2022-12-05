@@ -10,17 +10,19 @@
 
 namespace nor {
 
-template < concepts::fosg Env >
+template < typename Env >
+   requires concepts::fosg< std::remove_cvref_t< Env > >
 auto map_histories_to_infostates(
-   Env& env,
-   const typename fosg_auto_traits< Env >::world_state_type& root,
+   Env&& env,
+   const auto_world_state_type< std::remove_cvref_t< Env > >& root,
    bool include_inactive_player_states = false
 )
 {
-   using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
-   using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
+   using env_type = std::remove_cvref_t< Env >;
+   using world_state_type = typename fosg_auto_traits< env_type >::world_state_type;
+   using info_state_type = typename fosg_auto_traits< env_type >::info_state_type;
 
-   using action_variant_type = typename fosg_auto_traits< Env >::action_variant_type;
+   using action_variant_type = typename fosg_auto_traits< env_type >::action_variant_type;
    // this hasher may be low quality given that boost's hash_combine paired with std::hash is not
    // necessarily a good hashing function (and long vectors may lead to many collisions)
    using history_type = std::vector< action_variant_type >;
@@ -98,8 +100,7 @@ auto map_histories_to_infostates(
                   },
                   [&](const std::monostate&) {
                      return std::pair{
-                        typename fosg_auto_traits< Env >::observation_type{},
-                        typename fosg_auto_traits< Env >::observation_type{}};
+                        auto_observation_type< env_type >{}, auto_observation_type< env_type >{}};
                   }},
                *curr_action
             );

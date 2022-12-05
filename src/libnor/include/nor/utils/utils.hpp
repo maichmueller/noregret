@@ -310,20 +310,23 @@ auto update_infostate(Infostate& infostate_ref_or_ptr, auto public_obs, auto pri
 template <
    typename ObsBufferMap,
    typename InformationStateMap,
-   concepts::fosg Env,
-   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
-   typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
-   typename Observation = typename fosg_auto_traits< Env >::observation_type >
+   typename Env,
+   typename Worldstate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::world_state_type,
+   typename Infostate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::info_state_type,
+   typename Observation = typename fosg_auto_traits< std::remove_cvref_t< Env > >::observation_type >
 // clang-format off
-requires concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
-       and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+requires concepts::fosg< std::remove_cvref_t< Env >>
+   and concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
+   and (
+         concepts::map< InformationStateMap, Player, sptr< Infostate > >
          or concepts::map< InformationStateMap, Player, uptr< Infostate > >
          or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
          or concepts::map< InformationStateMap, Player, Infostate* >
-         or concepts::map< InformationStateMap, Player, Infostate >)
+         or concepts::map< InformationStateMap, Player, Infostate >
+      )
 // clang-format on
 void next_infostate_and_obs_buffers_inplace(
-   const Env& env,
+   Env&& env,
    ObsBufferMap& observation_buffer,
    InformationStateMap& infostate_map,
    const Worldstate& state,
@@ -374,20 +377,23 @@ void next_infostate_and_obs_buffers_inplace(
 template <
    typename ObsBufferMap,
    typename InformationStateMap,
-   concepts::fosg Env,
-   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
-   typename Infostate = typename fosg_auto_traits< Env >::info_state_type,
-   typename Observation = typename fosg_auto_traits< Env >::observation_type >
+   typename Env,
+   typename Worldstate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::world_state_type,
+   typename Infostate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::info_state_type,
+   typename Observation = typename fosg_auto_traits< std::remove_cvref_t< Env > >::observation_type >
 // clang-format off
-requires concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
-       and (concepts::map< InformationStateMap, Player, sptr< Infostate > >
+requires concepts::fosg< std::remove_cvref_t< Env >>
+   and concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
+   and (
+         concepts::map< InformationStateMap, Player, sptr< Infostate > >
          or concepts::map< InformationStateMap, Player, uptr< Infostate > >
          or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
          or concepts::map< InformationStateMap, Player, Infostate* >
-         or concepts::map< InformationStateMap, Player, Infostate >)
+         or concepts::map< InformationStateMap, Player, Infostate >
+      )
 // clang-format on
 auto next_infostate_and_obs_buffers(
-   const Env& env,
+   Env&& env,
    ObsBufferMap observation_buffer,
    InformationStateMap infostate_map,
    const Worldstate& state,
@@ -425,9 +431,15 @@ auto next_infostate_and_obs_buffers(
    return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
 }
 
-template < concepts::fosg Env, typename Worldstate >
-   requires(not concepts::is::smart_pointer_like< Worldstate > and not concepts::is::pointer< Worldstate >)
-uptr< Worldstate > child_state(Env& env, const Worldstate& state, const auto& action_or_outcome)
+template < typename Env, typename Worldstate >
+// clang-format off
+requires(
+      concepts::fosg< std::remove_cvref_t< Env > >
+      and not concepts::is::smart_pointer_like< Worldstate >
+      and not concepts::is::pointer< Worldstate >
+)
+// clang-format on
+uptr< Worldstate > child_state(Env&& env, const Worldstate& state, const auto& action_or_outcome)
 {
    // clone the current world state first before transitioniong it with this action
    uptr< Worldstate > next_wstate_uptr = utils::static_unique_ptr_downcast< Worldstate >(
