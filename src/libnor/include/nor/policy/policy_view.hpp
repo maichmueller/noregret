@@ -24,13 +24,12 @@ struct ActionPolicyInterface {
    virtual ~ActionPolicyInterface() = default;
 
    using mapped_type = std::pair< const action_type, double >;
-   using view_iterator = decltype(std::declval< ranges::any_view< const mapped_type& > >().begin());
 
-   view_iterator begin() { return iterator_source.begin(); };
-   view_iterator end() { return iterator_source.end(); }
+   auto begin() { return iterator_source.begin(); };
+   auto end() { return iterator_source.end(); }
 
-   view_iterator begin() const { return iterator_source.begin(); };
-   view_iterator end() const { return iterator_source.end(); }
+   auto begin() const { return iterator_source.begin(); };
+   auto end() const { return iterator_source.end(); }
 
    virtual size_t size() const = 0;
 
@@ -62,8 +61,8 @@ class ActionPolicyView {
    ActionPolicyView(const ActionPolicyView& obj) = default;
    ActionPolicyView(ActionPolicyView&& obj) = default;
 
-   auto begin() const { return view->begin(); };
-   auto end() const { return view->end(); }
+   //   auto begin() const { return view->begin(); };
+   //   auto end() const { return view->end(); }
 
    size_t size() const { return view->size(); }
 
@@ -83,9 +82,9 @@ class ActionPolicyView {
 
    template < typename T >
    struct OwningView: interface_type {
-      OwningView(T t) : policy(std::move(t)), interface_type(policy) {}
+      OwningView(T t) : interface_type(policy), policy(std::move(t)) {}
 
-      virtual size_t size() const { return policy->size(); }
+      virtual size_t size() const { return policy.size(); }
 
       virtual double at(const action_type& action) const override { return policy.at(action); }
 
@@ -122,6 +121,7 @@ struct StatePolicyInterface {
    virtual ~StatePolicyInterface() = default;
 
    virtual action_policy_view_type at(const info_state_type&) const = 0;
+   virtual size_t size() const = 0;
 };
 
 template < typename Infostate, concepts::action Action >
@@ -129,8 +129,8 @@ class StatePolicyView {
   public:
    using action_type = Action;
    using info_state_type = Infostate;
-   using state_policy_view_type = StatePolicyInterface< info_state_type, action_type >;
-   using action_policy_view_type = typename StatePolicyInterface< info_state_type, action_type >::
+   using state_policy_type = StatePolicyInterface< info_state_type, action_type >;
+   using action_policy_type = typename StatePolicyInterface< info_state_type, action_type >::
       action_policy_view_type;
 
    template < typename StatePolicy >
@@ -149,33 +149,35 @@ class StatePolicyView {
    auto at(const info_state_type& infostate) const { return view->at(infostate); }
 
    template < typename T >
-   struct View: state_policy_view_type {
+   struct View: state_policy_type {
       View(T& t) : policy(&t) {}
 
-      action_policy_view_type at(const info_state_type& infostate) const override
+      action_policy_type at(const info_state_type& infostate) const override
       {
          return policy->at(infostate);
       }
+      size_t size() const override { return policy->size(); }
 
      private:
       T* policy;
    };
 
    template < typename T >
-   struct OwningView: state_policy_view_type {
+   struct OwningView: state_policy_type {
       OwningView(T t) : policy(std::move(t)) {}
 
-      action_policy_view_type at(const info_state_type& infostate) const override
+      action_policy_type at(const info_state_type& infostate) const override
       {
          return policy.at(infostate);
       }
+      size_t size() const override { return policy->size(); }
 
      private:
       T policy;
    };
 
   private:
-   sptr< state_policy_view_type > view;
+   sptr< state_policy_type > view;
 
    template < typename T >
    auto _init(T&& obj)
