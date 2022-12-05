@@ -185,6 +185,35 @@ inline void evaluate_policies(
    }
 }
 
+class ValueChecker {
+  public:
+   template < ranges::range Container = std::vector< double > >
+   ValueChecker(Container&& expected_values = {}) : m_expected()
+   {
+      for(auto&& value : expected_values) {
+         m_expected.emplace_back(std::move(value));
+      }
+   }
+   ValueChecker(double expected_value) : m_expected{expected_value} {}
+
+   bool verify(double value) const
+   {
+      if(m_expected.empty())
+         return true;
+
+      return ranges::any_of(m_expected, [&](double exp_value) {
+         return std::abs(value - exp_value) < m_tolerance;
+      });
+   }
+
+   void tolerance(double tol) { m_tolerance = tol; }
+   auto& tolerance() const { return m_tolerance; }
+
+  private:
+   std::vector< double > m_expected;
+   double m_tolerance = 1e-8;
+};
+
 using kuhn_action_variant_type = typename nor::fosg_auto_traits<
    nor::games::kuhn::Environment >::action_variant_type;
 inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >, 12 >

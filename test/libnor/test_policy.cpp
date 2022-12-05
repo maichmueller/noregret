@@ -8,10 +8,10 @@
 #include "nor/factory.hpp"
 #include "nor/fosg_helpers.hpp"
 #include "nor/fosg_states.hpp"
+#include "nor/fosg_traits.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/policy/policy.hpp"
 #include "nor/rm/policy_value.hpp"
-#include "nor/game_defs.hpp"
 #include "rm_specific_testing_utils.hpp"
 
 class TestInfostate: public nor::DefaultInfostate< TestInfostate, std::string > {};
@@ -205,16 +205,14 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
    auto [best_responder, input_policy, probable_br_actions, br_value] = GetParam();
    using namespace nor::games::rps;
 
-   auto player_policy = [&](nor::Player player) -> auto&
-   {
+   auto player_policy = [&](nor::Player player) -> auto& {
       if(player == nor::Player::alex) {
          return state_policy_alex;
       } else {
          return state_policy_bob;
       }
    };
-   auto player_infostate = [&](nor::Player player) -> auto&
-   {
+   auto player_infostate = [&](nor::Player player) -> auto& {
       if(player == nor::Player::alex) {
          return istate_alex;
       } else {
@@ -238,9 +236,7 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
    );
 
    best_response.allocate(
-      env,
-      std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}},
-      std::make_unique< State >()
+      env, std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}}, State{}
    );
    // check if the BR value of the computed policy is close to the expected value
    EXPECT_NEAR(best_response.value(infostate), br_value, 1e-5);
@@ -346,9 +342,10 @@ class BestResponse_KuhnPoker_ParamsF:
        nor::TabularPolicy<
           nor::games::kuhn::Infostate,
           nor::HashmapActionPolicy< nor::games::kuhn::Action > >,  // the input policy
-       nor::TabularPolicy<
+       std::unordered_map<
           nor::games::kuhn::Infostate,
-          nor::HashmapActionPolicy< nor::games::kuhn::Action > >,  // expected best response policy
+          std::unordered_map< nor::games::kuhn::Action, ValueChecker > >,  // expected best response
+                                                                           // policy value checks
        double  // the br value at root
        > > {
   public:
@@ -367,36 +364,32 @@ TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
 
    auto root_state = State{};
    auto [terminals, infostate_map] = nor::map_histories_to_infostates(env, root_state);
-   using history_type = typename decltype(terminals)::value_type;
+   //   using history_type = typename decltype(terminals)::value_type;
    auto best_response = nor::factory::make_best_response_policy< Infostate, Action >(best_responder
    );
 
    best_response.allocate(
-      env,
-      std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}},
-      std::make_unique< State >()
+      env, std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}}, State{}
    );
 
    for(const auto& [history, active_player_vec_infostate_map] : infostate_map) {
       const auto& [active_players, infostates] = active_player_vec_infostate_map;
       if(common::contains(active_players, best_responder)) {
          const auto& infostate = *infostates.at(best_responder);
-         EXPECT_EQ(best_response(infostate), expected_br_policy(infostate));
+         for(const auto& [action, br_probability] : best_response(infostate)) {
+            EXPECT_TRUE(expected_br_policy.at(infostate).at(action).verify(br_probability));
+         }
       }
    }
-   auto value = policy_value(
+   auto value_map = nor::rm::policy_value(
       env,
       State{},
-      nor::player_hash_map{
+      std::unordered_map{
          std::pair{best_responder, nor::StatePolicyView{best_response}},
          std::pair{opponent, nor::StatePolicyView{opp_policy}}}
    );
    // check if the BR value of the computed policy is close to the expected value
-   EXPECT_NEAR(
-      value,
-      br_root_value,
-      1e-5
-   );
+   EXPECT_NEAR(value_map.get().at(best_responder), br_root_value, 1e-5);
 }
 
 namespace kuhn_tests {
@@ -404,14 +397,295 @@ using namespace nor::games::kuhn;
 
 using param_tuple_type = typename BestResponse_KuhnPoker_ParamsF::ParamType;
 
-INSTANTIATE_TEST_SUITE_P(all, BestResponse_KuhnPoker_ParamsF, testing::ValuesIn(std::invoke([] {
-                            std::vector< param_tuple_type > vec_out;
+auto uniform_br_expected(nor::Player br_player, const auto& istate_map, auto& policy_map)
+{
+   auto fetch_infostate = [&](std::string infostate_str, nor::Player player) {
+      return *(
+         istate_map.find(kuhn_istate_to_history_rep.at(infostate_str))->second.second.at(player)
+      );
+   };
 
-                            auto uniform_policy = kuhn_policy_always_mix_like(0.5, 0.5);
-                            auto always_check_policy = kuhn_policy_always_mix_like(1.0, 0.);
-                            auto always_bet_policy = kuhn_policy_always_mix_like(0., 1.);
+   auto& policy = policy_map[br_player];
+   if(br_player == nor::Player::alex) {
+      policy.emplace(
+         fetch_infostate("j?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("j?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+      policy.emplace(
+         fetch_infostate("q?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("q?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+      policy.emplace(
+         fetch_infostate("k?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("k?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+   } else {
+      policy.emplace(
+         fetch_infostate("?jc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?jb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?qc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?qb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?kc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?kb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+   }
+}
 
-                            return vec_out;
-                         })));
+auto always_check_br_expected(nor::Player br_player, const auto& istate_map, auto& policy_map)
+{
+   auto fetch_infostate = [&](std::string infostate_str, nor::Player player) {
+      return *(
+         istate_map.find(kuhn_istate_to_history_rep.at(infostate_str))->second.second.at(player)
+      );
+   };
+
+   auto& policy = policy_map[br_player];
+   if(br_player == nor::Player::alex) {
+      policy.emplace(
+         fetch_infostate("j?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("j?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("q?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("q?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+      policy.emplace(
+         fetch_infostate("k?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("k?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+   } else {
+      policy.emplace(
+         fetch_infostate("?jc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?jb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+      policy.emplace(
+         fetch_infostate("?qc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?qb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+      policy.emplace(
+         fetch_infostate("?kc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?kb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+   }
+}
+
+auto always_bet_br_expected(nor::Player br_player, const auto& istate_map, auto& policy_map)
+{
+   auto fetch_infostate = [&](std::string infostate_str, nor::Player player) {
+      return *(
+         istate_map.find(kuhn_istate_to_history_rep.at(infostate_str))->second.second.at(player)
+      );
+   };
+
+   auto& policy = policy_map[br_player];
+
+   if(br_player == nor::Player::alex) {
+      policy.emplace(
+         fetch_infostate("j?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("j?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("q?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("q?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("k?", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("k?cb", nor::Player::alex),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+   } else {
+      policy.emplace(
+         fetch_infostate("?jc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+      policy.emplace(
+         fetch_infostate("?jb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?qc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+      policy.emplace(
+         fetch_infostate("?qb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+      policy.emplace(
+         fetch_infostate("?kc", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+      );
+      policy.emplace(
+         fetch_infostate("?kb", nor::Player::bob),
+         std::unordered_map{
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+      );
+   }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+   all,
+   BestResponse_KuhnPoker_ParamsF,
+   testing::ValuesIn(std::invoke([] {
+      std::vector< param_tuple_type > vec_out;
+      vec_out.reserve(3);
+
+      auto [terminals, infostate_map] = nor::map_histories_to_infostates(Environment{}, State{});
+
+      nor::player_hash_map<
+         std::unordered_map< Infostate, std::unordered_map< Action, ValueChecker > > >
+         expected_uniform_br_policies, expected_always_check_br_policies,
+         expected_always_bet_br_policies;
+
+      for(auto player : {nor::Player::alex, nor::Player::bob}) {
+         uniform_br_expected(player, infostate_map, expected_uniform_br_policies);
+         always_check_br_expected(player, infostate_map, expected_always_check_br_policies);
+         always_bet_br_expected(player, infostate_map, expected_always_bet_br_policies);
+      }
+
+      auto [uniform_policy_alex, uniform_policy_bob] = kuhn_policy_always_mix_like(0.5, 0.5);
+      auto [always_check_policy_alex, always_check_policy_bob] = kuhn_policy_always_mix_like(
+         1., 0.
+      );
+      auto [always_bet_policy_alex, always_bet_policy_bob] = kuhn_policy_always_mix_like(0., 1.);
+
+      vec_out.emplace_back(
+         nor::Player::alex,  // best responder
+         uniform_policy_bob,  // opponent policy
+         expected_uniform_br_policies.at(nor::Player::alex),  // expected BR policy
+         0.5  // br policy value
+      );
+      vec_out.emplace_back(
+         nor::Player::alex,
+         always_check_policy_bob,
+         expected_always_check_br_policies.at(nor::Player::alex),
+         1.
+      );
+      vec_out.emplace_back(
+         nor::Player::alex,
+         always_bet_policy_bob,
+         expected_always_bet_br_policies.at(nor::Player::alex),
+         1. / 3.
+      );
+
+      vec_out.emplace_back(
+         nor::Player::bob,
+         uniform_policy_alex,
+         expected_uniform_br_policies.at(nor::Player::bob),
+         0.4 + 1. / 60.
+      );
+      vec_out.emplace_back(
+         nor::Player::bob,
+         always_check_policy_alex,
+         expected_always_check_br_policies.at(nor::Player::bob),
+         1.
+      );
+      vec_out.emplace_back(
+         nor::Player::bob,
+         always_bet_policy_alex,
+         expected_always_bet_br_policies.at(nor::Player::bob),
+         1. / 3.
+      );
+
+      return vec_out;
+   }))
+);
 
 }  // namespace kuhn_tests
