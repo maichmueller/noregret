@@ -35,14 +35,14 @@ concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
                                     m.find(key);
                                     {
                                        m[key]
-                                       } -> std::same_as< MappedType& >;
+                                    } -> std::same_as< MappedType& >;
                                     {
                                        m.at(key)
-                                       } -> std::same_as< MappedType& >;
+                                    } -> std::same_as< MappedType& >;
                                  } and requires(const Map m, KeyType key, MappedType mapped) {
                                           {
                                              m.at(key)
-                                             } -> std::same_as< const MappedType& >;
+                                          } -> std::same_as< const MappedType& >;
                                        };
 
 template < typename MapLike >
@@ -134,7 +134,6 @@ template < typename T, typename Action = typename fosg_auto_traits< T >::action_
 // clang-format off
 concept action_policy_view =
       is::sized< T >
-   && iterable< T >
    && has::method::at_r< const T, double, Action >;
 // clang-format on
 
@@ -142,6 +141,7 @@ template < typename T, typename Action = typename fosg_auto_traits< T >::action_
 // clang-format off
 concept action_policy =
       action_policy_view<T, Action>
+   && iterable< T >
    && has::method::getitem_r< T, double&, Action >;
 // clang-format on
 
@@ -170,16 +170,27 @@ template <
    typename Action = typename fosg_auto_traits< T >::action_type,
    typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
-concept state_policy_base =
+concept reference_state_policy_base =
 /**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
    && action_policy< ActionPolicy >;
+// clang-format on
+
+
+template <
+   typename T,
+   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
+   typename Action = typename fosg_auto_traits< T >::action_type,
+   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+// clang-format off
+concept value_state_policy_base =
+/**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
+   && action_policy_view< ActionPolicy >;
 // clang-format on
 
 }  // namespace detail
 
 template <
    typename T,
-   typename ActionPolicyView,
    typename Infostate = typename fosg_auto_traits< T >::info_state_type,
    typename Action = typename fosg_auto_traits< T >::action_type >
 // clang-format off
@@ -187,7 +198,7 @@ concept state_policy_view =
 /**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
    && has::method::at_r<
          const T,
-         ActionPolicyView,
+         typename T::action_policy_type,
          const Infostate&
       >;
 // clang-format on
@@ -199,7 +210,7 @@ template <
    typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
 concept reference_state_policy_no_default =
-/**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
+/**/  detail::reference_state_policy_base< T, Infostate, Action, ActionPolicy >
    && has::method::call_r<
          T,
          ActionPolicy&,
@@ -242,7 +253,7 @@ template <
    typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
 // clang-format off
 concept value_state_policy_no_default =
-/**/  detail::state_policy_base< T, Infostate, Action, ActionPolicy >
+/**/  detail::value_state_policy_base< T, Infostate, Action, ActionPolicy >
    && has::method::call_r<
          T,
          ActionPolicy,
@@ -447,16 +458,16 @@ template <
    typename DefaultAveragePolicy >
 // clang-format off
 concept tabular_cfr_requirements =
-   concepts::fosg< Env >
+   fosg< Env >
    && fosg_traits_partial_match< Policy, Env >::value
    && fosg_traits_partial_match< AveragePolicy, Env >::value
-   && concepts::reference_state_policy<
+   && reference_state_policy<
          Policy,
          DefaultPolicy,
          typename fosg_auto_traits< Env >::info_state_type,
          typename fosg_auto_traits< Env >::action_type
       >
-   && concepts::reference_state_policy<
+   && reference_state_policy<
          AveragePolicy,
          DefaultAveragePolicy,
          typename fosg_auto_traits< Env >::info_state_type,
