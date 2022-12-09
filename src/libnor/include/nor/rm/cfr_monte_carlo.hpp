@@ -298,7 +298,10 @@ class MCCFR:
    )
       requires(
          config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-         and (config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic)
+         and common::isin(
+            config.weighting,
+            {MCCFRWeightingMode::optimistic, MCCFRWeightingMode::stochastic}
+         )
       );
 
    std::pair< StateValueMap, Probability > _traverse(
@@ -343,7 +346,10 @@ class MCCFR:
    )
       requires(
          config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-         and (config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic)
+         and common::isin(
+            config.weighting,
+            {MCCFRWeightingMode::optimistic, MCCFRWeightingMode::stochastic}
+         )
       );
 
    void _update_average_policy(
@@ -729,7 +735,10 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
 )
    requires(
       config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-      and (config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic)
+      and common::isin(
+         config.weighting,
+         {MCCFRWeightingMode::optimistic, MCCFRWeightingMode::stochastic}
+      )
    )
 {
    if(_env().is_terminal(state)) {
@@ -981,7 +990,10 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
 )
    requires(
       config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-      and (config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic)
+      and common::isin(
+         config.weighting,
+         {MCCFRWeightingMode::optimistic, MCCFRWeightingMode::stochastic}
+      )
    )
 {
    auto& avg_policy = fetch_policy< false >(infostate, infonode_data.actions());
