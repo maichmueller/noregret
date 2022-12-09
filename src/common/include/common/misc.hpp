@@ -243,6 +243,11 @@ constexpr bool isin(T&& value, Container&& cont)
 {
    return contains(std::forward< Container >(cont), std::forward< T >(value));
 }
+template < typename T >
+constexpr bool isin(T&& value, const std::initializer_list< std::remove_cvref_t< T > >& cont)
+{
+   return contains(cont, std::forward< T >(value));
+}
 
 template < class first, class second, class... types >
 constexpr auto min(first f, second s, types... t)
