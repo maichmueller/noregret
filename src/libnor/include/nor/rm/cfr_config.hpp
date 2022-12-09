@@ -63,7 +63,11 @@ enum class MCCFRAlgorithmMode {
    outcome_sampling = 1,
    // traverse each action of a traversing player, but sample only a single action of each opponent
    // and chance player
-   external_sampling = 2
+   external_sampling = 2,
+   // traverse each action of a traversing player, but sample only a single action of each opponent
+   // and chance player. Pure CFR is technically not an MCCFR family member, but it follows external
+   // sampling's logic closely
+   pure_cfr = 3
 };
 
 enum class MCCFRWeightingMode {

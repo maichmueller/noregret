@@ -357,7 +357,7 @@ concept call_r = requires(T t, InputTs&&... inp) {
                     /// call method for input type returning an output type
                     {
                        t(std::forward<InputTs>(inp)...)
-                       } -> std::same_as< OutputT >;
+                       } -> std::convertible_to< OutputT >;
                  };
 
 
@@ -372,7 +372,7 @@ concept getitem_r = requires(T t, InputT&& inp) {
                     /// getitem method for input type returning an output type
                     {
                        t[std::forward<InputT>(inp)]
-                       } -> std::same_as< OutputT >;
+                       } -> std::convertible_to< OutputT >;
                  };
 
 template < typename T, typename... InputTs>
@@ -386,7 +386,7 @@ concept at_r = requires(T t, InputTs&&... inp) {
                   /// getitem method for input type returning an output type
                   {
                      t.at(std::forward<InputTs>(inp)...)
-                     } -> std::same_as< OutputT >;
+                     } -> std::convertible_to< OutputT >;
                };
 
 template < typename T >
