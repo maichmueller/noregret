@@ -822,13 +822,13 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
          }()) {
          // if the entire subtree is pruned then the values that could be found are all 0. for each
          // player
-         return StateValueMap{[&] {
+         return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
             for(auto player : _env().players(*state) | utils::is_actual_player_pred) {
                map[player] = 0.;
             }
             return map;
-         }()};
+         })};
       }
    }
 
