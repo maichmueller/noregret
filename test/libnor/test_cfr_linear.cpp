@@ -40,7 +40,7 @@ TEST(KuhnPoker, CFR_LINEAR_alternating)
 
    size_t n_iters = 500;
    for(size_t i = 0; i < n_iters; i++) {
-      solver.iterate(1);
+      solver.iterate();
 #ifndef NDEBUG
       evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
       evaluate_policies< false >(solver, initial_policy_profile, i);

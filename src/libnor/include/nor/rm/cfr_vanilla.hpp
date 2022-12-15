@@ -567,7 +567,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
 
          // normalization factor from the papers is irrelevant, as it is absorbed by the
          // normalization constant of each action policy afterwards.
-         auto t = double(_iteration());
+         // add + 1 to the iteration count to account for the correct factor of iteration t
+         // (iteration 0 (numerically) is iteration 1 (logically), as in the theoretical work)
+         auto t = double(_iteration() + 1);
          double weighting_factor = t / (t + 1);
          if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
             weighting_factor = std::pow(weighting_factor, m_dcfr_params.gamma);
@@ -583,6 +585,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
       if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
          // normalization factor from the papers is irrelevant, as it is absorbed by the
          // normalization constant of each action policy afterwards.
+         // Note: we are not incrementing the iteration + 1 to the logical equivalent as for the
+         // policy weight above for mere empirical resasons: In test cases convergence was faster
+         // this way and the mixing of different iteration weights is negligible in the limit.
          auto t = double(_iteration());
          double t_alpha = std::pow(t, m_dcfr_params.alpha);
          double t_beta = std::pow(t, m_dcfr_params.beta);
@@ -1017,8 +1022,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    const std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
 {
-   auto& istatedata = _infonode(infostate);
-   const auto& actions = istatedata.actions();
+   auto& istate_data = _infonode(infostate);
+   const auto& actions = istate_data.actions();
    auto& curr_action_policy = fetch_policy< PolicyLabel::current >(infostate, actions);
    auto& avg_action_policy = [&]() -> auto& {
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
@@ -1048,8 +1053,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
             //
             // all other cfr variants currently implemented need the average regret update at
             // history update time
-            istatedata.regret(action) += cf_reach_prob
-                                         * (q_value.get().at(player) - player_state_value);
+            istate_data.regret(action) += cf_reach_prob
+                                          * (q_value.get().at(player) - player_state_value);
          }
       } else {
          // for the exponential cfr method we need to remember these regret increments of
@@ -1065,10 +1070,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
          // with elaborate action types, this may be worth the extra runtime, for small action
          // values probably not. We do however save some memory since ref wrappers are merely as big
          // as one pointer.
-         auto [iter, _] = istatedata.regret().try_emplace(action, 0.);
+         auto [iter, _] = istate_data.regret().try_emplace(action, 0.);
          // if we emplaced merely std::cref(action) here then we would have silent segfaults that
          // lead to erroenuous memory storing
-         istatedata.template storage_element< 1 >(std::cref(iter->first)
+         istate_data.template storage_element< 1 >(std::cref(iter->first)
          ) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
       }
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
@@ -1086,7 +1091,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
       // For exponential CFR we need to store the reach probability of the active player until
       // the end of the iteration
-      istatedata.template storage_element< 2 >() = player_reach_prob;
+      istate_data.template storage_element< 2 >() = player_reach_prob;
    }
 }
 
