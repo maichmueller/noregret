@@ -339,13 +339,10 @@ INSTANTIATE_TEST_SUITE_P(all, BestResponse_RPS_ParamsF, testing::ValuesIn(std::i
 class BestResponse_KuhnPoker_ParamsF:
     public ::testing::TestWithParam< std::tuple<
        nor::Player,  // the best responder
+       std::string,  // test case description
        nor::TabularPolicy<
           nor::games::kuhn::Infostate,
           nor::HashmapActionPolicy< nor::games::kuhn::Action > >,  // the input policy
-       std::unordered_map<
-          nor::games::kuhn::Infostate,
-          std::unordered_map< nor::games::kuhn::Action, ValueChecker > >,  // expected best response
-                                                                           // policy value checks
        double  // the br value at root
        > > {
   public:
@@ -357,7 +354,7 @@ class BestResponse_KuhnPoker_ParamsF:
 
 TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
 {
-   auto [best_responder, opp_policy, expected_br_policy, br_root_value] = GetParam();
+   auto [best_responder, _, opp_policy, br_root_value] = GetParam();
    using namespace nor::games::kuhn;
 
    nor::Player opponent = nor::Player(1 - static_cast< int >(best_responder));
@@ -371,16 +368,6 @@ TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
    best_response.allocate(
       env, std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}}, State{}
    );
-
-   for(const auto& [history, active_player_vec_infostate_map] : infostate_map) {
-      const auto& [active_players, infostates] = active_player_vec_infostate_map;
-      if(common::contains(active_players, best_responder)) {
-         const auto& infostate = *infostates.at(best_responder);
-         for(const auto& [action, br_probability] : best_response(infostate)) {
-            EXPECT_TRUE(expected_br_policy.at(infostate).at(action).verify(br_probability));
-         }
-      }
-   }
    auto value_map = nor::rm::policy_value(
       env,
       State{},
@@ -388,6 +375,7 @@ TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
          std::pair{best_responder, nor::StatePolicyView{best_response}},
          std::pair{opponent, nor::StatePolicyView{opp_policy}}}
    );
+
    // check if the BR value of the computed policy is close to the expected value
    EXPECT_NEAR(value_map.get().at(best_responder), br_root_value, 1e-5);
 }
@@ -629,16 +617,6 @@ INSTANTIATE_TEST_SUITE_P(
 
       auto [terminals, infostate_map] = nor::map_histories_to_infostates(Environment{}, State{});
 
-      nor::player_hash_map<
-         std::unordered_map< Infostate, std::unordered_map< Action, ValueChecker > > >
-         expected_uniform_br_policies, expected_always_check_br_policies,
-         expected_always_bet_br_policies;
-
-      for(auto player : {nor::Player::alex, nor::Player::bob}) {
-         uniform_br_expected(player, infostate_map, expected_uniform_br_policies);
-         always_check_br_expected(player, infostate_map, expected_always_check_br_policies);
-         always_bet_br_expected(player, infostate_map, expected_always_bet_br_policies);
-      }
 
       auto [uniform_policy_alex, uniform_policy_bob] = kuhn_policy_always_mix_like(0.5, 0.5);
       auto [always_check_policy_alex, always_check_policy_bob] = kuhn_policy_always_mix_like(
@@ -648,44 +626,48 @@ INSTANTIATE_TEST_SUITE_P(
 
       vec_out.emplace_back(
          nor::Player::alex,  // best responder
+         "opponent_policy_uniform",
          uniform_policy_bob,  // opponent policy
-         expected_uniform_br_policies.at(nor::Player::alex),  // expected BR policy
          0.5  // br policy value
       );
       vec_out.emplace_back(
          nor::Player::alex,
+         "opponent_policy_always_check",
          always_check_policy_bob,
-         expected_always_check_br_policies.at(nor::Player::alex),
          1.
       );
       vec_out.emplace_back(
          nor::Player::alex,
+         "opponent_policy_always_bet",
          always_bet_policy_bob,
-         expected_always_bet_br_policies.at(nor::Player::alex),
          1. / 3.
       );
 
       vec_out.emplace_back(
          nor::Player::bob,
+         "opponent_policy_uniform",
          uniform_policy_alex,
-         expected_uniform_br_policies.at(nor::Player::bob),
          0.4 + 1. / 60.
       );
       vec_out.emplace_back(
          nor::Player::bob,
+         "opponent_policy_always_check",
          always_check_policy_alex,
-         expected_always_check_br_policies.at(nor::Player::bob),
          1.
       );
       vec_out.emplace_back(
          nor::Player::bob,
+         "opponent_policy_always_bet",
          always_bet_policy_alex,
-         expected_always_bet_br_policies.at(nor::Player::bob),
          1. / 3.
       );
 
       return vec_out;
-   }))
+   })),
+   [](const auto& params) {
+      return common::replace_all(common::to_string(std::get<0>(params.param)) + "_" + std::get<1>(params.param)," ", "_");
+
+   }
 );
 
 }  // namespace kuhn_tests

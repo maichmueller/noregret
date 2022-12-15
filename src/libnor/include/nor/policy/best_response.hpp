@@ -183,46 +183,18 @@ void best_response_impl< Env >::_run(
                                 * (double(curr_player == m_br_player)
                                    + double(curr_player != m_br_player) * action_prob);
 
-      auto emplace_n_return_child_node_ptr = [&](bool is_br_node) -> WorldNode* {
-         return visit_data.parent->children
-            .try_emplace(
-               *curr_action,
-               std::make_unique< WorldNode >(WorldNode{
-                  .opp_reach_prob = child_reach_prob, .is_br_node = is_br_node})
-            )
-            .first->second.get();
-      };
-
-      auto child_or_parent = visit_data.parent;
-
-      // we emplace a child node on the following scenarios:
-      // 1. The child is a BR node.
-      // 2. The parent is a BR node.
-      // 3. The child is a terminal state.
-      // This implies that any CONSECUTIVE opponent nodes will NOT be emplaced, until we switch in a
-      // child to a BR node again or hit a terminal state child. This effectively sequeezes all
-      // consecutive opponent nodes into a single node which we are allowed to do. Any opponent node
-      // would compute an expected value over its children in the upcoming best response computation
-      // per infostate. This can also be done more efficiently by squeezing the opponent nodes into
-      // one and compounding the opponent reach probabilities of the squeezed nodes.
-      if(auto next_player = env.active_player(*next_state); next_player == m_br_player) {
-         // case 1
-         child_or_parent = emplace_n_return_child_node_ptr(true);
-
-         if(env.is_terminal(*next_state)) {
-            child_or_parent->state_value = env.reward(m_br_player, *next_state);
-         }
-
-      } else if(curr_player == m_br_player) {
-         // case 2
-         child_or_parent = emplace_n_return_child_node_ptr(false);
-
-      } else if(env.is_terminal(*next_state)) {
-         // case 3
-         child_or_parent = emplace_n_return_child_node_ptr(false);
-         child_or_parent->state_value = env.reward(m_br_player, *next_state);
-      }
-
+      auto next_parent = visit_data.parent->children
+                            .try_emplace(
+                               *curr_action,
+                               std::make_unique< WorldNode >(WorldNode{
+                                  .state_value = env.is_terminal(*next_state) ? std::optional(
+                                                    env.reward(m_br_player, *next_state)
+                                                 )
+                                                                              : std::nullopt,
+                                  .opp_reach_prob = child_reach_prob,
+                                  .is_br_node = env.active_player(*next_state) == m_br_player})
+                            )
+                            .first->second.get();
 
       // check if we should try to emplace the infostate into the infostate-to-children map and then
       // add the child pointer if so.
@@ -233,16 +205,16 @@ void best_response_impl< Env >::_run(
          auto& [infostate, child_nodes] = *iter;
          // assign this infostate to the node
          visit_data.parent->infostate_ptr = &infostate;
-         // we know that if the parent is a BR node then 'child_or_parent' actually points to the
-         // child, because it is assigned as such in the previous if clauses.
-         child_nodes[*curr_action].emplace_back(child_or_parent);
+         // if the parent is a BR node then we have to emplace all potential child worldnodes for
+         // this infostate
+         child_nodes[*curr_action].emplace_back(next_parent);
       }
 
       return VisitData{
          .opp_reach_prob = child_reach_prob,
          .infostates = std::move(child_infostate_map),
          .observation_buffer = std::move(child_observation_buffer),
-         .parent = child_or_parent,
+         .parent = next_parent,
       };
    };
 
@@ -258,7 +230,6 @@ void best_response_impl< Env >::_run(
          .is_br_node = root_player == m_br_player,
          .infostate_ptr = infostate_ptr};
    });
-   std::cout << "Root node address: " << &root_node << std::endl;
    forest::GameTreeTraverser(env).walk(
       utils::dynamic_unique_ptr_cast< world_state_type >(utils::clone_any_way(root_state)),
       VisitData{
@@ -302,41 +273,23 @@ auto best_response_impl< Env >::_best_response(const info_state_type& infostate)
    for(const auto& [action_variant, node_vec] : m_infostate_children_map.at(infostate)) {
       double action_value = ranges::accumulate(
          node_vec | ranges::views::transform([&](WorldNode* child_node_uptr) {
-            //            double v = _value(*child_node_uptr, istate_to_nodes);
-            //            LOGD2("Action raw value", v);
-            //            LOGD2("Action prob", _value(*child_node_uptr, istate_to_nodes));
-            //            LOGD2(
-            //               "Action expected value",
-            //               _value(*child_node_uptr, istate_to_nodes) *
-            //               child_node_uptr->opp_reach_prob
-            //            );
             return _value(*child_node_uptr) * child_node_uptr->opp_reach_prob;
          }),
          double(0.),
          std::plus{}
       );
-
-      LOGD2("child-value", action_value);
       if(action_value > state_value) {
-         //         if(best_action.has_value()) {
-         //            LOGD2("BRP old best response action", best_action.value());
-         //         } else {
-         //            LOGD2("BRP old best response action", "None");
-         //         }
          best_action = std::get< 0 >(action_variant);
-         //         LOGD2("BRP new best response action", best_action.value());
-         //         LOGD2("BRP old state-value", state_value);
          state_value = action_value;
-         //         LOGD2("BRP new state-value", state_value);
       }
    }
-   return [&] {
+   return std::invoke([&] {
       struct {
          action_type action;
          double value;
       } value{.action = std::move(best_action.value()), .value = state_value};
       return value;
-   }();
+   });
 }
 
 template < concepts::fosg Env >
@@ -356,15 +309,24 @@ double best_response_impl< Env >::_value(WorldNode& node)
          return _value(*(node.children.at(best_response_action)));
       } else {
          // in an opponent state only we have to take the expected value as the child's value
-         return ranges::accumulate(
-            node.children | ranges::views::transform([&](const auto& action_child_pair) {
-               const auto& [action_variant, child_node_ptr] = action_child_pair;
-               return _value(*child_node_ptr)
-                      * (child_node_ptr->opp_reach_prob / node.opp_reach_prob);
-            }),
-            double(0.),
-            std::plus{}
-         );
+         // If the node has reach prob of 0. by the opponent then we don't even need to check the
+         // children values, since we are in a trajectory that won't be reached in play by the
+         // opponents and therefore our best-response at associated infostates will be arbitrary
+         // anyway. the exact comparison of doubles here should be fine since we are actually
+
+         // asking whether this number is precisely +-0 and not whether it is close to 0. When the
+         // value is exactly 0 we will generate a nan in the following code.
+         return node.opp_reach_prob == 0.
+                   ? 0.
+                   : ranges::accumulate(
+                      node.children | ranges::views::transform([&](const auto& action_child_pair) {
+                         const auto& [action_variant, child_node_ptr] = action_child_pair;
+                         return _value(*child_node_ptr)
+                                * (child_node_ptr->opp_reach_prob / node.opp_reach_prob);
+                      }),
+                      double(0.),
+                      std::plus{}
+                   );
       }
    });
    node.state_value = state_value;
