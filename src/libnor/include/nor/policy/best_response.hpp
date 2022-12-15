@@ -25,7 +25,7 @@ struct best_response_impl {
 
    struct WorldNode {
       /// the state value of this node.
-      std::optional< double > state_value = std::nullopt;
+      std::optional< nor::player_hash_map< double > > state_value_map = std::nullopt;
       /// the likelihood that the opponents play to this world state.
       double opp_reach_prob;
       /// the child nodes reachable from this infostate the child node pointer that the action leads
@@ -36,19 +36,21 @@ struct best_response_impl {
          children{};
       /// whether this node is a node of the best responding player or general opponent
       bool is_br_node;
+      /// whether this node is a node of the best responding player or general opponent
+      Player active_player;
       /// a backreferencing pointer to the infostate that this worldstate belongs to
       const info_state_type* infostate_ptr = nullptr;
    };
 
    template < typename EnvT, typename... Args >
-   best_response_impl(Player player, EnvT&& env, Args&&... args)
-       : m_br_player(player), m_infostate_children_map()
+   best_response_impl(std::vector< Player > br_players, EnvT&& env, Args&&... args)
+       : m_br_players(std::move(br_players)), m_infostate_children_map()
    {
       _run(env, std::forward< Args >(args)...);
    }
 
   private:
-   Player m_br_player;
+   std::vector< Player > m_br_players;
 
    /// The map of infostates points to another map of actions -> all possible child worldstates
    /// reachable from this action.
@@ -77,12 +79,12 @@ struct best_response_impl {
 
    auto _best_response(const info_state_type& infostate);
 
-   double _value(WorldNode& node);
+   const player_hash_map< double >& _value(WorldNode& node);
 };
 
 // deduction guide
 template < typename EnvT, typename... Args >
-best_response_impl(Player player, EnvT&& env, Args&&... args)
+best_response_impl(std::vector< Player >, EnvT&&, Args&&...)
    -> best_response_impl< std::remove_cvref_t< EnvT > >;
 
 template < concepts::fosg Env >
@@ -132,6 +134,7 @@ void best_response_impl< Env >::_run(
                         world_state_type* next_state
                      ) {
       auto curr_player = env.active_player(*curr_state);
+      bool curr_player_is_best_responder = common::isin(curr_player, m_br_players);
       // emplace private and public observation to each player's information states copies and
       // get the action probability for the current scenario
       auto [action_prob, child_observation_buffer, child_infostate_map] = std::visit(
@@ -155,7 +158,7 @@ void best_response_impl< Env >::_run(
                });
                double prob = std::invoke([&] {
                   if constexpr(std::same_as< ActionT, action_type >) {
-                     return prob = curr_player == m_br_player
+                     return prob = curr_player_is_best_responder
                                       ? 1.
                                       : player_policies.at(curr_player)
                                            .at(visit_data.infostates.at(curr_player))
@@ -180,27 +183,29 @@ void best_response_impl< Env >::_run(
       );
 
       double child_reach_prob = visit_data.opp_reach_prob
-                                * (double(curr_player == m_br_player)
-                                   + double(curr_player != m_br_player) * action_prob);
-
+                                * (double(curr_player_is_best_responder)
+                                   + double(not curr_player_is_best_responder) * action_prob);
+      auto next_player = env.active_player(*next_state);
       auto next_parent = visit_data.parent->children
                             .try_emplace(
                                *curr_action,
                                std::make_unique< WorldNode >(WorldNode{
-                                  .state_value = env.is_terminal(*next_state) ? std::optional(
-                                                    env.reward(m_br_player, *next_state)
-                                                 )
-                                                                              : std::nullopt,
+                                  .state_value_map = env.is_terminal(*next_state)
+                                                        ? std::optional(rm::collect_rewards(
+                                                           env, *next_state, m_br_players
+                                                        ))
+                                                        : std::nullopt,
                                   .opp_reach_prob = child_reach_prob,
-                                  .is_br_node = env.active_player(*next_state) == m_br_player})
+                                  .is_br_node = common::isin(next_player, m_br_players),
+                                  .active_player = next_player})
                             )
                             .first->second.get();
 
       // check if we should try to emplace the infostate into the infostate-to-children map and then
       // add the child pointer if so.
-      if(curr_player == m_br_player) {
+      if(curr_player_is_best_responder) {
          // we only emplace BR player infostates
-         auto [iter, _] = m_infostate_children_map.try_emplace(visit_data.infostates.at(m_br_player)
+         auto [iter, _] = m_infostate_children_map.try_emplace(visit_data.infostates.at(curr_player)
          );
          auto& [infostate, child_nodes] = *iter;
          // assign this infostate to the node
@@ -221,13 +226,15 @@ void best_response_impl< Env >::_run(
    auto root_node = std::invoke([&] {
       auto root_player = env.active_player(root_state);
       const info_state_type* infostate_ptr = nullptr;
-      if(root_player == m_br_player) {
+      bool root_is_br = common::isin(root_player, m_br_players);
+      if(root_is_br) {
          auto [iter, _] = m_infostate_children_map.try_emplace(root_infostates.at(root_player));
          infostate_ptr = &(iter->first);
       }
       return WorldNode{
          .opp_reach_prob = 1.,
-         .is_br_node = root_player == m_br_player,
+         .is_br_node = root_is_br,
+         .active_player = root_player,
          .infostate_ptr = infostate_ptr};
    });
    forest::GameTreeTraverser(env).walk(
@@ -249,9 +256,9 @@ void best_response_impl< Env >::_compute_best_responses(
 )
 {
    for(const auto& infostate : m_infostate_children_map | ranges::views::keys) {
-      // we compute best respones only for the br player
 #ifndef NDEBUG
-      if(infostate.player() != m_br_player) {
+      // we compute best-responses only for the br player
+      if(not common::isin(infostate.player(), m_br_players)) {
          throw std::invalid_argument("Best response action requested at an opponent info state.");
       }
 #endif
@@ -268,12 +275,13 @@ template < concepts::fosg Env >
 auto best_response_impl< Env >::_best_response(const info_state_type& infostate)
 {
    // we can assume that this is an infostate of the best responding player
+   Player best_responder = infostate.player();
    std::optional< action_type > best_action = std::nullopt;
    double state_value = std::numeric_limits< double >::lowest();
    for(const auto& [action_variant, node_vec] : m_infostate_children_map.at(infostate)) {
       double action_value = ranges::accumulate(
          node_vec | ranges::views::transform([&](WorldNode* child_node_uptr) {
-            return _value(*child_node_uptr) * child_node_uptr->opp_reach_prob;
+            return _value(*child_node_uptr).at(best_responder) * child_node_uptr->opp_reach_prob;
          }),
          double(0.),
          std::plus{}
@@ -293,15 +301,15 @@ auto best_response_impl< Env >::_best_response(const info_state_type& infostate)
 }
 
 template < concepts::fosg Env >
-double best_response_impl< Env >::_value(WorldNode& node)
+const player_hash_map< double >& best_response_impl< Env >::_value(WorldNode& node)
 {
    // first check if this node's value hasn't been already computed by another visit or is
    // already in the br map
-   if(node.state_value.has_value()) {
-      return node.state_value.value();
+   if(node.state_value_map.has_value()) {
+      return *node.state_value_map;
    }
 
-   double state_value = std::invoke([&] {
+   node.state_value_map = std::invoke([&] {
       if(node.is_br_node) {
          // in a BR player state only the best response action is played and thus should be
          // considered
@@ -313,24 +321,26 @@ double best_response_impl< Env >::_value(WorldNode& node)
          // children values, since we are in a trajectory that won't be reached in play by the
          // opponents and therefore our best-response at associated infostates will be arbitrary
          // anyway. the exact comparison of doubles here should be fine since we are actually
-
-         // asking whether this number is precisely +-0 and not whether it is close to 0. When the
-         // value is exactly 0 we will generate a nan in the following code.
-         return node.opp_reach_prob == 0.
-                   ? 0.
-                   : ranges::accumulate(
-                      node.children | ranges::views::transform([&](const auto& action_child_pair) {
-                         const auto& [action_variant, child_node_ptr] = action_child_pair;
-                         return _value(*child_node_ptr)
-                                * (child_node_ptr->opp_reach_prob / node.opp_reach_prob);
-                      }),
-                      double(0.),
-                      std::plus{}
-                   );
+         player_hash_map< double > running_values;
+         for(auto player : m_br_players) {
+            running_values[player];  // simply emplace 0 for best responders as default
+         }
+         // asking whether this number is precisely +-0 and not whether it is close to 0. For a
+         // value that is exactly 0 we would generate a nan in the following code.
+         if(node.opp_reach_prob != 0.)  {
+            for(const auto& action_child_pair : node.children) {
+               const auto& [action_variant, child_node_ptr] = action_child_pair;
+               const auto& value_map = _value(*child_node_ptr);
+               for(auto player : m_br_players) {
+                  running_values[player] += value_map.at(player) * child_node_ptr->opp_reach_prob
+                                            / node.opp_reach_prob;
+               }
+            }
+         }
+         return running_values;
       }
    });
-   node.state_value = state_value;
-   return state_value;
+   return *node.state_value_map;
 }
 
 }  // namespace detail
@@ -342,13 +352,25 @@ class BestResponsePolicy {
    using action_type = Action;
    using action_policy_type = HashmapActionPolicy< action_type >;
 
-   BestResponsePolicy(Player best_response_player) : m_br_player(best_response_player) {}
+   BestResponsePolicy(Player best_response_player) : m_best_responders{best_response_player} {}
+   BestResponsePolicy(std::vector< Player > best_response_players)
+       : m_best_responders{std::move(best_response_players)}
+   {
+   }
 
    BestResponsePolicy(
       Player best_response_player,
       std::unordered_map< info_state_type, std::pair< action_type, double > > best_response_map = {}
    )
-       : m_br_player(best_response_player), m_best_response(std::move(best_response_map))
+       : m_best_responders{best_response_player}, m_best_response(std::move(best_response_map))
+   {
+   }
+   BestResponsePolicy(
+      std::vector< Player > best_response_players,
+      std::unordered_map< info_state_type, std::pair< action_type, double > > best_response_map = {}
+   )
+       : m_best_responders{std::move(best_response_players)},
+         m_best_response(std::move(best_response_map))
    {
    }
 
@@ -362,7 +384,7 @@ class BestResponsePolicy {
    )
    {
       detail::best_response_impl(
-         m_br_player,
+         m_best_responders,
          std::forward< Env >(env),
          std::move(player_policies),
          root_state,
@@ -391,7 +413,7 @@ class BestResponsePolicy {
    [[nodiscard]] auto size() const { return m_best_response.size(); }
 
   private:
-   Player m_br_player;
+   std::vector< Player > m_best_responders;
    std::unordered_map< info_state_type, std::pair< action_type, double > > m_best_response;
 };
 
