@@ -512,7 +512,6 @@ struct monostate_error_visitor {
    }
 };
 
-
 template < typename TargetVariant, typename... Ts >
 auto make_overload_with_monostate(Ts... ts)
 {
@@ -581,6 +580,17 @@ struct CEBijection {
          throw std::range_error("Not Found");
       }
    }
+};
+
+template < typename Predicate >
+class not_pred {
+  public:
+   constexpr explicit not_pred(const Predicate& pred) : m_pred(pred) {}
+
+   constexpr bool operator()(const auto& x) const { return not m_pred(x); }
+
+  protected:
+   Predicate m_pred;
 };
 
 }  // namespace common
