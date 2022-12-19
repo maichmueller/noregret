@@ -11,5 +11,6 @@
 #include "nor/rm.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
+#include "nor/exploitability.hpp"
 
 #endif  // NOR_NOR_HPP

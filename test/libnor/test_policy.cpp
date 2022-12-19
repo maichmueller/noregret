@@ -236,7 +236,7 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
    );
 
    best_response.allocate(
-      env, std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}}, State{}
+      env, State{}, std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}}
    );
    // check if the BR value of the computed policy is close to the expected value
    EXPECT_NEAR(best_response.value(infostate), br_value, 1e-5);
@@ -361,12 +361,12 @@ TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
 
    auto root_state = State{};
    auto [terminals, infostate_map] = nor::map_histories_to_infostates(env, root_state);
-   //   using history_type = typename decltype(terminals)::value_type;
+
    auto best_response = nor::factory::make_best_response_policy< Infostate, Action >(best_responder
    );
 
    best_response.allocate(
-      env, std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}}, State{}
+      env, State{}, std::unordered_map{std::pair{opponent, opp_policy}}
    );
    auto value_map = nor::rm::policy_value(
       env,

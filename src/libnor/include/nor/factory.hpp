@@ -490,11 +490,19 @@ struct factory {
 
    template < typename Infostate, typename Action >
    static BestResponsePolicy< Infostate, Action > make_best_response_policy(
-      Player best_response_player,
-      std::unordered_map< Infostate, std::pair< Action, double > > best_response_map = {}
+      std::vector< Player > best_response_players,
+      std::unordered_map< Infostate, std::pair< Action, double > > cached_br_map = {}
    )
    {
-      return {best_response_player, std::move(best_response_map)};
+      return {best_response_players, std::move(cached_br_map)};
+   }
+   template < typename Infostate, typename Action >
+   static BestResponsePolicy< Infostate, Action > make_best_response_policy(
+      Player best_response_player,
+      std::unordered_map< Infostate, std::pair< Action, double > > cached_br_map = {}
+   )
+   {
+      return {{best_response_player}, std::move(cached_br_map)};
    }
 };
 

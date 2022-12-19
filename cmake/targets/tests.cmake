@@ -50,6 +50,10 @@ register_nor_target(
         ${nor_test}_helpers
         test_helpers.cpp
 )
+register_nor_target(
+        ${nor_test}_exploitability
+        test_exploitability.cpp
+)
 # for the overall test executable we simply merge all other test files together
 foreach (
         sources_list

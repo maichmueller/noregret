@@ -65,9 +65,10 @@ struct best_response_impl {
 
    std::unordered_map< info_state_type, child_node_map > m_infostate_children_map;
 
+   template < typename StatePolicy >
    void _run(
       Env& env,
-      std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies,
+      player_hash_map< StatePolicy > player_policies,
       const world_state_type& root_state,
       std::unordered_map< info_state_type, std::pair< action_type, double > >& best_response_map,
       std::unordered_map< Player, info_state_type > root_infostates = {}
@@ -88,9 +89,10 @@ best_response_impl(std::vector< Player >, EnvT&&, Args&&...)
    -> best_response_impl< std::remove_cvref_t< EnvT > >;
 
 template < concepts::fosg Env >
+template < typename StatePolicy >
 void best_response_impl< Env >::_run(
    Env& env,
-   std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies,
+   player_hash_map< StatePolicy > player_policies,
    const world_state_type& root_state,
    std::unordered_map< info_state_type, std::pair< action_type, double > >& best_response_map,
    std::unordered_map< Player, info_state_type > root_infostates
@@ -134,7 +136,7 @@ void best_response_impl< Env >::_run(
                         world_state_type* next_state
                      ) {
       auto curr_player = env.active_player(*curr_state);
-      bool curr_player_is_best_responder = common::isin(curr_player, m_br_players);
+      bool curr_player_is_br = common::isin(curr_player, m_br_players);
       // emplace private and public observation to each player's information states copies and
       // get the action probability for the current scenario
       auto [action_prob, child_observation_buffer, child_infostate_map] = std::visit(
@@ -158,11 +160,10 @@ void best_response_impl< Env >::_run(
                });
                double prob = std::invoke([&] {
                   if constexpr(std::same_as< ActionT, action_type >) {
-                     return prob = curr_player_is_best_responder
-                                      ? 1.
-                                      : player_policies.at(curr_player)
-                                           .at(visit_data.infostates.at(curr_player))
-                                           .at(action_or_outcome);
+                     return prob = curr_player_is_br ? 1.
+                                                     : player_policies.at(curr_player)
+                                                          .at(visit_data.infostates.at(curr_player))
+                                                          .at(action_or_outcome);
                   } else {
                      // the constexpr check for the action type ensures that we will never reach
                      // this case for a deterministic environment! This is important since
@@ -183,8 +184,8 @@ void best_response_impl< Env >::_run(
       );
 
       double child_reach_prob = visit_data.opp_reach_prob
-                                * (double(curr_player_is_best_responder)
-                                   + double(not curr_player_is_best_responder) * action_prob);
+                                * (double(curr_player_is_br)
+                                   + double(not curr_player_is_br) * action_prob);
       auto next_player = env.active_player(*next_state);
       auto next_parent = visit_data.parent->children
                             .try_emplace(
@@ -203,7 +204,7 @@ void best_response_impl< Env >::_run(
 
       // check if we should try to emplace the infostate into the infostate-to-children map and then
       // add the child pointer if so.
-      if(curr_player_is_best_responder) {
+      if(curr_player_is_br) {
          // we only emplace BR player infostates
          auto [iter, _] = m_infostate_children_map.try_emplace(visit_data.infostates.at(curr_player)
          );
@@ -255,7 +256,10 @@ void best_response_impl< Env >::_compute_best_responses(
    std::unordered_map< info_state_type, std::pair< action_type, double > >& best_response_map
 )
 {
-   for(const auto& infostate : m_infostate_children_map | ranges::views::keys) {
+   for(const auto& infostate : m_infostate_children_map | ranges::views::keys
+                                  | ranges::views::filter([&](const auto& istate) {
+                                       return not best_response_map.contains(istate);
+                                    })) {
 #ifndef NDEBUG
       // we compute best-responses only for the br player
       if(not common::isin(infostate.player(), m_br_players)) {
@@ -323,11 +327,11 @@ const player_hash_map< double >& best_response_impl< Env >::_value(WorldNode& no
          // anyway. the exact comparison of doubles here should be fine since we are actually
          player_hash_map< double > running_values;
          for(auto player : m_br_players) {
-            running_values[player];  // simply emplace 0 for best responders as default
+            running_values.emplace(player, 0.);  // fill the map with 0 for best responders as init
          }
          // asking whether this number is precisely +-0 and not whether it is close to 0. For a
          // value that is exactly 0 we would generate a nan in the following code.
-         if(node.opp_reach_prob != 0.)  {
+         if(node.opp_reach_prob != 0.) {
             for(const auto& action_child_pair : node.children) {
                const auto& [action_variant, child_node_ptr] = action_child_pair;
                const auto& value_map = _value(*child_node_ptr);
@@ -360,33 +364,37 @@ class BestResponsePolicy {
 
    BestResponsePolicy(
       Player best_response_player,
-      std::unordered_map< info_state_type, std::pair< action_type, double > > best_response_map = {}
+      std::unordered_map< info_state_type, std::pair< action_type, double > > cached_br_map = {}
    )
-       : m_best_responders{best_response_player}, m_best_response(std::move(best_response_map))
+       : m_best_responders{best_response_player}, m_best_response(std::move(cached_br_map))
    {
    }
    BestResponsePolicy(
       std::vector< Player > best_response_players,
-      std::unordered_map< info_state_type, std::pair< action_type, double > > best_response_map = {}
+      std::unordered_map< info_state_type, std::pair< action_type, double > > cached_br_map = {}
    )
        : m_best_responders{std::move(best_response_players)},
-         m_best_response(std::move(best_response_map))
+         m_best_response(std::move(cached_br_map))
    {
    }
 
-   template < typename Env >
-      requires concepts::fosg< std::remove_cvref_t< Env > > decltype(auto)
+   template < typename Env, typename StatePolicy >
+      requires concepts::fosg< std::remove_cvref_t< Env > >
+               and concepts::state_policy_view<
+                  StatePolicy,
+                  auto_info_state_type< std::remove_cvref_t< Env > >,
+                  auto_action_type< std::remove_cvref_t< Env > > > decltype(auto)
    allocate(
       Env&& env,
-      std::unordered_map< Player, StatePolicyView< info_state_type, action_type > > player_policies,
       const auto_world_state_type< std::remove_cvref_t< Env > >& root_state,
+      const std::unordered_map< Player, StatePolicy >& player_policies,
       std::unordered_map< Player, info_state_type > root_infostates = {}
    )
    {
       detail::best_response_impl(
          m_best_responders,
          std::forward< Env >(env),
-         std::move(player_policies),
+         player_policies,
          root_state,
          m_best_response,
          std::move(root_infostates)
@@ -397,7 +405,7 @@ class BestResponsePolicy {
    [[nodiscard]] auto operator()(const info_state_type& infostate, auto&&...) const
    {
       return HashmapActionPolicy< action_type >{
-         std::array{std::pair{m_best_response.at(infostate).first, 1.}}};
+         std::array{std::pair{m_best_response.at(infostate.player()).at(infostate).first, 1.}}};
    }
 
    [[nodiscard]] auto at(const info_state_type& infostate, auto&&...) const
@@ -405,16 +413,22 @@ class BestResponsePolicy {
       return operator()(infostate);
    }
 
-   [[nodiscard]] auto& map() const { return m_best_response; }
+   /// ref-qualifiers for when one has an rvalue of this class and simply wants to extract the player tables from the
+   [[nodiscard]] const auto& table() const& { return m_best_response; }
+   [[nodiscard]] const auto& table(Player player) const& { return m_best_response.at(player); }
+   [[nodiscard]] auto&& table() && { return std::move(m_best_response); }
+   [[nodiscard]] auto&& table(Player player) && { return std::move(m_best_response.at(player)); }
+
    [[nodiscard]] auto value(const info_state_type& infostate) const
    {
-      return m_best_response.at(infostate).second;
+      return m_best_response.at(infostate.player()).at(infostate).second;
    }
    [[nodiscard]] auto size() const { return m_best_response.size(); }
 
   private:
    std::vector< Player > m_best_responders;
-   std::unordered_map< info_state_type, std::pair< action_type, double > > m_best_response;
+   player_hash_map< std::unordered_map< info_state_type, std::pair< action_type, double > > >
+      m_best_response;
 };
 
 }  // namespace nor
