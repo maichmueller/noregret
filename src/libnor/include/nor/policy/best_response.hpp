@@ -13,15 +13,25 @@
 
 namespace nor {
 
+struct BRConfig {
+   bool store_infostate_values = false;
+};
+
 namespace detail {
 
-template < concepts::fosg Env >
+template < BRConfig config, typename Action >
+using mapped_br_type = std::
+   conditional_t< config.store_infostate_values, std::pair< Action, double >, Action >;
+
+template < BRConfig config, concepts::fosg Env >
 struct best_response_impl {
    using world_state_type = auto_world_state_type< Env >;
    using info_state_type = auto_info_state_type< Env >;
    using observation_type = auto_observation_type< Env >;
    using action_type = auto_action_type< Env >;
    using action_variant_type = auto_action_variant_type< Env >;
+
+   using mapped_type = mapped_br_type< config, action_type >;
 
    struct WorldNode {
       /// the state value of this node.
@@ -70,12 +80,14 @@ struct best_response_impl {
       Env& env,
       player_hash_map< StatePolicy > player_policies,
       const world_state_type& root_state,
-      std::unordered_map< info_state_type, std::pair< action_type, double > >& best_response_map,
+      player_hash_map< std::unordered_map< info_state_type, mapped_type > >&
+         best_response_map_to_fill,
       std::unordered_map< Player, info_state_type > root_infostates = {}
    );
 
    void _compute_best_responses(
-      std::unordered_map< info_state_type, std::pair< action_type, double > >& best_response_map
+      player_hash_map< std::unordered_map< info_state_type, mapped_type > >&
+         best_response_map_to_fill
    );
 
    auto _best_response(const info_state_type& infostate);
@@ -83,18 +95,13 @@ struct best_response_impl {
    const player_hash_map< double >& _value(WorldNode& node);
 };
 
-// deduction guide
-template < typename EnvT, typename... Args >
-best_response_impl(std::vector< Player >, EnvT&&, Args&&...)
-   -> best_response_impl< std::remove_cvref_t< EnvT > >;
-
-template < concepts::fosg Env >
+template < BRConfig config, concepts::fosg Env >
 template < typename StatePolicy >
-void best_response_impl< Env >::_run(
+void best_response_impl< config, Env >::_run(
    Env& env,
    player_hash_map< StatePolicy > player_policies,
    const world_state_type& root_state,
-   std::unordered_map< info_state_type, std::pair< action_type, double > >& best_response_map,
+   player_hash_map< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill,
    std::unordered_map< Player, info_state_type > root_infostates
 )
 {
@@ -248,18 +255,33 @@ void best_response_impl< Env >::_run(
       forest::TraversalHooks{.child_hook = std::move(child_hook)}
    );
 
-   _compute_best_responses(best_response_map);
+   _compute_best_responses(best_response_map_to_fill);
 }
 
-template < concepts::fosg Env >
-void best_response_impl< Env >::_compute_best_responses(
-   std::unordered_map< info_state_type, std::pair< action_type, double > >& best_response_map
+template < BRConfig config, concepts::fosg Env >
+void best_response_impl< config, Env >::_compute_best_responses(
+   player_hash_map< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill
 )
 {
-   for(const auto& infostate : m_infostate_children_map | ranges::views::keys
-                                  | ranges::views::filter([&](const auto& istate) {
-                                       return not best_response_map.contains(istate);
-                                    })) {
+   auto build_mapped_type_args = [&](auto& br) {
+      if constexpr(config.store_infostate_values)
+         return std::forward_as_tuple(std::move(br.action), std::move(br.value));
+      else
+         return std::forward_as_tuple(std::move(br.action));
+   };
+   auto& player_br_map = best_response_map_to_fill[m_br_players.front()];
+   auto fetch_player_br_map = [&, n_br_players = m_br_players.size()](Player player) -> auto& {
+      if(n_br_players == 1) {
+         return player_br_map;
+      } else {
+         return best_response_map_to_fill[player];
+      }
+   };
+   for(const auto& infostate :
+       m_infostate_children_map | ranges::views::keys
+          | ranges::views::filter([&](const auto& istate) {
+               return not fetch_player_br_map(istate.player()).contains(istate);
+            })) {
 #ifndef NDEBUG
       // we compute best-responses only for the br player
       if(not common::isin(infostate.player(), m_br_players)) {
@@ -267,16 +289,15 @@ void best_response_impl< Env >::_compute_best_responses(
       }
 #endif
       auto br = _best_response(infostate);
-      best_response_map.emplace(
-         std::piecewise_construct,
-         std::forward_as_tuple(infostate),
-         std::forward_as_tuple(br.action, br.value)
-      );
+      fetch_player_br_map(infostate.player())
+         .emplace(
+            std::piecewise_construct, std::forward_as_tuple(infostate), build_mapped_type_args(br)
+         );
    }
 }
 
-template < concepts::fosg Env >
-auto best_response_impl< Env >::_best_response(const info_state_type& infostate)
+template < BRConfig config, concepts::fosg Env >
+auto best_response_impl< config, Env >::_best_response(const info_state_type& infostate)
 {
    // we can assume that this is an infostate of the best responding player
    Player best_responder = infostate.player();
@@ -304,8 +325,8 @@ auto best_response_impl< Env >::_best_response(const info_state_type& infostate)
    });
 }
 
-template < concepts::fosg Env >
-const player_hash_map< double >& best_response_impl< Env >::_value(WorldNode& node)
+template < BRConfig config, concepts::fosg Env >
+const player_hash_map< double >& best_response_impl< config, Env >::_value(WorldNode& node)
 {
    // first check if this node's value hasn't been already computed by another visit or is
    // already in the br map
@@ -347,14 +368,26 @@ const player_hash_map< double >& best_response_impl< Env >::_value(WorldNode& no
    return *node.state_value_map;
 }
 
+template < BRConfig config, typename Env, typename... Args >
+best_response_impl< config, std::remove_cvref_t< Env > >
+make_best_response_impl(std::vector< Player > br_players, Env&& env, Args&&... args)
+{
+   return {std::move(br_players), std::forward< Env >(env), std::forward< Args >(args)...};
+}
+
 }  // namespace detail
 
-template < concepts::info_state Infostate, concepts::action Action >
+template <
+   concepts::info_state Infostate,
+   concepts::action Action,
+   BRConfig config = BRConfig{.store_infostate_values = false} >
 class BestResponsePolicy {
   public:
    using info_state_type = Infostate;
    using action_type = Action;
    using action_policy_type = HashmapActionPolicy< action_type >;
+
+   using mapped_type = detail::mapped_br_type< config, action_type >;
 
    BestResponsePolicy(Player best_response_player) : m_best_responders{best_response_player} {}
    BestResponsePolicy(std::vector< Player > best_response_players)
@@ -364,18 +397,20 @@ class BestResponsePolicy {
 
    BestResponsePolicy(
       Player best_response_player,
-      std::unordered_map< info_state_type, std::pair< action_type, double > > cached_br_map = {}
+      const std::unordered_map< info_state_type, mapped_type >& cached_br_map = {}
    )
-       : m_best_responders{best_response_player}, m_best_response(std::move(cached_br_map))
+       : m_best_responders{best_response_player}, m_best_response()
    {
+      _fill_from_cached_map(cached_br_map);
    }
    BestResponsePolicy(
       std::vector< Player > best_response_players,
-      std::unordered_map< info_state_type, std::pair< action_type, double > > cached_br_map = {}
+      const std::unordered_map< info_state_type, mapped_type >& cached_br_map = {}
    )
        : m_best_responders{std::move(best_response_players)},
          m_best_response(std::move(cached_br_map))
    {
+      _fill_from_cached_map(cached_br_map);
    }
 
    template < typename Env, typename StatePolicy >
@@ -391,7 +426,7 @@ class BestResponsePolicy {
       std::unordered_map< Player, info_state_type > root_infostates = {}
    )
    {
-      detail::best_response_impl(
+      detail::make_best_response_impl< config >(
          m_best_responders,
          std::forward< Env >(env),
          player_policies,
@@ -404,8 +439,8 @@ class BestResponsePolicy {
 
    [[nodiscard]] auto operator()(const info_state_type& infostate, auto&&...) const
    {
-      return HashmapActionPolicy< action_type >{
-         std::array{std::pair{m_best_response.at(infostate.player()).at(infostate).first, 1.}}};
+      return HashmapActionPolicy< action_type >{std::array{
+         std::pair{_get_action(m_best_response.at(infostate.player()).at(infostate)), 1.}}};
    }
 
    [[nodiscard]] auto at(const info_state_type& infostate, auto&&...) const
@@ -413,13 +448,15 @@ class BestResponsePolicy {
       return operator()(infostate);
    }
 
-   /// ref-qualifiers for when one has an rvalue of this class and simply wants to extract the player tables from the
+   /// ref-qualifiers for when one has an rvalue of this class and simply wants to extract the
+   /// player tables from the
    [[nodiscard]] const auto& table() const& { return m_best_response; }
    [[nodiscard]] const auto& table(Player player) const& { return m_best_response.at(player); }
    [[nodiscard]] auto&& table() && { return std::move(m_best_response); }
    [[nodiscard]] auto&& table(Player player) && { return std::move(m_best_response.at(player)); }
 
    [[nodiscard]] auto value(const info_state_type& infostate) const
+      requires(config.store_infostate_values)
    {
       return m_best_response.at(infostate.player()).at(infostate).second;
    }
@@ -427,8 +464,22 @@ class BestResponsePolicy {
 
   private:
    std::vector< Player > m_best_responders;
-   player_hash_map< std::unordered_map< info_state_type, std::pair< action_type, double > > >
-      m_best_response;
+   player_hash_map< std::unordered_map< info_state_type, mapped_type > > m_best_response;
+
+   [[nodiscard]] const auto& _get_action(const mapped_type& mapped_elem) const
+   {
+      if constexpr(config.store_infostate_values)
+         return mapped_elem.first;
+      else
+         return mapped_elem;
+   }
+
+   void _fill_from_cached_map(const auto& cached_br_map)
+   {
+      for(const auto& [infostate, mapped_elem] : cached_br_map) {
+         m_best_response[infostate.player()].emplace(infostate, mapped_elem);
+      }
+   }
 };
 
 }  // namespace nor

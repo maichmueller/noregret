@@ -432,7 +432,7 @@ inline auto kuhn_optimal(double alpha)
       HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
    );
 
-   return std::tuple{alex_policy, bob_policy};
+   return std::tuple{std::move(alex_policy), std::move(bob_policy)};
 }
 
 inline auto kuhn_policy_always_mix_like(double check_prob = 0.5, double bet_prob = 0.5)

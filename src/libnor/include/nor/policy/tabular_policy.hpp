@@ -29,7 +29,14 @@ class TabularPolicy {
    TabularPolicy()
       requires std::is_default_constructible_v< table_type >
    = default;
-   TabularPolicy(table_type table) : m_table(std::move(table)) {}
+
+   template < typename OtherTableType >
+      requires(not common::
+                  is_specialization_v< std::remove_cvref_t< OtherTableType >, TabularPolicy >)
+              and concepts::map< std::remove_cvref_t< OtherTableType > >
+   TabularPolicy(OtherTableType&& table) : m_table(std::forward< OtherTableType >(table))
+   {
+   }
 
    auto begin() { return m_table.begin(); }
    auto end() { return m_table.end(); }
@@ -153,6 +160,16 @@ class TabularPolicy {
   private:
    table_type m_table;
 };
+
+// deduction-guide
+template < typename OtherTableType >
+   requires(not common::
+               is_specialization_v< std::remove_cvref_t< OtherTableType >, TabularPolicy >)
+           and concepts::map< std::remove_cvref_t< OtherTableType > >
+TabularPolicy(OtherTableType&& table) -> TabularPolicy<
+   typename std::remove_cvref_t< OtherTableType >::key_type,
+   typename std::remove_cvref_t< OtherTableType >::mapped_type,
+   std::remove_cvref_t< OtherTableType > >;
 
 }  // namespace nor
 

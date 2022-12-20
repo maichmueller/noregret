@@ -469,11 +469,9 @@ struct factory {
    }
 
    template < typename Table >
-      requires concepts::map< Table >
-   static TabularPolicy< typename Table::key_type, typename Table::mapped_type, Table >
-   make_tabular_policy(Table&& table = Table())
+   static auto make_tabular_policy(Table&& table = Table())
    {
-      return {std::forward< Table >(table)};
+      return TabularPolicy{std::forward< Table >(table)};
    }
 
    template < typename Infostate, typename ActionPolicy, size_t extent = std::dynamic_extent >
@@ -488,18 +486,24 @@ struct factory {
       return {};
    }
 
-   template < typename Infostate, typename Action >
-   static BestResponsePolicy< Infostate, Action > make_best_response_policy(
+   template <
+      typename Infostate,
+      typename Action,
+      BRConfig config = BRConfig{.store_infostate_values = false} >
+   static BestResponsePolicy< Infostate, Action, config > make_best_response_policy(
       std::vector< Player > best_response_players,
-      std::unordered_map< Infostate, std::pair< Action, double > > cached_br_map = {}
+      std::unordered_map< Infostate, detail::mapped_br_type< config, Action > > cached_br_map = {}
    )
    {
       return {best_response_players, std::move(cached_br_map)};
    }
-   template < typename Infostate, typename Action >
-   static BestResponsePolicy< Infostate, Action > make_best_response_policy(
+   template <
+      typename Infostate,
+      typename Action,
+      BRConfig config = BRConfig{.store_infostate_values = false} >
+   static BestResponsePolicy< Infostate, Action, config > make_best_response_policy(
       Player best_response_player,
-      std::unordered_map< Infostate, std::pair< Action, double > > cached_br_map = {}
+      std::unordered_map< Infostate, detail::mapped_br_type< config, Action > > cached_br_map = {}
    )
    {
       return {{best_response_player}, std::move(cached_br_map)};

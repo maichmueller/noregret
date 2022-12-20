@@ -232,8 +232,10 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
    auto& opp_policy = player_policy(opponent);
    opp_policy(player_infostate(opponent), actions) = input_policy;
 
-   auto best_response = nor::factory::make_best_response_policy< Infostate, Action >(best_responder
-   );
+   auto best_response = nor::factory::
+      make_best_response_policy< Infostate, Action, nor::BRConfig{.store_infostate_values = true} >(
+         best_responder
+      );
 
    best_response.allocate(
       env, State{}, std::unordered_map{std::pair{opponent, nor::StatePolicyView{opp_policy}}}
@@ -365,9 +367,7 @@ TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
    auto best_response = nor::factory::make_best_response_policy< Infostate, Action >(best_responder
    );
 
-   best_response.allocate(
-      env, State{}, std::unordered_map{std::pair{opponent, opp_policy}}
-   );
+   best_response.allocate(env, State{}, std::unordered_map{std::pair{opponent, opp_policy}});
    auto value_map = nor::rm::policy_value(
       env,
       State{},
@@ -615,9 +615,6 @@ INSTANTIATE_TEST_SUITE_P(
       std::vector< param_tuple_type > vec_out;
       vec_out.reserve(3);
 
-      auto [terminals, infostate_map] = nor::map_histories_to_infostates(Environment{}, State{});
-
-
       auto [uniform_policy_alex, uniform_policy_bob] = kuhn_policy_always_mix_like(0.5, 0.5);
       auto [always_check_policy_alex, always_check_policy_bob] = kuhn_policy_always_mix_like(
          1., 0.
@@ -631,42 +628,30 @@ INSTANTIATE_TEST_SUITE_P(
          0.5  // br policy value
       );
       vec_out.emplace_back(
-         nor::Player::alex,
-         "opponent_policy_always_check",
-         always_check_policy_bob,
-         1.
+         nor::Player::alex, "opponent_policy_always_check", always_check_policy_bob, 1.
       );
       vec_out.emplace_back(
-         nor::Player::alex,
-         "opponent_policy_always_bet",
-         always_bet_policy_bob,
-         1. / 3.
+         nor::Player::alex, "opponent_policy_always_bet", always_bet_policy_bob, 1. / 3.
       );
 
       vec_out.emplace_back(
-         nor::Player::bob,
-         "opponent_policy_uniform",
-         uniform_policy_alex,
-         0.4 + 1. / 60.
+         nor::Player::bob, "opponent_policy_uniform", uniform_policy_alex, 0.4 + 1. / 60.
       );
       vec_out.emplace_back(
-         nor::Player::bob,
-         "opponent_policy_always_check",
-         always_check_policy_alex,
-         1.
+         nor::Player::bob, "opponent_policy_always_check", always_check_policy_alex, 1.
       );
       vec_out.emplace_back(
-         nor::Player::bob,
-         "opponent_policy_always_bet",
-         always_bet_policy_alex,
-         1. / 3.
+         nor::Player::bob, "opponent_policy_always_bet", always_bet_policy_alex, 1. / 3.
       );
 
       return vec_out;
    })),
    [](const auto& params) {
-      return common::replace_all(common::to_string(std::get<0>(params.param)) + "_" + std::get<1>(params.param)," ", "_");
-
+      return common::replace_all(
+         common::to_string(std::get< 0 >(params.param)) + "_" + std::get< 1 >(params.param),
+         " ",
+         "_"
+      );
    }
 );
 

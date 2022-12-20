@@ -31,7 +31,7 @@ template <
 concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped) {
                                     typename Map::key_type;
                                     typename Map::mapped_type;
-
+                                    m.emplace(key, mapped);
                                     m.find(key);
                                     {
                                        m[key]
