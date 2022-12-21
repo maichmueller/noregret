@@ -4,188 +4,12 @@
 
 #include <iostream>
 #include <range/v3/all.hpp>
+#include <variant>
 #include <vector>
 
 #include "common/misc.hpp"
 
 namespace common {
-
-inline void hash_combine([[maybe_unused]] std::size_t& /*seed*/) {}
-
-template < typename T, typename... Rest >
-inline void hash_combine(std::size_t& seed, const T& v, Rest... rest)
-{
-   std::hash< T > hasher;
-   seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-   hash_combine(seed, rest...);
-}
-
-template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
-struct ref_wrapper_hasher {
-   // allow for heterogenous lookup
-   using is_transparent = std::true_type;
-
-   auto operator()(const std::reference_wrapper< T >& value) const { return Hasher{}(value.get()); }
-   auto operator()(const T& value) const { return Hasher{}(value); }
-};
-
-template < typename T >
-   requires std::equality_comparable< T >
-struct ref_wrapper_comparator {
-   // allow for heterogenous lookup
-   using is_transparent = std::true_type;
-   auto operator()(const std::reference_wrapper< T >& ref1, const std::reference_wrapper< T >& ref2)
-      const
-   {
-      return ref1.get() == ref2.get();
-   }
-   auto operator()(const std::reference_wrapper< T >& ref, const T& t) const
-   {
-      return ref.get() == t;
-   }
-   auto operator()(const T& t, const std::reference_wrapper< T >& ref) const
-   {
-      return t == ref.get();
-   }
-   auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
-};
-
-template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
-struct sptr_value_hasher {
-   // allow for heterogenous lookup
-   using is_transparent = std::true_type;
-
-   auto operator()(const sptr< T >& ptr) const { return Hasher{}(*ptr); }
-   auto operator()(const T& t) const { return Hasher{}(t); }
-};
-
-template < typename T >
-   requires std::equality_comparable< T >
-struct sptr_value_comparator {
-   // allow for heterogenous lookup
-   using is_transparent = std::true_type;
-
-   auto operator()(const sptr< T >& ptr1, const sptr< T >& ptr2) const { return *ptr1 == *ptr2; }
-   auto operator()(const sptr< T >& ptr1, T& t2) const { return *ptr1 == t2; }
-   auto operator()(const T& t1, const sptr< T >& ptr2) const { return t1 == *ptr2; }
-   auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
-};
-
-/**
- * Literal class type that wraps a constant expression string.
- * Can be used as template parameter to differentiate via 'strings'
- */
-template < size_t N >
-struct StringLiteral {
-   constexpr StringLiteral(const char (&str)[N]) { std::copy_n(str, N, value); }
-
-   char value[N];
-};
-
-template < typename T >
-   requires requires(T t) { std::cout << t; }
-struct VectorPrinter {
-   const std::vector< T >& value;
-   std::string_view delimiter;
-
-   VectorPrinter(const std::vector< T >& vec, const std::string& delim = std::string(", "))
-       : value(vec), delimiter(delim)
-   {
-   }
-
-   friend auto& operator<<(std::ostream& os, const VectorPrinter& printer)
-   {
-      os << "[";
-      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
-         os << printer.value[i] << printer.delimiter;
-      }
-      os << printer.value.back() << "]";
-      return os;
-   }
-};
-
-template < typename T >
-   requires requires(T t) { std::cout << t; }
-struct SpanPrinter {
-   ranges::span< T > value;
-   std::string_view delimiter;
-
-   SpanPrinter(ranges::span< T > vec, const std::string& delim = std::string(", "))
-       : value(vec), delimiter(delim)
-   {
-   }
-
-   friend auto& operator<<(std::ostream& os, const SpanPrinter& printer)
-   {
-      os << "[";
-      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
-         os << printer.value[i] << printer.delimiter;
-      }
-      os << printer.value.back() << "]";
-      return os;
-   }
-};
-
-template < typename... Ts >
-struct Overload: Ts... {
-   using Ts::operator()...;
-};
-template < typename... Ts >
-Overload(Ts...) -> Overload< Ts... >;
-
-template < class T, class... Ts >
-struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {};
-template < class T, class... Ts >
-inline constexpr bool is_any_v = is_any< T, Ts... >::value;
-
-template < class T, class... Ts >
-struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {};
-template < class T, class... Ts >
-inline constexpr bool is_same_v = is_same< T, Ts... >::value;
-
-template < typename Key, typename Value, std::size_t Size >
-struct CEMap {
-   std::array< std::pair< Key, Value >, Size > data;
-
-   [[nodiscard]] constexpr Value at(const Key& key) const
-   {
-      const auto itr = std::find_if(begin(data), end(data), [&key](const auto& v) {
-         return v.first == key;
-      });
-      if(itr != end(data)) {
-         return itr->second;
-      } else {
-         throw std::range_error("Not Found");
-      }
-   }
-};
-
-template < typename Key, typename Value, std::size_t Size >
-struct CEBijection {
-   std::array< std::pair< Key, Value >, Size > data;
-
-   template < typename T >
-      requires is_any_v< T, Key, Value >
-   [[nodiscard]] constexpr auto at(const T& elem) const
-   {
-      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
-         if constexpr(std::is_same_v< T, Key >) {
-            return v.first == elem;
-         } else {
-            return v.second == elem;
-         }
-      });
-      if(itr != end(data)) {
-         if constexpr(std::is_same_v< T, Key >) {
-            return itr->second;
-         } else {
-            return itr->first;
-         }
-      } else {
-         throw std::range_error("Not Found");
-      }
-   }
-};
 
 /// is_specialization checks whether T is a specialized template class of 'Template'
 /// This has the limitation of not working with non-type parameters, i.e. templates such as
@@ -466,6 +290,308 @@ struct const_ref_if< false, T > {
 
 template < bool condition, typename T >
 using const_ref_if_t = typename const_ref_if< condition, T >::type;
+
+inline void hash_combine([[maybe_unused]] std::size_t& /*seed*/) {}
+
+template < typename T, typename... Rest >
+inline void hash_combine(std::size_t& seed, const T& v, Rest... rest)
+{
+   std::hash< T > hasher;
+   seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+   hash_combine(seed, rest...);
+}
+
+template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
+struct ref_wrapper_hasher {
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
+
+   auto operator()(const std::reference_wrapper< T >& value) const { return Hasher{}(value.get()); }
+   auto operator()(const T& value) const { return Hasher{}(value); }
+};
+
+template < typename T >
+   requires std::equality_comparable< T >
+struct ref_wrapper_comparator {
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
+   auto operator()(const std::reference_wrapper< T >& ref1, const std::reference_wrapper< T >& ref2)
+      const
+   {
+      return ref1.get() == ref2.get();
+   }
+   auto operator()(const std::reference_wrapper< T >& ref, const T& t) const
+   {
+      return ref.get() == t;
+   }
+   auto operator()(const T& t, const std::reference_wrapper< T >& ref) const
+   {
+      return t == ref.get();
+   }
+   auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
+};
+
+namespace detail {
+
+template < typename T, typename U >
+concept pointer_like = requires(T t) {
+                          *t;
+                          requires std::same_as< U, std::remove_cvref_t< decltype(*t) > >;
+                       };
+
+}
+
+template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
+struct value_hasher {
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
+
+   auto operator()(const detail::pointer_like< T > auto& ptr) const { return Hasher{}(*ptr); }
+   auto operator()(std::reference_wrapper< T > ref) const { return Hasher{}(ref.get()); }
+   auto operator()(const T& t) const { return Hasher{}(t); }
+};
+
+template < typename T, typename... Ts >
+struct std_hasher: public std_hasher< Ts... >, public std_hasher< T > {
+   using std_hasher< T >::operator();
+   using std_hasher< Ts... >::operator();
+};
+
+template < typename T >
+struct std_hasher< T > {
+   size_t operator()(const T& t) const { return std::hash< T >{}(t); }
+};
+
+template < typename T >
+struct variant_hasher;
+
+/// @brief A helper class to enable heterogenous hashing of variant types
+///
+/// Each individual type T is hashable by their own std::hash< T > class without prior conversion to
+/// the variant type. However, this does necessiate a disambiguation for types that are implicitly
+/// convertible to a T of the variant type. E.g. the call variant_hasher< std::variant< int,
+/// std::string >>{}("Char String") would be ambiguous now and would have to be disambiguated by
+/// wrapping the character stiring in std::string("Char String") or variant_type("Char String")
+///
+/// \tparam Ts, the variant types
+template < typename... Ts >
+// requires is_specialization_v<T, std::variant>
+struct variant_hasher< std::variant< Ts... > >: public std_hasher< Ts... > {
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
+
+   // hashing of the actual variant type
+   auto operator()(const std::variant< Ts... >& variant) const
+   {
+      return std::visit(
+         []< typename VarType >(const VarType& var_element) {
+            return std::hash< VarType >{}(var_element);
+         },
+         variant
+      );
+   }
+   // hashing of the individual variant types by their own std hash functions
+   using std_hasher< Ts... >::operator();
+};
+
+template < typename T >
+   requires std::equality_comparable< T >
+struct value_comparator {
+   // allow for heterogenous lookup
+   using is_transparent = std::true_type;
+
+   auto operator()(
+      const detail::pointer_like< T > auto& ptr1,
+      const detail::pointer_like< T > auto& ptr2
+   ) const
+   {
+      return *ptr1 == *ptr2;
+   }
+   auto operator()(std::reference_wrapper< T > ref1, std::reference_wrapper< T >& ref2) const
+   {
+      return ref1.get() == ref2.get();
+   }
+   auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
+
+   auto operator()(const detail::pointer_like< T > auto& ptr1, std::reference_wrapper< T > ref2)
+      const
+   {
+      return *ptr1 == ref2;
+   }
+   auto operator()(std::reference_wrapper< T > t1, const detail::pointer_like< T > auto& ptr2) const
+   {
+      return t1.get() == *ptr2;
+   }
+
+   auto operator()(const detail::pointer_like< T > auto& ptr1, const T& t2) const
+   {
+      return *ptr1 == t2;
+   }
+   auto operator()(const T& t1, const detail::pointer_like< T > auto& ptr2) const
+   {
+      return t1 == *ptr2;
+   }
+
+   auto operator()(std::reference_wrapper< T > ref1, const T& t2) const { return ref1.get() == t2; }
+   auto operator()(const T& t1, std::reference_wrapper< T > ref2) const { return t1 == ref2.get(); }
+};
+
+/**
+ * Literal class type that wraps a constant expression string.
+ * Can be used as template parameter to differentiate via 'strings'
+ */
+template < size_t N >
+struct StringLiteral {
+   constexpr StringLiteral(const char (&str)[N]) { std::copy_n(str, N, value); }
+
+   char value[N];
+};
+
+template < typename T >
+   requires requires(T t) { std::cout << t; }
+struct VectorPrinter {
+   const std::vector< T >& value;
+   std::string_view delimiter;
+
+   VectorPrinter(const std::vector< T >& vec, const std::string& delim = std::string(", "))
+       : value(vec), delimiter(delim)
+   {
+   }
+
+   friend auto& operator<<(std::ostream& os, const VectorPrinter& printer)
+   {
+      os << "[";
+      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
+         os << printer.value[i] << printer.delimiter;
+      }
+      os << printer.value.back() << "]";
+      return os;
+   }
+};
+
+template < typename T >
+   requires requires(T t) { std::cout << t; }
+struct SpanPrinter {
+   ranges::span< T > value;
+   std::string_view delimiter;
+
+   SpanPrinter(ranges::span< T > vec, const std::string& delim = std::string(", "))
+       : value(vec), delimiter(delim)
+   {
+   }
+
+   friend auto& operator<<(std::ostream& os, const SpanPrinter& printer)
+   {
+      os << "[";
+      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
+         os << printer.value[i] << printer.delimiter;
+      }
+      os << printer.value.back() << "]";
+      return os;
+   }
+};
+
+template < typename... Ts >
+struct Overload: Ts... {
+   using Ts::operator()...;
+};
+template < typename... Ts >
+Overload(Ts...) -> Overload< Ts... >;
+
+template < typename ReturnType >
+struct monostate_error_visitor {
+   ReturnType operator()(std::monostate)
+   {
+      // this should never be visited, but if so --> error
+      throw std::logic_error("We entered a std::monostate visit branch.");
+      if constexpr(std::is_void_v< ReturnType >) {
+         return;
+      } else {
+         return {};
+      }
+   }
+};
+
+template < typename TargetVariant, typename... Ts >
+auto make_overload_with_monostate(Ts... ts)
+{
+   return Overload{
+      monostate_error_visitor< std::invoke_result_t<
+         decltype([] { return std::visit< Overload< Ts... >, TargetVariant >; }),
+         Overload< Ts... >,
+         TargetVariant > >{},
+      ts...};
+}
+
+template < class T, class... Ts >
+struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {};
+template < class T, class... Ts >
+inline constexpr bool is_any_v = is_any< T, Ts... >::value;
+
+template < class T, class... Ts >
+struct is_none: ::std::negation< ::std::disjunction< ::std::is_same< T, Ts >... > > {};
+template < class T, class... Ts >
+inline constexpr bool is_none_v = is_none< T, Ts... >::value;
+
+template < class T, class... Ts >
+struct all_same: ::std::conjunction< ::std::is_same< T, Ts >... > {};
+template < class T, class... Ts >
+inline constexpr bool all_same_v = all_same< T, Ts... >::value;
+
+template < typename Key, typename Value, std::size_t Size >
+struct CEMap {
+   std::array< std::pair< Key, Value >, Size > data;
+
+   [[nodiscard]] constexpr Value at(const Key& key) const
+   {
+      const auto itr = std::find_if(begin(data), end(data), [&key](const auto& v) {
+         return v.first == key;
+      });
+      if(itr != end(data)) {
+         return itr->second;
+      } else {
+         throw std::range_error("Not Found");
+      }
+   }
+};
+
+template < typename Key, typename Value, std::size_t Size >
+struct CEBijection {
+   std::array< std::pair< Key, Value >, Size > data;
+
+   template < typename T >
+      requires is_any_v< T, Key, Value >
+   [[nodiscard]] constexpr auto at(const T& elem) const
+   {
+      const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
+         if constexpr(std::is_same_v< T, Key >) {
+            return v.first == elem;
+         } else {
+            return v.second == elem;
+         }
+      });
+      if(itr != end(data)) {
+         if constexpr(std::is_same_v< T, Key >) {
+            return itr->second;
+         } else {
+            return itr->first;
+         }
+      } else {
+         throw std::range_error("Not Found");
+      }
+   }
+};
+
+template < typename Predicate >
+class not_pred {
+  public:
+   constexpr explicit not_pred(const Predicate& pred) : m_pred(pred) {}
+
+   constexpr bool operator()(const auto& x) const { return not m_pred(x); }
+
+  protected:
+   Predicate m_pred;
+};
 
 }  // namespace common
 

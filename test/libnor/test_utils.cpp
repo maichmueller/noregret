@@ -2,6 +2,10 @@
 #include <gtest/gtest.h>
 
 #include "common/common.hpp"
+#include "nor/concepts.hpp"
+#include "nor/env/kuhn_env.hpp"
+#include "nor/factory.hpp"
+#include "nor/policy/action_policy.hpp"
 #include "nor/utils/utils.hpp"
 
 using namespace nor;
@@ -84,7 +88,9 @@ struct clone_any_way_fixture: public ::testing::Test {
    sptr< T > shrd_ptr = std::make_shared< T >();
    T* rawptr = new T();
    T value{};
-   std::reference_wrapper< T > value_ref = {value};
+   T& ref{*rawptr};
+   const T& const_ref{*rawptr};
+   std::reference_wrapper< T > ref_wrapper = {value};
 };
 
 using clone_any_way_types = ::testing::Types<
@@ -105,7 +111,9 @@ TYPED_TEST(clone_any_way_fixture, test_all_paths)
    auto sptr_clone = nor::utils::clone_any_way(this->shrd_ptr);
    auto rawptr_clone = nor::utils::clone_any_way(this->rawptr);
    auto value_clone = nor::utils::clone_any_way(this->value);
-   auto value_ref_clone = nor::utils::clone_any_way(this->value_ref);
+   auto ref_clone = nor::utils::clone_any_way(this->ref);
+   auto const_ref_clone = nor::utils::clone_any_way(this->const_ref);
+   auto ref_wrapper_clone = nor::utils::clone_any_way(this->ref_wrapper);
 
    struct ExpectedCounts {
       size_t copy_cstructor_count = 0;
@@ -113,24 +121,122 @@ TYPED_TEST(clone_any_way_fixture, test_all_paths)
       size_t clone_meth_count = 0;
    };
 
+   // these expected values are associated with the Tester types in 'clone_any_way_types' above
    constexpr std::array< ExpectedCounts, 6 > expected_counts = std::array{
-      ExpectedCounts{.copy_cstructor_count = 5},
-      ExpectedCounts{.copy_meth_count = 5},
-      ExpectedCounts{.clone_meth_count = 5},
-      ExpectedCounts{.copy_meth_count = 5},
-      ExpectedCounts{.clone_meth_count = 5},
-      ExpectedCounts{.clone_meth_count = 5}};
+      ExpectedCounts{.copy_cstructor_count = 7},
+      ExpectedCounts{.copy_meth_count = 7},
+      ExpectedCounts{.clone_meth_count = 7},
+      ExpectedCounts{.copy_meth_count = 7},
+      ExpectedCounts{.clone_meth_count = 7},
+      ExpectedCounts{.clone_meth_count = 7}};
 
-   ASSERT_EQ(
+   EXPECT_EQ(
       TypeParam::counter_access::copy_constructor_counter,
       expected_counts[TypeParam::index].copy_cstructor_count
    );
-   ASSERT_EQ(
+   EXPECT_EQ(
       TypeParam::counter_access::copy_method_counter,
       expected_counts[TypeParam::index].copy_meth_count
    );
-   ASSERT_EQ(
+   EXPECT_EQ(
       TypeParam::counter_access::clone_method_counter,
       expected_counts[TypeParam::index].clone_meth_count
    );
+}
+
+TEST(ChildState, create_kuhn_child)
+{
+   using namespace nor;
+   using namespace nor::games::kuhn;
+
+   auto env = Environment{};
+   State state{};
+
+   state.apply_action(ChanceOutcome{kuhn::Player::one, Card::king});
+   state.apply_action(ChanceOutcome{kuhn::Player::two, Card::queen});
+
+   uptr< State > child = child_state(env, state, Action::check);
+   auto state_copy = state;
+   state_copy.apply_action(Action::check);
+   ASSERT_EQ(child->history(), state_copy.history());
+}
+
+TEST(Normalizing, action_policy)
+{
+   nor::HashmapActionPolicy< int > policy{std::pair{0, 5.}, std::pair{1, 2.}, std::pair{2, 3.}};
+
+   nor::normalize_action_policy_inplace(policy);
+
+   EXPECT_EQ(policy[0], .5);
+   EXPECT_EQ(policy[1], .2);
+   EXPECT_EQ(policy[2], .3);
+}
+
+TEST(Normalizing, state_policy)
+{
+   using namespace nor;
+   using namespace nor::games::kuhn;
+
+   auto env = Environment{};
+   State state{}, next_state{};
+   Infostate istate1{nor::Player::alex}, istate2{nor::Player::alex};
+
+   auto action = ChanceOutcome{kuhn::Player::one, Card::king};
+
+   next_state.apply_action(action);
+
+   istate2.update(
+      env.public_observation(state, action, next_state),
+      env.private_observation(nor::Player::bob, state, action, next_state)
+   );
+   state = next_state;
+
+   action = ChanceOutcome{kuhn::Player::two, Card::queen};
+   next_state.apply_action(action);
+   istate1 = istate2;
+   istate2.update(
+      env.public_observation(state, action, next_state),
+      env.private_observation(nor::Player::bob, state, action, next_state)
+   );
+   state = next_state;
+
+   auto policy = factory::make_tabular_policy(
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< int > >{}
+   );
+   policy.emplace(istate1, std::pair{0, 5.}, std::pair{1, 2.}, std::pair{2, 3.});
+   policy.emplace(istate2, std::pair{0, 8.}, std::pair{1, 2.}, std::pair{2, 1.}, std::pair{3, 9.});
+
+   auto policy_copy = policy;
+
+   nor::normalize_state_policy_inplace(policy);
+
+   EXPECT_EQ(policy(istate1)[0], .5);
+   EXPECT_EQ(policy(istate1)[1], .2);
+   EXPECT_EQ(policy(istate1)[2], .3);
+
+   EXPECT_EQ(policy(istate2)[0], .4);
+   EXPECT_EQ(policy(istate2)[1], .1);
+   EXPECT_EQ(policy(istate2)[2], .05);
+   EXPECT_EQ(policy(istate2)[3], .45);
+
+
+   auto normalized_pol = nor::normalize_state_policy(policy_copy);
+
+   EXPECT_EQ(normalized_pol(istate1)[0], .5);
+   EXPECT_EQ(normalized_pol(istate1)[1], .2);
+   EXPECT_EQ(normalized_pol(istate1)[2], .3);
+
+   EXPECT_EQ(normalized_pol(istate2)[0], .4);
+   EXPECT_EQ(normalized_pol(istate2)[1], .1);
+   EXPECT_EQ(normalized_pol(istate2)[2], .05);
+   EXPECT_EQ(normalized_pol(istate2)[3], .45);
+
+   EXPECT_EQ(policy_copy(istate1)[0], 5.);
+   EXPECT_EQ(policy_copy(istate1)[1], 2.);
+   EXPECT_EQ(policy_copy(istate1)[2], 3.);
+
+   EXPECT_EQ(policy_copy(istate2)[0], 8.);
+   EXPECT_EQ(policy_copy(istate2)[1], 2.);
+   EXPECT_EQ(policy_copy(istate2)[2], 1.);
+   EXPECT_EQ(policy_copy(istate2)[3], 9.);
 }

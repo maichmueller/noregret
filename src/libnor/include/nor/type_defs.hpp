@@ -10,4 +10,5 @@ using sptr = std::shared_ptr< T >;
 template < typename T >
 using wptr = std::weak_ptr< T >;
 
+
 #endif  // NOR_TYPEDEFS_HPP

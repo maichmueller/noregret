@@ -15,14 +15,25 @@ class Publicstate {
    size_t size() const;
    bool operator==(const Publicstate&) const;
 
-   observation_type& append(observation_type);
+   observation_type& update(observation_type);
 
    observation_type& operator[](size_t);
 };
 
-class Infostate: public Publicstate {
+class Infostate {
   public:
+
+   using action_type = int;
+   using observation_type = std::string;
+
    nor::Player player() const;
+
+   size_t size() const;
+   bool operator==(const Infostate&) const;
+
+   std::pair<observation_type, observation_type>& update(observation_type, observation_type);
+
+   std::pair<observation_type, observation_type>& operator[](size_t);
 };
 }  // namespace dummy
 namespace std {
@@ -49,7 +60,8 @@ class Env {
    // nor fosg traits
    static constexpr size_t max_player_count() { return 10; }
    static constexpr size_t player_count() { return 10; }
-   static constexpr nor::TurnDynamic turn_dynamic() { return nor::TurnDynamic::simultaneous; }
+   static constexpr bool serialized() { return false; }
+   static constexpr bool unrolled() { return false; }
    static constexpr nor::Stochasticity stochasticity() { return nor::Stochasticity::deterministic; }
 
    std::vector< action_type > actions(nor::Player player, const world_state_type& wstate) const;
@@ -69,23 +81,21 @@ class Env {
    bool is_terminal(world_state_type& wstate);
    double reward(nor::Player player, world_state_type& wstate) const;
    void transition(world_state_type& worldstate, const action_type& action);
-   observation_type private_observation(nor::Player player, const world_state_type& wstate);
-   observation_type private_observation(nor::Player player, const action_type& action);
-   observation_type public_observation(const world_state_type& wstate);
-   observation_type public_observation(const action_type& action);
+   observation_type private_observation(nor::Player, const world_state_type&, const action_type&, const world_state_type&);
+   observation_type public_observation(const world_state_type&, const action_type&, const world_state_type&);
 };
 
 struct Traits {
    using action_type = int;
-   using info_state_type = double;
+   using info_state_type = std::string;
 };
 
 struct TraitsSuperClass {
    using action_type = int;
-   using info_state_type = double;
+   using info_state_type = std::string;
 
-   using world_state_type = std::string;
-   using public_state_type = double;
+   using world_state_type = std::size_t;
+   using public_state_type = uint8_t;
 };
 
 }  // namespace dummy
@@ -93,9 +103,9 @@ struct TraitsSuperClass {
 namespace nor {
 template <>
 struct fosg_traits< dummy::Traits > {
-   using action_type = double;
-   using info_state_type = size_t;
-   using world_state_type = std::string;
+   using action_type = int;
+   using info_state_type = std::string;
+   using world_state_type = std::size_t;
 };
 
 }  // namespace nor

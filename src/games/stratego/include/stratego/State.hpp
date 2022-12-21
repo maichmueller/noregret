@@ -18,34 +18,21 @@ class History {
    using Team = aze::Team;
 
   public:
-   // strong types for turns and indices
-   using Turn = fluent::NamedType< size_t, struct TurnTag >;
-   using Index = fluent::NamedType< size_t, struct IndexTag >;
+   auto begin() { return m_history_element.begin(); }
+   auto begin() const { return m_history_element.begin(); }
+   auto end() { return m_history_element.end(); }
+   auto end() const { return m_history_element.end(); }
 
-   [[nodiscard]] inline auto operator[](Turn turn) const
-      -> std::tuple< Team, Action, std::pair< Piece, std::optional< Piece > > >
-   {
-      return {m_teams.at(turn.get()), m_actions.find(turn.get())->second, m_pieces.at(turn.get())};
-   }
-
-   [[nodiscard]] inline auto operator[](Index index) const
-      -> std::tuple< Team, Action, std::pair< Piece, std::optional< Piece > > >
-   {
-      auto turn = m_turns[index.get()];
-      return (*this)[Turn(turn)];
-   }
+   [[nodiscard]] inline auto &operator[](size_t turn) const { return m_history_element.at(turn); }
 
    void commit_action(
       size_t turn,
       Team team,
-      const Action &action,
-      const std::pair< Piece, std::optional< Piece > > &pieces)
+      Action action,
+      std::pair< Piece, std::optional< Piece > > pieces
+   )
    {
-      // emplace needed bc 'Action' class not default constructible (requirement for [] operator)
-      m_actions.emplace(turn, action);
-      // emplace needed bc 'Piece' class not default constructible
-      m_pieces.emplace(turn, pieces);
-      m_teams[turn] = team;
+      m_history_element.emplace(turn, std::tuple{team, std::move(action), std::move(pieces)});
       m_turns.emplace_back(turn);
    }
 
@@ -56,11 +43,10 @@ class History {
 
    auto view_team_history(Team team)
    {
-      return ranges::views::filter(
-         ranges::views::zip(m_turns, m_actions, m_pieces),
-         [&, team = team](const auto &common_view) {
-            return m_teams[std::get< 0 >(common_view)] == team;
-         });
+      return ranges::views::filter(m_history_element, [&, team = team](const auto &elem_pair_view) {
+         const auto &[team_, action, pieces] = std::get< 1 >(elem_pair_view);
+         return team_ == team;
+      });
    }
 
    auto pop_last()
@@ -72,24 +58,39 @@ class History {
        *  all removed entries in sequence: turn, team, move, pieces
        */
       auto turn = m_turns.back();
-      auto ret = std::tuple{turn, m_teams.at(turn), m_actions.at(turn), m_pieces.at(turn)};
-      m_teams.erase(turn);
-      m_actions.erase(turn);
-      m_pieces.erase(turn);
+      auto elem_iter = m_history_element.find(turn);
+      auto ret = std::tuple_cat(std::forward_as_tuple(turn), std::move(elem_iter->second));
+      m_turns.pop_back();
+      m_history_element.erase(elem_iter);
+      return ret;
+   }
+
+   auto view_last()
+   {
+      /**
+       * @brief Remove the latest entries from the private_history. Return the
+       * contents, that were removed.
+       * @return tuple,
+       *  all removed entries in sequence: turn, team, move, pieces
+       */
+      if(m_turns.empty()) {
+         return m_history_element.end();
+      }
+      auto turn = m_turns.back();
+      auto ret = m_history_element.find(turn);
       return ret;
    }
 
    [[nodiscard]] auto size() const { return m_turns.size(); }
    [[nodiscard]] auto &turns() const { return m_turns; }
-   [[nodiscard]] auto &actions() const { return m_actions; }
-   [[nodiscard]] auto &pieces() const { return m_pieces; }
-   [[nodiscard]] auto &teams() const { return m_teams; }
+   [[nodiscard]] auto &elements_map() const { return m_history_element; }
 
   private:
    std::vector< size_t > m_turns;
-   std::map< size_t, Action > m_actions;
-   std::map< size_t, Team > m_teams;
-   std::map< size_t, std::pair< Piece, std::optional< Piece > > > m_pieces;
+   std::unordered_map<
+      size_t,
+      std::tuple< Team, Action, std::pair< Piece, std::optional< Piece > > > >
+      m_history_element;
 };
 
 class State: public aze::State< Board, History, Piece, Action > {
@@ -98,7 +99,7 @@ class State: public aze::State< Board, History, Piece, Action > {
    using graveyard_type = std::map< Team, std::map< Token, unsigned int > >;
 
    template < typename... Params >
-   State(Config config, graveyard_type graveyard, uptr< Logic > logic, Params &&... params)
+   State(Config config, graveyard_type graveyard, uptr< Logic > logic, Params &&...params)
        : base_type(std::forward< Params >(params)...),
          m_config(std::move(config)),
          m_graveyard(std::move(graveyard)),
@@ -108,7 +109,8 @@ class State: public aze::State< Board, History, Piece, Action > {
 
    explicit State(
       Config config,
-      std::optional< std::variant< size_t, aze::utils::random::RNG > > seed = std::nullopt);
+      std::optional< std::variant< size_t, aze::utils::random::RNG > > seed = std::nullopt
+   );
 
    // definitions for these needs to be in .cpp due to Logic being an incomplete type here and
    // uniq_ptr accessing it in its destructor

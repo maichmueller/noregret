@@ -312,37 +312,47 @@ void regret_matching_plus(
  * non-terminal states would be problematic is dependant on the environment.
  * @param[in] terminal_wstate the terminal state to collect rewards for.
  */
-template < typename Env, typename Worldstate = typename fosg_auto_traits< Env >::world_state_type >
-   requires concepts::fosg< Env >
+template <
+   typename Env,
+   typename Worldstate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::world_state_type >
+   requires concepts::fosg< std::remove_cvref_t< Env > >
 // clang-format off
 auto collect_rewards(
-   Env& env,
+   Env&& env,
    common::const_ref_if_t<   // the fosg concept asserts a reward function taking world_state_type.
                      // But if it can be passed a const world state then do so instead
-      nor::concepts::has::method::reward_multi< Env, const Worldstate& >
-         or concepts::has::method::reward< Env, const Worldstate& >,
-      Worldstate > terminal_wstate)
+      nor::concepts::has::method::reward_multi< std::remove_cvref_t< Env >, const Worldstate& >
+         or concepts::has::method::reward< std::remove_cvref_t< Env >, const Worldstate& >,
+      Worldstate > terminal_wstate,
+   std::vector< Player > players = {})
 // clang-format on
 {
+   using env_type = std::remove_cvref_t< Env >;
+   if(players.empty()) {
+      players = env.players(terminal_wstate);
+   }
+   // erase non-actual player elements (e.g. chance or unknown)
+   std::erase_if(players, common::not_pred(utils::is_actual_player_pred));
+
    std::unordered_map< Player, double > rewards;
-   auto players = env.players(terminal_wstate);
-   if constexpr(nor::concepts::has::method::reward_multi< Env >) {
+   rewards.reserve(players.size());
+
+   if constexpr(nor::concepts::has::method::reward_multi< env_type >) {
       // if the environment has a method for returning all rewards for given players at
       // once, then we will assume this is a more performant alternative and use it
       // instead (e.g. when it is costly to compute the reward of each player
       // individually).
-      std::erase(std::remove_if(players.begin(), players.end(), utils::is_chance_player_pred));
       auto all_rewards = env.reward(players, terminal_wstate);
-      ranges::views::for_each(players, [&](Player player) {
+      for(Player player : players) {
          rewards.emplace(player, all_rewards[player]);
-      });
+      };
    } else {
       // otherwise we just loop over the per player reward method
-      for(auto player : players | utils::is_actual_player_filter) {
+      for(auto player : players) {
          rewards.emplace(player, env.reward(player, terminal_wstate));
       }
-      return rewards;
    }
+   return rewards;
 }
 
 }  // namespace nor::rm

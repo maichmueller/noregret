@@ -35,7 +35,16 @@ namespace nor::rm {
  *
  */
 template < bool alternating_update, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+   requires concepts::tabular_cfr_requirements<
+      Env,
+      Policy,
+      AveragePolicy,
+      UniformPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Policy >::action_policy_type >,
+      ZeroDefaultPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
 class TabularCFRBase {
    ////////////////////////////
    /// API: public typedefs ///
@@ -55,14 +64,21 @@ class TabularCFRBase {
    using chance_outcome_type = typename fosg_auto_traits< Env >::chance_outcome_type;
    using chance_distribution_type = typename fosg_auto_traits< Env >::chance_distribution_type;
 
+   using uniform_policy_type = UniformPolicy<
+      typename fosg_auto_traits< Env >::info_state_type,
+      typename fosg_auto_traits< Policy >::action_policy_type >;
+   using zero_policy_type = UniformPolicy<
+      typename fosg_auto_traits< Env >::info_state_type,
+      typename fosg_auto_traits< Policy >::action_policy_type >;
+
    /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
    /// strong-types for argument passing
    using InfostateSptrMap = fluent::
-      NamedType< std::unordered_map< Player, sptr< info_state_type > >, struct reach_prob_tag >;
+      NamedType< player_hash_map< sptr< info_state_type > >, struct reach_prob_tag >;
 
    using ObservationbufferMap = fluent::NamedType<
-      std::unordered_map< Player, std::vector< observation_type > >,
+      player_hash_map< std::vector< std::pair< observation_type, observation_type > > >,
       struct observation_buffer_tag >;
 
    ////////////////////
@@ -76,8 +92,8 @@ class TabularCFRBase {
    TabularCFRBase(
       Env game,
       uptr< world_state_type > root_state,
-      Policy policy = Policy(),
-      AveragePolicy avg_policy = AveragePolicy()
+      const Policy& policy = Policy(),
+      const AveragePolicy& avg_policy = AveragePolicy()
    )
       // clang-format off
       requires
@@ -85,10 +101,12 @@ class TabularCFRBase {
             std::is_copy_constructible,
             Policy,
             AveragePolicy >
-   // clang-format on
-   : m_env(std::move(game)), m_root_state(std::move(root_state)), m_curr_policy(), m_avg_policy()
+       // clang-format on
+       : m_env(std::move(game)),
+         m_root_state(std::move(root_state)),
+         m_curr_policy(),
+         m_avg_policy()
    {
-      _assert_sequential_game();
       for(auto player : game.players(*m_root_state) | utils::is_actual_player_filter) {
          m_curr_policy.emplace(player, policy);
          m_avg_policy.emplace(player, avg_policy);
@@ -96,17 +114,20 @@ class TabularCFRBase {
       _init_player_update_schedule();
    }
 
-   TabularCFRBase(Env env, Policy policy = Policy(), AveragePolicy avg_policy = AveragePolicy())
+   TabularCFRBase(
+      Env env,
+      const Policy& policy = Policy(),
+      const AveragePolicy& avg_policy = AveragePolicy()
+   )
       // clang-format off
       requires
          concepts::has::method::initial_world_state< Env >
-   // clang-format on
-   :
-       TabularCFRBase(
+       // clang-format on
+       : TabularCFRBase(
           std::move(env),
           std::make_unique< world_state_type >(env.initial_world_state()),
-          std::move(policy),
-          std::move(avg_policy)
+          policy,
+          avg_policy
        )
    {
       _init_player_update_schedule();
@@ -123,7 +144,6 @@ class TabularCFRBase {
          m_curr_policy(std::move(policy)),
          m_avg_policy(std::move(avg_policy))
    {
-      _assert_sequential_game();
       _init_player_update_schedule();
    }
 
@@ -144,16 +164,13 @@ class TabularCFRBase {
     * node
     */
    template < bool current_policy >
-   auto& fetch_policy(
-      const sptr< info_state_type >& infostate,
-      const std::vector< action_type >& actions
-   );
+   auto& fetch_policy(const info_state_type& infostate, const std::vector< action_type >& actions);
    /**
     * @brief Policy fetching overload for explicit naming of the policy.
     */
    template < PolicyLabel label >
    decltype(auto)
-   fetch_policy(const sptr< info_state_type >& infostate, const std::vector< action_type >& actions)
+   fetch_policy(const info_state_type& infostate, const std::vector< action_type >& actions)
    {
       static_assert(
          label == PolicyLabel::current or label == PolicyLabel::average,
@@ -169,7 +186,7 @@ class TabularCFRBase {
     */
    template < bool current_policy >
    inline auto& fetch_policy(
-      const sptr< info_state_type >& infostate,
+      const info_state_type& infostate,
       const std::vector< action_type >& actions,
       const action_type& action
    )
@@ -214,18 +231,6 @@ class TabularCFRBase {
    Player _preview_next_player_to_update() const { return m_player_update_schedule.front(); }
 
    /**
-    * @brief simple check to see if the environment fulfills the necessary game dynamics
-    */
-   inline void _assert_sequential_game()
-   {
-      if(m_env.turn_dynamic() != TurnDynamic::sequential) {
-         throw std::invalid_argument(
-            "VanillaCFR can only be performed on a sequential turn-based game."
-         );
-      }
-   }
-
-   /**
     * @brief initializes the player cycle buffer with all available players at the current state
     */
    inline void _init_player_update_schedule()
@@ -249,11 +254,11 @@ class TabularCFRBase {
    /// the root game state.
    uptr< world_state_type > m_root_state;
    /// a map of the current policy $\pi^t$ that each player is following in this iteration (t).
-   std::unordered_map< Player, Policy > m_curr_policy;
+   player_hash_map< Policy > m_curr_policy;
    /// the average policy table. The values stored in this table are the UNNORMALIZED average state
    /// policy cumulative values. This means that the state policy p(s, . ) for a given info state s
    /// needs to normalize its probabilities p(s, . ) by \sum_a p(s,a) when used for evaluation.
-   std::unordered_map< Player, AveragePolicy > m_avg_policy;
+   player_hash_map< AveragePolicy > m_avg_policy;
    /// the next player to update when doing alternative updates. Otherwise this member will be
    /// unused.
    std::deque< Player > m_player_update_schedule{};
@@ -262,7 +267,16 @@ class TabularCFRBase {
 };
 
 template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+   requires concepts::tabular_cfr_requirements<
+      Env,
+      Policy,
+      AveragePolicy,
+      UniformPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Policy >::action_policy_type >,
+      ZeroDefaultPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
 Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle_player_to_update(
    std::optional< Player > player_to_update
 )
@@ -299,19 +313,28 @@ Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle
 }
 
 template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >
-   requires concepts::tabular_cfr_requirements< Env, Policy, AveragePolicy >
+   requires concepts::tabular_cfr_requirements<
+      Env,
+      Policy,
+      AveragePolicy,
+      UniformPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< Policy >::action_policy_type >,
+      ZeroDefaultPolicy<
+         typename fosg_auto_traits< Env >::info_state_type,
+         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
 template < bool current_policy >
 auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_policy(
-   const sptr< info_state_type >& infostate,
+   const info_state_type& infostate,
    const std::vector< action_type >& actions
 )
 {
    if constexpr(current_policy) {
-      auto& player_policy = m_curr_policy[infostate->player()];
-      return player_policy[std::pair{*infostate, actions}];
+      auto& player_policy = m_curr_policy[infostate.player()];
+      return player_policy(infostate, actions, uniform_policy_type{});
    } else {
-      auto& player_policy = m_avg_policy[infostate->player()];
-      return player_policy[std::pair{*infostate, actions}];
+      auto& player_policy = m_avg_policy[infostate.player()];
+      return player_policy(infostate, actions, zero_policy_type{});
    }
 }
 

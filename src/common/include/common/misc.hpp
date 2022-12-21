@@ -49,12 +49,7 @@ template < typename RAContainer >
    requires ranges::range< RAContainer >
 inline auto& choose(const RAContainer& cont, RNG& rng)
 {
-   auto chooser = [&](const auto& actual_ra_container) -> auto&
-   {
-      //      auto choice = std::uniform_int_distribution(
-      //         0ul, actual_ra_container.size())(rng);
-      //      LOGD2("Choice", choice);
-      //      return cont[choice];
+   auto chooser = [&](const auto& actual_ra_container) -> auto& {
       return actual_ra_container[std::uniform_int_distribution(
          0ul, actual_ra_container.size() - 1
       )(rng)];
@@ -81,15 +76,13 @@ template < typename RAContainer, typename Policy >
                       // probability of the input matching the
                       // container's contained type
                       p(std::declval< decltype(*(std::declval< RAContainer >().begin())) >())
-                      } -> std::convertible_to< double >;
+                   } -> std::convertible_to< double >;
                 }
 inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
 {
-   if constexpr(std::random_access_iterator< decltype(std::declval< RAContainer >().begin()) > and requires {
-                                                                                                      cont
-                                                                                                         .size(
-                                                                                                         );
-                                                                                                   }) {
+   if constexpr(requires {
+                   cont.size();
+                } and std::random_access_iterator< decltype(std::declval< RAContainer >().begin()) >) {
       std::vector< double > weights;
       weights.reserve(cont.size());
       for(const auto& elem : cont) {
@@ -98,7 +91,8 @@ inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
       // the ranges::to_vector method here fails with a segmentation fault for no apparent reason
       //      auto weights = ranges::to_vector(cont | ranges::views::transform(policy));
       //      auto choice = std::discrete_distribution< size_t >(weights.begin(),
-      //      weights.end())(rng); LOGD2("Choice", choice); return cont[choice];
+      //      weights.end())(rng);
+      //      return cont[choice];
       return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
    } else {
       std::vector< double > weights;
@@ -217,9 +211,42 @@ constexpr bool is_constexpr(...)
 }
 
 template < typename Container, typename T >
-constexpr bool contains(Container cont, T value)
+constexpr bool contains(Container&& cont, T&& value)
 {
-   return std::find(cont.begin(), cont.end(), value) != cont.end();
+   if constexpr(requires { cont.contains(value); }) {
+      if(std::is_constant_evaluated()) {
+         if constexpr(is_constexpr([] { Container{}.contains(T{}); })) {
+            return cont.contains(value);
+         } else {
+            return std::find(cont.begin(), cont.end(), value) != cont.end();
+         }
+      } else {
+         return cont.contains(value);
+      }
+   } else if constexpr(requires { cont.find(value); }) {
+      if(std::is_constant_evaluated()) {
+         if constexpr(is_constexpr([] { Container{}.find(T{}); })) {
+            return cont.find(value) != cont.end();
+         } else {
+            return std::find(cont.begin(), cont.end(), value) != cont.end();
+         }
+      } else {
+         return cont.find(value) != cont.end();
+      }
+   } else {
+      return std::find(cont.begin(), cont.end(), value) != cont.end();
+   }
+}
+
+template < typename T, typename Container >
+constexpr bool isin(T&& value, Container&& cont)
+{
+   return contains(std::forward< Container >(cont), std::forward< T >(value));
+}
+template < typename T >
+constexpr bool isin(T&& value, const std::initializer_list< std::remove_cvref_t< T > >& cont)
+{
+   return contains(cont, std::forward< T >(value));
 }
 
 template < class first, class second, class... types >
@@ -232,6 +259,18 @@ template < class first, class second >
 constexpr auto min(first f, second s)
 {
    return std::min(f, s);
+}
+
+template < class T, std::size_t N >
+auto make_vector(std::array< T, N >&& a) -> std::vector< T >
+{
+   return {std::make_move_iterator(std::begin(a)), std::make_move_iterator(std::end(a))};
+}
+
+template < class... T >
+auto make_vector(T&&... t)
+{
+   return make_vector(std::to_array({std::forward< T >(t)...}));
 }
 
 };  // namespace common

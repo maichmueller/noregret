@@ -1,6 +1,7 @@
 #ifndef NOR_NOR_HPP
 #define NOR_NOR_HPP
 
+#include "nor/at_runtime.hpp"
 #include "nor/concepts.hpp"
 #include "nor/fosg_helpers.hpp"
 #include "nor/fosg_states.hpp"
@@ -10,5 +11,6 @@
 #include "nor/rm.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
+#include "nor/exploitability.hpp"
 
 #endif  // NOR_NOR_HPP

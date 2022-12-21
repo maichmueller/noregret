@@ -32,9 +32,8 @@ bool Environment::is_terminal(world_state_type& wstate)
 {
    return wstate.status() != Status::ONGOING;
 }
-std::vector< Environment::action_type > Environment::actions(
-   Player player,
-   const world_state_type& wstate) const
+std::vector< Environment::action_type >
+Environment::actions(Player player, const world_state_type& wstate) const
 {
    return wstate.logic()->valid_actions(wstate, to_team(player));
 }
@@ -46,28 +45,6 @@ void Environment::transition(world_state_type& worldstate, const action_type& ac
 void Environment::reset(world_state_type& wstate) const
 {
    wstate.logic()->reset(wstate);
-}
-Environment::observation_type Environment::private_observation(
-   Player player,
-   const Environment::world_state_type& wstate) const
-{
-   return observation(wstate, player);
-}
-Environment::observation_type Environment::private_observation(
-   Player player,
-   const Environment::action_type& action) const
-{
-   return action.to_string();
-}
-Environment::observation_type Environment::public_observation(
-   const Environment::world_state_type& wstate) const
-{
-   return observation(wstate);
-}
-Environment::observation_type Environment::public_observation(
-   const Environment::action_type& action) const
-{
-   return action.to_string();
 }
 
 Player Environment::active_player(const Environment::world_state_type& wstate) const
@@ -83,7 +60,7 @@ Environment::open_history(const Environment::world_state_type& wstate) const
    const auto& history = wstate.history();
    out.reserve(history.size());
    for(auto turn : history.turns()) {
-      auto [team, action, _] = history[std::remove_cvref_t< decltype(history) >::Turn(turn)];
+      auto [team, action, _] = history[turn];
       out.emplace_back(action, to_player(team));
    }
    return out;
@@ -99,7 +76,7 @@ Environment::private_history(Player, const Environment::world_state_type& wstate
    const auto& history = wstate.history();
    out.reserve(history.size());
    for(auto turn : history.turns()) {
-      auto [team, action, _] = history[std::remove_cvref_t< decltype(history) >::Turn(turn)];
+      auto [team, action, _] = history[turn];
       out.emplace_back(action, to_player(team));
    }
    return out;
@@ -115,7 +92,7 @@ Environment::public_history(const world_state_type& wstate) const
    const auto& history = wstate.history();
    out.reserve(history.size());
    for(auto turn : history.turns()) {
-      auto [team, action, _] = history[std::remove_cvref_t< decltype(history) >::Turn(turn)];
+      auto [team, action, _] = history[turn];
       out.emplace_back(action, to_player(team));
    }
    return out;
@@ -197,8 +174,11 @@ std::string observation(const State& state, std::optional< Player > observing_pl
          << (state.graveyard(team) | ranges::views::keys) << "|"
          << (state.graveyard(team) | ranges::views::values) << "\n";
    }
-   ss << "Action History:";
-   ss << (state.history().actions() | ranges::views::values) << "\n";
+   ss << "Action History:[";
+   for(const auto& [_, action, __] : state.history().elements_map() | ranges::views::values) {
+      ss << common::to_string(action) << ", ";
+   }
+   ss << "]\n";
    for(const auto& piece_opt : state.board()) {
       if(not piece_opt.has_value()) {
          continue;
@@ -223,6 +203,53 @@ std::string observation(const State& state, std::optional< Player > observing_pl
          ss << piece.token();
       }
       ss << "\n";
+   }
+   return ss.str();
+}
+
+nor::games::stratego::Environment::observation_type
+nor::games::stratego::Environment::private_observation(
+   nor::Player observer,
+   const world_state_type& wstate,
+   const action_type& action,
+   const world_state_type& next_wstate
+) const
+{
+   if(wstate.turn_count() == 0) {
+      // the previous wstate is the initital state, and thus we should provide an initial
+      // observation of the board to the player
+      return observation(wstate, observer);
+   }
+   return "";
+}
+
+nor::games::stratego::Environment::observation_type
+nor::games::stratego::Environment::public_observation(
+   const world_state_type& wstate,
+   const action_type& action,
+   const world_state_type& next_wstate
+) const
+{
+   std::stringstream ss;
+   ss << common::to_string(action);
+   auto last_iter = next_wstate.history().view_last();
+   if(last_iter == next_wstate.history().end()) {
+      return ss.str();
+   }
+   const auto& [team, _, pieces] = last_iter->second;
+   if(pieces.second.has_value()) {
+      // there was a fight between two pieces, so we include the revelation of the pieces here if
+      // they were hidden.
+      const auto& [att_piece, def_piece_opt] = pieces;
+      const auto& def_piece = def_piece_opt.value();
+      if(att_piece.flag_hidden()) {
+         ss << "attacker revelead:Team-" << common::to_string(att_piece.team()) << ";Token-"
+            << common::to_string(att_piece.token());
+      }
+      if(def_piece.flag_hidden()) {
+         ss << "defender revelead:Team-" << common::to_string(def_piece.team()) << ";Token-"
+            << common::to_string(def_piece.token());
+      }
    }
    return ss.str();
 }

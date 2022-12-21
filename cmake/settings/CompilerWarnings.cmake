@@ -60,6 +60,12 @@ function(set_project_warnings project_name)
       -Wformat=2 # warn on security issues around functions that format output
                  # (ie printf)
   )
+  if(ENABLE_WARNING_PADDING)
+    # activate warnings on structs that are being padded to fit into registers.
+    # This should not be kept on at default as some padding is inevitable and
+    # such warnings then become noise.
+    LIST(APPEND ${CLANG_WARNINGS} -Wpadded)
+  endif()
 
   if (WARNINGS_AS_ERRORS)
     set(CLANG_WARNINGS ${CLANG_WARNINGS} -Werror)

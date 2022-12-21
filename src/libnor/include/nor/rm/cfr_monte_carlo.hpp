@@ -118,6 +118,10 @@ class MCCFR:
       NamedType< std::unordered_map< Player, double >, struct weight_map_tag >;
    using InfostateSptrMap = typename base::InfostateSptrMap;
    using ObservationbufferMap = typename base::ObservationbufferMap;
+   using ConditionalWeightMap = std::
+      conditional_t< config.weighting == MCCFRWeightingMode::lazy, WeightMap, utils::empty >;
+   using ConditionalWeight = std::
+      conditional_t< config.weighting == MCCFRWeightingMode::lazy, Weight, utils::empty >;
 
    ////////////////////
    /// Constructors ///
@@ -136,6 +140,7 @@ class MCCFR:
          m_rng(seed)
    {
       _sanity_check_config();
+      assert_serialized_and_unrolled(_env());
    }
 
    MCCFR(
@@ -154,6 +159,7 @@ class MCCFR:
           seed
        )
    {
+      assert_serialized_and_unrolled(_env());
    }
 
    MCCFR(
@@ -169,6 +175,7 @@ class MCCFR:
          m_rng(seed)
    {
       _sanity_check_config();
+      assert_serialized_and_unrolled(_env());
    }
 
    ////////////////////////////////////
@@ -245,8 +252,8 @@ class MCCFR:
    std::unordered_map<
       sptr< info_state_type >,
       infostate_data_type,
-      common::sptr_value_hasher< info_state_type >,
-      common::sptr_value_comparator< info_state_type > >
+      common::value_hasher< info_state_type >,
+      common::value_comparator< info_state_type > >
       m_infonode{};
    /// the parameter to control the epsilon-on-policy epxloration
    double m_epsilon;
@@ -291,26 +298,10 @@ class MCCFR:
       ReachProbabilityMap reach_probability,
       ObservationbufferMap observation_buffer,
       InfostateSptrMap infostates,
-      Probability sample_probability
-   )
-      requires(
-         config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-         and (config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic)
-      );
-
-   std::pair< StateValueMap, Probability > _traverse(
-      std::optional< Player > player_to_update,
-      world_state_type& state,
-      ReachProbabilityMap reach_probability,
-      ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostates,
       Probability sample_probability,
-      WeightMap weights
+      ConditionalWeightMap weights
    )
-      requires(
-         config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-         and config.weighting == MCCFRWeightingMode::lazy
-      );
+      requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
    StateValue _traverse(
       Player player_to_update,
@@ -318,7 +309,10 @@ class MCCFR:
       ObservationbufferMap observation_buffer,
       InfostateSptrMap infostates
    )
-      requires(config.algorithm == MCCFRAlgorithmMode::external_sampling);
+      requires(common::isin(
+         config.algorithm,
+         {MCCFRAlgorithmMode::external_sampling, MCCFRAlgorithmMode::pure_cfr}
+      ));
 
    void _update_regrets(
       const ReachProbabilityMap& reach_probability,
@@ -332,29 +326,15 @@ class MCCFR:
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
    void _update_average_policy(
-      const sptr< info_state_type >& infostate,
+      const info_state_type& infostate,
       infostate_data_type& infonode_data,
       const auto& current_policy,
       Probability reach_prob,
-      [[maybe_unused]] Probability sample_prob
+      [[maybe_unused]] Probability sample_prob,
+      [[maybe_unused]] const action_type& sampled_action,
+      [[maybe_unused]] ConditionalWeight weight
    )
-      requires(
-         config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-         and (config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic)
-      );
-
-   void _update_average_policy(
-      const sptr< info_state_type >& infostate,
-      infostate_data_type& infonode_data,
-      const auto& current_policy,
-      const action_type& sampled_action,
-      Weight weight,
-      Probability reach_prob
-   )
-      requires(
-         config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-         and config.weighting == MCCFRWeightingMode::lazy
-      );
+      requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
    auto _terminal_value(
       world_state_type& state,
@@ -468,9 +448,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
    auto init_infostates = [&] {
       std::unordered_map< Player, sptr< info_state_type > > infostates;
       for(auto player : players | utils::is_actual_player_filter) {
-         auto& infostate = infostates.emplace(player, std::make_shared< info_state_type >(player))
-                              .first->second;
-         infostate->append(_env().private_observation(player, root_state()));
+         infostates.emplace(player, std::make_shared< info_state_type >(player));
       }
       return InfostateSptrMap{std::move(infostates)};
    };
@@ -482,47 +460,41 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
       return ReachProbabilityMap{std::move(rp_map)};
    };
    auto init_obs_buffer = [&] {
-      std::unordered_map< Player, std::vector< observation_type > > obs_map;
+      std::unordered_map< Player, std::vector< std::pair< observation_type, observation_type > > >
+         obs_map;
       for(auto player : players | utils::is_actual_player_filter) {
-         obs_map.emplace(player, std::vector< observation_type >{});
+         obs_map[player];
       }
       return ObservationbufferMap{std::move(obs_map)};
    };
    if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-      // in outcome-sampling we only have a single trajectory to traverse in the tree. Hence we
+      // in outcome-sampling we only have a single trajectory to traverse in the tree. Hence, we
       // can maintain the lifetime of that world state in this upstream function call and merely
       // pass in the state as reference
       auto init_world_state = utils::static_unique_ptr_downcast< world_state_type >(
          utils::clone_any_way(_root_state_uptr())
       );
-      if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
-         return _traverse(
-            player_to_update,
-            *init_world_state,
-            init_reach_probs(),
-            init_obs_buffer(),
-            init_infostates(),
-            Probability{1.},
-            [&] {
+
+      return _traverse(
+         player_to_update,
+         *init_world_state,
+         init_reach_probs(),
+         init_obs_buffer(),
+         init_infostates(),
+         Probability{1.},
+         std::invoke([&] {
+            if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
                std::unordered_map< Player, double > weights;
                for(auto player : players | utils::is_actual_player_filter) {
                   weights.emplace(player, 0.);
                }
                return WeightMap{std::move(weights)};
-            }()
-         );
-      }
-      if constexpr(config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic) {
-         return _traverse(
-            player_to_update,
-            *init_world_state,
-            init_reach_probs(),
-            init_obs_buffer(),
-            init_infostates(),
-            Probability{1.}
-         );
-      }
+            } else
+               return utils::empty{};
+         })
+      );
    }
+
    if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
       if constexpr(config.weighting == MCCFRWeightingMode::stochastic) {
          return _traverse(
@@ -549,12 +521,9 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    ObservationbufferMap observation_buffer,
    InfostateSptrMap infostates,
    Probability sample_probability,
-   WeightMap weights
+   ConditionalWeightMap weights
 )
-   requires(
-      config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-      and config.weighting == MCCFRWeightingMode::lazy
-   )
+   requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
 {
    if(_env().is_terminal(state)) {
       return _terminal_value(state, player_to_update, sample_probability);
@@ -571,10 +540,18 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
 
          reach_probability.get()[Player::chance] *= chance_prob;
 
+         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
+            utils::clone_any_way(state)
+         );
          _env().transition(state, chosen_outcome);
 
-         fill_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer.get(), infostates.get(), chosen_outcome, state
+         next_infostate_and_obs_buffers_inplace(
+            _env(),
+            observation_buffer.get(),
+            infostates.get(),
+            *state_before_transition,
+            chosen_outcome,
+            state
          );
 
          return _traverse(
@@ -589,7 +566,9 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       }
    }
 
-   auto infostate = infostates.get().at(active_player);
+   // we have to clone the infostate to ensure that it is not written to upon further traversal (we
+   // need this state after traversal to update policy and regrets)
+   auto infostate = std::shared_ptr{utils::clone_any_way(infostates.get().at(active_player))};
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
       infostate, infostate_data_type{}
    );
@@ -600,7 +579,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       infonode_data.emplace(_env().actions(active_player, state));
    }
 
-   auto& player_policy = fetch_policy< PolicyLabel::current >(infostate, infonode_data.actions());
+   auto& player_policy = fetch_policy< PolicyLabel::current >(*infostate, infonode_data.actions());
 
    // apply one round of regret matching on the current policy before using it. MCCFR only
    // updates the policy once you revisit it, as it is a lazy update schedule. As such, one would
@@ -620,17 +599,27 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    );
 
    auto next_reach_prob = reach_probability.get();
-   auto next_weights = weights.get();
    next_reach_prob[active_player] *= action_policy_prob;
-   next_weights[active_player] = next_weights[active_player] * action_policy_prob
-                                 + infonode_data.template storage_element< 1 >(
-                                    std::cref(sampled_action)
-                                 );
+
+   auto next_weights = weights;
+   if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
+      auto& active_weight = next_weights.get()[active_player];
+      active_weight = active_weight * action_policy_prob
+                      + infonode_data.template storage_element< 1 >(std::cref(sampled_action));
+   }
+   auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
+      utils::clone_any_way(state)
+   );
 
    _env().transition(state, sampled_action);
 
-   fill_infostate_and_obs_buffers_inplace(
-      _env(), observation_buffer.get(), infostates.get(), sampled_action, state
+   next_infostate_and_obs_buffers_inplace(
+      _env(),
+      observation_buffer.get(),
+      infostates.get(),
+      *state_before_transition,
+      sampled_action,
+      state
    );
 
    auto [action_value_map, tail_prob] = _traverse(
@@ -640,8 +629,15 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       std::move(observation_buffer),
       std::move(infostates),
       Probability{sample_probability.get() * action_sampling_prob},
-      WeightMap{std::move(next_weights)}
+      std::move(next_weights)
    );
+
+   auto active_weight_param = [&] {
+      if constexpr(config.weighting == MCCFRWeightingMode::lazy)
+         return Weight{weights.get()[active_player]};
+      else
+         return utils::empty{};
+   };
 
    if constexpr(config.update_mode == UpdateMode::simultaneous) {
       _update_regrets(
@@ -655,158 +651,13 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       );
 
       _update_average_policy(
-         infostate,
-         infonode_data,
-         player_policy,
-         sampled_action,
-         Weight{weights.get()[active_player]},
-         Probability{reach_probability.get()[active_player]}
-      );
-
-   } else {
-      static_assert(
-         config.update_mode == UpdateMode::alternating,
-         "The update mode has to be either alternating or simultaneous."
-      );
-      // in alternating updates we update the regret only for the player_to_update and the
-      // strategy only if the current player is the next one in line to traverse the tree and
-      // update
-      if(active_player == player_to_update.value()) {
-         _update_regrets(
-            reach_probability,
-            active_player,
-            infonode_data,
-            sampled_action,
-            Probability{action_policy_prob},
-            StateValue{action_value_map.get()[active_player]},
-            tail_prob
-         );
-      } else if(active_player == _preview_next_player_to_update()) {
-         // the check in this if statement collapses to a simple true in the 2-player case
-         _update_average_policy(
-            infostate,
-            infonode_data,
-            player_policy,
-            sampled_action,
-            Weight{weights.get()[active_player]},
-            Probability{reach_probability.get()[active_player]}
-         );
-      }
-   }
-
-   return std::pair{std::move(action_value_map), Probability{tail_prob.get() * action_policy_prob}};
-}
-
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
-   std::optional< Player > player_to_update,
-   world_state_type& state,
-   ReachProbabilityMap reach_probability,
-   ObservationbufferMap observation_buffer,
-   InfostateSptrMap infostates,
-   Probability sample_probability
-)
-   requires(
-      config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-      and (config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic)
-   )
-{
-   if(_env().is_terminal(state)) {
-      return _terminal_value(state, player_to_update, sample_probability);
-   }
-
-   Player active_player = _env().active_player(state);
-
-   // now we check first if we even need to consider a chance player, as the env could be
-   // simply deterministic. In that case we might need to traverse the chance player's actions
-   // or an active player's actions
-   if constexpr(not concepts::deterministic_fosg< env_type >) {
-      if(active_player == Player::chance) {
-         auto [chosen_outcome, chance_prob] = _sample_outcome(state);
-
-         reach_probability.get()[Player::chance] *= chance_prob;
-
-         _env().transition(state, chosen_outcome);
-
-         fill_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer.get(), infostates.get(), chosen_outcome, state
-         );
-
-         return _traverse(
-            player_to_update,
-            state,
-            std::move(reach_probability),
-            std::move(observation_buffer),
-            std::move(infostates),
-            Probability{sample_probability.get() * chance_prob}
-         );
-      }
-   }
-
-   auto infostate = infostates.get().at(active_player);
-   auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      infostate, infostate_data_type{}
-   );
-   auto& infonode_data = infostate_and_data_iter->second;
-   if(success) {
-      // success means we have indeed emplaced a new data node, instead of simply fetching an
-      // existing one. We thus need to fill it with the legal actions at this node.
-      infonode_data.emplace(_env().actions(active_player, state));
-   }
-
-   auto& player_policy = fetch_policy< PolicyLabel::current >(infostate, infonode_data.actions());
-
-   // apply one round of regret matching on the current policy before using it. MCCFR only
-   // updates the policy once you revisit it, as it is a lazy update schedule. As such, one would
-   // need to update all infostates after the last iteration to ensure that the policy is fully
-   // up-to-date
-   m_regret_minimizer(
-      player_policy,
-      infonode_data.regret(),
-      // we provide the accessor to get the underlying referenced action, as the infodata
-      // stores only reference wrappers to the actions
-      [](const action_type& action) { return std::cref(action); }
-   );
-
-   auto [sampled_action, action_sampling_prob, action_policy_prob] = _sample_action(
-      active_player, player_to_update, infonode_data, player_policy
-   );
-
-   auto next_reach_prob = reach_probability.get();
-   next_reach_prob[active_player] *= action_policy_prob;
-
-   _env().transition(state, sampled_action);
-
-   fill_infostate_and_obs_buffers_inplace(
-      _env(), observation_buffer.get(), infostates.get(), sampled_action, state
-   );
-
-   auto [action_value_map, tail_prob] = _traverse(
-      player_to_update,
-      state,
-      ReachProbabilityMap{std::move(next_reach_prob)},
-      std::move(observation_buffer),
-      std::move(infostates),
-      Probability{sample_probability.get() * action_sampling_prob}
-   );
-
-   if constexpr(config.update_mode == UpdateMode::simultaneous) {
-      _update_regrets(
-         reach_probability,
-         active_player,
-         infonode_data,
-         sampled_action,
-         Probability{action_policy_prob},
-         StateValue{action_value_map.get()[active_player]},
-         tail_prob
-      );
-
-      _update_average_policy(
-         infostate,
+         *infostate,
          infonode_data,
          player_policy,
          Probability{reach_probability.get()[active_player]},
-         sample_probability
+         sample_probability,
+         sampled_action,
+         std::invoke(active_weight_param)
       );
 
    } else {
@@ -830,11 +681,13 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       } else if(active_player == _preview_next_player_to_update()) {
          // the check in this if statement collapses to a simple true in the 2-player case
          _update_average_policy(
-            infostate,
+            *infostate,
             infonode_data,
             player_policy,
             Probability{reach_probability.get()[active_player]},
-            sample_probability
+            sample_probability,
+            sampled_action,
+            std::invoke(active_weight_param)
          );
       }
    }
@@ -878,7 +731,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
    const ReachProbabilityMap& reach_probability,  // = pi(z[I])
    Player active_player,
    infostate_data_type& infostate_data,  // = -->r(I) and A(I)
-   const action_type& sampled_action,  // = a', the sampled action
+   const action_type& sampled_action,  // = 'a', the sampled action
    Probability sampled_action_policy_prob,  // = sigma(I, a) for the sampled action
    StateValue action_value,  // = u(z[I]a)
    Probability tail_prob  // = pi^sigma(z[I]a, z)
@@ -909,44 +762,29 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
-   const sptr< info_state_type >& infostate,
-   infostate_data_type& infonode_data,
-   const auto& current_policy,
-   const action_type& sampled_action,
-   Weight weight,
-   Probability reach_prob
-)
-   requires(
-      config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-      and config.weighting == MCCFRWeightingMode::lazy
-   )
-{
-   auto& avg_policy = fetch_policy< false >(infostate, infonode_data.actions());
-   for(const action_type& action : infonode_data.actions()) {
-      auto policy_incr = (weight.get() + reach_prob.get()) * current_policy[action];
-      avg_policy[action] += policy_incr;
-      if(action == sampled_action) [[unlikely]] {
-         infonode_data.template storage_element< 1 >(std::cref(action)) = 0.;
-      } else [[likely]] {
-         infonode_data.template storage_element< 1 >(std::cref(action)) += policy_incr;
-      }
-   }
-}
-
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
-   const sptr< info_state_type >& infostate,
+   const info_state_type& infostate,
    infostate_data_type& infonode_data,
    const auto& current_policy,
    Probability reach_prob,
-   Probability sample_prob
+   Probability sample_prob,
+   const action_type& sampled_action,
+   ConditionalWeight weight
 )
-   requires(
-      config.algorithm == MCCFRAlgorithmMode::outcome_sampling
-      and (config.weighting == MCCFRWeightingMode::optimistic or config.weighting == MCCFRWeightingMode::stochastic)
-   )
+   requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
 {
    auto& avg_policy = fetch_policy< false >(infostate, infonode_data.actions());
+
+   if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
+      for(const action_type& action : infonode_data.actions()) {
+         auto policy_incr = (weight.get() + reach_prob.get()) * current_policy[action];
+         avg_policy[action] += policy_incr;
+         if(action == sampled_action) [[unlikely]] {
+            infonode_data.template storage_element< 1 >(std::cref(action)) = 0.;
+         } else [[likely]] {
+            infonode_data.template storage_element< 1 >(std::cref(action)) += policy_incr;
+         }
+      }
+   }
 
    if constexpr(config.weighting == MCCFRWeightingMode::optimistic) {
       auto& infostate_last_visit = infonode_data.template storage_element< 1 >();
@@ -986,7 +824,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
    // probability again (for API consistency)
    auto policy_sampling = [&] {
       // in the non-epsilon case we simply use the player's policy to sample the next move
-      // from. Thus in this case, the action's sample probability and action's policy
+      // from. Thus, in this case, the action's sample probability and action's policy
       // probability are the same, i.e. action_sample_prob = action_policy_prob in the return value
       auto& chosen_action = common::choose(
          infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng
@@ -997,7 +835,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
 
    // 2. Epsilon-On-Policy sampling with respect to the policy map executes two steps: first, it
    // decides whether we sample uniformly from the actions or not. If so, it executes a separate
-   // branch for uniform sampling. Alternatively it reverts back to sampling procedure 1. and
+   // branch for uniform sampling. Alternatively it reverts to sampling procedure 1. and
    // adapts the sampling likelihood for the chosen sample.
    // This samples values according to the policy:
    //    epsilon * uniform(A(I)) + (1 - epsilon) * policy(I)
@@ -1075,7 +913,10 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    ObservationbufferMap observation_buffer,
    InfostateSptrMap infostates
 )
-   requires(config.algorithm == MCCFRAlgorithmMode::external_sampling)
+   requires(common::isin(
+      config.algorithm,
+      {MCCFRAlgorithmMode::external_sampling, MCCFRAlgorithmMode::pure_cfr}
+   ))
 {
    Player active_player = _env().active_player(*state);
 
@@ -1090,10 +931,18 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       if(active_player == Player::chance) {
          auto chosen_outcome = _sample_outcome< false >(*state);
 
+         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
+            utils::clone_any_way(*state)
+         );
          _env().transition(*state, chosen_outcome);
 
-         fill_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer.get(), infostates.get(), chosen_outcome, *state
+         next_infostate_and_obs_buffers_inplace(
+            _env(),
+            observation_buffer.get(),
+            infostates.get(),
+            *state_before_transition,
+            chosen_outcome,
+            *state
          );
 
          return _traverse(
@@ -1102,7 +951,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   auto infostate = infostates.get().at(active_player);
+   auto infostate = std::shared_ptr{utils::clone_any_way(infostates.get().at(active_player))};
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
       infostate, infostate_data_type{}
    );
@@ -1113,7 +962,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       infonode_data.emplace(_env().actions(active_player, *state));
    }
 
-   auto& player_policy = fetch_policy< PolicyLabel::current >(infostate, infonode_data.actions());
+   auto& player_policy = fetch_policy< PolicyLabel::current >(*infostate, infonode_data.actions());
 
    m_regret_minimizer(
       player_policy,
@@ -1128,27 +977,44 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
       // the first round of action iteration we will traverse the tree further to find all action
       // values from this node and compute the state value of the current node
-      double state_value_estimate = 0.;
       std::unordered_map< action_type, double > value_estimates;
       value_estimates.reserve(infonode_data.actions().size());
 
-      for(const auto& action : infonode_data.actions()) {
-         auto next_state = child_state(_env(), state, action);
+      auto get_action_value_estimate = [&](const auto& action) {
+         auto next_state = child_state(_env(), *state, action);
 
-         auto [next_observation_buffer, next_infostates] = fill_infostate_and_obs_buffers(
-            _env(), observation_buffer.get(), infostates.get(), action, *next_state
+         auto [next_observation_buffer, next_infostates] = next_infostate_and_obs_buffers(
+            _env(), observation_buffer.get(), infostates.get(), *state, action, *next_state
          );
 
-         double action_value_estimate = _traverse(
-                                           player_to_update,
-                                           std::move(next_state),
-                                           ObservationbufferMap{std::move(next_observation_buffer)},
-                                           InfostateSptrMap{std::move(next_infostates)}
+         return _traverse(
+                   player_to_update,
+                   std::move(next_state),
+                   ObservationbufferMap{std::move(next_observation_buffer)},
+                   InfostateSptrMap{std::move(next_infostates)}
          )
-                                           .get();
-         value_estimates.emplace(action, action_value_estimate);
-         state_value_estimate += action_value_estimate * player_policy[action];
-      }
+            .get();
+      };
+
+      auto state_value_estimate = std::invoke([&] {
+         if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
+            double state_value_est = 0.;
+            for(const auto& action : infonode_data.actions()) {
+               auto value_estimate = get_action_value_estimate(action);
+               value_estimates.emplace(action, value_estimate);
+               state_value_est += value_estimate * player_policy[action];
+            }
+            return state_value_est;
+         } else {
+            // pure cfr samples a designated action first as the pure strategy action at this
+            // infoset, collects the value of the sampled action and then updates (in another step)
+            // the other actions with the value difference to the sampled action's value.
+            auto& sampled_action = common::choose(
+               infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng
+            );
+            return get_action_value_estimate(sampled_action);
+         }
+      });
       // in the second round of action iteration we update the regret of each action through the
       // previously found action and state values
       for(const auto& action : infonode_data.actions()) {
@@ -1156,18 +1022,24 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
 
       return StateValue{state_value_estimate};
-
    } else {
       // for the non-traversing player we sample a single action and continue
       auto& sampled_action = common::choose(
          infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng
       );
-      //      auto& sampled_action = infonode_data.actions()[0];
 
+      auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
+         utils::clone_any_way(*state)
+      );
       _env().transition(*state, sampled_action);
 
-      fill_infostate_and_obs_buffers_inplace(
-         _env(), observation_buffer.get(), infostates.get(), sampled_action, *state
+      next_infostate_and_obs_buffers_inplace(
+         _env(),
+         observation_buffer.get(),
+         infostates.get(),
+         *state_before_transition,
+         sampled_action,
+         *state
       );
 
       double action_value_estimate = _traverse(
@@ -1183,10 +1055,17 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          // are updating the policy if the active player is the next player to be updated in the
          // update cycle. Updates the average policy with the current policy
          auto& average_player_policy = fetch_policy< PolicyLabel::average >(
-            infostate, infonode_data.actions()
+            *infostate, infonode_data.actions()
          );
-         for(const auto& action : infonode_data.actions()) {
-            average_player_policy[action] += player_policy[action];
+         if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
+            // we do not need to update the other actions since there sampling prob is 0 (pure
+            // strategies)
+            average_player_policy[sampled_action] += 1;
+         } else {
+            // external sampling updates all entries by the current policy
+            for(const auto& action : infonode_data.actions()) {
+               average_player_policy[action] += player_policy[action];
+            }
          }
       }
       return StateValue{action_value_estimate};

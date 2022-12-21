@@ -34,14 +34,13 @@ class UniformPolicy {
 
    UniformPolicy() = default;
 
-   auto operator[](
-      const std::tuple<
-         const info_state_type&,
-         const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >& >&
-         infostate_legalactions) const
+   action_policy_type operator()(
+      const info_state_type&,
+      const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >&
+         legal_actions
+   ) const
    {
       if constexpr(extent == std::dynamic_extent) {
-         const auto& [info_state, legal_actions] = infostate_legalactions;
          double uniform_p = 1. / static_cast< double >(legal_actions.size());
          return action_policy_type(legal_actions, uniform_p);
       } else {
@@ -71,21 +70,20 @@ class ZeroDefaultPolicy {
 
    ZeroDefaultPolicy() = default;
 
-   auto operator[](
-      const std::tuple<
-         const info_state_type&,
-         const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >& >&
-         infostate_legalactions) const
+   action_policy_type operator()(
+      const info_state_type& infostate,
+      const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >&
+         legal_actions
+   ) const
    {
       if constexpr(extent == std::dynamic_extent) {
-         const auto& [info_state, legal_actions] = infostate_legalactions;
          return action_policy_type(legal_actions, 0.);
       } else {
          return action_policy_type(extent, 0.);
       }
    }
 
-   auto operator[](const info_state_type& infostate) const
+   action_policy_type operator()(const info_state_type& infostate) const
       requires(extent != std::dynamic_extent)
    {
       return action_policy_type(extent, 0.);

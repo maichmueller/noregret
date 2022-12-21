@@ -4,12 +4,13 @@
 
 #include "../games/stratego/fixtures.hpp"
 #include "nor/env.hpp"
+#include "nor/exploitability.hpp"
 #include "nor/nor.hpp"
 #include "rm_specific_testing_utils.hpp"
 
 using namespace nor;
 
-template < rm::CFRExponentialConfig config >
+template < rm::CFRConfig config >
 void run_kuhn_poker()
 {
    games::kuhn::Environment env{};
@@ -25,7 +26,7 @@ void run_kuhn_poker()
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{}
    );
 
-   auto solver = factory::make_cfr_exponential< config, true >(
+   auto solver = factory::make_cfr_vanilla< config, true >(
       std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy
    );
 
@@ -67,19 +68,19 @@ void run_kuhn_poker()
    EXPECT_TRUE(expl <= EXPLOITABILITY_THRESHOLD);
 }
 
-TEST(KuhnPoker, CFR_EXPONENTIAL_alternating)
+TEST(KuhnPoker, VANILLA_CFR_alternating)
 {
-   constexpr rm::CFRExponentialConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
    run_kuhn_poker< cfr_config >();
 }
 
-TEST(KuhnPoker, CFR_EXPONENTIAL_simultaneous)
+TEST(KuhnPoker, VANILLA_CFR_simultaneous)
 {
-   constexpr rm::CFRExponentialConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
+   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
    run_kuhn_poker< cfr_config >();
 }
 
-template < rm::CFRExponentialConfig config >
+template < rm::CFRConfig config >
 void run_rockpaperscissors()
 {
    auto
@@ -91,11 +92,10 @@ void run_rockpaperscissors()
        infostate_alex,
        infostate_bob,
        init_state] = setup_rps_test();
-
    auto root_state = std::make_unique< games::rps::State >();
    auto players = env.players(*root_state);
 
-   auto solver = factory::make_cfr_exponential< config >(
+   auto solver = factory::make_cfr_vanilla< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -142,15 +142,15 @@ void run_rockpaperscissors()
    EXPECT_TRUE(expl <= EXPLOITABILITY_THRESHOLD);
 }
 
-TEST(RockPaperScissors, CFR_EXPONENTIAL_alternating)
+TEST(RockPaperScissors, VANILLA_CFR_alternating)
 {
-   constexpr rm::CFRExponentialConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
    run_rockpaperscissors< cfr_config >();
 }
 
-TEST(RockPaperScissors, CFR_EXPONENTIAL_simultaneous)
+TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
 {
-   constexpr rm::CFRExponentialConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
+   constexpr rm::CFRConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
    run_rockpaperscissors< cfr_config >();
 }
 

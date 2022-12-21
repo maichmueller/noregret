@@ -13,16 +13,10 @@ namespace nor {
 template <
    typename Infostate,
    typename ActionPolicy,
-   typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy >,
    typename Table = std::unordered_map< Infostate, ActionPolicy > >
 // clang-format off
 requires
    concepts::map< Table >
-   && concepts::default_state_policy<
-         DefaultPolicy,
-         Infostate,
-         ActionPolicy
-      >
    && concepts::action_policy< ActionPolicy >
 // clang-format on
 class TabularPolicy {
@@ -30,16 +24,17 @@ class TabularPolicy {
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
    using action_type = typename fosg_auto_traits< action_policy_type >::action_type;
-   using default_policy_type = DefaultPolicy;
    using table_type = Table;
 
    TabularPolicy()
-      requires common::
-                  all_predicate_v< std::is_default_constructible, table_type, default_policy_type >
+      requires std::is_default_constructible_v< table_type >
    = default;
-   TabularPolicy(table_type table) : m_table(std::move(table)) {}
-   TabularPolicy(table_type table, default_policy_type default_policy)
-       : m_table(std::move(table)), m_default_policy(std::move(default_policy))
+
+   template < typename OtherTableType >
+      requires(not common::
+                  is_specialization_v< std::remove_cvref_t< OtherTableType >, TabularPolicy >)
+              and concepts::map< std::remove_cvref_t< OtherTableType > >
+   TabularPolicy(OtherTableType&& table) : m_table(std::forward< OtherTableType >(table))
    {
    }
 
@@ -53,6 +48,15 @@ class TabularPolicy {
    {
       return m_table.emplace(std::forward< Args >(args)...);
    }
+   template < typename IstateType, typename... Args >
+   auto emplace(IstateType&& infostate, Args&&... args)
+   {
+      return m_table.emplace(
+         std::piecewise_construct,
+         /*key*/ std::forward_as_tuple(std::forward< IstateType >(infostate)),
+         /*value*/ std::forward_as_tuple(std::initializer_list{std::forward< Args >(args)...})
+      );
+   }
 
    inline auto find(const info_state_type& infostate) { return m_table.find(infostate); }
    [[nodiscard]] inline auto find(const info_state_type& infostate) const
@@ -60,30 +64,70 @@ class TabularPolicy {
       return m_table.find(infostate);
    }
 
-   auto find_or_default(
-      const std::tuple< const info_state_type&, const std::vector< action_type >& >&
-         state_action_pair)
+   template < typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy > >
+      requires concepts::
+         default_state_policy< DefaultPolicy, info_state_type, action_type, action_policy_type >
+      auto find_or_default(
+         const info_state_type& infostate,
+         const std::vector< action_type >& actions,
+         const DefaultPolicy& default_policy
+      )
    {
-      const auto& infostate = std::get< 0 >(state_action_pair);
       auto found_action_policy_iter = find(infostate);
       if(found_action_policy_iter == m_table.end()) {
-         return m_table.emplace(infostate, m_default_policy[state_action_pair]).first;
+         return m_table.emplace(infostate, default_policy(infostate, actions)).first;
       }
       return found_action_policy_iter;
    }
 
-   action_policy_type& operator[](
-      std::tuple< const info_state_type&, const std::vector< action_type >& > state_action_pair)
+   action_policy_type& operator()(const info_state_type& infostate)
    {
-      return find_or_default(state_action_pair)->second;
+      auto found = find(infostate);
+      if(found == end()) {
+         throw std::invalid_argument(
+            "Given Infostate not found in table and no default method provided."
+         );
+      }
+      return found->second;
    }
 
-   action_policy_type operator[](
-      std::tuple< const info_state_type&, const std::vector< action_type >&, tag::normalize >
-         state_action_pair)
+   template < typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy > >
+      requires concepts::
+         default_state_policy< DefaultPolicy, info_state_type, action_type, action_policy_type >
+      action_policy_type& operator()(
+         const info_state_type& infostate,
+         const std::vector< action_type >& actions,
+         DefaultPolicy default_policy = {}
+      )
    {
-      const auto& [istate, actions, tag] = state_action_pair;
-      auto& found_action_policy = find_or_default(std::tuple{istate, actions})->second;
+      return find_or_default(infostate, actions, default_policy)->second;
+   }
+
+   template < typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy > >
+      requires concepts::
+         default_state_policy< DefaultPolicy, info_state_type, action_type, action_policy_type >
+      action_policy_type operator()(
+         const info_state_type& infostate,
+         const std::vector< action_type >& actions,
+         tag::normalize,
+         DefaultPolicy default_policy = {}
+      )
+   {
+      auto& found_action_policy = find_or_default(infostate, actions, default_policy)->second;
+      return normalize_action_policy(found_action_policy);
+   }
+
+   template < typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy > >
+      requires concepts::
+         default_state_policy< DefaultPolicy, info_state_type, action_type, action_policy_type >
+      action_policy_type operator()(
+         const info_state_type& infostate,
+         const std::vector< action_type >& actions,
+         DefaultPolicy default_policy,
+         tag::normalize
+      )
+   {
+      auto& found_action_policy = find_or_default(infostate, actions, default_policy)->second;
       return normalize_action_policy(found_action_policy);
    }
 
@@ -92,20 +136,15 @@ class TabularPolicy {
       return m_table.at(infostate);
    }
 
-   const action_policy_type& at(
-      std::tuple< const info_state_type&, const std::vector< action_type >& > state_any_pair) const
+   action_policy_type at(const info_state_type& infostate, tag::normalize) const
    {
-      return at(std::get< 0 >(state_any_pair));
-   }
-
-   action_policy_type at(std::tuple< const info_state_type&, tag::normalize > infostate_tag) const
-   {
-      return normalize_action_policy(m_table.at(std::get< 0 >(infostate_tag)));
+      return normalize_action_policy(m_table.at(infostate));
    }
 
    action_policy_type at(
       std::tuple< const info_state_type&, const std::vector< action_type >&, tag::normalize >
-         state_any_pair) const
+         state_any_pair
+   ) const
    {
       return (*this)[std::get< 0 >(state_any_pair)];
    }
@@ -120,9 +159,17 @@ class TabularPolicy {
 
   private:
    table_type m_table;
-   /// the fallback policy to use when the encountered infostate has not been observed before
-   default_policy_type m_default_policy{};
 };
+
+// deduction-guide
+template < typename OtherTableType >
+   requires(not common::
+               is_specialization_v< std::remove_cvref_t< OtherTableType >, TabularPolicy >)
+           and concepts::map< std::remove_cvref_t< OtherTableType > >
+TabularPolicy(OtherTableType&& table) -> TabularPolicy<
+   typename std::remove_cvref_t< OtherTableType >::key_type,
+   typename std::remove_cvref_t< OtherTableType >::mapped_type,
+   std::remove_cvref_t< OtherTableType > >;
 
 }  // namespace nor
 

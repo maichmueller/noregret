@@ -27,9 +27,8 @@ inline auto to_nor_player(const kuhn::Player& player)
 
 using Observation = std::string;
 
-std::string observation(
-   const State& state,
-   std::optional< Player > observing_player = std::nullopt);
+std::string
+observation(const State& state, std::optional< Player > observing_player = std::nullopt);
 
 class Publicstate: public DefaultPublicstate< Publicstate, Observation > {
    using base = DefaultPublicstate< Publicstate, Observation >;
@@ -52,7 +51,8 @@ class Environment {
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
-   static constexpr TurnDynamic turn_dynamic() { return TurnDynamic::sequential; }
+   static constexpr bool serialized() { return true; }
+   static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::choice; }
 
    Environment() = default;
@@ -77,9 +77,8 @@ class Environment {
    std::vector< PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
    open_history(const world_state_type& wstate) const;
 
-   inline double chance_probability(
-      const world_state_type& wstate,
-      const chance_outcome_type& outcome) const
+   inline double
+   chance_probability(const world_state_type& wstate, const chance_outcome_type& outcome) const
    {
       return wstate.chance_probability(outcome);
    }
@@ -92,14 +91,39 @@ class Environment {
    static bool is_terminal(world_state_type& wstate);
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
-   void transition(world_state_type& worldstate, const action_type& action) const;
-   void transition(world_state_type& worldstate, const chance_outcome_type& action) const;
-   observation_type private_observation(Player observer, const world_state_type& wstate) const;
-   observation_type private_observation(Player observer, const action_type& action) const;
-   observation_type private_observation(Player observer, const chance_outcome_type& action) const;
-   observation_type public_observation(const world_state_type& wstate) const;
-   observation_type public_observation(const action_type& action) const;
-   observation_type public_observation(const chance_outcome_type& action) const;
+
+   template < typename ActionT >
+   void transition(world_state_type& worldstate, const ActionT& action) const
+      requires common::is_any_v< ActionT, action_type, chance_outcome_type >
+   {
+      worldstate.apply_action(action);
+   }
+
+   observation_type private_observation(
+      Player observer,
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   ) const;
+
+   observation_type private_observation(
+      Player observer,
+      const world_state_type& wstate,
+      const chance_outcome_type& action,
+      const world_state_type& next_wstate
+   ) const;
+
+   observation_type public_observation(
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   ) const;
+
+   observation_type public_observation(
+      const world_state_type& wstate,
+      const chance_outcome_type& action,
+      const world_state_type& next_wstate
+   ) const;
 
    /// mainly for debug purposes
    observation_type tiny_repr(const world_state_type& wstate) const;
@@ -120,12 +144,8 @@ struct fosg_traits< games::kuhn::Environment > {
    using info_state_type = nor::games::kuhn::Infostate;
    using public_state_type = nor::games::kuhn::Publicstate;
    using action_type = nor::games::kuhn::Action;
-   using chance_outcome_type = nor::games::kuhn::Card;
+   using chance_outcome_type = nor::games::kuhn::ChanceOutcome;
    using observation_type = nor::games::kuhn::Observation;
-
-   static constexpr size_t max_player_count = 2;
-   static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
-   static constexpr Stochasticity stochasticity = Stochasticity::choice;
 };
 
 }  // namespace nor

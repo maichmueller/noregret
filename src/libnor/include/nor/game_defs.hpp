@@ -35,10 +35,8 @@ enum class Player {
    zoey = 25
 };
 
-enum class TurnDynamic {
-   sequential = 0,  // sequential actions (only one player acts in a turn)
-   simultaneous  // simultaneous actions (every player acts in a turn)
-};
+template < typename Value >
+using player_hash_map = std::unordered_map< Player, Value >;
 
 enum class Stochasticity {
    deterministic = 0,  // the environment is deterministic

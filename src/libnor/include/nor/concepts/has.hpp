@@ -123,13 +123,21 @@ concept chance_probability = requires(T const t, Worldstate worldstate, Outcome 
                                    } -> std::convertible_to< double >;
                              };
 
-template < typename T, typename ReturnType, typename... Args >
-concept append = requires(T t, Args&&... args) {
-                    // append objects Us... to t
-                    {
-                       t.append(std::forward< Args >(args)...)
-                       } -> std::same_as< ReturnType >;
-                 };
+template < typename T, typename ReturnType, typename Observation >
+concept update_infostate = requires(T t, Observation public_obs, Observation private_obs) {
+                              // append objects Us... to t
+                              {
+                                 t.update(public_obs, private_obs)
+                                 } -> std::same_as< ReturnType >;
+                           };
+
+template < typename T, typename ReturnType, typename Observation >
+concept update_publicstate = requires(T t, Observation public_obs) {
+                              // append objects Us... to t
+                              {
+                                 t.update(public_obs)
+                                 } -> std::same_as< ReturnType >;
+                           };
 
 template <
    typename T,
@@ -153,7 +161,8 @@ concept transition_jointly = requires(
    Action action,
    Worldstate& worldstate,
    std::map< Player, Infostate >& infostates,
-   Publicstate& pubstate) {
+   Publicstate& pubstate
+) {
                                 // apply the action on the given world state inplace.
                                 {
                                    t.transition(worldstate, action)
@@ -243,53 +252,52 @@ template <
    typename Worldstate = typename T::world_state_type,
    typename Infostate = typename T::info_state_type >
 concept adhoc_info_state = requires(T t, Worldstate wstate, Player player) {
-                             {
-                                t.adhoc_info_state(wstate, player)
-                                } -> std::same_as< Infostate >;
-                          };
+                              {
+                                 t.adhoc_info_state(wstate, player)
+                                 } -> std::same_as< Infostate >;
+                           };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
    typename Infostate = typename T::info_state_type >
 concept adhoc_public_state = requires(T t, Worldstate wstate, Player player) {
-                             {
-                                t.adhoc_public_state(wstate, player)
-                                } -> std::same_as< Infostate >;
-                          };
+                                {
+                                   t.adhoc_public_state(wstate, player)
+                                   } -> std::same_as< Infostate >;
+                             };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::action_type,
    typename Observation = typename T::observation_type >
-concept private_observation = requires(T t, Player player, Worldstate wstate) {
+
+concept private_observation = requires(
+   T t,
+   Player player,
+   Worldstate wstate,
+   Action action,
+   Worldstate next_wstate
+) {
                                  {
-                                    t.private_observation(player, wstate)
+                                    t.private_observation(player, wstate, action, next_wstate)
                                     } -> std::convertible_to< Observation >;
                               };
-template <
-   typename T,
-   typename Worldstate = typename T::world_state_type,
-   typename Observation = typename T::observation_type >
-concept private_observation_multi = requires(
-   T t,
-   const std::vector< Player >& player_list,
-   Worldstate wstate) {
-                                       // get only private obervations.
-                                       // Output is a paired vector of observations, i.e. output[i]
-                                       // is paired to player_list[i].
-                                       {
-                                          t.private_observation(player_list, wstate)
-                                          } -> std::same_as< std::vector< Observation > >;
-                                    };
 
 template <
    typename T,
    typename Worldstate = typename T::world_state_type,
+   typename Action = typename T::action_type,
    typename Observation = typename T::observation_type >
-concept public_observation = requires(T t, Worldstate wstate) {
+concept public_observation = requires(
+   T t,
+   Worldstate wstate,
+   Action action,
+   Worldstate next_wstate
+) {
                                 {
-                                   t.public_observation(wstate)
+                                   t.public_observation(wstate, action, next_wstate)
                                    } -> std::convertible_to< Observation >;
                              };
 
@@ -310,7 +318,8 @@ template <
 concept observation_multi = requires(
    T t,
    const std::vector< Player >& player_list,
-   Worldstate wstate) {
+   Worldstate wstate
+) {
                                // get full observation: private and public.
                                // Output is a paired vector of observations, i.e. output[i] is
                                // paired to player_list[i].
@@ -320,12 +329,12 @@ concept observation_multi = requires(
                             };
 
 template < typename T, template < typename > class Ptr, typename ElemT >
-concept clone_other = std::is_pointer_v< Ptr< ElemT > > && requires(T&& t, Ptr< ElemT > ptr) {
-                                                              {
-                                                                 t->clone(ptr)
-                                                                 } -> std::convertible_to<
-                                                                    Ptr< ElemT > >;
-                                                           };
+concept clone_other = std::is_pointer_v< Ptr< ElemT > >
+                      && requires(T&& t, Ptr< ElemT > ptr) {
+                            {
+                               t->clone(ptr)
+                               } -> std::convertible_to< Ptr< ElemT > >;
+                         };
 
 template < typename T >
 concept clone = requires(T const t) { t.clone(); };
@@ -337,32 +346,47 @@ concept copy = requires(T const t) {
                      } -> std::same_as< U >;
                };
 
-template < typename T, typename InputT >
-concept getitem = requires(T t, InputT inp) {
-                     /// getitem method for input type. No return type check
-                     t[inp];
-                  };
+template < typename T, typename... InputTs>
+concept call = requires(T t, InputTs&&... inp) {
+                  /// call method for input type. No return type check
+                  t(std::forward<InputTs>(inp)...);
+               };
+
+template < typename T, typename OutputT, typename... InputTs >
+concept call_r = requires(T t, InputTs&&... inp) {
+                    /// call method for input type returning an output type
+                    {
+                       t(std::forward<InputTs>(inp)...)
+                       } -> std::convertible_to< OutputT >;
+                 };
+
+
+template < typename T, typename InputT>
+concept getitem = requires(T t, InputT&& inp) {
+                  /// getitem method for input type. No return type check
+                  t[std::forward<InputT>(inp)];
+               };
 
 template < typename T, typename OutputT, typename InputT >
-concept getitem_r = requires(T t, InputT inp) {
-                       /// getitem method for input type returning an output type
-                       {
-                          t[inp]
-                          } -> std::same_as< OutputT >;
-                    };
+concept getitem_r = requires(T t, InputT&& inp) {
+                    /// getitem method for input type returning an output type
+                    {
+                       t[std::forward<InputT>(inp)]
+                       } -> std::convertible_to< OutputT >;
+                 };
 
-template < typename T, typename InputT >
-concept at = requires(T t, InputT inp) {
+template < typename T, typename... InputTs>
+concept at = requires(T t, InputTs&&... inp) {
                 /// getitem method for input type returning an output type
-                t.at(inp);
+                t.at(std::forward<InputTs>(inp)...);
              };
 
-template < typename T, typename OutputT, typename InputT >
-concept at_r = requires(T t, InputT inp) {
+template < typename T, typename OutputT, typename... InputTs >
+concept at_r = requires(T t, InputTs&&... inp) {
                   /// getitem method for input type returning an output type
                   {
-                     t.at(inp)
-                     } -> std::same_as< OutputT >;
+                     t.at(std::forward<InputTs>(inp)...)
+                     } -> std::convertible_to< OutputT >;
                };
 
 template < typename T >
@@ -393,11 +417,18 @@ concept player_count = requires(T t) {
                        };
 
 template < typename T >
-concept turn_dynamic = requires(T t) {
-                          {
-                             t.turn_dynamic()
-                             } -> std::same_as< TurnDynamic >;
-                       };
+concept serialized = requires(T t) {
+                        {
+                           t.serialized()
+                           } -> std::convertible_to< bool >;
+                     };
+
+template < typename T >
+concept unrolled = requires(T t) {
+                        {
+                           t.unrolled()
+                           } -> std::convertible_to< bool >;
+                     };
 
 template < typename T >
 concept stochasticity = requires(T t) {

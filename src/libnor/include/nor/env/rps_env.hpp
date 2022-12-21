@@ -48,7 +48,8 @@ class Environment {
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
-   static constexpr TurnDynamic turn_dynamic() { return TurnDynamic::sequential; }
+   static constexpr bool serialized() { return true; }
+   static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
    Environment() = default;
@@ -83,10 +84,20 @@ class Environment {
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
-   observation_type private_observation(Player player, const world_state_type& wstate) const;
-   observation_type private_observation(Player player, const action_type& action) const;
-   observation_type public_observation(const world_state_type&) const { return {}; }
-   observation_type public_observation(const action_type&) const { return {}; }
+
+   observation_type private_observation(
+      Player observer,
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   ) const;
+
+   observation_type public_observation(
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   ) const;
+
    observation_type tiny_repr(const world_state_type& wstate) const;
 };
 
@@ -105,10 +116,6 @@ struct fosg_traits< games::rps::Environment > {
    using public_state_type = nor::games::rps::Publicstate;
    using action_type = nor::games::rps::Action;
    using observation_type = nor::games::rps::Observation;
-
-   static constexpr size_t max_player_count = 2;
-   static constexpr TurnDynamic turn_dynamic = TurnDynamic::sequential;
-   static constexpr Stochasticity stochasticity = Stochasticity::deterministic;
 };
 
 }  // namespace nor

@@ -25,10 +25,10 @@ enum class CFRWeightingMode {
 enum class CFRPruningMode {
    // No pruning
    none = 0,
-   // Partial pruning drops the a subtree if a player policy upstream hits 0
+   // Partial pruning drops the subtree if a player policy upstream hits 0
    partial = 1,
    // Regret-based pruning skips subtrees for all t > t_0 if an action's regret is < 0 at time t_0
-   // and updates upon take up t_1 with a best response against the average strategy of the
+   // and updates upon take up t_1 with a best-response against the average strategy of the
    // opponents during this period.
    regret_based = 2,
    //
@@ -63,7 +63,11 @@ enum class MCCFRAlgorithmMode {
    outcome_sampling = 1,
    // traverse each action of a traversing player, but sample only a single action of each opponent
    // and chance player
-   external_sampling = 2
+   external_sampling = 2,
+   // traverse each action of a traversing player, but sample only a single action of each opponent
+   // and chance player. Pure CFR is technically not an MCCFR family member, but it follows external
+   // sampling's logic closely
+   pure_cfr = 3
 };
 
 enum class MCCFRWeightingMode {

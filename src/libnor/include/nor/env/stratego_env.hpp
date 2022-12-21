@@ -26,10 +26,8 @@ inline auto to_player(const Team& team)
 
 using Observation = std::string;
 
-std::string observation(
-   const State& state,
-   std::optional< Player > observing_player = std::nullopt);
-
+std::string
+observation(const State& state, std::optional< Player > observing_player = std::nullopt);
 
 class Publicstate: public DefaultPublicstate< Publicstate, Observation > {
    using base = DefaultPublicstate< Publicstate, Observation >;
@@ -51,38 +49,49 @@ class Environment {
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
-   static constexpr TurnDynamic turn_dynamic() { return TurnDynamic::sequential; }
+   static constexpr bool serialized() { return true; }
+   static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
    Environment() = default;
 
    std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
 
-   std::vector<
-      PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+   std::vector< PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
    private_history(Player player, const world_state_type& wstate) const;
 
-   std::vector<
-      PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+   std::vector< PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
    public_history(const world_state_type& wstate) const;
 
-   std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > >
-   open_history(const world_state_type& wstate) const;
+   std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > > open_history(
+      const world_state_type& wstate
+   ) const;
 
-   static inline std::vector< Player > players(const world_state_type&) { return {Player::alex, Player::bob}; }
+   static inline std::vector< Player > players(const world_state_type&)
+   {
+      return {Player::alex, Player::bob};
+   }
    Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
-   observation_type private_observation(Player player, const world_state_type& wstate) const;
-   observation_type private_observation(Player player, const action_type& action) const;
-   observation_type public_observation(const world_state_type& wstate) const;
-   observation_type public_observation(const action_type& action) const;
+
+   observation_type private_observation(
+      Player observer,
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   ) const;
+
+   observation_type public_observation(
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   ) const;
 
   private:
-
    static double _status_to_reward(Status status, Player player);
 };
 
@@ -109,10 +118,9 @@ struct fosg_traits< games::stratego::Environment > {
 namespace std {
 
 template < typename StateType >
-requires common::is_any_v<
-   StateType,
-   nor::games::stratego::Publicstate,
-   nor::games::stratego::Infostate > struct hash< StateType > {
+   requires common::
+      is_any_v< StateType, nor::games::stratego::Publicstate, nor::games::stratego::Infostate >
+   struct hash< StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };
 

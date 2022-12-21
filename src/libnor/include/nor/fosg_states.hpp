@@ -36,10 +36,9 @@ class DefaultPublicstate {
    [[nodiscard]] auto& history() const { return m_history; }
    [[nodiscard]] size_t size() const { return m_history.size(); }
 
-   template < typename... Args >
-   auto& append(Args&&... args)
+   auto& update(observation_type public_obs)
    {
-      auto& ret_val = m_history.emplace_back(std::forward< Args >(args)...);
+      auto& ret_val = m_history.emplace_back(std::move(public_obs));
       _hash();
       return ret_val;
    }
@@ -50,13 +49,24 @@ class DefaultPublicstate {
       requires std::is_same_v< observation_type, std::string >
    {
       std::string s;
-      size_t pos = 0;
-      for(const auto& observation : m_history) {
-         s += std::string("obs_") + std::to_string(pos) + ": " + observation + "\n";
-         pos++;
+      for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
+         s += std::get< 0 >(observation) + "\n";
+         s += std::get< 1 >(observation) + "\n";
       }
       return s;
-   };
+   }
+
+   auto to_pretty_string() const
+      requires std::is_same_v< observation_type, std::string >
+   {
+      std::string s;
+      for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
+         auto round_str = std::string("obs_") + std::to_string(pos);
+         s += "pub_" + round_str + ": " + std::get< 0 >(observation) + "\n";
+         s += "prv_" + round_str + ": " + std::get< 1 >(observation) + "\n";
+      }
+      return s;
+   }
 
    bool operator==(const DefaultPublicstate& other) const
    {
@@ -87,25 +97,73 @@ class DefaultPublicstate {
 };
 
 template < typename Derived, concepts::observation Observation >
-class DefaultInfostate: public DefaultPublicstate< Derived, Observation > {
+class DefaultInfostate {
   public:
-   using base = DefaultPublicstate< Derived, Observation >;
-   using observation_type = typename base::observation_type;
+   using derived_type = Derived;
+   using observation_type = Observation;
 
-   DefaultInfostate(Player player) : base(), m_player(player) {}
+   DefaultInfostate(Player player) : m_player(player)
+   {
+      m_hash_cache = std::hash< int >{}(static_cast< int >(player));
+   };
 
-   [[nodiscard]] Player player() const { return m_player; }
+   auto& operator[](std::convertible_to< size_t > auto index) { return m_history[size_t(index)]; }
 
-   auto to_string() const
+   [[nodiscard]] auto& history() const { return m_history; }
+   [[nodiscard]] size_t size() const { return m_history.size(); }
+
+   auto& update(observation_type public_obs, observation_type private_obs)
+   {
+      auto& ret_val = m_history.emplace_back(std::pair{
+         std::move(public_obs), std::move(private_obs)});
+      _hash();
+      return ret_val;
+   }
+
+   [[nodiscard]] size_t hash() const { return m_hash_cache; }
+
+   auto to_string(std::string delim = "\n", std::string sep = ",") const
       requires std::is_same_v< observation_type, std::string >
    {
-      std::stringstream ss;
-      ss << m_player << "\n" << base::to_string();
-      return ss.str();
-   };
+      std::string s;
+      for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
+         s += "{" + std::get< 0 >(observation) + sep + std::get< 1 >(observation) + "}" + delim;
+      }
+      return s;
+   }
+
+   bool operator==(const DefaultInfostate& other) const
+   {
+      if(size() != other.size() or m_player != other.player()) {
+         return false;
+      }
+      return ranges::all_of(ranges::views::zip(m_history, other.history()), [](const auto& pair) {
+         return std::get< 0 >(pair) == std::get< 1 >(pair);
+      });
+   }
+   inline bool operator!=(const DefaultInfostate& other) const { return not (*this == other); }
+
+   [[nodiscard]] auto player() const { return m_player; }
 
   private:
    Player m_player;
+   /// the private_history (action trajectory) container of the state.
+   /// Each entry is an observation of a state followed by an action.
+   std::vector< std::pair< Observation, Observation > > m_history{};
+   /// the cache of the current hash value of the public state
+   size_t m_hash_cache{0};
+
+   void _hash()
+   {
+      if constexpr(std::is_same_v< observation_type, std::string >) {
+         auto string_hasher = std::hash< std::string >{};
+         const auto& latest_entry = m_history.back();
+         common::hash_combine(m_hash_cache, string_hasher(std::get< 0 >(latest_entry)));
+         common::hash_combine(m_hash_cache, string_hasher(std::get< 1 >(latest_entry)));
+      } else {
+         m_hash_cache = static_cast< derived_type* >(this)->_hash_impl();
+      }
+   }
 };
 
 }  // namespace nor

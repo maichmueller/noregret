@@ -75,7 +75,7 @@ template < typename T >
 concept smart_pointer_like = requires(T t) {
                                 // this would be true if T was a raw pointer (hence we cannot allow
                                 // this to be true)
-                                not std::is_pointer_v< T >;
+                                requires not std::is_pointer_v< T >;
                                 // needs to be convertible to bool (nullptr or not nullptr)
                                 bool(t);
                                 // needs to have the underlying type stored in it as typedef
@@ -105,6 +105,25 @@ concept copyable_someway =
    or concepts::has::method::copy< T >
    or std::is_copy_constructible_v< T >;
 // clang-format on
+
+template < typename Env >
+concept serialized = requires(Env e) { requires Env::serialized(); };
+
+template < typename Env >
+concept unrolled = requires(Env e) { requires Env::unrolled(); };
+
+template < typename Env >
+concept samples_chance = requires(Env e) { requires Env::stochasticity() == Stochasticity::sample; };
+
+template < typename Env >
+concept enumerates_chance = requires(Env e) {
+                               requires Env::stochasticity() == Stochasticity::choice;
+                            };
+
+template < typename Env >
+concept deterministic = requires(Env e) {
+                           requires Env::stochasticity() == Stochasticity::deterministic;
+                        };
 
 }  // namespace nor::concepts::is
 
