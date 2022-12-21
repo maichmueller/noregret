@@ -9,7 +9,8 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, CFR_DISCOUNTED_alternating)
+template < rm::CFRDiscountedConfig config >
+void run_kuhn_poker()
 {
    games::kuhn::Environment env{};
 
@@ -17,15 +18,16 @@ TEST(KuhnPoker, CFR_DISCOUNTED_alternating)
    auto players = env.players(*root_state);
 
    auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{}
+   );
 
    auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{}
+   );
 
-   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
-
-   auto solver = factory::make_cfr_discounted< cfr_config, true >(
-      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
+   auto solver = factory::make_cfr_discounted< config, true >(
+      std::move(env), std::move(root_state), tabular_policy, avg_tabular_policy
+   );
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
@@ -33,44 +35,75 @@ TEST(KuhnPoker, CFR_DISCOUNTED_alternating)
 
    auto initial_policy_profile = std::unordered_map{
       std::pair{
-         Player::alex,
-         normalize_state_policy(solver.average_policy().at(Player::alex).table())},
+         Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex).table())},
       std::pair{
          Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 500;
-   for(size_t i = 0; i < n_iters; i++) {
+   size_t max_iters = 1e5;
+   size_t n_iters = 0;
+   double expl = std::numeric_limits< double >::max();
+   while(expl > EXPLOITABILITY_THRESHOLD or n_iters >= max_iters) {
       solver.iterate(1);
+      n_iters++;
 #ifndef NDEBUG
       evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
+      if(n_iters % 10 == 0) {
+         expl = exploitability(
+            env,
+            games::kuhn::State{},
+            std::unordered_map{
+               std::pair{
+                  Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex))},
+               std::pair{
+                  Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob))}}
+         );
+      }
    }
    evaluate_policies< false >(
-      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy");
-   auto game_value_map = solver.game_value();
-   double alex_true_game_value = -1. / 18.;
-   ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
-   assert_optimal_policy_kuhn(solver, env);
+      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"
+   );
+   EXPECT_TRUE(expl <= EXPLOITABILITY_THRESHOLD);
+}
+
+TEST(KuhnPoker, CFR_DISCOUNTED_alternating)
+{
+   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
+   run_kuhn_poker< cfr_config >();
 }
 
 TEST(KuhnPoker, CFR_DISCOUNTED_simultaneous)
 {
-   games::kuhn::Environment env{};
+   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
+   run_kuhn_poker< cfr_config >();
+}
 
-   auto root_state = std::make_unique< games::kuhn::State >();
+
+template < rm::CFRDiscountedConfig config >
+void run_rockpaperscissors()
+{
+   auto
+      [env,
+       avg_tabular_policy_alex,
+       avg_tabular_policy_bob,
+       tabular_policy_alex,
+       tabular_policy_bob,
+       infostate_alex,
+       infostate_bob,
+       init_state] = setup_rps_test();
+
+   auto root_state = std::make_unique< games::rps::State >();
    auto players = env.players(*root_state);
 
-   auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
-
-   auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{});
-
-   constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
-
-   auto solver = factory::make_cfr_discounted< cfr_config, true >(
-      std::move(env), std::make_unique< games::kuhn::State >(), tabular_policy, avg_tabular_policy);
+   auto solver = factory::make_cfr_discounted< config >(
+      std::move(env),
+      std::move(root_state),
+      std::unordered_map{
+         std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
+      std::unordered_map{
+         std::pair{Player::alex, avg_tabular_policy_alex},
+         std::pair{Player::bob, avg_tabular_policy_bob}});
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
@@ -82,118 +115,44 @@ TEST(KuhnPoker, CFR_DISCOUNTED_simultaneous)
       std::pair{
          Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
-   size_t n_iters = 200000;
-   for(size_t i = 0; i < n_iters; i++) {
+   size_t max_iters = 1e5;
+   size_t n_iters = 0;
+   double expl = std::numeric_limits< double >::max();
+   while(expl > EXPLOITABILITY_THRESHOLD or n_iters >= max_iters) {
       solver.iterate(1);
+      n_iters++;
 #ifndef NDEBUG
       evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
+      if(n_iters % 10 == 0) {
+         expl = exploitability(
+            env,
+            games::rps::State{},
+            std::unordered_map{
+               std::pair{
+                  Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex))},
+               std::pair{
+                  Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob))}}
+         );
+      }
    }
    evaluate_policies< false >(
-      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy");
-   auto game_value_map = solver.game_value();
-   double alex_true_game_value = -1. / 18.;
-   ASSERT_NEAR(game_value_map.get()[Player::alex], alex_true_game_value, 1e-3);
-   assert_optimal_policy_kuhn(solver, env);
+      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"
+   );
+   EXPECT_TRUE(expl <= EXPLOITABILITY_THRESHOLD);
 }
 
 TEST(RockPaperScissors, CFR_DISCOUNTED_alternating)
 {
-   auto
-      [env,
-       avg_tabular_policy_alex,
-       avg_tabular_policy_bob,
-       tabular_policy_alex,
-       tabular_policy_bob,
-       infostate_alex,
-       infostate_bob,
-       init_state] = setup_rps_test();
-
-   auto root_state = std::make_unique< games::rps::State >();
-   auto players = env.players(*root_state);
-
    constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::alternating};
-
-   auto solver = factory::make_cfr_discounted< cfr_config >(
-      std::move(env),
-      std::move(root_state),
-      std::unordered_map{
-         std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
-      std::unordered_map{
-         std::pair{Player::alex, avg_tabular_policy_alex},
-         std::pair{Player::bob, avg_tabular_policy_bob}});
-
-   auto initial_curr_policy_profile = std::unordered_map{
-      std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
-      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}};
-   auto initial_policy_profile = std::unordered_map{
-      std::pair{
-         Player::alex,
-         normalize_state_policy(solver.average_policy().at(Player::alex).table())},
-      std::pair{
-         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
-
-   size_t n_iters = 150;
-   for(size_t i = 0; i < n_iters; i++) {
-      solver.iterate(1);
-#ifndef NDEBUG
-      evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
-      evaluate_policies< false >(solver, initial_policy_profile, i);
-#endif
-   }
-   evaluate_policies< false >(
-      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy");
-   assert_optimal_policy_rps(solver);
+   run_rockpaperscissors< cfr_config >();
 }
 
 TEST(RockPaperScissors, CFR_DISCOUNTED_simultaneous)
 {
-   auto
-      [env,
-       avg_tabular_policy_alex,
-       avg_tabular_policy_bob,
-       tabular_policy_alex,
-       tabular_policy_bob,
-       infostate_alex,
-       infostate_bob,
-       init_state] = setup_rps_test();
-
-   auto root_state = std::make_unique< games::rps::State >();
-   auto players = env.players(*root_state);
-
    constexpr rm::CFRDiscountedConfig cfr_config{.update_mode = rm::UpdateMode::simultaneous};
-
-   auto solver = factory::make_cfr_discounted< cfr_config >(
-      std::move(env),
-      std::move(root_state),
-      std::unordered_map{
-         std::pair{Player::alex, tabular_policy_alex}, std::pair{Player::bob, tabular_policy_bob}},
-      std::unordered_map{
-         std::pair{Player::alex, avg_tabular_policy_alex},
-         std::pair{Player::bob, avg_tabular_policy_bob}});
-
-   auto initial_curr_policy_profile = std::unordered_map{
-      std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
-      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}};
-   auto initial_policy_profile = std::unordered_map{
-      std::pair{
-         Player::alex,
-         normalize_state_policy(solver.average_policy().at(Player::alex).table())},
-      std::pair{
-         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
-
-   size_t n_iters = 70;
-   for(size_t i = 0; i < n_iters; i++) {
-      solver.iterate(1);
-#ifndef NDEBUG
-      evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
-      evaluate_policies< false >(solver, initial_policy_profile, i);
-#endif
-   }
-   evaluate_policies< false >(
-      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy");
-   assert_optimal_policy_rps(solver);
+   run_rockpaperscissors< cfr_config >();
 }
 
 // TEST_F(StrategoState3x3, CFR_DISCOUNTED)

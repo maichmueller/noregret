@@ -8,6 +8,9 @@
 #include "nor/env.hpp"
 #include "nor/nor.hpp"
 
+constexpr double EXPLOITABILITY_THRESHOLD = 5e-3;
+constexpr double KUHN_POKER_GAME_VALUE_ALEX = -1. / 18.;
+
 template < typename ActionPolicy >
 inline std::string print_action_policy(const ActionPolicy& action_policy)
 {
@@ -173,13 +176,12 @@ inline void evaluate_policies(
       policy_profile_this_iter[player] = policy_fetcher(player);
    }
    print_policy_profile(policy_profile_this_iter);
-
+   std::cout << "Iterations performed: " << iteration << "\n";
    if constexpr(requires { solver.game_value(); }) {
       if(solver.iteration() > 1) {
          auto game_value_map = solver.game_value();
          for(auto [p, value] : game_value_map.get()) {
-            std::cout << "iteration: " << iteration << " | game value for player " << p << ": "
-                      << value << "\n";
+            std::cout << "game value for player " << p << ": " << value << "\n";
          }
       }
    }
