@@ -1,6 +1,6 @@
-# <p align=center> NOREGRET
+# <p align=center> no-regret
 
- [![C++ CI](https://github.com/maichmueller/noregret/actions/workflows/cpp.yml/badge.svg)](https://github.com/maichmueller/noregret/actions/workflows/cpp.yml)
+ [![Linux C++](https://github.com/maichmueller/noregret/actions/workflows/cpp.yml/badge.svg)](https://github.com/maichmueller/noregret/actions/workflows/cpp.yml)
 
 ---
 
@@ -23,14 +23,14 @@ This framework makes heavy use of c++20's concepts to constrain environments to 
 - [**Exponential CFR**](https://arxiv.org/abs/2008.02679) (alt / sim)
 
 - [**Monte-Carlo CFR**](https://papers.nips.cc/paper/2009/hash/00411460f7c92d2124a67ea0f4cb5f85-Abstract.html)
-    - [Outcome Sampling](http://mlanctot.info/files/papers/PhD_Thesis_MarcLanctot.pdf) (lazy weighting / stochastic weighting - alt / sim)
-    - [External Sampling](http://mlanctot.info/files/papers/PhD_Thesis_MarcLanctot.pdf) (stochastic weighting)
+    - [**Outcome Sampling**](http://mlanctot.info/files/papers/PhD_Thesis_MarcLanctot.pdf) (lazy weighting / stochastic weighting - alt / sim)
+    - [**External Sampling**](http://mlanctot.info/files/papers/PhD_Thesis_MarcLanctot.pdf) (stochastic weighting)
 
-- [Pure CFR](https://richardggibson.appspot.com/static/work/thesis-phd/thesis-phd-paper.pdf) (alt / sim)
+- [**Pure CFR**](https://richardggibson.appspot.com/static/work/thesis-phd/thesis-phd-paper.pdf) (alt / sim)
 
 *environments*:
 
-- Rock Paper Scissors
-- Kuhn Poker
-- Leduc Poker
-- Stratego
+- **Rock Paper Scissors**
+- **Kuhn Poker**
+- **Leduc Poker**
+- **Stratego**
