@@ -92,15 +92,15 @@ jobs:
           -DWARNINGS_AS_ERRORS:BOOL=OFF
           -DUSE_PYBIND11_FINDPYTHON:BOOL=ON
 
-      - name: Build NOR Library
-        shell: bash
-        run: |
-          cmake --build ./build --config Release --target nor_tests_all
-
       - name: Build NOR Games
         shell: bash
         run: |
           cmake --build ./build --config Release --target game_test_targets_all
+
+      - name: Build NOR Library
+        shell: bash
+        run: |
+          cmake --build ./build --config Release --target nor_tests_all
 
       - name: Run Game Implementation Tests
         shell: bash
@@ -112,7 +112,7 @@ jobs:
           --verbose
           -C ${{ matrix.config.build_type }}
 
-      - name: Upload test result artifacts
+      - name: Upload game test result artifacts
         uses: actions/upload-artifact@v2
         if: success()
         with:
@@ -130,7 +130,7 @@ jobs:
           --verbose
           -C ${{ matrix.config.build_type }}
 
-      - name: Upload test result artifacts
+      - name: Upload game test result artifacts
         uses: actions/upload-artifact@v2
         if: success()
         with:
