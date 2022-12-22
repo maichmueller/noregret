@@ -74,6 +74,9 @@ target_link_libraries(
 
 
 if (ENABLE_GAMES)
+    # this is a mere collector of all game test targets to build them via a single command to build all games
+    # (eg in workflow)
+    add_custom_target(game_test_targets_all)
 
     message(STATUS "Adding game targets.")
 

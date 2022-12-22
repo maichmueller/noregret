@@ -92,17 +92,40 @@ jobs:
           -DWARNINGS_AS_ERRORS:BOOL=OFF
           -DUSE_PYBIND11_FINDPYTHON:BOOL=ON
 
-      - name: Build
+      - name: Build NOR Library
         shell: bash
         run: |
-          cmake --build ./build --config Release --target nor_tests
+          cmake --build ./build --config Release --target nor_tests  game_test_targets_all
 
-      - name: Run Tests
+      - name: Build NOR Games
+        shell: bash
+        run: |
+          cmake --build ./build --config Release --target game_test_targets_all
+
+      - name: Run Game Implementation Tests
+        shell: bash
+        run: >
+          GTEST_OUTPUT=xml:gtest-report-${{ matrix.config.name }}-games.xml
+          GTEST_COLOR=1
+          ctest -R Test_game_.+_test
+          --test-dir ./build
+          --verbose
+          -C ${{ matrix.config.build_type }}
+
+      - name: Upload test result artifacts
+        uses: actions/upload-artifact@v2
+        if: success()
+        with:
+          name: gtest-results
+          path: ./build/**/gtest-report-${{ matrix.config.name }}-games.xml
+          retention-days: 1
+
+      - name: Run No-Regret Tests
         shell: bash
         run: >
           GTEST_OUTPUT=xml:gtest-report-${{ matrix.config.name }}.xml
           GTEST_COLOR=1
-          ctest Test_nor
+          ctest -R Test_nor_tests
           --test-dir ./build
           --verbose
           -C ${{ matrix.config.build_type }}

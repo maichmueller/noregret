@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include "fixtures.hpp"
-
 #include "testing_utils.hpp"
 
 using namespace stratego;
@@ -54,7 +53,8 @@ TEST(Config, constructor_with_setup)
          {Token::scout, 3},
          {Token::miner, 2},
          {Token::marshall, 1},
-         {Token::bomb, 2}}));
+         {Token::bomb, 2}})
+   );
    EXPECT_EQ(
       config.token_counters[Team::RED],
       (std::map< Token, unsigned int >{
@@ -63,29 +63,34 @@ TEST(Config, constructor_with_setup)
          {Token::scout, 3},
          {Token::miner, 2},
          {Token::marshall, 1},
-         {Token::bomb, 2}}));
+         {Token::bomb, 2}})
+   );
 
    EXPECT_EQ(
       config.start_fields[Team::BLUE],
       (std::vector< Position >{
-         {0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}}));
+         {0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}})
+   );
    EXPECT_EQ(
       config.start_fields[Team::RED],
       (std::vector< Position >{
-         {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}}));
+         {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}})
+   );
 }
 
 TEST_P(BattlematrixParamsF, default_battlematrix_outcomes)
 {
    auto [attacker, defender, outcome] = GetParam();
-   LOGD2(
-      "Observed outcome for [" + common::to_string(attacker) + ", " + common::to_string(defender)
-         + "] = ",
-      common::to_string(bm[{attacker, defender}]));
-   LOGD2(
-      "Expected outcome for [" + common::to_string(attacker) + ", " + common::to_string(defender)
-         + "] = ",
-      common::to_string(outcome));
+//   LOGD2(
+//      "Observed outcome for [" + common::to_string(attacker) + ", " + common::to_string(defender)
+//         + "] = ",
+//      common::to_string(bm[{attacker, defender}])
+//   );
+//   LOGD2(
+//      "Expected outcome for [" + common::to_string(attacker) + ", " + common::to_string(defender)
+//         + "] = ",
+//      common::to_string(outcome)
+//   );
    EXPECT_EQ((bm[{attacker, defender}]), outcome);
 }
 
@@ -119,7 +124,9 @@ INSTANTIATE_TEST_SUITE_P(
       std::tuple(Token::marshall, Token::bomb, FightOutcome::death),
       std::tuple(Token::scout, Token::bomb, FightOutcome::death),
       std::tuple(Token::miner, Token::bomb, FightOutcome::kill),
-      std::tuple(Token::general, Token::bomb, FightOutcome::death)));
+      std::tuple(Token::general, Token::bomb, FightOutcome::death)
+   )
+);
 
 TEST(Config, constructor_custom_dims_with_setup_small)
 {
@@ -148,10 +155,12 @@ TEST(Config, constructor_custom_dims_with_setup_small)
 
    EXPECT_EQ(
       config.token_counters[Team::BLUE],
-      (std::map< Token, unsigned int >{{Token::flag, 1}, {Token::scout, 1}}));
+      (std::map< Token, unsigned int >{{Token::flag, 1}, {Token::scout, 1}})
+   );
    EXPECT_EQ(
       config.token_counters[Team::RED],
-      (std::map< Token, unsigned int >{{Token::miner, 1}, {Token::spy, 1}}));
+      (std::map< Token, unsigned int >{{Token::miner, 1}, {Token::spy, 1}})
+   );
 
    auto pos_comparator = [](const Position& pos1, const Position& pos2) {
       if(pos1[0] == pos2[0]) {
@@ -164,12 +173,14 @@ TEST(Config, constructor_custom_dims_with_setup_small)
       config.start_fields[Team::BLUE],
       std::vector< Position >{{0, 0}, {1, 1}},
       pos_comparator,
-      pos_comparator));
+      pos_comparator
+   ));
    EXPECT_TRUE(cmp_equal_rngs(
       config.start_fields[Team::RED],
       std::vector< Position >{{1, 0}, {0, 1}},
       pos_comparator,
-      pos_comparator));
+      pos_comparator
+   ));
 }
 
 TEST(Config, constructor_custom_dims_with_setup_medium)
@@ -208,10 +219,12 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
    EXPECT_EQ(
       config.token_counters[Team::BLUE],
       (std::map< Token, unsigned int >{
-         {Token::flag, 1}, {Token::spy, 1}, {Token::scout, 2}, {Token::miner, 1}}));
+         {Token::flag, 1}, {Token::spy, 1}, {Token::scout, 2}, {Token::miner, 1}})
+   );
    EXPECT_EQ(
       config.token_counters[Team::RED],
-      (std::map< Token, unsigned int >{{Token::flag, 1}, {Token::spy, 3}, {Token::marshall, 1}}));
+      (std::map< Token, unsigned int >{{Token::flag, 1}, {Token::spy, 3}, {Token::marshall, 1}})
+   );
 
    auto pos_comparator = [](const Position& pos1, const Position& pos2) {
       if(pos1[0] == pos2[0]) {
@@ -224,12 +237,14 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
       config.start_fields[Team::BLUE],
       std::vector< Position >{{0, 0}, {0, 1}, {0, 2}, {1, 3}, {2, 4}},
       pos_comparator,
-      pos_comparator));
+      pos_comparator
+   ));
    EXPECT_TRUE(cmp_equal_rngs(
       config.start_fields[Team::RED],
       std::vector< Position >{{3, 0}, {2, 1}, {1, 2}, {3, 3}, {3, 4}},
       pos_comparator,
-      pos_comparator));
+      pos_comparator
+   ));
 }
 
 TEST(Config, constructor_custom_dims_no_setup)
@@ -278,10 +293,12 @@ TEST(Config, constructor_custom_dims_no_setup)
       500};
 
    EXPECT_EQ(
-      config.token_counters[Team::BLUE], (std::map< Token, unsigned int >{{Token::miner, 3}}));
+      config.token_counters[Team::BLUE], (std::map< Token, unsigned int >{{Token::miner, 3}})
+   );
    EXPECT_EQ(
       config.token_counters[Team::RED],
-      (std::map< Token, unsigned int >{{Token::major, 1}, {Token::lieutenant, 4}}));
+      (std::map< Token, unsigned int >{{Token::major, 1}, {Token::lieutenant, 4}})
+   );
 
    auto pos_comparator = [](const Position& pos1, const Position& pos2) {
       if(pos1[0] == pos2[0]) {
@@ -291,7 +308,9 @@ TEST(Config, constructor_custom_dims_no_setup)
       }
    };
    EXPECT_TRUE(
-      cmp_equal_rngs(config.start_fields[Team::BLUE], pos_blue, pos_comparator, pos_comparator));
+      cmp_equal_rngs(config.start_fields[Team::BLUE], pos_blue, pos_comparator, pos_comparator)
+   );
    EXPECT_TRUE(
-      cmp_equal_rngs(config.start_fields[Team::RED], pos_red, pos_comparator, pos_comparator));
+      cmp_equal_rngs(config.start_fields[Team::RED], pos_red, pos_comparator, pos_comparator)
+   );
 }
