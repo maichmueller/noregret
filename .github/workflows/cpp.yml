@@ -125,7 +125,7 @@ jobs:
         run: >
           GTEST_OUTPUT=xml:gtest-report-${{ matrix.config.name }}.xml
           GTEST_COLOR=1
-          ctest -R Test_nor_tests
+          ctest -R Test_nor_tests_all
           --test-dir ./build
           --verbose
           -C ${{ matrix.config.build_type }}
