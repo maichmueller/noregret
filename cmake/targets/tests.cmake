@@ -62,11 +62,11 @@ foreach (
 )
     list(APPEND NOR_TEST_SOURCES ${${sources_list}})
 endforeach ()
-register_nor_target(${nor_test} ${NOR_TEST_SOURCES})
+register_nor_target(${nor_test}_all ${NOR_TEST_SOURCES})
 
 # the test of all parts needs an extra linkage for the pybind11 components and Python
 target_link_libraries(
-        ${nor_test}
+        ${nor_test}_all
         PRIVATE
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
@@ -74,6 +74,9 @@ target_link_libraries(
 
 
 if (ENABLE_GAMES)
+    # this is a mere collector of all game test targets to build them via a single command to build all games
+    # (eg in workflow)
+    add_custom_target(game_test_targets_all)
 
     message(STATUS "Adding game targets.")
 

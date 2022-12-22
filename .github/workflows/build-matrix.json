@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Ubuntu-20.04_GCC-11",
+    "os": "ubuntu-20.04",
+    "build_type": "Release",
+    "cc": "gcc",
+    "cxx": "g++",
+    "compiler_version": 11
+  }
+]

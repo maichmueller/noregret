@@ -74,6 +74,8 @@ function(register_game_target target_name lib_name game_folder_name)
             ${lib_name}
     )
 
+    add_dependencies(game_test_targets_all ${target_name})
+
     add_test(
             NAME Test_${target_name}
             COMMAND ${target_name}
