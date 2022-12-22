@@ -95,7 +95,7 @@ jobs:
       - name: Build NOR Library
         shell: bash
         run: |
-          cmake --build ./build --config Release --target nor_tests  game_test_targets_all
+          cmake --build ./build --config Release --target nor_tests_all
 
       - name: Build NOR Games
         shell: bash
