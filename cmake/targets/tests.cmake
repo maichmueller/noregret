@@ -66,7 +66,7 @@ register_nor_target(${nor_test}_all ${NOR_TEST_SOURCES})
 
 # the test of all parts needs an extra linkage for the pybind11 components and Python
 target_link_libraries(
-        ${nor_test}
+        ${nor_test}_all
         PRIVATE
         pybind11::module
         $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>
