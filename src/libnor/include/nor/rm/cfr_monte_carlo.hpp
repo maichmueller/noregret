@@ -972,6 +972,31 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       [](const action_type& action) { return std::cref(action); }
    );
 
+   auto action_value_estimator = [&](const auto& action, bool inplace = false) {
+      auto next_state = child_state(_env(), *state, action);
+
+      auto [next_observation_buffer, next_infostates] = std::invoke([&] {
+         if(inplace) {
+            next_infostate_and_obs_buffers_inplace(
+               _env(), observation_buffer.get(), infostates.get(), *state, action, *next_state
+            );
+            return std::tuple{std::move(observation_buffer.get()), std::move(infostates.get())};
+         } else {
+            return next_infostate_and_obs_buffers(
+               _env(), observation_buffer.get(), infostates.get(), *state, action, *next_state
+            );
+         }
+      });
+
+      return _traverse(
+                player_to_update,
+                std::move(next_state),
+                ObservationbufferMap{std::move(next_observation_buffer)},
+                InfostateSptrMap{std::move(next_infostates)}
+      )
+         .get();
+   };
+
    if(active_player == player_to_update) {
       // for the traversing player we explore all actions possible
 
@@ -980,39 +1005,25 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       std::unordered_map< action_type, double > value_estimates;
       value_estimates.reserve(infonode_data.actions().size());
 
-      auto get_action_value_estimate = [&](const auto& action) {
-         auto next_state = child_state(_env(), *state, action);
-
-         auto [next_observation_buffer, next_infostates] = next_infostate_and_obs_buffers(
-            _env(), observation_buffer.get(), infostates.get(), *state, action, *next_state
-         );
-
-         return _traverse(
-                   player_to_update,
-                   std::move(next_state),
-                   ObservationbufferMap{std::move(next_observation_buffer)},
-                   InfostateSptrMap{std::move(next_infostates)}
-         )
-            .get();
-      };
-
       auto state_value_estimate = std::invoke([&] {
          if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
-            double state_value_est = 0.;
-            for(const auto& action : infonode_data.actions()) {
-               auto value_estimate = get_action_value_estimate(action);
-               value_estimates.emplace(action, value_estimate);
-               state_value_est += value_estimate * player_policy[action];
-            }
-            return state_value_est;
+            return ranges::accumulate(
+               infonode_data.actions() | ranges::views::transform([&](const auto& action) {
+                  auto value_estimate = action_value_estimator(action);
+                  value_estimates.emplace(action, value_estimate);
+                  return value_estimate * player_policy[action];
+               }),
+               double(0.),
+               std::plus{}
+            );
+
          } else {
             // pure cfr samples a designated action first as the pure strategy action at this
             // infoset, collects the value of the sampled action and then updates (in another step)
             // the other actions with the value difference to the sampled action's value.
-            auto& sampled_action = common::choose(
+            return action_value_estimator(common::choose(
                infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng
-            );
-            return get_action_value_estimate(sampled_action);
+            ));
          }
       });
       // in the second round of action iteration we update the regret of each action through the
@@ -1027,28 +1038,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       auto& sampled_action = common::choose(
          infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng
       );
-
-      auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
-         utils::clone_any_way(*state)
-      );
-      _env().transition(*state, sampled_action);
-
-      next_infostate_and_obs_buffers_inplace(
-         _env(),
-         observation_buffer.get(),
-         infostates.get(),
-         *state_before_transition,
-         sampled_action,
-         *state
-      );
-
-      double action_value_estimate = _traverse(
-                                        player_to_update,
-                                        std::move(state),
-                                        ObservationbufferMap{std::move(observation_buffer)},
-                                        InfostateSptrMap{std::move(infostates)}
-      )
-                                        .get();
+      double action_value_estimate = action_value_estimator(sampled_action, true);
 
       if(active_player == _preview_next_player_to_update()) {
          // this update scheme represents the 'simple' update plan mentioned in open_spiel. We
@@ -1058,8 +1048,8 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
             *infostate, infonode_data.actions()
          );
          if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
-            // we do not need to update the other actions since there sampling prob is 0 (pure
-            // strategies)
+            // we do not need to update the other actions since we sampled first a pure strategy and
+            // then sampled from said strategy (other action sampling prob is thus 0)
             average_player_policy[sampled_action] += 1;
          } else {
             // external sampling updates all entries by the current policy

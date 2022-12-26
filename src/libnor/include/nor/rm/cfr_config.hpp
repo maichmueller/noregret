@@ -51,6 +51,8 @@ struct CFRDiscountedConfig {
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
 };
 
+struct CFRLinearConfig : public CFRDiscountedConfig {};
+
 struct CFRExponentialConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;

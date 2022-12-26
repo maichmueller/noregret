@@ -8,9 +8,6 @@
 #include "nor/env.hpp"
 #include "nor/nor.hpp"
 
-constexpr double EXPLOITABILITY_THRESHOLD = 5e-3;
-constexpr double KUHN_POKER_GAME_VALUE_ALEX = -1. / 18.;
-
 template < typename ActionPolicy >
 inline std::string print_action_policy(const ActionPolicy& action_policy)
 {
@@ -584,5 +581,6 @@ inline auto setup_rps_test()
       std::move(infostate_bob),
       std::move(next_state)};
 }
+
 
 #endif  // NOR_RM_SPECIFIC_TESTING_UTILS_HPP
