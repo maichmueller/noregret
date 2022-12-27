@@ -328,8 +328,7 @@ class MCCFR:
       uptr< world_state_type > state,
       ObservationbufferMap observation_buffer,
       InfostateSptrMap infostates
-   )
-      // clang-format off
+   )  // clang-format off
       requires(
          config.algorithm == MCCFRAlgorithmMode::external_sampling
          or (
@@ -593,10 +592,10 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
 
    // we have to clone the infostate to ensure that it is not written to upon further traversal
    // (we need this state after traversal to update policy and regrets)
-   auto infostate = std::shared_ptr{utils::clone_any_way(infostates.get().at(active_player))};
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      infostate, infostate_data_type{}
+      utils::clone_any_way(infostates.get().at(active_player)), infostate_data_type{}
    );
+   const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
    if(success) {
       // success means we have indeed emplaced a new data node, instead of simply fetching an
@@ -982,10 +981,10 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   auto infostate = std::shared_ptr{utils::clone_any_way(infostates.get().at(active_player))};
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      infostate, infostate_data_type{}
+      utils::clone_any_way(infostates.get().at(active_player)), infostate_data_type{}
    );
+   const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
    if(success) {
       // success means we have indeed emplaced a new data node, instead of simply fetching an
