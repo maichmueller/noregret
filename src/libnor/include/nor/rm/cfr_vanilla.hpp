@@ -798,7 +798,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       // the average strategy updates (depending on pi_i) will be 0. If only the
       // opponent reach prob is 0, then we can only skip regret updates which does not
       // improve the speed much in this implementation.
-      if([&] {
+      if(std::invoke([&] {
             if constexpr(config.update_mode == UpdateMode::alternating) {
                // if one of the opponents' (non traversers') reach prob is 0. then the regret
                // updates will be skipped. If also the traversing player's reach probability is 0
@@ -824,7 +824,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
                          and rp <= std::numeric_limits< double >::epsilon();
                });
             }
-         }()) {
+         })) {
          // if the entire subtree is pruned then the values that could be found are all 0. for each
          // player
          return StateValueMap{std::invoke([&] {
@@ -846,25 +846,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    // traverse all child states from this state. The constexpr check for determinism in the env
    // allows deterministic envs to not provide certain functions that are only needed in the
    // stochastic case.
-   // First define the default branch for an active non-chance player
-   auto nonchance_player_traverse = [&] {
-      this_infostate = infostates.get().at(active_player);
-      if constexpr(initialize_infonodes) {
-         _infonodes().emplace(
-            this_infostate, infostate_data_type{_env().actions(active_player, *state)}
-         );
-      }
-      _traverse_player_actions< initialize_infonodes, use_current_policy >(
-         player_to_update,
-         active_player,
-         std::move(state),
-         reach_probability,
-         std::move(observation_buffer),
-         std::move(infostates),
-         state_value,
-         action_value
-      );
-   };
+
    // now we check first if we even need to consider a chance player, as the env could be simply
    // deterministic. In that case we might need to traverse the chance player's actions or an
    // active player's actions
@@ -883,12 +865,25 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
          // if this is a chance node then we don't need to update any regret or average policy
          // after the traversal
          return state_value;
-      } else {
-         nonchance_player_traverse();
       }
-   } else {
-      nonchance_player_traverse();
    }
+
+   this_infostate = infostates.get().at(active_player);
+   if constexpr(initialize_infonodes) {
+      _infonodes().emplace(
+         this_infostate, infostate_data_type{_env().actions(active_player, *state)}
+      );
+   }
+   _traverse_player_actions< initialize_infonodes, use_current_policy >(
+      player_to_update,
+      active_player,
+      std::move(state),
+      reach_probability,
+      std::move(observation_buffer),
+      std::move(infostates),
+      state_value,
+      action_value
+   );
 
    if constexpr(use_current_policy) {
       // we can only update our regrets and policies if we are traversing with the current
