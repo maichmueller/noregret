@@ -327,7 +327,7 @@ class VanillaCFR:
       return m_infonode.at(infostate);
    }
 
-   /// import the parent's member variable accessors
+   /// import the parent's member variable accessors and protected utilities
    using base::_env;
    using base::_iteration;
    using base::_root_state_uptr;
@@ -335,6 +335,7 @@ class VanillaCFR:
    using base::_average_policy;
    using base::_player_update_schedule;
    using base::_cycle_player_to_update;
+   using base::_partial_pruning_condition;
 
    /// the relevant data stored at each infostate
    std::unordered_map<
@@ -792,39 +793,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    }
 
    if constexpr(config.pruning_mode == CFRPruningMode::partial) {
-      // if all players have 0 reach probability for reaching this infostate then the
-      // entire subtree visited from this infostate can be pruned, since both the regret
-      // updates (depending on the counterfactual values, i.e. pi_{-i}) will be 0, and
-      // the average strategy updates (depending on pi_i) will be 0. If only the
-      // opponent reach prob is 0, then we can only skip regret updates which does not
-      // improve the speed much in this implementation.
-      if(std::invoke([&] {
-            if constexpr(config.update_mode == UpdateMode::alternating) {
-               // if one of the opponents' (non traversers') reach prob is 0. then the regret
-               // updates will be skipped. If also the traversing player's reach probability is 0
-               // then the entire subtree is prunable, since the average strategy updates would also
-               // be 0.
-               Player traverser = player_to_update.value();
-               auto traversing_player_rp_is_zero = reach_probability.get()[traverser]
-                                                   <= std::numeric_limits< double >::epsilon();
-               return traversing_player_rp_is_zero
-                      and ranges::any_of(reach_probability.get(), [&](const auto& player_rp_pair) {
-                             const auto& [player, rp] = player_rp_pair;
-                             return player != traverser
-                                    and rp <= std::numeric_limits< double >::epsilon();
-                          });
-            } else {
-               // A mere check on ONE of the opponents having reach prob 0 and the active player
-               // having reach prob 0 would not suffice in the multiplayer case as some average
-               // strategy updates of other opponent with reach prob > 0 would be missed in the case
-               // of simultaneous updates.
-               return ranges::all_of(reach_probability.get(), [&](const auto& player_rp_pair) {
-                  const auto& [player, rp] = player_rp_pair;
-                  return player != Player::chance
-                         and rp <= std::numeric_limits< double >::epsilon();
-               });
-            }
-         })) {
+      if(_partial_pruning_condition(player_to_update, reach_probability)) {
          // if the entire subtree is pruned then the values that could be found are all 0. for each
          // player
          return StateValueMap{std::invoke([&] {
@@ -846,10 +815,6 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    // traverse all child states from this state. The constexpr check for determinism in the env
    // allows deterministic envs to not provide certain functions that are only needed in the
    // stochastic case.
-
-   // now we check first if we even need to consider a chance player, as the env could be simply
-   // deterministic. In that case we might need to traverse the chance player's actions or an
-   // active player's actions
    if constexpr(concepts::stochastic_env< env_type >) {
       if(active_player == Player::chance) {
          _traverse_chance_actions< initialize_infonodes, use_current_policy >(

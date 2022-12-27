@@ -244,6 +244,39 @@ class TabularCFRBase {
       }
    }
 
+   bool _partial_pruning_condition(
+      [[maybe_unused]] std::optional< Player > player_to_update,
+      const ReachProbabilityMap& reach_probability
+   )
+   {
+      if constexpr(alternating_update) {
+         // if all players have 0 reach probability for reaching an infostate then the
+         // entire subtree visited from that infostate can be pruned, because both, the regret
+         // updates (which depends on the counterfactual values, i.e. pi_{-i}), and
+         // the average strategy updates (which depends on pi_i) will be 0. If only the
+         // opponent reach prob is 0, then we can merely skip regret updates which would not
+         // improve the speed much in this implementation.
+         Player traverser = *player_to_update;
+         auto traversing_player_rp_is_zero = reach_probability.get().at(traverser)
+                                             <= std::numeric_limits< double >::epsilon();
+         return traversing_player_rp_is_zero
+                and ranges::any_of(reach_probability.get(), [&](const auto& player_rp_pair) {
+                       const auto& [player, rp] = player_rp_pair;
+                       return player != traverser
+                              and rp <= std::numeric_limits< double >::epsilon();
+                    });
+      } else {
+         // A mere check on ONE of the opponents having reach prob 0 and the active player
+         // having reach prob 0 would not suffice in the multiplayer case as some average
+         // strategy updates of other opponent with reach prob > 0 would be missed in the case
+         // of simultaneous updates.
+         return ranges::all_of(reach_probability.get(), [&](const auto& player_rp_pair) {
+            const auto& [player, rp] = player_rp_pair;
+            return player != Player::chance and rp <= std::numeric_limits< double >::epsilon();
+         });
+      }
+   }
+
    ///////////////////////////////////////////
    /// private member variable definitions ///
    ///////////////////////////////////////////
