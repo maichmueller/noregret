@@ -1096,11 +1096,15 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
 }
 
 namespace detail {
-// a verification of the current config correctness
+/// @brief a verification of the correctness of the chosen configuration
 template < CFRConfig config >
 consteval bool sanity_check_cfr_config()
 {
-   if constexpr(config.weighting_mode == CFRWeightingMode::exponential and config.pruning_mode == CFRPruningMode::regret_based and config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
+   if constexpr(
+      (config.weighting_mode == CFRWeightingMode::exponential)
+      and (config.pruning_mode == CFRPruningMode::regret_based)
+      and (config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus)
+   ) {
       // there is currently no theoretic work on combining these methods and the update rule for the
       // cumulative regret in both clash with different approaches (exp weighting wants e^L1
       // weighted updates) while regret-based-pruning with CFR+ wants to replace the

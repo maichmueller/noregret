@@ -127,7 +127,28 @@ class MCCFR:
    /// Constructors ///
    ////////////////////
 
+  private:
+   struct internal_construct_tag {};
+
+  public:
+   // forwarding wrapper constructor around all constructors
+   template < typename T1, typename... Args >
+   // exclude potential recursion traps
+      requires common::is_none_v<
+         std::remove_cvref_t< T1 >,  // remove cvref to avoid checking each ref-case individually
+         internal_construct_tag,  // don't recurse back from internal constructors or self
+         MCCFR  // don't steal the copy/move constructor calls (std::remove_cvref ensures both)
+         >
+   MCCFR(T1&& t, Args&&... args)
+       : MCCFR(internal_construct_tag{}, std::forward< T1 >(t), std::forward< Args >(args)...)
+   {
+      _sanity_check_config();
+      assert_serialized_and_unrolled(_env());
+   }
+
+  private:
    MCCFR(
+      internal_construct_tag,
       Env env_,
       uptr< world_state_type > root_state_,
       Policy policy_ = Policy(),
@@ -139,11 +160,10 @@ class MCCFR:
          m_epsilon(epsilon),
          m_rng(seed)
    {
-      _sanity_check_config();
-      assert_serialized_and_unrolled(_env());
    }
 
    MCCFR(
+      internal_construct_tag,
       Env env_,
       Policy policy_ = Policy(),
       AveragePolicy avg_policy_ = AveragePolicy(),
@@ -151,6 +171,7 @@ class MCCFR:
       size_t seed = std::random_device{}()
    )
        : MCCFR(
+          internal_construct_tag{},
           std::move(env_),
           std::make_unique< world_state_type >(env.initial_world_state()),
           std::move(policy_),
@@ -159,10 +180,10 @@ class MCCFR:
           seed
        )
    {
-      assert_serialized_and_unrolled(_env());
    }
 
    MCCFR(
+      internal_construct_tag,
       Env env_,
       uptr< world_state_type > root_state_,
       std::unordered_map< Player, Policy > policy_,
@@ -174,14 +195,13 @@ class MCCFR:
          m_epsilon(epsilon),
          m_rng(seed)
    {
-      _sanity_check_config();
-      assert_serialized_and_unrolled(_env());
    }
 
    ////////////////////////////////////
    /// API: public member functions ///
    ////////////////////////////////////
 
+  public:
    /// import public getters
 
    using base::env;
@@ -255,7 +275,7 @@ class MCCFR:
       common::value_hasher< info_state_type >,
       common::value_comparator< info_state_type > >
       m_infonode{};
-   /// the parameter to control the epsilon-on-policy epxloration
+   /// the parameter to control the epsilon-on-policy exploration
    double m_epsilon;
    /// the rng state to produce random numbers with
    common::RNG m_rng;
@@ -309,10 +329,15 @@ class MCCFR:
       ObservationbufferMap observation_buffer,
       InfostateSptrMap infostates
    )
-      requires(common::isin(
-         config.algorithm,
-         {MCCFRAlgorithmMode::external_sampling, MCCFRAlgorithmMode::pure_cfr}
-      ));
+      // clang-format off
+      requires(
+         config.algorithm == MCCFRAlgorithmMode::external_sampling
+         or (
+            config.algorithm == MCCFRAlgorithmMode::pure_cfr
+            and config.update_mode == UpdateMode::alternating
+         )
+      );
+   // clang-format on
 
    void _update_regrets(
       const ReachProbabilityMap& reach_probability,
@@ -566,8 +591,8 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       }
    }
 
-   // we have to clone the infostate to ensure that it is not written to upon further traversal (we
-   // need this state after traversal to update policy and regrets)
+   // we have to clone the infostate to ensure that it is not written to upon further traversal
+   // (we need this state after traversal to update policy and regrets)
    auto infostate = std::shared_ptr{utils::clone_any_way(infostates.get().at(active_player))};
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
       infostate, infostate_data_type{}
@@ -825,7 +850,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
    auto policy_sampling = [&] {
       // in the non-epsilon case we simply use the player's policy to sample the next move
       // from. Thus, in this case, the action's sample probability and action's policy
-      // probability are the same, i.e. action_sample_prob = action_policy_prob in the return value
+      // probability are the same, i.e. action_sample_prob = action_policy_prob in the return
+      // value
       auto& chosen_action = common::choose(
          infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng
       );
@@ -913,10 +939,15 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    ObservationbufferMap observation_buffer,
    InfostateSptrMap infostates
 )
-   requires(common::isin(
-      config.algorithm,
-      {MCCFRAlgorithmMode::external_sampling, MCCFRAlgorithmMode::pure_cfr}
-   ))
+   // clang-format off
+   requires(
+      config.algorithm == MCCFRAlgorithmMode::external_sampling
+      or (
+         config.algorithm == MCCFRAlgorithmMode::pure_cfr
+         and config.update_mode == UpdateMode::alternating
+      )
+   )
+// clang-format on
 {
    Player active_player = _env().active_player(*state);
 
@@ -1019,8 +1050,8 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
          } else {
             // pure cfr samples a designated action first as the pure strategy action at this
-            // infoset, collects the value of the sampled action and then updates (in another step)
-            // the other actions with the value difference to the sampled action's value.
+            // infoset, collects the value of the sampled action and then updates (in another
+            // step) the other actions with the value difference to the sampled action's value.
             return action_value_estimator(common::choose(
                infonode_data.actions(), [&](const auto& act) { return player_policy[act]; }, m_rng
             ));
@@ -1048,8 +1079,8 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
             *infostate, infonode_data.actions()
          );
          if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
-            // we do not need to update the other actions since we sampled first a pure strategy and
-            // then sampled from said strategy (other action sampling prob is thus 0)
+            // we do not need to update the other actions since we sampled first a pure strategy
+            // and then sampled from said strategy (other action sampling prob is thus 0)
             average_player_policy[sampled_action] += 1;
          } else {
             // external sampling updates all entries by the current policy

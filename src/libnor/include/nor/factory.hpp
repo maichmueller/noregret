@@ -24,14 +24,6 @@ struct factory {
       return map;
    }
 
-   template < rm::CFRConfig cfg >
-   static consteval rm::CFRConfig to_discounted_cfg()
-   {
-      return rm::CFRConfig{
-         .update_mode = cfg.update_mode,
-         .regret_minimizing_mode = cfg.regret_minimizing_mode,
-         .weighting_mode = rm::CFRWeightingMode::discounted};
-   }
 
   public:
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +43,7 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_vanilla(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy
    )
@@ -75,7 +67,7 @@ struct factory {
    template < rm::CFRConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::VanillaCFR< cfg, Env, Policy, AveragePolicy > make_cfr_vanilla(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map
    )
@@ -90,7 +82,7 @@ struct factory {
    template < rm::CFRConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::VanillaCFR< cfg, Env, Policy, Policy > make_cfr_vanilla(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       const Policy& policy
    )
    {
@@ -114,7 +106,7 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_plus(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy
    )
@@ -138,7 +130,7 @@ struct factory {
    template < typename Env, typename Policy, typename AveragePolicy >
    static rm::CFRPlus< Env, Policy, AveragePolicy > make_cfr_plus(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map
    )
@@ -153,7 +145,7 @@ struct factory {
    template < bool as_map, typename Env, typename Policy >
    static rm::CFRPlus< Env, Policy, Policy > make_cfr_plus(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       const Policy& policy
    )
    {
@@ -179,7 +171,7 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_discounted(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy,
       rm::CFRDiscountedParameters params = {}
@@ -206,7 +198,7 @@ struct factory {
    template < rm::CFRDiscountedConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::CFRDiscounted< cfg, Env, Policy, AveragePolicy > make_cfr_discounted(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
       rm::CFRDiscountedParameters params = {}
@@ -223,7 +215,7 @@ struct factory {
    template < rm::CFRDiscountedConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::CFRDiscounted< cfg, Env, Policy, Policy > make_cfr_discounted(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       const Policy& policy,
       rm::CFRDiscountedParameters params = {}
    )
@@ -237,20 +229,14 @@ struct factory {
    ///////////////////// LINEAR Counterfactual Regret Minimizer Factory ////////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
-   template <
-      rm::CFRDiscountedConfig cfg,
-      bool as_map,
-      typename Env,
-      typename Policy,
-      typename AveragePolicy >
-   static rm::CFRDiscounted<
-      cfg,
+   template < rm::CFRLinearConfig cfg, bool as_map, typename Env, typename Policy, typename AveragePolicy >
+   static rm::CFRLinear< cfg,
       std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
       std::remove_cvref_t< Policy >,
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_linear(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy
    )
@@ -273,10 +259,11 @@ struct factory {
       }
    }
 
-   template < rm::CFRDiscountedConfig cfg, typename Env, typename Policy, typename AveragePolicy >
-   static rm::CFRDiscounted< cfg, Env, Policy, AveragePolicy > make_cfr_linear(
+   template < rm::CFRLinearConfig cfg, typename Env, typename Policy, typename AveragePolicy >
+   static rm::CFRLinear< cfg, std::remove_cvref_t< Env >, Policy, AveragePolicy >
+   make_cfr_linear(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map
    )
@@ -289,10 +276,10 @@ struct factory {
          std::move(avg_policy_map)};
    }
 
-   template < rm::CFRDiscountedConfig cfg, bool as_map, typename Env, typename Policy >
-   static rm::CFRDiscounted< cfg, Env, Policy, Policy > make_cfr_linear(
+   template < rm::CFRLinearConfig cfg, bool as_map, typename Env, typename Policy >
+   static rm::CFRLinear< cfg, std::remove_cvref_t< Env >, Policy, Policy > make_cfr_linear(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       const Policy& policy
    )
    {
@@ -322,7 +309,7 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_exponential(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy,
       rm::CFRExponentialParameters params = {}
@@ -349,7 +336,7 @@ struct factory {
    template < rm::CFRExponentialConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::CFRExponential< cfg, Env, Policy, AveragePolicy > make_cfr_exponential(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
       rm::CFRExponentialParameters params = {}
@@ -366,7 +353,7 @@ struct factory {
    template < rm::CFRExponentialConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::CFRExponential< cfg, Env, Policy, Policy > make_cfr_exponential(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       const Policy& policy,
       rm::CFRExponentialParameters params = {}
    )
@@ -389,7 +376,7 @@ struct factory {
       std::remove_cvref_t< AvgPolicy > >
    make_mccfr(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       Policy&& policy,
       AvgPolicy&& avg_policy,
       double epsilon,
@@ -426,7 +413,7 @@ struct factory {
    template < rm::MCCFRConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::MCCFR< cfg, Env, Policy, AveragePolicy > make_mccfr(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
       double epsilon,
@@ -445,7 +432,7 @@ struct factory {
    template < rm::MCCFRConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::MCCFR< cfg, Env, Policy, Policy > make_mccfr(
       Env&& env,
-      uptr< typename fosg_auto_traits< Env >::world_state_type > root_state,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       const Policy& policy,
       double epsilon,
       size_t seed = 0
@@ -454,6 +441,56 @@ struct factory {
       return make_mccfr< cfg, as_map >(
          std::forward< Env >(env), std::move(root_state), policy, policy, epsilon, seed
       );
+   }
+
+   /////////////////////////////////////////////////////////////////////////////////////////////
+   ////////////////////////////////// Generic CFR Factory /////////////////////////////////////
+   /////////////////////////////////////////////////////////////////////////////////////////////
+
+   // build the correct CFR solver depending on the config type passed in. This is merely a
+   // forwarding station to choose the specific algorithm via the config type.
+   template < auto config, bool as_map, typename... Args >
+   static decltype(auto) make_cfr(Args&&... args)
+   {
+      using namespace nor;
+      using ConfigType = std::decay_t< decltype(config) >;
+      if constexpr(std::same_as< ConfigType, rm::CFRConfig >) {
+         return factory::make_cfr_vanilla< config, as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRDiscountedConfig >) {
+         return factory::make_cfr_discounted< config, as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
+         return factory::make_cfr_linear< config, as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
+         return factory::make_cfr_plus< as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRExponentialConfig >) {
+         return factory::make_cfr_exponential< config, as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
+         return factory::make_cfr_plus< config, as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::MCCFRConfig >) {
+         return factory::make_mccfr< config, as_map >(std::forward< Args >(args)...);
+      }
+   }
+
+   template < auto config, typename... Args >
+   static decltype(auto) make_cfr(Args&&... args)
+   {
+      using namespace nor;
+      using ConfigType = std::decay_t< decltype(config) >;
+      if constexpr(std::same_as< ConfigType, rm::CFRConfig >) {
+         return factory::make_cfr_vanilla< config >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRDiscountedConfig >) {
+         return factory::make_cfr_discounted< config >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
+         return factory::make_cfr_linear< config >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
+         return factory::make_cfr_plus(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRExponentialConfig >) {
+         return factory::make_cfr_exponential< config >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
+         return factory::make_cfr_plus< config >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::MCCFRConfig >) {
+         return factory::make_mccfr< config >(std::forward< Args >(args)...);
+      }
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////

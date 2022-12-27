@@ -17,6 +17,16 @@ using CFRDiscounted = VanillaCFR<
    Policy,
    AveragePolicy >;
 
+template < CFRLinearConfig config, typename Env, typename Policy, typename AveragePolicy >
+using CFRLinear = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = config.regret_minimizing_mode,
+      .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
 }
 
 #endif  // NOR_CFR_DISCOUNTED_HPP

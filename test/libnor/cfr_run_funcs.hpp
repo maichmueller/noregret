@@ -8,52 +8,8 @@
 #include "nor/nor.hpp"
 #include "rm_specific_testing_utils.hpp"
 
-constexpr double EXPLOITABILITY_THRESHOLD = 5e-3;
+constexpr double EXPLOITABILITY_THRESHOLD = 3e-3;
 constexpr double KUHN_POKER_GAME_VALUE_ALEX = -1. / 18.;
-
-template < auto config, bool as_map, typename... Args >
-decltype(auto) cfr_factory_func(Args&&... args)
-{
-   using namespace nor;
-   using ConfigType = std::decay_t< decltype(config) >;
-   if constexpr(std::same_as< ConfigType, rm::CFRConfig >) {
-      return factory::make_cfr_vanilla< config, as_map >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRDiscountedConfig >) {
-      return factory::make_cfr_discounted< config, as_map >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
-      return factory::make_cfr_linear< config, as_map >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
-      return factory::make_cfr_plus< as_map >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRExponentialConfig >) {
-      return factory::make_cfr_exponential< config, as_map >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
-      return factory::make_cfr_plus< config, as_map >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::MCCFRConfig >) {
-      return factory::make_mccfr< config, as_map >(std::forward< Args >(args)...);
-   }
-};
-
-template < auto config, typename... Args >
-decltype(auto) cfr_factory_func(Args&&... args)
-{
-   using namespace nor;
-   using ConfigType = std::decay_t< decltype(config) >;
-   if constexpr(std::same_as< ConfigType, rm::CFRConfig >) {
-      return factory::make_cfr_vanilla< config >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRDiscountedConfig >) {
-      return factory::make_cfr_discounted< config >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
-      return factory::make_cfr_linear< config >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
-      return factory::make_cfr_plus(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRExponentialConfig >) {
-      return factory::make_cfr_exponential< config >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
-      return factory::make_cfr_plus< config >(std::forward< Args >(args)...);
-   } else if constexpr(std::same_as< ConfigType, rm::MCCFRConfig >) {
-      return factory::make_mccfr< config >(std::forward< Args >(args)...);
-   }
-};
 
 template < auto config, typename... ExtraFactoryParams >
 void run_cfr_on_kuhn_poker(
@@ -76,7 +32,7 @@ void run_cfr_on_kuhn_poker(
       std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{}
    );
 
-   auto solver = cfr_factory_func< config, true >(
+   auto solver = factory::make_cfr< config, true >(
       std::move(env),
       std::move(root_state),
       tabular_policy,
@@ -104,8 +60,9 @@ void run_cfr_on_kuhn_poker(
       evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
+      const auto& avg_policies = solver.average_policy();
       if(ranges::all_of(
-            solver.average_policy() | ranges::views::values,
+            avg_policies | ranges::views::values,
             [](const auto& policy) { return policy.size() == n_infostates; }
          )
          and n_iters % update_freq == 0) {
@@ -114,9 +71,9 @@ void run_cfr_on_kuhn_poker(
             games::kuhn::State{},
             std::unordered_map{
                std::pair{
-                  Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex))},
+                  Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
                std::pair{
-                  Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob))}}
+                  Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
          );
       }
    }
@@ -127,7 +84,7 @@ void run_cfr_on_kuhn_poker(
 }
 
 template < auto config, typename... ExtraFactoryParams >
-void run_cfr_on_rockpaperscissors(
+void run_cfr_on_rps(
    size_t max_iters = 1e5,
    size_t update_freq = 10,
    ExtraFactoryParams... extra_args
@@ -147,7 +104,7 @@ void run_cfr_on_rockpaperscissors(
    auto root_state = std::make_unique< games::rps::State >();
    auto players = env.players(*root_state);
 
-   auto solver = cfr_factory_func< config >(
+   auto solver = factory::make_cfr< config >(
       std::move(env),
       std::move(root_state),
       std::unordered_map{
@@ -179,8 +136,9 @@ void run_cfr_on_rockpaperscissors(
       evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
       evaluate_policies< false >(solver, initial_policy_profile, i);
 #endif
+      const auto& avg_policies = solver.average_policy();
       if(ranges::all_of(
-            solver.average_policy() | ranges::views::values,
+            avg_policies | ranges::views::values,
             [](const auto& policy) { return policy.size() == n_infostates; }
          )
          and n_iters % update_freq == 0) {
@@ -189,9 +147,9 @@ void run_cfr_on_rockpaperscissors(
             games::rps::State{},
             std::unordered_map{
                std::pair{
-                  Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex))},
+                  Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
                std::pair{
-                  Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob))}}
+                  Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
          );
       }
    }
