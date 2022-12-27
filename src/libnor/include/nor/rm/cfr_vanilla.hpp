@@ -807,7 +807,6 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    }
 
    Player active_player = _env().active_player(*state);
-   sptr< info_state_type > this_infostate = nullptr;
    // the state's value for each player. To be filled by the action traversal functions.
    StateValueMap state_value{{}};
    // each action's value for each player. To be filled by the action traversal functions.
@@ -833,12 +832,8 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   this_infostate = infostates.get().at(active_player);
-   if constexpr(initialize_infonodes) {
-      _infonodes().emplace(
-         this_infostate, infostate_data_type{_env().actions(active_player, *state)}
-      );
-   }
+   sptr< info_state_type > this_infostate = infostates.get().at(active_player);
+
    _traverse_player_actions< initialize_infonodes, use_current_policy >(
       player_to_update,
       active_player,
@@ -882,7 +877,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
 {
-   auto& this_infostate = infostate_map.get().at(active_player);
+   const auto& this_infostate = infostate_map.get().at(active_player);
    if constexpr(initialize_infonodes) {
       _infonodes().emplace(
          this_infostate, infostate_data_type{_env().actions(active_player, *state)}
