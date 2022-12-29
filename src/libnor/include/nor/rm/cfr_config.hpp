@@ -27,11 +27,11 @@ enum class CFRPruningMode {
    none = 0,
    // Partial pruning drops the subtree if a player policy upstream hits 0
    partial = 1,
-   // Regret-based pruning skips subtrees for all t > t_0 if an action's regret is < 0 at time t_0
-   // and updates upon take up t_1 with a best-response against the average strategy of the
+   // TODO: Regret-based pruning skips subtrees for all t > t_0 if an action's regret is < 0 at time
+   // t_0 and updates upon take up t_1 with a best-response against the average strategy of the
    // opponents during this period.
    regret_based = 2,
-   //
+   // TODO:
    dynamic_thresholding = 3
 };
 
@@ -103,6 +103,7 @@ struct MCCFRConfig {
    MCCFRExplorationMode exploration = MCCFRExplorationMode::epsilon_on_policy;
    MCCFRWeightingMode weighting = MCCFRWeightingMode::lazy;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
+   CFRPruningMode pruning_mode = CFRPruningMode::none;
 };
 
 }  // namespace nor::rm

@@ -301,7 +301,7 @@ class VanillaCFR:
       const info_state_type& infostate,
       const ReachProbabilityMap& reach_probability,
       const StateValueMap& state_value,
-      const std::unordered_map< action_variant_type, StateValueMap >& action_value
+      const std::unordered_map< action_variant_type, StateValueMap >& action_value_map
    );
 
   private:
@@ -974,7 +974,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    const info_state_type& infostate,
    const ReachProbabilityMap& reach_probability,
    const StateValueMap& state_value,
-   const std::unordered_map< action_variant_type, StateValueMap >& action_value
+   const std::unordered_map< action_variant_type, StateValueMap >& action_value_map
 )
 {
    auto& istate_data = _infonode(infostate);
@@ -994,7 +994,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    double player_reach_prob = reach_probability.get().at(player);
    double player_state_value = state_value.get().at(player);
 
-   for(const auto& [action_variant, q_value] : action_value) {
+   for(const auto& [action_variant, action_value] : action_value_map) {
       // we only call this function with action values from a non-chance player, so we can safely
       // assume that the action is of action_type
       const auto& action = std::get< 0 >(action_variant);
@@ -1009,7 +1009,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
             // all other cfr variants currently implemented need the average regret update at
             // history update time
             istate_data.regret(action) += cf_reach_prob
-                                          * (q_value.get().at(player) - player_state_value);
+                                          * (action_value.get().at(player) - player_state_value);
          }
       } else {
          // for the exponential cfr method we need to remember these regret increments of
@@ -1029,7 +1029,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
          // if we emplaced merely std::cref(action) here then we would have silent segfaults that
          // lead to erroenuous memory storing
          istate_data.template storage_element< 1 >(std::cref(iter->first)
-         ) += cf_reach_prob * (q_value.get().at(player) - player_state_value);
+         ) += cf_reach_prob * (action_value.get().at(player) - player_state_value);
       }
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
          // update the cumulative policy according to the formula:
