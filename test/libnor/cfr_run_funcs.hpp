@@ -53,13 +53,10 @@ void run_cfr_on_kuhn_poker(
    constexpr size_t n_infostates = 6;
    size_t n_iters = 0;
    double expl = std::numeric_limits< double >::max();
-   while(expl > EXPLOITABILITY_THRESHOLD or n_iters >= max_iters) {
+   while(expl > EXPLOITABILITY_THRESHOLD and n_iters < max_iters) {
       solver.iterate(1);
       n_iters++;
-#ifndef NDEBUG
-      evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
-      evaluate_policies< false >(solver, initial_policy_profile, i);
-#endif
+
       const auto& avg_policies = solver.average_policy();
       if(ranges::all_of(
             avg_policies | ranges::views::values,
@@ -76,6 +73,11 @@ void run_cfr_on_kuhn_poker(
                   Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
          );
       }
+#ifndef NDEBUG
+      std::cout << "Exploitability: " << expl << "\n";
+      evaluate_policies< true >(solver, initial_curr_policy_profile, n_iters, "Current Policy");
+      evaluate_policies< false >(solver, initial_policy_profile, n_iters);
+#endif
    }
    evaluate_policies< false >(
       solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"
@@ -132,10 +134,7 @@ void run_cfr_on_rps(
    while(expl > EXPLOITABILITY_THRESHOLD and n_iters < max_iters) {
       solver.iterate(1);
       n_iters++;
-#ifndef NDEBUG
-      evaluate_policies< true >(solver, initial_curr_policy_profile, i, "Current Policy");
-      evaluate_policies< false >(solver, initial_policy_profile, i);
-#endif
+
       const auto& avg_policies = solver.average_policy();
       if(ranges::all_of(
             avg_policies | ranges::views::values,
@@ -152,6 +151,11 @@ void run_cfr_on_rps(
                   Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
          );
       }
+#ifndef NDEBUG
+      std::cout << "Exploitability: " << expl << "\n";
+      evaluate_policies< true >(solver, initial_curr_policy_profile, n_iters, "Current Policy");
+      evaluate_policies< false >(solver, initial_policy_profile, n_iters);
+#endif
    }
    evaluate_policies< false >(
       solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"

@@ -77,15 +77,16 @@ enum class MCCFRAlgorithmMode {
 };
 
 enum class MCCFRWeightingMode {
+   none = 0,
    // the lazy update scheme is the correct average policy update scheme which maintains a table of
    // unsampled action policy values that are pushed alongside once such an action is sampled
-   lazy = 0,
+   lazy = 1,
    // optimistic updates the average action policy by weighting the current increment with the delay
    // in number of iterations (t-c) this action has not been sampled and updated last
-   optimistic = 1,
+   optimistic = 2,
    // stochastic updates the average policy by weighting the current increment with the reciprocal
    // sampled action sample-probability
-   stochastic = 2
+   stochastic = 3
 };
 
 enum class MCCFRExplorationMode {

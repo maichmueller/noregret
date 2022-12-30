@@ -415,7 +415,7 @@ class VanillaCFR:
       std::unordered_map< action_variant_type, StateValueMap >& action_value
    );
 
-   void _apply_regret_matching(const std::optional< Player >& player_to_update);
+   void _initiate_regret_minimization(const std::optional< Player >& player_to_update);
 
    void _invoke_regret_minimizer(
       const info_state_type& infostate,
@@ -544,13 +544,13 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
    );
 
    if constexpr(use_current_policy) {
-      _apply_regret_matching(player_to_update);
+      _initiate_regret_minimization(player_to_update);
    }
    return root_game_value;
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimization(
    const std::optional< Player >& player_to_update
 )
 {
@@ -600,22 +600,29 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_regret_matching(
    };
 
    // here we now invoke the actual regret minimization procedure for each infostate individually
-   if constexpr(config.update_mode == UpdateMode::alternating) {
-      Player update_player = player_to_update.value();
-      for(auto& [infostate_ptr, data] : _infonodes()) {
-         if(infostate_ptr->player() == update_player) {
-            _invoke_regret_minimizer(
-               *infostate_ptr, data, policy_weight(data), regret_weights(data)
-            );
-         }
+   auto node_view = std::invoke([&] {
+      if constexpr(config.update_mode == UpdateMode::alternating) {
+         return _infonodes()
+                | ranges::views::filter(
+                   [update_player = *player_to_update](const auto& infostate_ptr_data) {
+                      return std::get< 0 >(infostate_ptr_data)->player() == update_player;
+                   }
+                );
+      } else {
+         return ranges::views::all(_infonodes());
       }
-   } else {
-      // for simultaneous updates we simply update all infostates
-      for(auto& [infostate_ptr, data] : _infonodes()) {
+   });
+
+   std::for_each(
+      std::execution::par_unseq,
+      node_view.begin(),
+      node_view.end(),
+      [&](auto& infostate_ptr_data) {
+         auto& [infostate_ptr, data] = infostate_ptr_data;
          _invoke_regret_minimizer(*infostate_ptr, data, policy_weight(data), regret_weights(data));
       }
-   }
-};
+   );
+}
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
@@ -716,10 +723,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       );
       return l1;
    }();
-   // exponential cfr requires weighting the cumulative regret by the L1 factor to EACH (I, a) pair.
-   // Yet L1, which is actually L1(I, a), is only known after the entire tree has been traversed and
-   // thus can't be done during the traversal. Hence, we need to update our cumulative regret by the
-   // correct weight now here upon iteration over all infostates
+   // exponential cfr requires weighting the cumulative regret by the L1 factor to EACH (I, a)
+   // pair. Yet L1, which is actually L1(I, a), is only known after the entire tree has been
+   // traversed and thus can't be done during the traversal. Hence, we need to update our
+   // cumulative regret by the correct weight now here upon iteration over all infostates
    auto& curr_policy = fetch_policy< PolicyLabel::current >(infostate, istate_data.actions());
    auto& regret_table = istate_data.regret();
    for(auto& [action, cumul_regret] : regret_table) {
@@ -794,8 +801,8 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
    if constexpr(config.pruning_mode == CFRPruningMode::partial) {
       if(_partial_pruning_condition(player_to_update, reach_probability)) {
-         // if the entire subtree is pruned then the values that could be found are all 0. for each
-         // player
+         // if the entire subtree is pruned then the values that could be found are all 0. for
+         // each player
          return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
             for(auto player : _env().players(*state) | utils::is_actual_player_pred) {
@@ -888,8 +895,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    double normalizing_factor = std::invoke([&] {
       if constexpr(not use_current_policy) {
          // we try to normalize only for the average policy, since iterations with the current
-         // policy are for the express purpose of updating the average strategy. As such, we should
-         // not intervene to change these values, as that may alter the values incorrectly
+         // policy are for the express purpose of updating the average strategy. As such, we
+         // should not intervene to change these values, as that may alter the values incorrectly
          double normalization = ranges::accumulate(
             action_policy | ranges::views::values, double(0.), std::plus{}
          );
@@ -984,8 +991,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
          return fetch_policy< PolicyLabel::average >(infostate, actions);
       } else {
-         // this value will be ignored, so we can simply return anything that is cheap to fetch (it
-         // has to be an l-value so can't return an r-value like simply 0
+         // this value will be ignored, so we can simply return anything that is cheap to fetch
+         // (it has to be an l-value so can't return an r-value like simply 0
          return _env();
       }
    }();
@@ -1003,8 +1010,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
          if(cf_reach_prob > 0) {
-            // this if statement effectively introduces partial pruning. But this is such a slight
-            // modification (and gain, if any) that it is to be included in all variants of CFR
+            // this if statement effectively introduces partial pruning. But this is such a
+            // slight modification (and gain, if any) that it is to be included in all variants
+            // of CFR
             //
             // all other cfr variants currently implemented need the average regret update at
             // history update time
@@ -1013,18 +1021,18 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
          }
       } else {
          // for the exponential cfr method we need to remember these regret increments of
-         // iteration t, until the end of iteration t, and apply them once we have computed the L1
-         // weights (i.e. at infostate update time, not history update time). After iteration t ends
-         // we have to delete them again, so that this is only a memory of the current iteration!
-         // Each history h that passed through infostate I will increment here the
+         // iteration t, until the end of iteration t, and apply them once we have computed the
+         // L1 weights (i.e. at infostate update time, not history update time). After iteration
+         // t ends we have to delete them again, so that this is only a memory of the current
+         // iteration! Each history h that passed through infostate I will increment here the
          // instantaneous regret values r(h,a), in order to accumulate r(I, a) = sum_h r(h, a)
 
-         // We emplace the action first into the cumul regret map (if not already there) to receive
-         // the action key's reference back. This reference is then going to be ref-wrapped and
-         // added to the instant temp regret map. We avoid copying the action this way. For games
-         // with elaborate action types, this may be worth the extra runtime, for small action
-         // values probably not. We do however save some memory since ref wrappers are merely as big
-         // as one pointer.
+         // We emplace the action first into the cumul regret map (if not already there) to
+         // receive the action key's reference back. This reference is then going to be
+         // ref-wrapped and added to the instant temp regret map. We avoid copying the action
+         // this way. For games with elaborate action types, this may be worth the extra runtime,
+         // for small action values probably not. We do however save some memory since ref
+         // wrappers are merely as big as one pointer.
          auto [iter, _] = istate_data.regret().try_emplace(action, 0.);
          // if we emplaced merely std::cref(action) here then we would have silent segfaults that
          // lead to erroenuous memory storing
@@ -1060,11 +1068,11 @@ consteval bool sanity_check_cfr_config()
       and (config.pruning_mode == CFRPruningMode::regret_based)
       and (config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus)
    ) {
-      // there is currently no theoretic work on combining these methods and the update rule for the
-      // cumulative regret in both clash with different approaches (exp weighting wants e^L1
-      // weighted updates) while regret-based-pruning with CFR+ wants to replace the
-      // cumulative regret with r(I,a) only if r(I,a) > 0 and R^T(I,a) < 0, otherwise do a normal
-      // cumulative regret update (i.e. R^t+1(I,a) = R^t(I,a) + r(I,a))
+      // there is currently no theoretic work on combining these methods and the update rule
+      // for the cumulative regret in both clash with different approaches (exp weighting
+      // wants e^L1 weighted updates) while regret-based-pruning with CFR+ wants to replace
+      // the cumulative regret with r(I,a) only if r(I,a) > 0 and R^T(I,a) < 0, otherwise do a
+      // normal cumulative regret update (i.e. R^t+1(I,a) = R^t(I,a) + r(I,a))
       return false;
    }
    return true;
