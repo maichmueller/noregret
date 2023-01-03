@@ -11,27 +11,27 @@
 
 using namespace nor;
 
-TEST(KuhnPoker, VANILLA_CFR_alternating)
+TEST(KuhnPoker, CFR_VANILLA_alternating)
 {
    run_cfr_on_kuhn_poker< rm::CFRDiscountedConfig{.update_mode = rm::UpdateMode::alternating} >();
 }
 
-TEST(KuhnPoker, VANILLA_CFR_simultaneous)
+TEST(KuhnPoker, CFR_VANILLA_simultaneous)
 {
    run_cfr_on_kuhn_poker< rm::CFRDiscountedConfig{.update_mode = rm::UpdateMode::simultaneous} >();
 }
 
-TEST(RockPaperScissors, VANILLA_CFR_alternating)
+TEST(RockPaperScissors, CFR_VANILLA_alternating)
 {
    run_cfr_on_rps< rm::CFRDiscountedConfig{.update_mode = rm::UpdateMode::alternating} >();
 }
 
-TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
+TEST(RockPaperScissors, CFR_VANILLA_simultaneous)
 {
    run_cfr_on_rps< rm::CFRDiscountedConfig{.update_mode = rm::UpdateMode::simultaneous} >();
 }
 
-// TEST_F(StrategoState3x3, vanilla_cfr)
+// TEST_F(StrategoState3x3, cfr_vanilla)
 //{
 //
 //    std::cout << "Before anything...\n" << std::endl;
@@ -92,7 +92,7 @@ TEST(RockPaperScissors, VANILLA_CFR_simultaneous)
 // }
 //
 //
-// TEST_F(StrategoState5x5, vanilla_cfr)
+// TEST_F(StrategoState5x5, cfr_vanilla)
 //{
 //    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //    games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};

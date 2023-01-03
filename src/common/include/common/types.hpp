@@ -699,7 +699,7 @@ class not_pred {
 };
 
 template < typename T >
-decltype(auto) referenced_value(T&& t)
+decltype(auto) deref(T&& t)
 {
    return std::forward< T >(t);
 }
@@ -708,7 +708,7 @@ template < typename T >
    requires std::is_pointer_v< std::remove_cvref_t< T > >
             or is_specialization_v< std::remove_cvref_t< T >, std::reference_wrapper > decltype(auto
             )
-referenced_value(T&& t)
+deref(T&& t)
 {
    if constexpr(is_specialization_v< std::remove_cvref_t< T >, std::reference_wrapper >) {
       return std::forward< T >(t).get();
@@ -724,7 +724,7 @@ template < typename T >
       or is_specialization_v< std::remove_cvref_t< T >, std::unique_ptr >
    )
 decltype(auto)  // clang-format on
-referenced_value(T&& t)
+deref(T&& t)
 {
    return *std::forward< T >(t);
 }

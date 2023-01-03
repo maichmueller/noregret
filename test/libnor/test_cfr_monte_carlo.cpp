@@ -22,7 +22,7 @@ void run_mccfr_on_kuhn_poker(
 }
 template < auto config >
 void run_mccfr_on_rockpaperscissors(
-   size_t max_iters = 5e4,
+   size_t max_iters = 1e5,
    size_t update_freq = 10,
    double epsilon = 0.6,
    size_t seed = 0
@@ -94,15 +94,6 @@ TEST(KuhnPoker, MCCFR_ES_stochastic)
 }
 
 
-TEST(KuhnPoker, CFR_PURE_alternating)
-{
-   constexpr rm::MCCFRConfig config{
-      .update_mode = rm::UpdateMode::alternating,
-      .algorithm = rm::MCCFRAlgorithmMode::pure_cfr,
-      .weighting = rm::MCCFRWeightingMode::none};
-   run_mccfr_on_kuhn_poker< config >();
-}
-
 TEST(KuhnPoker, MCCFR_CS_alternating)
 {
    constexpr rm::MCCFRConfig config{
@@ -117,6 +108,24 @@ TEST(KuhnPoker, MCCFR_CS_simultaneous)
    constexpr rm::MCCFRConfig config{
       .update_mode = rm::UpdateMode::simultaneous,
       .algorithm = rm::MCCFRAlgorithmMode::chance_sampling,
+      .weighting = rm::MCCFRWeightingMode::none};
+   run_mccfr_on_kuhn_poker< config >();
+}
+
+TEST(KuhnPoker, CFR_PURE_alternating)
+{
+   constexpr rm::MCCFRConfig config{
+      .update_mode = rm::UpdateMode::alternating,
+      .algorithm = rm::MCCFRAlgorithmMode::pure_cfr,
+      .weighting = rm::MCCFRWeightingMode::none};
+   run_mccfr_on_kuhn_poker< config >();
+}
+
+TEST(KuhnPoker, CFR_PURE_simultaneous)
+{
+   constexpr rm::MCCFRConfig config{
+      .update_mode = rm::UpdateMode::simultaneous,
+      .algorithm = rm::MCCFRAlgorithmMode::pure_cfr,
       .weighting = rm::MCCFRWeightingMode::none};
    run_mccfr_on_kuhn_poker< config >();
 }

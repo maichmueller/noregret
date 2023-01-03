@@ -34,7 +34,7 @@ TEST(RockPaperScissors, CFR_EXPONENTIAL_simultaneous)
    run_cfr_on_rps< cfr_config >();
 }
 
-// TEST_F(StrategoState3x3, vanilla_cfr)
+// TEST_F(StrategoState3x3, cfr_vanilla)
 //{
 //
 //    std::cout << "Before anything...\n" << std::endl;
@@ -95,7 +95,7 @@ TEST(RockPaperScissors, CFR_EXPONENTIAL_simultaneous)
 // }
 //
 //
-// TEST_F(StrategoState5x5, vanilla_cfr)
+// TEST_F(StrategoState5x5, cfr_vanilla)
 //{
 //    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //    games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};
