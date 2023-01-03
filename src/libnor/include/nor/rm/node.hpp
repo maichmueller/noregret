@@ -26,13 +26,13 @@ class InfostateNodeData {
 
    InfostateNodeData()
       requires(sizeof...(OptionalData) == 0 or common::all_predicate_v< std::is_default_constructible, OptionalData... >)
-   : m_storage(_init_storage())
+       : m_storage(_init_storage())
    {
    }
 
    InfostateNodeData(OptionalData... extra_data)
       requires(sizeof...(OptionalData) > 0)
-   : m_storage(_init_storage(std::move(extra_data)...))
+       : m_storage(_init_storage(std::move(extra_data)...))
    {
    }
 
@@ -65,7 +65,7 @@ class InfostateNodeData {
    }
 
    auto& actions() { return m_legal_actions; }
-   auto& regret() { return std::get< regret_map_type >(m_storage); }
+   auto& regret() { return std::get< 0 >(m_storage); }
    auto& regret(const Action& action) { return regret()[std::ref(action)]; }
 
    auto& storage() { return m_storage; }
@@ -74,8 +74,8 @@ class InfostateNodeData {
    {
       return std::get< N >(m_storage);
    }
-   /// if the weight is a map of some sorts, then this method will also be available for the correct
-   /// key types of the map
+   /// if the storage is a map of some sorts, then this method will also be available for the
+   /// correct key types of the map (
    template < size_t N, typename T >
    auto& storage_element(const T& t)
       requires(requires(storage_type storage) { std::get< N >(storage)[t]; })
@@ -86,9 +86,9 @@ class InfostateNodeData {
    [[nodiscard]] auto& actions() const { return m_legal_actions; }
    [[nodiscard]] auto& regret(const Action& action) const
    {
-      return std::get< regret_map_type >(m_storage).at(std::ref(action));
+      return std::get< 0 >(m_storage).at(std::ref(action));
    }
-   [[nodiscard]] auto& regret() const { return std::get< regret_map_type >(m_storage); }
+   [[nodiscard]] auto& regret() const { return std::get< 0 >(m_storage); }
    [[nodiscard]] auto& storage() const { return m_storage; }
    template < size_t N = 0 >
    auto& storage_element() const
@@ -118,8 +118,9 @@ class InfostateNodeData {
 
   private:
    std::vector< Action > m_legal_actions;
-   /// the cumulative regret the active player amassed with each action. Cumulative with regards to
-   /// the number of CFR iterations. Defaults to 0 and should be updated later during the traversal.
+   /// the storage at this infostate node.
+   /// Index 0 is always the cumulative regret the active player amassed for each action.
+   /// (Cumulative with regards to the number of CFR iterations)
    std::tuple< regret_map_type, OptionalData... > m_storage;
 
    auto _init_storage()
@@ -133,20 +134,22 @@ class InfostateNodeData {
    }
    auto _init_storage(regret_map_type rm)
    {
-      return storage_type{std::tuple_cat(std::tuple{std::move(rm)}, optional_data_tuple_type{})};
+      return storage_type{
+         std::tuple_cat(std::forward_as_tuple(std::move(rm)), optional_data_tuple_type{})};
    }
    auto _init_storage(OptionalData... data)
       requires(sizeof...(OptionalData) > 0)
    {
       return storage_type{std::tuple_cat(
-         std::tuple{regret_map_type{}}, optional_data_tuple_type{std::move(data)...}
+         std::forward_as_tuple(regret_map_type{}), optional_data_tuple_type{std::move(data)...}
       )};
    }
    auto _init_storage(regret_map_type rm, OptionalData... data)
       requires(sizeof...(OptionalData) > 0)
    {
-      return storage_type{
-         std::tuple_cat(std::tuple{std::move(rm)}, optional_data_tuple_type{std::move(data)...})};
+      return storage_type{std::tuple_cat(
+         std::forward_as_tuple(std::move(rm)), optional_data_tuple_type{std::move(data)...}
+      )};
    }
 };
 

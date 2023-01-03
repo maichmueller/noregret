@@ -20,7 +20,7 @@ TEST(RockPaperScissors, CFR_PLUS)
    run_cfr_on_rps< rm::CFRPlusConfig{} >();
 }
 
-// TEST_F(StrategoState3x3, vanilla_cfr)
+// TEST_F(StrategoState3x3, cfr_vanilla)
 //{
 //    //      auto env = std::make_shared< Environment >(std::make_unique< Logic >());
 //    games::stratego::Environment env{std::make_unique< games::stratego::Logic >()};

@@ -27,11 +27,11 @@ enum class CFRPruningMode {
    none = 0,
    // Partial pruning drops the subtree if a player policy upstream hits 0
    partial = 1,
-   // Regret-based pruning skips subtrees for all t > t_0 if an action's regret is < 0 at time t_0
-   // and updates upon take up t_1 with a best-response against the average strategy of the
+   // TODO: Regret-based pruning skips subtrees for all t > t_0 if an action's regret is < 0 at time
+   // t_0 and updates upon take up t_1 with a best-response against the average strategy of the
    // opponents during this period.
    regret_based = 2,
-   //
+   // TODO:
    dynamic_thresholding = 3
 };
 
@@ -77,15 +77,16 @@ enum class MCCFRAlgorithmMode {
 };
 
 enum class MCCFRWeightingMode {
+   none = 0,
    // the lazy update scheme is the correct average policy update scheme which maintains a table of
    // unsampled action policy values that are pushed alongside once such an action is sampled
-   lazy = 0,
+   lazy = 1,
    // optimistic updates the average action policy by weighting the current increment with the delay
    // in number of iterations (t-c) this action has not been sampled and updated last
-   optimistic = 1,
+   optimistic = 2,
    // stochastic updates the average policy by weighting the current increment with the reciprocal
    // sampled action sample-probability
-   stochastic = 2
+   stochastic = 3
 };
 
 enum class MCCFRExplorationMode {
@@ -103,6 +104,7 @@ struct MCCFRConfig {
    MCCFRExplorationMode exploration = MCCFRExplorationMode::epsilon_on_policy;
    MCCFRWeightingMode weighting = MCCFRWeightingMode::lazy;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
+   CFRPruningMode pruning_mode = CFRPruningMode::none;
 };
 
 }  // namespace nor::rm

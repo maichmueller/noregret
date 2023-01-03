@@ -25,6 +25,7 @@ This framework makes heavy use of c++20's concepts to constrain environments to 
 - [**Monte-Carlo CFR**](https://papers.nips.cc/paper/2009/hash/00411460f7c92d2124a67ea0f4cb5f85-Abstract.html)
     - [**Outcome Sampling**](http://mlanctot.info/files/papers/PhD_Thesis_MarcLanctot.pdf) (lazy weighting / stochastic weighting - alt / sim)
     - [**External Sampling**](http://mlanctot.info/files/papers/PhD_Thesis_MarcLanctot.pdf) (stochastic weighting)
+    - [**Chance Sampling**](https://www.ma.imperial.ac.uk/~dturaev/neller-lanctot.pdf) (alt / sim)
 
 - [**Pure CFR**](https://richardggibson.appspot.com/static/work/thesis-phd/thesis-phd-paper.pdf) (alt / sim)
 

@@ -59,7 +59,7 @@ inline void print_policy_profile(const PolicyMap& policy_map)
    // we expect the policy profile to be a map of the type:
    //    nor::Player --> state policy
 
-   std::string to_string_delim = "|";
+   const std::string to_string_delim = "|";
 
    auto players = ranges::to_vector(policy_map | ranges::views::keys);
    ranges::actions::sort(players, [](auto p1, auto p2) {

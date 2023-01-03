@@ -341,16 +341,98 @@ concept pointer_like = requires(T t) {
 
 }
 
+template < size_t N >
+struct nth_proj {
+   template < typename T >
+   constexpr decltype(auto) operator()(const T& t) const noexcept
+   {
+      return std::get< N >(t);
+   }
+};
+
+template < size_t N >
+struct nth_proj_hash {
+   template < typename T >
+   constexpr decltype(auto) operator()(const T& t) const noexcept
+   {
+      return std::hash< std::tuple_element_t< N, T > >{}(std::get< N >(t));
+   }
+};
+
+template < size_t N, typename FixedType = void >
+struct nth_proj_comparator {
+   template < typename T, typename U >
+   static constexpr bool convertible_to = std::convertible_to< T, U >;
+
+   template < typename T, typename U = T >
+      requires std::conditional_t<
+         std::is_void_v< FixedType >,
+         std::integral_constant<
+            bool,
+            convertible_to< std::tuple_element_t< N, U >, std::tuple_element_t< N, T > >
+               or convertible_to< std::tuple_element_t< N, T >, std::tuple_element_t< N, U > > >,
+         std::conditional_t<
+            convertible_to< FixedType, std::tuple_element_t< N, T > >
+               and convertible_to< FixedType, std::tuple_element_t< N, U > >,
+            std::true_type,
+            std::false_type > >::value
+   constexpr decltype(auto) operator()(const T& t, const U& u) const noexcept
+   {
+      if constexpr(std::is_void_v< FixedType >) {
+         return std::equal_to<  //clang-format off
+            std::conditional_t<
+               convertible_to< std::tuple_element_t< N, T >, std::tuple_element_t< N, U > >,
+               std::tuple_element_t< N, T >,
+               std::tuple_element_t< N, U > >  //clang-format on
+            >{}(std::get< N >(t), std::get< N >(u));
+      } else {
+         return std::equal_to< FixedType >{}(std::get< N >(t), std::get< N >(u));
+      }
+   }
+
+   template < typename T >
+      requires std::conditional_t<
+         std::is_void_v< FixedType >,
+         std::true_type,
+         std::conditional_t<
+            convertible_to< FixedType, std::tuple_element_t< N, T > >,
+            std::true_type,
+            std::false_type > >::value
+   constexpr decltype(auto) operator()(const T& t, const std::tuple_element_t< N, T >& u)
+      const noexcept
+   {
+      if constexpr(std::is_void_v< FixedType >) {
+         return std::equal_to< std::tuple_element_t< N, T > >{}(std::get< N >(t), u);
+      } else {
+         return std::equal_to< FixedType >{}(std::get< N >(t), u);
+      }
+   }
+   template < typename T >
+   constexpr decltype(auto) operator()(const std::tuple_element_t< N, T >& u, const T& t)
+      const noexcept
+   {
+      return operator()(t, u);
+   }
+};
+
 template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
 struct value_hasher {
    // allow for heterogenous lookup
    using is_transparent = std::true_type;
 
-   auto operator()(const detail::pointer_like< T > auto& ptr) const { return Hasher{}(*ptr); }
-   auto operator()(std::reference_wrapper< T > ref) const { return Hasher{}(ref.get()); }
-   auto operator()(const T& t) const { return Hasher{}(t); }
+   auto operator()(std::reference_wrapper< T > ref) const noexcept { return Hasher{}(ref.get()); }
+   auto operator()(const detail::pointer_like< T > auto& ptr) const noexcept
+   {
+      return Hasher{}(*ptr);
+   }
+   template < typename U >
+   auto operator()(const U& u) const noexcept
+   {
+      return Hasher{}(u);
+   }
 };
 
+/// @brief class which imports the operator() overload of each given type to call their std hash
 template < typename T, typename... Ts >
 struct std_hasher: public std_hasher< Ts... >, public std_hasher< T > {
    using std_hasher< T >::operator();
@@ -394,7 +476,7 @@ struct variant_hasher< std::variant< Ts... > >: public std_hasher< Ts... > {
    using std_hasher< Ts... >::operator();
 };
 
-template < typename T >
+template < typename T, typename comparator = std::equal_to< T > >
    requires std::equality_comparable< T >
 struct value_comparator {
    // allow for heterogenous lookup
@@ -403,37 +485,51 @@ struct value_comparator {
    auto operator()(
       const detail::pointer_like< T > auto& ptr1,
       const detail::pointer_like< T > auto& ptr2
-   ) const
+   ) const noexcept
    {
-      return *ptr1 == *ptr2;
+      return comparator{}(*ptr1, *ptr2);
    }
-   auto operator()(std::reference_wrapper< T > ref1, std::reference_wrapper< T >& ref2) const
+   auto operator()(std::reference_wrapper< T > ref1, std::reference_wrapper< T >& ref2)
+      const noexcept
    {
-      return ref1.get() == ref2.get();
+      return comparator{}(ref1.get(), ref2.get());
    }
    auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
 
    auto operator()(const detail::pointer_like< T > auto& ptr1, std::reference_wrapper< T > ref2)
-      const
+      const noexcept
    {
-      return *ptr1 == ref2;
+      return comparator{}(*ptr1, ref2);
    }
-   auto operator()(std::reference_wrapper< T > t1, const detail::pointer_like< T > auto& ptr2) const
+   auto operator()(std::reference_wrapper< T > t1, const detail::pointer_like< T > auto& ptr2)
+      const noexcept
    {
-      return t1.get() == *ptr2;
-   }
-
-   auto operator()(const detail::pointer_like< T > auto& ptr1, const T& t2) const
-   {
-      return *ptr1 == t2;
-   }
-   auto operator()(const T& t1, const detail::pointer_like< T > auto& ptr2) const
-   {
-      return t1 == *ptr2;
+      return comparator{}(t1.get(), *ptr2);
    }
 
-   auto operator()(std::reference_wrapper< T > ref1, const T& t2) const { return ref1.get() == t2; }
-   auto operator()(const T& t1, std::reference_wrapper< T > ref2) const { return t1 == ref2.get(); }
+   auto operator()(const detail::pointer_like< T > auto& ptr1, const T& t2) const noexcept
+   {
+      return comparator{}(*ptr1, t2);
+   }
+   auto operator()(const T& t1, const detail::pointer_like< T > auto& ptr2) const noexcept
+   {
+      return comparator{}(t1, *ptr2);
+   }
+
+   auto operator()(std::reference_wrapper< T > ref1, const T& t2) const noexcept
+   {
+      return comparator{}(ref1.get(), t2);
+   }
+   auto operator()(const T& t1, std::reference_wrapper< T > ref2) const noexcept
+   {
+      return comparator{}(t1, ref2.get());
+   }
+   /// forwarding template operator in case the comparator allows more inputs
+   template < typename V, typename U >
+   auto operator()(const V& v, const U& u) const noexcept
+   {
+      return comparator{}(v, u);
+   }
 };
 
 /**
@@ -497,6 +593,15 @@ struct Overload: Ts... {
 };
 template < typename... Ts >
 Overload(Ts...) -> Overload< Ts... >;
+
+template < typename... Ts >
+struct TransparentOverload: Ts... {
+   using is_transparent = std::true_type;
+   using Ts::operator()...;
+};
+template < typename... Ts >
+TransparentOverload(Ts...) -> TransparentOverload< Ts... >;
+
 
 template < typename ReturnType >
 struct monostate_error_visitor {
@@ -592,6 +697,37 @@ class not_pred {
   protected:
    Predicate m_pred;
 };
+
+template < typename T >
+decltype(auto) deref(T&& t)
+{
+   return std::forward< T >(t);
+}
+
+template < typename T >
+   requires std::is_pointer_v< std::remove_cvref_t< T > >
+            or is_specialization_v< std::remove_cvref_t< T >, std::reference_wrapper > decltype(auto
+            )
+deref(T&& t)
+{
+   if constexpr(is_specialization_v< std::remove_cvref_t< T >, std::reference_wrapper >) {
+      return std::forward< T >(t).get();
+   } else {
+      return *std::forward< T >(t);
+   }
+}
+
+template < typename T >
+// clang-format off
+   requires(
+      is_specialization_v< std::remove_cvref_t< T >, std::shared_ptr >
+      or is_specialization_v< std::remove_cvref_t< T >, std::unique_ptr >
+   )
+decltype(auto)  // clang-format on
+deref(T&& t)
+{
+   return *std::forward< T >(t);
+}
 
 }  // namespace common
 
