@@ -557,7 +557,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimiza
    auto policy_weight = [&]([[maybe_unused]] infostate_data_type& data_node) {
       if constexpr(common::isin(
                       config.weighting_mode,
-                      std::array{CFRWeightingMode::linear, CFRWeightingMode::discounted}
+                      {CFRWeightingMode::linear, CFRWeightingMode::discounted}
                    )) {
          // weighting by an iteration dependant factor multiplies the current iteration t as
          // t^gamma onto the update INCREMENT. The numerically more stable approach, however, is
@@ -671,8 +671,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    // now we update the current accumulated policy by the iteration factor, again as per
    // discount setting.
    if constexpr(common::isin(
-                   config.weighting_mode,
-                   std::array{CFRWeightingMode::linear, CFRWeightingMode::discounted}
+                   config.weighting_mode, {CFRWeightingMode::linear, CFRWeightingMode::discounted}
                 )) {
       // we are expecting to be given the right weight for the configuration here
       for(auto& policy_prob : fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())
@@ -690,7 +689,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 )
    requires(config.weighting_mode == CFRWeightingMode::exponential)
 {
-   auto exp_l1_weights = [&] {
+   auto& instant_regret_table = istate_data.template storage_element< 1 >();
+   auto exp_l1_weights = std::invoke([&] {
       // we need to reset this infostate data node's accumulated weights to prepare empty
       // buffers for the next iteration
       std::unordered_map<
@@ -699,30 +699,26 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          common::ref_wrapper_hasher< const action_type >,
          common::ref_wrapper_comparator< const action_type > >
          l1;
-      LOGD2(
-         "Instant regret values", ranges::views::values(istate_data.template storage_element< 1 >())
-      );
-      double average_instant_regret = 0.;
-      ranges::for_each(
-         istate_data.template storage_element< 1 >(),
-         [&](auto& actionref_to_instant_regret) {
-            auto& [action_ref, instant_regret] = actionref_to_instant_regret;
-            // instant_regret is r(I, a), not r(h, a)
-            average_instant_regret += instant_regret;
-         }
-      );
-      average_instant_regret /= double(istate_data.template storage_element< 1 >().size());
+
+      // instant regret table holds action_ref -> instant_regret entries in a table
+      // instant_regret is r(I, a), not r(h, a)
+      double average_instant_regret = ranges::accumulate(
+                                         instant_regret_table | ranges::views::values,
+                                         double(0.),
+                                         std::plus{}
+                                      )
+                                      / double(instant_regret_table.size());
 
       ranges::for_each(
-         istate_data.template storage_element< 1 >(),
+         instant_regret_table,
          [&](auto& actionref_to_instant_regret) {
             auto& [action_ref, instant_regret] = actionref_to_instant_regret;
-            // instant_regret is r(I, a), not R(I, a), i.e. the cumulative regret
+            // instant_regret is r(I, a), not R(I, a), which would be the cumulative regret
             l1[action_ref] = std::exp(instant_regret - average_instant_regret);
          }
       );
       return l1;
-   }();
+   });
    // exponential cfr requires weighting the cumulative regret by the L1 factor to EACH (I, a)
    // pair. Yet L1, which is actually L1(I, a), is only known after the entire tree has been
    // traversed and thus can't be done during the traversal. Hence, we need to update our
@@ -731,12 +727,12 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    auto& regret_table = istate_data.regret();
    for(auto& [action, cumul_regret] : regret_table) {
       auto action_ref = std::cref(action);
-      auto& instant_regret = istate_data.template storage_element< 1 >()[action_ref];
+      auto& instant_regret = instant_regret_table[action_ref];
       LOGD2("Action", action);
       LOGD2("L1 weight", exp_l1_weights[action_ref]);
       LOGD2("Instant regret", instant_regret);
       LOGD2(
-         "All instant regret", ranges::views::values(istate_data.template storage_element< 1 >())
+         "All instant regret", ranges::views::values(instant_regret_table)
       );
       LOGD2("Cumul regret before", ranges::views::values(istate_data.regret()));
 

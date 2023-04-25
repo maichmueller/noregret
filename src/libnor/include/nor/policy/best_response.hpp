@@ -46,7 +46,7 @@ struct best_response_impl {
          children{};
       /// whether this node is a node of the best responding player or general opponent
       bool is_br_node;
-      /// whether this node is a node of the best responding player or general opponent
+      /// which player is the acting one at this node
       Player active_player;
       /// a backreferencing pointer to the infostate that this worldstate belongs to
       const info_state_type* infostate_ptr = nullptr;

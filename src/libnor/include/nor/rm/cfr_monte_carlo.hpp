@@ -900,7 +900,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       // in alternating updates we update the regret only for the player_to_update and the
       // strategy only if the current player is the next one in line to traverse the tree and
       // update
-      if(active_player == player_to_update.value()) {
+      if(active_player == *player_to_update) {
          _update_regrets(
             reach_probability,
             active_player,
@@ -966,7 +966,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
    const action_type& sampled_action,  // = 'a', the sampled action
    Probability sampled_action_policy_prob,  // = sigma(I, a) for the sampled action
    StateValue action_value,  // = u(z[I]a)
-   Probability tail_prob  // = pi^sigma(z[I]a, z)
+   Probability tail_prob  // = pi(z[I]a, z)
 ) const
    requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
 {
@@ -976,9 +976,9 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
       // compute the estimated counterfactual regret and add it to the cumulative regret table
       infostate_data.regret(action) += [&] {
          if(action == sampled_action) {
-            // note that tail_prob = pi^sigma(z[I]a, z)
-            // the probability pi^sigma(z[I]a, z) - pi^sigma(z[I], z) can also be expressed as
-            // pi^sigma(z[I]a, z) * (1 - sigma(I, a)), since
+            // note that tail_prob = pi(z[I]a, z)
+            // the probability pi(z[I]a, z) - pi(z[I], z) can also be expressed as
+            // pi(z[I]a, z) * (1 - sigma(I, a)), since
             //    pi(h, z) = pi(z) / pi(h)   and    pi(ha) = pi(h) * sigma(I[h], a)
             // --> pi(ha, z) - pi(h, z) = pi(z) / (pi(h) * sigma(I, a)) - pi(z) / pi(h)
             //                          = pi(z) / (pi(h) * sigma(I, a)) * ( 1 - sigma(I, a))
@@ -1472,7 +1472,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          );
       }
    } else {
-      // if we do simultaenous updates, then we always update the regret and strategy
+      // if we do simultaneous updates, then we always update the regret and strategy
       // values of the node's active player.
       update_regret_and_policy(
          *infostate,
@@ -1484,7 +1484,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       );
    }
 
-   return StateValueMap{std::move(state_value)};
+   return state_value;
 }
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -1505,7 +1505,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
 
    auto player = infostate.player();
    double cf_reach_prob = rm::cf_reach_probability(player, reach_probability.get());
-   double player_reach_prob = reach_probability.get().at(player);
+   [[maybe_unused]] double player_reach_prob = reach_probability.get().at(player);
    double player_state_value = state_value.get().at(player);
 
    for(const auto& [action_variant, action_value] : action_value_map) {
@@ -1518,9 +1518,6 @@ void MCCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       if(cf_reach_prob > 0.) {
          // this if statement effectively introduces partial pruning. But this is such a slight
          // modification (and gain, if any) that it is to be included in all variants of CFR
-         //
-         // all other cfr variants currently implemented need the average regret update at
-         // history update time
          istate_data.regret(action) += cf_reach_prob
                                        * (action_value.get().at(player) - player_state_value);
       }
