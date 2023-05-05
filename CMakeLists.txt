@@ -29,7 +29,7 @@ option(ENABLE_SANITIZER_UNDEFINED_BEHAVIOR "Enable undefined behavior sanitizer"
 option(ENABLE_TESTING "Enable Test Builds" ON)
 option(ENABLE_GAMES "Enable Game Builds" ON)
 option(ENABLE_WARNING_PADDING "Warn when structs are memory padded" OFF)
-option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" OFF)
+option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" ON)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
 # settings
@@ -171,7 +171,7 @@ if (ENABLE_PCH)
             INTERFACE <vector> <string> <map> <utility> <memory> <array>)
 endif ()
 
-if (NOT USE_PYBIND11_FINDPYTHON)
+if (USE_PYBIND11_FINDPYTHON)
     set(PYBIND11_FINDPYTHON TRUE)
 else ()
     set(PYBIND11_FINDPYTHON FALSE)
