@@ -14,8 +14,7 @@ namespace nor {
 template < typename Contained >
 class PlayerInformedType {
   public:
-   PlayerInformedType(const Contained& value, Player p) : m_value(value), m_player(p) {}
-   PlayerInformedType(Contained&& value, Player p) : m_value(std::move(value)), m_player(p) {}
+   PlayerInformedType(Contained value, Player p) : m_value(std::move(value)), m_player(p) {}
 
    /// implicit conversion operator to handle the contained value as if it had never been augmented
    /// by player information
