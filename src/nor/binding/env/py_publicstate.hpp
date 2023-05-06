@@ -24,7 +24,7 @@ namespace pynor {
 /// 5. append method
 /// 6. __getitem__ operator
 struct Publicstate {
-   virtual ~Publicstate() = 0;
+   virtual ~Publicstate() = default;
    virtual size_t __hash__() const = 0;
    virtual bool __eq__(const Publicstate&) const = 0;
    virtual size_t __len__() const = 0;
@@ -32,11 +32,11 @@ struct Publicstate {
    virtual Observation& append(const Observation&) = 0;
 };
 
+/* Trampoline Class */
 struct PyPublicstate: public Publicstate {
    /* Inherit the constructors */
    using Publicstate::Publicstate;
 
-   /* Trampoline */
    size_t __hash__() const override
    {
       PYBIND11_OVERRIDE_PURE(

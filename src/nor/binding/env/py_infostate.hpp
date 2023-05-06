@@ -25,7 +25,7 @@ namespace pynor {
 /// 6. __getitem__ operator
 /// 7. player method
 struct Infostate {
-   virtual ~Infostate() = 0;
+   virtual ~Infostate() = default;
    virtual size_t __hash__() const = 0;
    virtual bool operator==(const Infostate&) const = 0;
    virtual size_t __len__() const = 0;
@@ -34,11 +34,11 @@ struct Infostate {
    virtual nor::Player player() const = 0;
 };
 
+/* Trampoline Class */
 struct PyInfostate: public Infostate {
    /* Inherit the constructors */
    using Infostate::Infostate;
 
-   /* Trampoline */
    size_t __hash__() const override
    {
       PYBIND11_OVERRIDE_PURE(

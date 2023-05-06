@@ -18,6 +18,7 @@ constexpr auto is_actual_player_pred = [](Player player) {
 };
 constexpr auto is_actual_player_filter = ranges::views::filter(is_actual_player_pred);
 
+/// an empty struct to refer to special cases
 struct empty {};
 
 struct hashable_empty {

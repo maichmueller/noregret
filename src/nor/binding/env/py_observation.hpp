@@ -19,16 +19,16 @@ namespace pynor {
 /// can be used in a hash map. This requires us to have a hash function and equality function to
 /// check upon collision
 struct Observation {
-   virtual ~Observation() = 0;
+   virtual ~Observation() = default;
    virtual size_t __hash__() const = 0;
    virtual bool __eq__(const Observation&) const = 0;
 };
 
+/* Trampoline Class */
 struct PyObservation: public Observation {
    /* Inherit the constructors */
    using Observation::Observation;
 
-   /* Trampoline */
    size_t __hash__() const override
    {
       PYBIND11_OVERRIDE_PURE(

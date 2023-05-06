@@ -19,16 +19,16 @@ namespace pynor {
 /// be used in a hash map. This requires us to have a hash function and equality function to check
 /// upon collision
 struct Action {
-   virtual ~Action() = 0;
+   virtual ~Action() = default;
    virtual size_t __hash__() const = 0;
    virtual bool __eq__(const Action&) const = 0;
 };
 
+/* Trampoline Class */
 struct PyAction: public Action {
    /* Inherit the constructors */
    using Action::Action;
 
-   /* Trampoline */
    size_t __hash__() const override
    {
       PYBIND11_OVERRIDE_PURE(

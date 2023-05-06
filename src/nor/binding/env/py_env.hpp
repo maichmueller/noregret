@@ -58,7 +58,7 @@ struct NotImplementedError: public std::exception {
    }
 };
 
-class Environment {
+class DynamicEnvironment {
   public:
    // nor fosg typedefs
    using world_state_type = Worldstate;
@@ -70,39 +70,53 @@ class Environment {
    // nor fosg traits
    virtual size_t max_player_count() { return std::dynamic_extent; }
    virtual size_t player_count() { return std::dynamic_extent; }
-   virtual nor::Stochasticity stochasticity() = 0;
-   virtual bool serialized() = 0;
-   virtual bool unrolled() = 0;
+   NOR_VirtualBaseMethodConst(stochasticity, nor::Stochasticity);
+   NOR_VirtualBaseMethodConst(serialized, bool);
+   NOR_VirtualBaseMethodConst(unrolled, bool);
 
-   Environment() = default;
+   DynamicEnvironment() = default;
 
-   virtual ~Environment() = default;
+   virtual ~DynamicEnvironment() = default;
 
    NOR_VirtualBaseMethodConst(
       actions,
-      NOR_SINGLE_ARG(std::vector< action_type >),
+      NOR_SINGLE_ARG(std::vector< uptr< action_type > >),
       nor::Player player,
       const world_state_type& wstate
    );
 
    NOR_VirtualBaseMethodConst(
+      chance_actions,
+      NOR_SINGLE_ARG(std::vector< uptr< chance_outcome_type > >),
+      const world_state_type& wstate
+   );
+
+   NOR_VirtualBaseMethodConst(
+      chance_probability,
+      double,
+      const world_state_type& wstate,
+      const chance_outcome_type& outcome
+   );
+
+   NOR_VirtualBaseMethodConst(
       private_history,
       NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType<
-                        std::optional< std::variant< std::monostate, action_type > > > >),
+                        std::optional< std::variant< chance_outcome_type, action_type > > > >),
+      nor::Player player,
       const world_state_type& wstate
    );
 
    NOR_VirtualBaseMethodConst(
       public_history,
       NOR_SINGLE_ARG(std::vector<
-                     nor::PlayerInformedType< std::variant< std::monostate, action_type > > >),
+                     nor::PlayerInformedType< std::variant< chance_outcome_type, action_type > > >),
       const world_state_type& wstate
    );
 
    NOR_VirtualBaseMethodConst(
-      omniscient_history,
+      open_history,
       NOR_SINGLE_ARG(std::vector<
-                     nor::PlayerInformedType< std::variant< std::monostate, action_type > > >),
+                     nor::PlayerInformedType< std::variant< chance_outcome_type, action_type > > >),
       const world_state_type& wstate
    );
 
@@ -118,21 +132,51 @@ class Environment {
    NOR_VirtualBaseMethod(is_terminal, bool, world_state_type& wstate);
    NOR_VirtualBaseMethod(is_partaking, bool, const world_state_type& wstate, nor::Player player);
    NOR_VirtualBaseMethod(reward, double, nor::Player player, world_state_type& wstate);
-   NOR_VirtualBaseMethod(transition, void, world_state_type& wstate, const action_type& action);
+
    NOR_VirtualBaseMethod(
-      private_observation,
-      observation_type,
-      nor::Player player,
-      const world_state_type& wstate
-   );
-   NOR_VirtualBaseMethod(
-      private_observation,
-      observation_type,
-      nor::Player player,
+      transition,
+      void,
+      world_state_type& world_state,
       const action_type& action
    );
-   NOR_VirtualBaseMethod(public_observation, observation_type, const world_state_type& wstate);
-   NOR_VirtualBaseMethod(public_observation, observation_type, const action_type& action);
+   NOR_VirtualBaseMethod(
+      transition,
+      void,
+      world_state_type& world_state,
+      const chance_outcome_type& action
+   );
+
+   NOR_VirtualBaseMethod(
+      private_observation,
+      observation_type,
+      nor::Player player,
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   );
+   NOR_VirtualBaseMethod(
+      public_observation,
+      observation_type,
+      const world_state_type& wstate,
+      const action_type& action,
+      const world_state_type& next_wstate
+   );
+
+   NOR_VirtualBaseMethod(
+      private_observation,
+      observation_type,
+      nor::Player player,
+      const world_state_type& wstate,
+      const chance_outcome_type & chance_outcome,
+      const world_state_type& next_wstate
+   );
+   NOR_VirtualBaseMethod(
+      public_observation,
+      observation_type,
+      const world_state_type& wstate,
+      const chance_outcome_type & chance_outcome,
+      const world_state_type& next_wstate
+   );
 };
 
 }  // namespace pynor
@@ -145,15 +189,12 @@ struct fosg_traits< pynor::Infostate > {
 };
 
 template <>
-struct fosg_traits< pynor::Environment > {
+struct fosg_traits< pynor::DynamicEnvironment > {
    using world_state_type = pynor::Worldstate;
    using info_state_type = pynor::Infostate;
    using public_state_type = pynor::Publicstate;
    using action_type = pynor::Action;
    using observation_type = pynor::Observation;
-
-   static constexpr size_t max_player_count = 2;
-   static constexpr Stochasticity stochasticity = Stochasticity::deterministic;
 };
 
 }  // namespace nor

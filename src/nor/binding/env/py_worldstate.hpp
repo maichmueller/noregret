@@ -21,15 +21,15 @@ namespace pynor {
 /// 2. cloneable
 
 struct Worldstate {
-   virtual ~Worldstate() = 0;
+   virtual ~Worldstate() = default;
    virtual sptr< Worldstate > clone() const = 0;
 };
 
+/* Trampoline Class */
 struct PyWorldstate: public Worldstate {
    /* Inherit the constructors */
    using Worldstate::Worldstate;
 
-   /* Trampoline */
    sptr< Worldstate > clone() const override
    {
       PYBIND11_OVERRIDE_PURE(
