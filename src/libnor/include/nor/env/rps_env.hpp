@@ -45,6 +45,7 @@ class Environment {
    using public_state_type = Publicstate;
    using action_type = Action;
    using observation_type = Observation;
+   using chance_outcome_type = std::monostate;
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
@@ -65,14 +66,14 @@ class Environment {
    }
 
    std::vector<
-      PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
    private_history(Player player, const world_state_type& wstate) const;
 
    std::vector<
-      PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
+      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
    public_history(const world_state_type& wstate) const;
 
-   std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > >
+   std::vector< PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
    open_history(const world_state_type& wstate) const;
 
    static inline std::vector< Player > players(const world_state_type&)

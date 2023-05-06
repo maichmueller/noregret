@@ -125,7 +125,7 @@ class Environment {
       const world_state_type& next_wstate
    ) const;
 
-   /// mainly for debug purposes
+   /// debug purposes
    observation_type tiny_repr(const world_state_type& wstate) const;
 };
 
