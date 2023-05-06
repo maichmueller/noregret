@@ -335,9 +335,9 @@ namespace detail {
 
 template < typename T, typename U >
 concept pointer_like = requires(T t) {
-                          *t;
-                          requires std::same_as< U, std::remove_cvref_t< decltype(*t) > >;
-                       };
+   *t;
+   requires std::same_as< U, std::remove_cvref_t< decltype(*t) > >;
+};
 
 }
 
@@ -602,7 +602,6 @@ struct TransparentOverload: Ts... {
 template < typename... Ts >
 TransparentOverload(Ts...) -> TransparentOverload< Ts... >;
 
-
 template < typename ReturnType >
 struct monostate_error_visitor {
    ReturnType operator()(std::monostate)
@@ -706,9 +705,8 @@ decltype(auto) deref(T&& t)
 
 template < typename T >
    requires std::is_pointer_v< std::remove_cvref_t< T > >
-            or is_specialization_v< std::remove_cvref_t< T >, std::reference_wrapper > decltype(auto
-            )
-deref(T&& t)
+            or is_specialization_v< std::remove_cvref_t< T >, std::reference_wrapper >
+decltype(auto) deref(T&& t)
 {
    if constexpr(is_specialization_v< std::remove_cvref_t< T >, std::reference_wrapper >) {
       return std::forward< T >(t).get();
@@ -729,6 +727,61 @@ deref(T&& t)
    return *std::forward< T >(t);
 }
 
+template < ranges::range Range >
+class deref_view: public ranges::view_base {
+  public:
+   struct iterator;
+   deref_view() = default;
+   deref_view(ranges::range auto&& base) : m_base(base) {}
+
+   iterator begin() { return ranges::begin(m_base); }
+   iterator end() { return ranges::end(m_base); }
+
+  private:
+   Range m_base;
+};
+
+template < ranges::range Range >
+struct deref_view< Range >::iterator: ranges::iterator_t< Range > {
+   using base = ranges::iterator_t< Range >;
+
+   iterator() = default;
+
+   iterator(base const& b) : base{b} {}
+
+   iterator operator++(int) { return static_cast< base& >(*this)++; }
+
+   iterator& operator++()
+   {
+      ++static_cast< base& >(*this);
+      return (*this);
+   }
+
+   decltype(auto) operator*() const { return deref(*static_cast< base >(*this)); }
+};
+
+template < ranges::range Range >
+deref_view(Range&&) -> deref_view< ranges::cpp20::all_view< Range > >;
+
+struct deref_fn {
+   template < typename Rng >
+   auto operator()(Rng&& rng) const
+   {
+      return deref_view{ranges::views::all(std::forward< Rng >(rng))};
+   }
+
+   template < typename Rng >
+   friend auto operator|(Rng&& rng, deref_fn const&)
+   {
+      return deref_view{ranges::views::all(std::forward< Rng >(rng))};
+   }
+};
+
 }  // namespace common
 
+namespace ranges::views {
+
+constexpr ::common::deref_fn deref{};
+
+}  // namespace ranges::views
 #endif  // NOR_COMMON_TYPES_HPP
