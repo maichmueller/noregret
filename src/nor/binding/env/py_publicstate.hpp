@@ -72,7 +72,7 @@ struct PyPublicstate: public Publicstate {
          Observation&, /* Return type */
          Publicstate, /* Parent class */
          __getitem__ /* Name of function in C++ (must match Python name) */
-         index
+            index
       );
    }
 
@@ -82,7 +82,7 @@ struct PyPublicstate: public Publicstate {
          Observation&, /* Return type */
          Publicstate, /* Parent class */
          append /* Name of function in C++ (must match Python name) */
-         obs
+            obs
       );
    }
 };

@@ -35,7 +35,7 @@ class Position {
    container_type m_coordinates;
 
    template < size_t... Indices, typename... Types >
-   Position(std::index_sequence< Indices... >, Types &&... args)
+   Position(std::index_sequence< Indices... >, Types &&...args)
    {
       // c++17 fold expression
       ((m_coordinates[Indices] = args), ...);
@@ -55,14 +55,15 @@ class Position {
    // C++20 concept solution
    template < typename... Types >
       requires(sizeof...(Types) == N)
-      && aze::utils::is_same_v< value_type, std::decay_t< Types >... > Position(Types &&... args)
+              && aze::utils::is_same_v< value_type, std::decay_t< Types >... >
+   Position(Types &&...args)
        : Position(std::index_sequence_for< Types... >{}, std::forward< Types >(args)...)
    {
    }
    template < typename... Types >
       requires(std::tuple_size_v< std::tuple< Types... > > == N)
-      && aze::utils::is_same_v< value_type, std::decay_t< Types >... > Position(
-         std::tuple< Types... > coordinates)
+              && aze::utils::is_same_v< value_type, std::decay_t< Types >... >
+   Position(std::tuple< Types... > coordinates)
        : Position(std::index_sequence_for< Types... >{}, coordinates)
    {
    }
@@ -166,8 +167,8 @@ Position< ValueType, N > operator/(const Number &n, const Position< ValueType, N
 // method implementations
 
 template < typename ValueType, size_t N >
-Position< ValueType, N > Position< ValueType, N >::operator+(
-   const Position< ValueType, N > &pos) const
+Position< ValueType, N > Position< ValueType, N >::operator+(const Position< ValueType, N > &pos
+) const
 {
    Position< ValueType, N > p(*this);
    for(unsigned int i = 0; i < N; ++i) {
@@ -177,15 +178,15 @@ Position< ValueType, N > Position< ValueType, N >::operator+(
 }
 
 template < typename ValueType, size_t N >
-Position< ValueType, N > Position< ValueType, N >::operator-(
-   const Position< ValueType, N > &pos) const
+Position< ValueType, N > Position< ValueType, N >::operator-(const Position< ValueType, N > &pos
+) const
 {
    return *this + (-1 * pos);
 }
 
 template < typename ValueType, size_t N >
-Position< ValueType, N > Position< ValueType, N >::operator*(
-   const Position< ValueType, N > &pos) const
+Position< ValueType, N > Position< ValueType, N >::operator*(const Position< ValueType, N > &pos
+) const
 {
    Position< ValueType, N > p(*this);
    for(unsigned int i = 0; i < m_coordinates.size(); ++i) {
@@ -195,8 +196,8 @@ Position< ValueType, N > Position< ValueType, N >::operator*(
 }
 
 template < typename ValueType, size_t N >
-Position< ValueType, N > Position< ValueType, N >::operator/(
-   const Position< ValueType, N > &pos) const
+Position< ValueType, N > Position< ValueType, N >::operator/(const Position< ValueType, N > &pos
+) const
 {
    Position< ValueType, N > p(*this);
    for(unsigned int i = 0; i < N; ++i) {
@@ -323,9 +324,8 @@ std::string Position< ValueType, N >::to_string() const
 
 template < typename ValueType, size_t N >
 template < typename container_start, typename container_end >
-Position< ValueType, N > Position< ValueType, N >::invert(
-   const container_start &starts,
-   const container_end &ends)
+Position< ValueType, N >
+Position< ValueType, N >::invert(const container_start &starts, const container_end &ends)
 {
    if constexpr(std::is_floating_point_v< ValueType >) {
       if constexpr(! std::is_floating_point_v< typename container_start::value_type >) {
@@ -333,14 +333,16 @@ Position< ValueType, N > Position< ValueType, N >::invert(
             std::string("Container value_type of 'starts' is not of floating point (")
             + std::string(typeid(typename container_start::value_type).name())
             + std::string("), while 'Position' value type is (")
-            + std::string(typeid(ValueType).name()) + std::string(")."));
+            + std::string(typeid(ValueType).name()) + std::string(").")
+         );
       }
       if constexpr(! std::is_floating_point_v< typename container_end::value_type >) {
          throw std::invalid_argument(
             std::string("Container value_type of 'ends' is not of floating point (")
             + std::string(typeid(typename container_end::value_type).name())
             + std::string("), while 'Position' value type is (")
-            + std::string(typeid(ValueType).name()) + std::string(")."));
+            + std::string(typeid(ValueType).name()) + std::string(").")
+         );
       }
    }
 

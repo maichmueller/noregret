@@ -52,9 +52,9 @@ template < concepts::mapping_of< double > KVdouble >
  */
 template < concepts::mapping_of< double > KVdouble >
    requires requires(KVdouble m) {
-               // the keys have to of type 'Player' as well
-               std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;
-            }
+      // the keys have to of type 'Player' as well
+      std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;
+   }
 inline double
 cf_reach_probability(const Player& player, const KVdouble& reach_probability_contributions)
 {

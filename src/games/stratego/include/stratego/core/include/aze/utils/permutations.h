@@ -22,12 +22,15 @@ class IteratorCollection {
    auto _indirection_elemwise(
       std::index_sequence< I... >,
       FirstIter &iter,
-      TailIters &... tail_iters) const
+      TailIters &...tail_iters
+   ) const
    {
       return std::make_tuple(
          *iter,
-         std::get< I >(_indirection_elemwise(
-            std::make_index_sequence< sizeof...(I) - 1 >{}, tail_iters...))...);
+         std::get< I >(
+            _indirection_elemwise(std::make_index_sequence< sizeof...(I) - 1 >{}, tail_iters...)
+         )...
+      );
    }
 
    template < typename LastIter >
@@ -41,11 +44,12 @@ class IteratorCollection {
    value_tuple _extract_iterator_values(Tuple &tuple_of_iters, std::index_sequence< I... >) const
    {
       return _indirection_elemwise(
-         std::make_index_sequence< sizeof...(I) - 1 >{}, std::get< I >(tuple_of_iters)...);
+         std::make_index_sequence< sizeof...(I) - 1 >{}, std::get< I >(tuple_of_iters)...
+      );
    }
 
   public:
-   IteratorCollection(typename Containers::iterator &&... iters)
+   IteratorCollection(typename Containers::iterator &&...iters)
        : iterators(std::make_tuple(iters...))
    {
    }
@@ -104,7 +108,7 @@ class Permutations {
    //    = typename std::tuple<typename Containers::iterator...>;
    using iterator_tuple = IteratorCollection< Permutations, Containers... >;
 
-   Permutations(Containers &... containers)
+   Permutations(Containers &...containers)
        : m_begin(containers.begin()...),
          m_end(containers.end()...),
          m_current(containers.begin()...)

@@ -34,14 +34,12 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::tin
 {
    std::stringstream ss;
    ss
-      << (wstate.picks()[0].has_value()
-             ? std::string(common::to_string(wstate.picks()[0].value()))
-             : "");
+      << (wstate.picks()[0].has_value() ? std::string(common::to_string(wstate.picks()[0].value()))
+                                        : "");
    ss << "-";
    ss
-      << (wstate.picks()[1].has_value()
-             ? std::string(common::to_string(wstate.picks()[1].value()))
-             : "");
+      << (wstate.picks()[1].has_value() ? std::string(common::to_string(wstate.picks()[1].value()))
+                                        : "");
    return ss.str();
 }
 std::vector< nor::PlayerInformedType<

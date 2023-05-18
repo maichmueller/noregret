@@ -61,13 +61,13 @@ inline std::string to_string(const kuhn::ChanceOutcome &value)
 }
 
 template <>
-struct printable<kuhn::Card> : std::true_type {};
+struct printable< kuhn::Card >: std::true_type {};
 template <>
-struct printable<kuhn::Action> : std::true_type {};
+struct printable< kuhn::Action >: std::true_type {};
 template <>
-struct printable<kuhn::Player> : std::true_type {};
+struct printable< kuhn::Player >: std::true_type {};
 template <>
-struct printable<kuhn::ChanceOutcome> : std::true_type {};
+struct printable< kuhn::ChanceOutcome >: std::true_type {};
 
 }  // namespace common
 

@@ -165,8 +165,7 @@ class Action {
 // allow action to be unpacked by structured bindings
 namespace std {
 template <>
-struct tuple_size< ::stratego::Move >: integral_constant< size_t, 2 > {
-};
+struct tuple_size< ::stratego::Move >: integral_constant< size_t, 2 > {};
 
 template <>
 struct tuple_element< 0, ::stratego::Move > {
@@ -179,8 +178,7 @@ struct tuple_element< 1, ::stratego::Move > {
 };
 
 template <>
-struct tuple_size< ::stratego::Action >: integral_constant< size_t, 3 > {
-};
+struct tuple_size< ::stratego::Action >: integral_constant< size_t, 3 > {};
 
 template <>
 struct tuple_element< 0, ::stratego::Action > {

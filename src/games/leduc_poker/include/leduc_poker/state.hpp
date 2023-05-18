@@ -139,10 +139,12 @@ inline bool operator==(const HistorySinceBet& left, const HistorySinceBet& right
       return false;
    }
    return ranges::all_of(
-      ranges::views::zip(left.container(), right.container()), [](const auto& paired_actions) {
+      ranges::views::zip(left.container(), right.container()),
+      [](const auto& paired_actions) {
          const auto& [left_action, right_action] = paired_actions;
          return left_action == right_action;
-      });
+      }
+   );
 }
 
 class State {

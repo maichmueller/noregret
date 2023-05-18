@@ -108,7 +108,8 @@ TEST_F(StrategoState5x5, valid_action_list)
       //         aze::utils::VectorPrinter(expected[Team(i)]));
 
       EXPECT_EQ(
-         eq_rng(to_moves(state.logic()->valid_actions(state, Team(i)))), eq_rng(expected[Team(i)]));
+         eq_rng(to_moves(state.logic()->valid_actions(state, Team(i)))), eq_rng(expected[Team(i)])
+      );
    }
 
    // move marshall one field up
@@ -140,7 +141,8 @@ TEST_F(StrategoState5x5, valid_action_list)
       //         aze::utils::VectorPrinter(expected[Team(i)]));
 
       EXPECT_EQ(
-         eq_rng(to_moves(state.logic()->valid_actions(state, Team(i)))), eq_rng(expected[Team(i)]));
+         eq_rng(to_moves(state.logic()->valid_actions(state, Team(i)))), eq_rng(expected[Team(i)])
+      );
    }
 }
 
@@ -159,15 +161,17 @@ TEST_P(CheckTerminalParamsF, check_terminal)
       fields,
       fixed_starting_team,
       fixed_setups,
-      max_turn_counts));
+      max_turn_counts
+   ));
 
    // actual state to test on
    State s_to_test(
-      s.config(), s.graveyard(), s.logic()->clone(), s.board(), turn_counter, s.history(), s.rng());
+      s.config(), s.graveyard(), s.logic()->clone(), s.board(), turn_counter, s.history(), s.rng()
+   );
 
-//   LOGD2("State to test", s_to_test.to_string());
-//   LOGD2("Observed Outcome", common::to_string(s_to_test.logic()->check_terminal(s_to_test)));
-//   LOGD2("Expected Outcome", common::to_string(status));
+   //   LOGD2("State to test", s_to_test.to_string());
+   //   LOGD2("Observed Outcome", common::to_string(s_to_test.logic()->check_terminal(s_to_test)));
+   //   LOGD2("Expected Outcome", common::to_string(status));
 
    EXPECT_EQ(s_to_test.logic()->check_terminal(s_to_test), status);
 }
@@ -331,4 +335,6 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::RED,
                        std::optional(std::vector{Position{0, 0}, Position{3, 3}, Position{3, 4}})}},
-                 Status::WIN_BLUE}));
+                 Status::WIN_BLUE}
+   )
+);

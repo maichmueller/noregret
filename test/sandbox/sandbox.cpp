@@ -116,7 +116,7 @@ struct A {
    bool f()
       requires(not requires(Derived d) { d.f(); })
    {
-         return false;
+      return false;
    }
 };
 

@@ -93,7 +93,6 @@ TEST(KuhnPoker, MCCFR_ES_stochastic)
    run_mccfr_on_kuhn_poker< config >();
 }
 
-
 TEST(KuhnPoker, MCCFR_CS_alternating)
 {
    constexpr rm::MCCFRConfig config{

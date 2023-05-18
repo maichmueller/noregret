@@ -2,8 +2,7 @@
 #define NOR_SANDBOX_HPP
 
 namespace stratego {
-class sandbox {
-};
+class sandbox {};
 }  // namespace stratego
 
 namespace nor::games::stratego {

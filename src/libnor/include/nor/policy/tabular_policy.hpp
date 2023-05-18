@@ -163,8 +163,7 @@ class TabularPolicy {
 
 // deduction-guide
 template < typename OtherTableType >
-   requires(not common::
-               is_specialization_v< std::remove_cvref_t< OtherTableType >, TabularPolicy >)
+   requires(not common::is_specialization_v< std::remove_cvref_t< OtherTableType >, TabularPolicy >)
            and concepts::map< std::remove_cvref_t< OtherTableType > >
 TabularPolicy(OtherTableType&& table) -> TabularPolicy<
    typename std::remove_cvref_t< OtherTableType >::key_type,

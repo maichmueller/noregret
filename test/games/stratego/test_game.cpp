@@ -19,9 +19,11 @@ TEST_F(StrategoState3x3, run_game_fixed_actions)
    Game game{
       std::move(state),
       std::make_shared< aze::FixedAgent< State > >(
-         Team::BLUE, std::vector{Move{{0, 1}, {0, 2}}, Move{{0, 2}, {1, 2}}, Move{{1, 2}, {1, 1}}}),
+         Team::BLUE, std::vector{Move{{0, 1}, {0, 2}}, Move{{0, 2}, {1, 2}}, Move{{1, 2}, {1, 1}}}
+      ),
       std::make_shared< aze::FixedAgent< State > >(
-         Team::RED, std::vector{Move{{2, 1}, {2, 0}}, Move{{2, 0}, {1, 0}}, Move{{1, 0}, {0, 0}}})};
+         Team::RED, std::vector{Move{{2, 1}, {2, 0}}, Move{{2, 0}, {1, 0}}, Move{{1, 0}, {0, 0}}}
+      )};
 
    //   EXPECT_EQ(game.run(std::make_shared< plotter >()), Status::WIN_RED);
    EXPECT_EQ(game.run(nullptr), Status::WIN_RED);
@@ -51,7 +53,8 @@ TEST_F(StrategoState5x5, run_game_fixed_actions)
             Move{{0, 3}, {0, 2}}, Move{{2, 0}, {2, 1}}, Move{{2, 1}, {4, 1}}, Move{{4, 1}, {4, 2}},
             Move{{3, 0}, {4, 0}}, Move{{1, 1}, {1, 2}}, Move{{0, 1}, {2, 1}}, Move{{0, 2}, {0, 1}},
             Move{{4, 0}, {4, 1}}, Move{{1, 2}, {0, 2}}, Move{{2, 1}, {1, 1}}, Move{{1, 1}, {1, 2}},
-            Move{{0, 2}, {0, 3}}, Move{{0, 3}, {0, 4}}, Move{{0, 4}, {4, 4}}}),
+            Move{{0, 2}, {0, 3}}, Move{{0, 3}, {0, 4}}, Move{{0, 4}, {4, 4}}}
+      ),
       std::make_shared< aze::FixedAgent< State > >(
          Team::RED,
          std::vector{
@@ -66,7 +69,8 @@ TEST_F(StrategoState5x5, run_game_fixed_actions)
             Move{{0, 4}, {1, 4}}, Move{{1, 4}, {0, 4}}, Move{{0, 4}, {1, 4}}, Move{{1, 4}, {0, 4}},
             Move{{0, 4}, {0, 3}}, Move{{0, 3}, {0, 4}}, Move{{0, 4}, {1, 4}}, Move{{1, 4}, {2, 4}},
             Move{{2, 4}, {3, 4}}, Move{{3, 4}, {3, 3}}, Move{{3, 3}, {3, 4}}, Move{{3, 4}, {2, 4}},
-            Move{{2, 4}, {1, 4}}, Move{{1, 4}, {1, 3}}})};
+            Move{{2, 4}, {1, 4}}, Move{{1, 4}, {1, 3}}}
+      )};
 
    //   EXPECT_EQ(game.run(std::make_shared< plotter >()), Status::WIN_BLUE);
    EXPECT_EQ(game.run(nullptr), Status::WIN_BLUE);

@@ -1,6 +1,4 @@
-﻿---
-BasedOnStyle: Chromium
----
+﻿BasedOnStyle: Chromium
 Language:        Cpp
 AccessModifierOffset: -1
 AlignAfterOpenBracket: BlockIndent

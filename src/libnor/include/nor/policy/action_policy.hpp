@@ -126,7 +126,7 @@ class HashmapActionPolicy {
    }
    HashmapActionPolicy(size_t n_actions, std::function< double() > dvg = &_zero< double >)
       requires std::is_integral_v< action_type >
-   : m_map(), m_def_value_gen(std::move(dvg))
+       : m_map(), m_def_value_gen(std::move(dvg))
    {
       for(auto a : ranges::views::iota(size_t(0), n_actions)) {
          emplace(a, m_def_value_gen());

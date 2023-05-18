@@ -54,19 +54,23 @@ struct Config {
       const std::map< aze::Team, std::optional< setup_t > >& setups_,
       const std::map< Team, std::optional< T > >& tokenset_,
       const std::map< aze::Team, std::optional< U > >& start_fields_,
-      game_dim_variant_t game_dims_);
+      game_dim_variant_t game_dims_
+   );
 
    static std::map< aze::Team, token_counter_t > _init_tokencounters(
       const std::map< aze::Team, std::optional< token_variant_t > >& token_sets,
-      const std::map< aze::Team, std::optional< Config::setup_t > >& setups_);
+      const std::map< aze::Team, std::optional< Config::setup_t > >& setups_
+   );
 
    static std::map< aze::Team, std::vector< Position > > _init_start_fields(
       const std::map< aze::Team, std::optional< std::vector< Position > > >& start_pos,
-      const std::map< aze::Team, std::optional< Config::setup_t > >& setups_);
+      const std::map< aze::Team, std::optional< Config::setup_t > >& setups_
+   );
 
    static std::vector< Position > _init_hole_positions(
       const std::optional< std::vector< Position > >& hole_pos,
-      game_dim_variant_t game_dims_);
+      game_dim_variant_t game_dims_
+   );
 
   public:
    template < aze::utils::StringLiteral arg >
@@ -80,7 +84,8 @@ struct Config {
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
       std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
-      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges());
+      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges()
+   );
 
    Config(
       aze::Team starting_team_,
@@ -91,7 +96,8 @@ struct Config {
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 500,
       std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
-      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges());
+      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges()
+   );
 
    Config(
       aze::Team starting_team_,
@@ -103,7 +109,8 @@ struct Config {
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
       std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
-      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges());
+      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges()
+   );
 
    Config(
       aze::Team starting_team_,
@@ -116,7 +123,8 @@ struct Config {
       std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
       std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
-      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges());
+      std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges()
+   );
 };
 
 auto default_setup(size_t game_dims, aze::Team team) -> std::map< Position, Token >;
@@ -146,14 +154,16 @@ auto tokens_from_setup(const Config::setup_t& setups) -> Config::token_counter_t
 
 auto _check_alignment(
    const std::vector< Position >& positions,
-   const std::map< Position, Token >& setup) -> const std::vector< Position >&;
+   const std::map< Position, Token >& setup
+) -> const std::vector< Position >&;
 
 template < typename T, typename U >
 std::map< aze::Team, std::optional< Config::setup_t > > Config::_init_setups(
    const std::map< aze::Team, std::optional< Config::setup_t > >& setups_,
    const std::map< Team, std::optional< T > >& tokenset_,
    const std::map< aze::Team, std::optional< U > >& start_fields_,
-   game_dim_variant_t game_dims_)
+   game_dim_variant_t game_dims_
+)
 {
    std::map< aze::Team, std::optional< setup_t > > sets;
    for(auto team : std::set{aze::Team::BLUE, aze::Team::RED}) {
@@ -167,7 +177,8 @@ std::map< aze::Team, std::optional< Config::setup_t > > Config::_init_setups(
                [&](size_t d) { return default_setup(d, team); },
                [&](DefinedBoardSizes d) { return default_setup(static_cast< size_t >(d), team); },
                [&](ranges::span< size_t, 2 > a) { return default_setup(a, team); }},
-            game_dims_);
+            game_dims_
+         );
       }
    }
    return sets;

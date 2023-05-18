@@ -50,15 +50,13 @@ template < typename RAContainer >
 inline auto& choose(const RAContainer& cont, RNG& rng)
 {
    auto chooser = [&](const auto& actual_ra_container) -> auto& {
-      return actual_ra_container[std::uniform_int_distribution(
-         0ul, actual_ra_container.size() - 1
-      )(rng)];
+      return actual_ra_container[std::uniform_int_distribution(0ul, actual_ra_container.size() - 1)(
+         rng
+      )];
    };
    if constexpr(std::random_access_iterator< decltype(std::declval< RAContainer >().begin()) > and requires {
-                                                                                                      cont
-                                                                                                         .size(
-                                                                                                         );
-                                                                                                   }) {
+                   cont.size();
+                }) {
       return chooser(cont);
    } else {
       auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([](const auto& elem) {
@@ -69,15 +67,14 @@ inline auto& choose(const RAContainer& cont, RNG& rng)
 }
 
 template < typename RAContainer, typename Policy >
-   requires ranges::range< RAContainer >
-            and requires(Policy p) {
-                   {
-                      // policy has to be a callable returning the
-                      // probability of the input matching the
-                      // container's contained type
-                      p(std::declval< decltype(*(std::declval< RAContainer >().begin())) >())
-                   } -> std::convertible_to< double >;
-                }
+   requires ranges::range< RAContainer > and requires(Policy p) {
+      {
+         // policy has to be a callable returning the
+         // probability of the input matching the
+         // container's contained type
+         p(std::declval< decltype(*(std::declval< RAContainer >().begin())) >())
+      } -> std::convertible_to< double >;
+   }
 inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
 {
    if constexpr(requires {
@@ -156,9 +153,9 @@ inline auto counter(
 {
    using mapped_type = std::remove_cvref_t< decltype(*(vals.begin())) >;
    constexpr bool hashable_mapped_type = requires(Container t) {
-                                            std::hash< mapped_type >{}(t);
-                                            std::equality_comparable< mapped_type >;
-                                         };
+      std::hash< mapped_type >{}(t);
+      std::equality_comparable< mapped_type >;
+   };
    std::conditional_t<
       hashable_mapped_type,
       std::unordered_map< mapped_type, unsigned int >,

@@ -42,17 +42,17 @@ std::vector< T > flatten_counter(const std::map< T, IntType > &counter)
 std::string print_board(
    const Board &board,
    std::optional< aze::Team > team = std::nullopt,
-   bool hide_unknowns = false);
+   bool hide_unknowns = false
+);
 
 }  // namespace stratego::utils
 
 namespace stratego {
 // forward-declare the action class here
 class Action;
-}
+}  // namespace stratego
 
 namespace common {
-
 
 template <>
 std::string to_string(const stratego::Status &e);
@@ -78,19 +78,18 @@ auto from_string(std::string_view str) -> stratego::Token;
 template <>
 auto from_string(std::string_view str) -> stratego::DefinedBoardSizes;
 
-
 template <>
-struct printable<stratego::Status> : std::true_type {};
+struct printable< stratego::Status >: std::true_type {};
 template <>
-struct printable<stratego::Team> : std::true_type {};
+struct printable< stratego::Team >: std::true_type {};
 template <>
-struct printable<stratego::FightOutcome> : std::true_type {};
+struct printable< stratego::FightOutcome >: std::true_type {};
 template <>
-struct printable<stratego::Token> : std::true_type {};
+struct printable< stratego::Token >: std::true_type {};
 template <>
-struct printable<stratego::DefinedBoardSizes> : std::true_type {};
+struct printable< stratego::DefinedBoardSizes >: std::true_type {};
 template <>
-struct printable<stratego::Action> : std::true_type {};
+struct printable< stratego::Action >: std::true_type {};
 
 }  // namespace common
 

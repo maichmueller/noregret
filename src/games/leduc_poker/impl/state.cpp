@@ -23,11 +23,9 @@ void State::apply_action(Action action)
    switch(action.action_type) {
       case ActionType::bet: {
          m_bets_this_round += 1;
-         m_stakes[as_integral(
-            m_active_player)] += (m_active_bettor.has_value()
-                                     ? m_history[m_active_bettor.value()].value().bet
-                                     : 0.)
-                                 + action.bet;
+         m_stakes[as_integral(m_active_player
+         )] += (m_active_bettor.has_value() ? m_history[m_active_bettor.value()].value().bet : 0.)
+               + action.bet;
          m_active_bettor = m_active_player;
          // with a fresh bet we need to go around and ask every player anew for their response
          m_history.reset();
@@ -45,7 +43,8 @@ void State::apply_action(Action action)
       case ActionType::fold: {
          // take the folding player out of the competing player range
          m_remaining_players.erase(
-            std::remove(m_remaining_players.begin(), m_remaining_players.end(), m_active_player));
+            std::remove(m_remaining_players.begin(), m_remaining_players.end(), m_active_player)
+         );
          break;
       }
    }
@@ -106,7 +105,8 @@ bool State::is_terminal()
                return opt_action.has_value();
             }),
             size_t(0),
-            std::plus{})
+            std::plus{}
+         )
          == m_remaining_players.size()) {
          // everyone has responded since the last bet, thus the round is over
          // Note that this also implies that noone raised, as then all previous responses would have
@@ -134,8 +134,9 @@ std::vector< double > State::payoff()
       return std::vector(m_remaining_players.size(), 0.);
    }
    // initiate payoffs first as negative stakes for each player
-   auto payoffs = ranges::to_vector(
-      ranges::views::transform(m_stakes, [](auto value) { return -double(value); }));
+   auto payoffs = ranges::to_vector(ranges::views::transform(m_stakes, [](auto value) {
+      return -double(value);
+   }));
 
    if(auto n_remaining = m_remaining_players.size(); n_remaining == 1) {
       _single_pot_winner(payoffs, m_remaining_players[0]);
@@ -216,7 +217,8 @@ bool State::is_valid(Card outcome) const
    return std::find_if(
              all_outcomes.begin(),
              all_outcomes.end(),
-             [&](const auto& this_outcome) { return this_outcome == outcome; })
+             [&](const auto& this_outcome) { return this_outcome == outcome; }
+          )
           != all_outcomes.end();
 }
 bool State::_all_player_cards_assigned() const

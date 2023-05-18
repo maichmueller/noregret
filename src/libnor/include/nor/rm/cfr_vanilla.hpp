@@ -709,14 +709,11 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
                                       )
                                       / double(instant_regret_table.size());
 
-      ranges::for_each(
-         instant_regret_table,
-         [&](auto& actionref_to_instant_regret) {
-            auto& [action_ref, instant_regret] = actionref_to_instant_regret;
-            // instant_regret is r(I, a), not R(I, a), which would be the cumulative regret
-            l1[action_ref] = std::exp(instant_regret - average_instant_regret);
-         }
-      );
+      ranges::for_each(instant_regret_table, [&](auto& actionref_to_instant_regret) {
+         auto& [action_ref, instant_regret] = actionref_to_instant_regret;
+         // instant_regret is r(I, a), not R(I, a), which would be the cumulative regret
+         l1[action_ref] = std::exp(instant_regret - average_instant_regret);
+      });
       return l1;
    });
    // exponential cfr requires weighting the cumulative regret by the L1 factor to EACH (I, a)
@@ -731,9 +728,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       LOGD2("Action", action);
       LOGD2("L1 weight", exp_l1_weights[action_ref]);
       LOGD2("Instant regret", instant_regret);
-      LOGD2(
-         "All instant regret", ranges::views::values(instant_regret_table)
-      );
+      LOGD2("All instant regret", ranges::views::values(instant_regret_table));
       LOGD2("Cumul regret before", ranges::views::values(istate_data.regret()));
 
       if(instant_regret >= 0) {

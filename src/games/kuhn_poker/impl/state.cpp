@@ -46,7 +46,7 @@ int16_t State::payoff(Player player) const
       return 0;
    }
    bool p1_has_bet = m_history.size() < 3 ? m_history[0] == Action::bet
-                                                   : m_history[2] == Action::bet;
+                                          : m_history[2] == Action::bet;
    bool p2_has_bet = m_history[1] == Action::bet;
 
    // 2 * x - 1 is a faster computation than std::pow((-1), x)
@@ -89,7 +89,8 @@ bool State::is_valid(ChanceOutcome outcome) const
    return std::find_if(
              all_outcomes.begin(),
              all_outcomes.end(),
-             [&](const auto& this_outcome) { return this_outcome == outcome; })
+             [&](const auto& this_outcome) { return this_outcome == outcome; }
+          )
           != all_outcomes.end();
 }
 bool State::_all_cards_engaged() const
@@ -108,15 +109,16 @@ std::vector< ChanceOutcome > State::chance_actions() const
    auto card_pool = m_card_pool;
    if(m_player_cards[0].has_value()) {
       card_pool.erase(
-         std::remove(card_pool.begin(), card_pool.end(), m_player_cards[0].value()),
-         card_pool.end());
+         std::remove(card_pool.begin(), card_pool.end(), m_player_cards[0].value()), card_pool.end()
+      );
    }
    auto to_chance_action = [](const auto& player_card) {
       return ChanceOutcome{std::get< 0 >(player_card), std::get< 1 >(player_card)};
    };
    return ranges::to< std::vector< ChanceOutcome > >(
       ranges::views::zip(ranges::views::repeat(player), card_pool)
-      | ranges::views::transform(to_chance_action));
+      | ranges::views::transform(to_chance_action)
+   );
 }
 std::vector< Action > State::actions() const
 {

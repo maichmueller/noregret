@@ -3,13 +3,12 @@
 #include <unordered_map>
 
 #include "../games/stratego/fixtures.hpp"
+#include "cfr_run_funcs.hpp"
 #include "nor/env.hpp"
 #include "nor/nor.hpp"
 #include "rm_specific_testing_utils.hpp"
-#include "cfr_run_funcs.hpp"
 
 using namespace nor;
-
 
 TEST(KuhnPoker, CFR_LINEAR_alternating)
 {

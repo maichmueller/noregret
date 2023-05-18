@@ -219,7 +219,6 @@ TEST(Normalizing, state_policy)
    EXPECT_EQ(policy(istate2)[2], .05);
    EXPECT_EQ(policy(istate2)[3], .45);
 
-
    auto normalized_pol = nor::normalize_state_policy(policy_copy);
 
    EXPECT_EQ(normalized_pol(istate1)[0], .5);

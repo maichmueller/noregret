@@ -29,53 +29,50 @@ template <
    typename KeyType = typename Map::key_type,
    typename MappedType = typename Map::mapped_type >
 concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped) {
-                                    typename Map::key_type;
-                                    typename Map::mapped_type;
-                                    m.emplace(key, mapped);
-                                    m.find(key);
-                                    {
-                                       m[key]
-                                    } -> std::same_as< MappedType& >;
-                                    {
-                                       m.at(key)
-                                    } -> std::same_as< MappedType& >;
-                                 } and requires(const Map m, KeyType key, MappedType mapped) {
-                                          {
-                                             m.at(key)
-                                          } -> std::same_as< const MappedType& >;
-                                       };
+   typename Map::key_type;
+   typename Map::mapped_type;
+   m.emplace(key, mapped);
+   m.find(key);
+   {
+      m[key]
+   } -> std::same_as< MappedType& >;
+   {
+      m.at(key)
+   } -> std::same_as< MappedType& >;
+} and requires(const Map m, KeyType key, MappedType mapped) {
+   {
+      m.at(key)
+   } -> std::same_as< const MappedType& >;
+};
 
 template < typename MapLike >
-concept mapping =
-   (not common::is_specialization_v< MapLike, ranges::ref_view >)
+concept mapping = (not common::is_specialization_v< MapLike, ranges::ref_view >)
    // the first condition is merely a bugfix for an error associated with the range
    // library which IMO should not occur: https://stackoverflow.com/q/74263486/6798071
    and requires(MapLike m) {
-          // has to be key-value-like
-          // to iterate over values and
-          // keys only repsectively
-          std::ranges::views::keys(m);
-          std::ranges::views::values(m);
-       };
+      // has to be key-value-like
+      // to iterate over values and
+      // keys only repsectively
+      std::ranges::views::keys(m);
+      std::ranges::views::values(m);
+   };
 
 template < typename MapLike, typename KeyType >
-concept maps = mapping< MapLike >
-               and requires(MapLike m) {
-                      requires std::convertible_to<  // given key type has to be
-                                                     // convertible to actual key type
-                         KeyType,
-                         std::remove_cvref_t< decltype(*(std::ranges::views::keys(m).begin())) > >;
-                   };
+concept maps = mapping< MapLike > and requires(MapLike m) {
+   requires std::convertible_to<  // given key type has to be
+                                  // convertible to actual key type
+      KeyType,
+      std::remove_cvref_t< decltype(*(std::ranges::views::keys(m).begin())) > >;
+};
 
 template < typename MapLike, typename MappedType = double >
 concept mapping_of = requires(MapLike m) {
-                        mapping< MapLike >;
-                        // mapped type has to be convertible to the value type
-                        requires std::is_convertible_v<
-                           MappedType,
-                           std::remove_cvref_t< decltype(*(std::ranges::views::values(m).begin())
-                           ) > >;
-                     };
+   mapping< MapLike >;
+   // mapped type has to be convertible to the value type
+   requires std::is_convertible_v<
+      MappedType,
+      std::remove_cvref_t< decltype(*(std::ranges::views::values(m).begin())) > >;
+};
 
 template < typename T >
 concept action = is::hashable< T > && std::equality_comparable< T >;
@@ -174,7 +171,6 @@ concept reference_state_policy_base =
 /**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
    && action_policy< ActionPolicy >;
 // clang-format on
-
 
 template <
    typename T,

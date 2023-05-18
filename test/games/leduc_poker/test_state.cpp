@@ -97,7 +97,8 @@ TEST_F(LeducPokerState, valid_chance_actions)
          {Rank::queen, Suit::clubs},
          {Rank::queen, Suit::diamonds},
          {Rank::king, Suit::clubs},
-         {Rank::king, Suit::diamonds}}));
+         {Rank::king, Suit::diamonds}}
+   ));
 
    state.apply_action(Rank::jack, Suit::clubs);
 
@@ -108,7 +109,8 @@ TEST_F(LeducPokerState, valid_chance_actions)
          {Rank::queen, Suit::clubs},
          {Rank::queen, Suit::diamonds},
          {Rank::king, Suit::clubs},
-         {Rank::king, Suit::diamonds}}));
+         {Rank::king, Suit::diamonds}}
+   ));
 
    state.apply_action(Rank::queen, Suit::diamonds);
 
@@ -118,7 +120,8 @@ TEST_F(LeducPokerState, valid_chance_actions)
          {Rank::jack, Suit::diamonds},
          {Rank::queen, Suit::clubs},
          {Rank::king, Suit::clubs},
-         {Rank::king, Suit::diamonds}}));
+         {Rank::king, Suit::diamonds}}
+   ));
 }
 
 TEST_F(LeducPokerState, actions)
@@ -129,7 +132,8 @@ TEST_F(LeducPokerState, actions)
    state.apply_action(Rank::jack, Suit::clubs);
    EXPECT_TRUE(cmp_equal_rngs_unsorted(
       state.actions(),
-      std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::fold}}));
+      std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::fold}}
+   ));
 }
 
 TEST_P(TerminalParamsF, terminal_situations)
@@ -227,7 +231,9 @@ INSTANTIATE_TEST_SUITE_P(
             Card{Rank::king, Suit::diamonds}},
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
-         true}));
+         true}
+   )
+);
 
 TEST_P(PayoffParamsF, payoff_combinations)
 {
@@ -328,4 +334,6 @@ INSTANTIATE_TEST_SUITE_P(
             Card{Rank::king, Suit::diamonds}},
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
-         std::array{-3., 3.}}));
+         std::array{-3., 3.}}
+   )
+);

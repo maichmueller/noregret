@@ -167,14 +167,14 @@ class DynamicEnvironment {
       observation_type,
       nor::Player player,
       const world_state_type& wstate,
-      const chance_outcome_type & chance_outcome,
+      const chance_outcome_type& chance_outcome,
       const world_state_type& next_wstate
    );
    NOR_VirtualBaseMethod(
       public_observation,
       observation_type,
       const world_state_type& wstate,
-      const chance_outcome_type & chance_outcome,
+      const chance_outcome_type& chance_outcome,
       const world_state_type& next_wstate
    );
 };

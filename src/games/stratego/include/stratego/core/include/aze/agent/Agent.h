@@ -4,8 +4,8 @@
 #include <range/v3/all.hpp>
 #include <vector>
 
-#include "aze/utils.h"
 #include "aze/game/Defs.h"
+#include "aze/utils.h"
 
 namespace aze {
 
@@ -22,9 +22,8 @@ class Agent {
    Agent &operator=(Agent &&) noexcept = default;
    virtual ~Agent() = default;
 
-   virtual action_type decide_action(
-      const state_type &state,
-      const std::vector< action_type > &poss_moves) = 0;
+   virtual action_type
+   decide_action(const state_type &state, const std::vector< action_type > &poss_moves) = 0;
 
    [[nodiscard]] auto team() const { return m_team; }
 
@@ -44,9 +43,8 @@ class RandomAgent: public Agent< StateType > {
    {
    }
 
-   action_type decide_action(
-      const StateType & /*state*/,
-      const std::vector< action_type > &poss_moves) override
+   action_type
+   decide_action(const StateType & /*state*/, const std::vector< action_type > &poss_moves) override
    {
       std::vector< action_type > selected_move;
       selected_move.reserve(1);
@@ -81,12 +79,14 @@ class FixedAgent: public Agent< StateType > {
          std::back_inserter(m_actions),
          [&](typename action_type::move_type &move) {
             return action_type{team, std::move(move)};
-         });
+         }
+      );
    }
 
    action_type decide_action(
       const StateType & /*unused*/,
-      const std::vector< action_type > &poss_actions) override
+      const std::vector< action_type > &poss_actions
+   ) override
    {
       auto action = m_actions.back();
       m_actions.pop_back();
@@ -115,11 +115,13 @@ class InputAgent: public Agent< StateType > {
   public:
    explicit InputAgent(
       Team team,
-      std::function< std::string(const StateType &state) > repr = nullptr)
+      std::function< std::string(const StateType &state) > repr = nullptr
+   )
        : base_type(team),
          m_repr(
             repr == nullptr ? [&](const auto &state) { return state.to_string(team, true); }
-                            : std::move(repr))
+                            : std::move(repr)
+         )
    {
    }
 

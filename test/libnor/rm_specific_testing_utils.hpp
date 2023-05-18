@@ -582,5 +582,4 @@ inline auto setup_rps_test()
       std::move(next_state)};
 }
 
-
 #endif  // NOR_RM_SPECIFIC_TESTING_UTILS_HPP

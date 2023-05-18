@@ -6,7 +6,7 @@
 
 ## <p align=center> noregret is a performance-built c++ framework library implementing regret minimization algorithms for [Factored-Observation Stochastic Games (FOSG)](https://www.sciencedirect.com/science/article/pii/S000437022100196X).
 Game environments may utilize their own implementation designs as long as they provide an interface agreeing with the FOSG formalism defined by constraints on types.
-This framework makes heavy use of c++20's concepts to constrain environments to specifc algorithm's needs without forcing the same details everywhere. 
+This framework makes heavy use of c++20's concepts to constrain environments to specifc algorithm's needs without forcing the same details everywhere.
 
 ### Currently implemented:
 

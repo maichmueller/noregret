@@ -24,7 +24,6 @@ struct factory {
       return map;
    }
 
-
   public:
    /////////////////////////////////////////////////////////////////////////////////////////////
    //////////////////// Vanilla Counterfactual Regret Minimizer Factory ////////////////////////
@@ -229,8 +228,14 @@ struct factory {
    ///////////////////// LINEAR Counterfactual Regret Minimizer Factory ////////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
-   template < rm::CFRLinearConfig cfg, bool as_map, typename Env, typename Policy, typename AveragePolicy >
-   static rm::CFRLinear< cfg,
+   template <
+      rm::CFRLinearConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
+   static rm::CFRLinear<
+      cfg,
       std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
       std::remove_cvref_t< Policy >,
       std::remove_cvref_t< AveragePolicy > >
@@ -260,8 +265,7 @@ struct factory {
    }
 
    template < rm::CFRLinearConfig cfg, typename Env, typename Policy, typename AveragePolicy >
-   static rm::CFRLinear< cfg, std::remove_cvref_t< Env >, Policy, AveragePolicy >
-   make_cfr_linear(
+   static rm::CFRLinear< cfg, std::remove_cvref_t< Env >, Policy, AveragePolicy > make_cfr_linear(
       Env&& env,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       std::unordered_map< Player, Policy > policy_map,
