@@ -89,7 +89,7 @@ jobs:
         run: source ~/.profile
 
       - name: Setup cmake
-        uses: jwlawson/actions-setup-cmake@v1.9
+        uses: jwlawson/actions-setup-cmake@v1.14
         with:
           cmake-version: '3.22'
 
@@ -133,7 +133,7 @@ jobs:
           -C ${{ matrix.config.build_type }}
 
       - name: Upload game test result artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: success()
         with:
           name: gtest-results
@@ -151,7 +151,7 @@ jobs:
           -C ${{ matrix.config.build_type }}
 
       - name: Upload game test result artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: success()
         with:
           name: gtest-results
@@ -166,7 +166,7 @@ jobs:
 
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: gtest-results
           path: ./artifacts/gtest-results_downloaded
