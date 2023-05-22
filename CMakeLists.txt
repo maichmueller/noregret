@@ -51,7 +51,7 @@ endif()
 
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)
-set(nor_pymodule pynor)
+set(nor_pymodule noregret)
 set(nor_test nor_tests)
 
 set(CONANFILE conanfile.txt)

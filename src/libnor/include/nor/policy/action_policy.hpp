@@ -74,7 +74,7 @@ namespace nor {
 // };
 
 template < typename T, typename... Args >
-inline T _zero(Args&&... args)
+inline T _zero(Args&&...)
 {
    return T(0);
 }
@@ -139,9 +139,9 @@ class HashmapActionPolicy {
 
    ~HashmapActionPolicy() = default;
    HashmapActionPolicy(const HashmapActionPolicy& other) = default;
-   HashmapActionPolicy(HashmapActionPolicy&& other) = default;
+   HashmapActionPolicy(HashmapActionPolicy&& other) noexcept = default;
    HashmapActionPolicy& operator=(const HashmapActionPolicy& other) = default;
-   HashmapActionPolicy& operator=(HashmapActionPolicy&& other) = default;
+   HashmapActionPolicy& operator=(HashmapActionPolicy&& other) noexcept = default;
 
    template < typename... Args >
    inline auto emplace(Args&&... args)
@@ -189,9 +189,8 @@ class HashmapActionPolicy {
    {
       if(auto found = find(action); found != end()) {
          return found->second;
-      } else {
-         return m_def_value_gen();
       }
+      return m_def_value_gen();
    }
 
   private:
