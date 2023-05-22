@@ -3,7 +3,7 @@ name: C++ CI
 on: [ push, pull_request ]
 
 jobs:
-  precommit_verification:
+  precommit_checks:
     runs-on: 'ubuntu-latest'
     name: Pre-Commit Checks
     steps:
@@ -23,7 +23,7 @@ jobs:
 
 
   matrix-strategy-setup:
-    needs: precommit_verification
+    needs: precommit_checks
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           python3 -m pip install --upgrade pip setuptools
-          python3 -m pip install conan
+          python3 -m pip install 'conan < 2'
 
       - name: Install Doxygen
         if: ${{ runner.os }} == "Linux" || ${{ runner.os }} == "macOS"
