@@ -36,7 +36,7 @@ jobs:
 
   build-test-install:
     needs: matrix-strategy-setup
-    name: ${{ matrix.config.name }}
+    name: ${{ matrix.config.os }}_${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
@@ -125,7 +125,7 @@ jobs:
       - name: Run Game Implementation Tests
         shell: bash
         run: >
-          GTEST_OUTPUT=xml:gtest-report-${{ matrix.config.name }}-games.xml
+          GTEST_OUTPUT=xml:gtest-report-${{ github.jobs.build-test-install.name }}-games.xml
           GTEST_COLOR=1
           ctest -R Test_game_.+_test
           --test-dir ./build
@@ -137,25 +137,25 @@ jobs:
         if: success()
         with:
           name: gtest-results
-          path: ./build/**/gtest-report-${{ matrix.config.name }}-games.xml
+          path: ./build/**/gtest-report-${{ github.jobs.build-test-install.name }}-games.xml
           retention-days: 1
 
       - name: Run No-Regret Tests
         shell: bash
         run: >
-          GTEST_OUTPUT=xml:gtest-report-${{ matrix.config.name }}.xml
+          GTEST_OUTPUT=xml:gtest-report-${{ github.jobs.build-test-install.name }}.xml
           GTEST_COLOR=1
           ctest -R Test_nor_tests_all
           --test-dir ./build
           --verbose
           -C ${{ matrix.config.build_type }}
 
-      - name: Upload game test result artifacts
+      - name: Upload lib test result artifacts
         uses: actions/upload-artifact@v3
         if: success()
         with:
           name: gtest-results
-          path: ./build/**/gtest-report-${{ matrix.config.name }}.xml
+          path: ./build/**/gtest-report-${{ github.jobs.build-test-install.name }}.xml
           retention-days: 1
 
   publish-gtest-results:
@@ -176,6 +176,6 @@ jobs:
         working-directory: ./artifacts/gtest-results_downloaded
 
       - name: Publish Unit Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v1
+        uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           files: ./artifacts/**/*.xml
