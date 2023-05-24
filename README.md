@@ -35,3 +35,57 @@ This framework makes heavy use of c++20's concepts to constrain environments to 
 - **Kuhn Poker**
 - **Leduc Poker**
 - **Stratego**
+
+## Installation
+
+To install the _noregret_ library, you can follow the steps below. Note that the library is an interface (pure header)
+library and so does not need building. You may choose to build it anyway to test it against your system.
+
+### Prerequisites
+
+Make sure you have the following dependencies installed on your system:
+
+    CMake (version 3.17 or higher)
+    Conan (version 1.xx)
+
+### Steps
+
+Step 1:
+Clone the no-regret repository to your local machine:
+```bash
+git clone https://github.com/maichmueller/noregret.git
+cd noregret
+```
+Step 2 (Optional): Configure, build, and run tests
+
+Configure
+```bash
+cmake -S . -B ./build -DCMAKE_BUILD_TYPE=Release
+```
+CMake will call Conan for you to install the dependencies.
+Ensure that the Conan executable can be found in your **PATH**!
+
+Build
+```bash
+cmake --build ./build --config Release --target nor_tests_all
+```
+Run
+```bash
+ctest Test_nor_tests_all
+```
+
+Step 4: Install the Library (Optional)
+
+If you want to install the library system-wide, you can use the following command:
+
+bash
+
+cmake --install .
+
+By default, the library will be installed in the appropriate system directories based on your platform.
+If you want to specify a custom installation directory, you can use the --prefix option followed by the desired path.
+
+Once the installation is complete, you can use noregret as library in your C++ projects by including
+the necessary headers and linking against the installed library.
+
+For more information on how to use the library, currently please refer to the tests provided in the repository.
