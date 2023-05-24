@@ -9,6 +9,6 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(_nor, m) {}
+PYBIND11_MODULE(noregret, m) {}
 
 #endif  // NOR_MODULE_NAME_HPP

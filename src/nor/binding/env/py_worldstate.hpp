@@ -43,5 +43,4 @@ struct PyWorldstate: public Worldstate {
 
 }  // namespace pynor
 
-
 #endif  // NOR_PYWORLDSTATE_HPP

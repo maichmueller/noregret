@@ -74,7 +74,7 @@ struct PyInfostate: public Infostate {
          Observation&, /* Return type */
          Infostate, /* Parent class */
          __getitem__ /* Name of function in C++ (must match Python name) */
-         index
+            index
       );
    }
 

@@ -50,7 +50,7 @@ struct PyAction: public Action {
    }
 };
 
-}  // namespace nor
+}  // namespace pynor
 
 namespace std {
 

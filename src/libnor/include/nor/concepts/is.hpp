@@ -11,10 +11,10 @@ namespace nor::concepts::is {
 
 template < typename T >
 concept sized = requires(T const t) {
-                   {
-                      t.size()
-                      } -> std::same_as< size_t >;
-                };
+   {
+      t.size()
+   } -> std::same_as< size_t >;
+};
 
 template < typename Iter >
 concept const_iter = std::is_const_v<
@@ -22,10 +22,10 @@ concept const_iter = std::is_const_v<
 
 template < typename T >
 concept hashable = requires(T t) {
-                      {
-                         std::hash< T >{}(t)
-                         } -> std::convertible_to< std::size_t >;
-                   };
+   {
+      std::hash< T >{}(t)
+   } -> std::convertible_to< std::size_t >;
+};
 
 template < typename T >
 constexpr bool variant(const T&)
@@ -54,39 +54,38 @@ concept dereferencable = requires(T t) { *t; };
 
 template < typename T >
 concept iterator = requires(T t) {
-                      std::iterator_traits< T >::difference_type;
-                      std::iterator_traits< T >::pointer;
-                      std::iterator_traits< T >::reference;
-                      std::iterator_traits< T >::value_type;
-                      std::iterator_traits< T >::iterator_category;
-                   };
+   std::iterator_traits< T >::difference_type;
+   std::iterator_traits< T >::pointer;
+   std::iterator_traits< T >::reference;
+   std::iterator_traits< T >::value_type;
+   std::iterator_traits< T >::iterator_category;
+};
 
 template < typename T >
 concept empty = std::is_empty_v< T >;
 
 template < typename T >
-concept not_empty = not
-std::is_empty_v< T >;
+concept not_empty = not std::is_empty_v< T >;
 
 template < typename T, typename Output >
 concept dynamic_pointer_castable_to = requires(T t) { std::dynamic_pointer_cast< Output >(t); };
 
 template < typename T >
 concept smart_pointer_like = requires(T t) {
-                                // this would be true if T was a raw pointer (hence we cannot allow
-                                // this to be true)
-                                requires not std::is_pointer_v< T >;
-                                // needs to be convertible to bool (nullptr or not nullptr)
-                                bool(t);
-                                // needs to have the underlying type stored in it as typedef
-                                typename T::element_type;
-                                // needs to be dereferencable
-                                {
-                                   t.operator*()
-                                   } -> std::same_as< typename T::element_type& >;
-                                // needs to allow for arrow operator calls
-                                t.operator->();
-                             };
+   // this would be true if T was a raw pointer (hence we cannot allow
+   // this to be true)
+   requires not std::is_pointer_v< T >;
+   // needs to be convertible to bool (nullptr or not nullptr)
+   bool(t);
+   // needs to have the underlying type stored in it as typedef
+   typename T::element_type;
+   // needs to be dereferencable
+   {
+      t.operator*()
+   } -> std::same_as< typename T::element_type& >;
+   // needs to allow for arrow operator calls
+   t.operator->();
+};
 
 template < typename T >
 concept pointer = std::is_pointer_v< T >;
@@ -113,17 +112,19 @@ template < typename Env >
 concept unrolled = requires(Env e) { requires Env::unrolled(); };
 
 template < typename Env >
-concept samples_chance = requires(Env e) { requires Env::stochasticity() == Stochasticity::sample; };
+concept samples_chance = requires(Env e) {
+   requires Env::stochasticity() == Stochasticity::sample;
+};
 
 template < typename Env >
 concept enumerates_chance = requires(Env e) {
-                               requires Env::stochasticity() == Stochasticity::choice;
-                            };
+   requires Env::stochasticity() == Stochasticity::choice;
+};
 
 template < typename Env >
 concept deterministic = requires(Env e) {
-                           requires Env::stochasticity() == Stochasticity::deterministic;
-                        };
+   requires Env::stochasticity() == Stochasticity::deterministic;
+};
 
 }  // namespace nor::concepts::is
 

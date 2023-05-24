@@ -118,7 +118,6 @@ using action_policy_type_trait_t = typename action_policy_type_trait< Ts... >::t
 
 ////
 
-
 template < typename HeadT, typename... TailTs >
 struct chance_distribution_type_trait {
    using type = typename chance_distribution_type_trait< TailTs... >::type;

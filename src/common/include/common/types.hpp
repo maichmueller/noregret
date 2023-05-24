@@ -761,7 +761,7 @@ struct deref_view< Range >::iterator: ranges::iterator_t< Range > {
 };
 
 template < ranges::range Range >
-deref_view(Range&&) -> deref_view< ranges::cpp20::all_view< Range > >;
+deref_view(Range&&) -> deref_view< ranges::cpp20::views::all_t< Range > >;
 
 struct deref_fn {
    template < typename Rng >

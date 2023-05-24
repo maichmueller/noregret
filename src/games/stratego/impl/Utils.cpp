@@ -1,8 +1,7 @@
 #include "stratego/Utils.hpp"
 
-#include "stratego/Action.hpp"
-
 #include "common/common.hpp"
+#include "stratego/Action.hpp"
 
 namespace stratego::utils {
 
@@ -192,8 +191,8 @@ constexpr common::CEBijection< FightOutcome, std::string_view, 3 > fightoutcome_
    std::pair{FightOutcome::death, "death"},
    std::pair{FightOutcome::tie, "tie"},
 };
-constexpr common::CEBijection< DefinedBoardSizes, std::string_view, 3 >
-   definedboardsizes_name_bij = {
+constexpr common::CEBijection< DefinedBoardSizes, std::string_view, 3 > definedboardsizes_name_bij =
+   {
       std::pair{DefinedBoardSizes::small, "small"},
       std::pair{DefinedBoardSizes::medium, "medium"},
       std::pair{DefinedBoardSizes::large, "large"},

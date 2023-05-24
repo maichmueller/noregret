@@ -29,21 +29,21 @@ TEST(State, constructor)
    State state{config};
 
    for(auto [pos, token] : setup0) {
-//      std::cout << "Given piece from setup:\n";
-//      std::cout << common::to_string(Team::BLUE) << ", " << pos << ", " << token << "\n";
-//      std::cout << "Board piece:\n";
-//      std::cout << common::to_string(state.board()[pos].value().team()) << ", "
-//                << state.board()[pos].value().position() << ", "
-//                << state.board()[pos].value().token() << "\n";
+      //      std::cout << "Given piece from setup:\n";
+      //      std::cout << common::to_string(Team::BLUE) << ", " << pos << ", " << token << "\n";
+      //      std::cout << "Board piece:\n";
+      //      std::cout << common::to_string(state.board()[pos].value().team()) << ", "
+      //                << state.board()[pos].value().position() << ", "
+      //                << state.board()[pos].value().token() << "\n";
       EXPECT_EQ((state.board()[pos].value()), Piece(Team::BLUE, pos, token));
    }
    for(auto [pos, token] : setup1) {
-//      std::cout << "Given piece from setup:\n";
-//      std::cout << common::to_string(Team::RED) << ", " << pos << ", " << token << "\n";
-//      std::cout << "Board piece:\n";
-//      std::cout << common::to_string(state.board()[pos].value().team()) << ", "
-//                << state.board()[pos].value().position() << ", "
-//                << state.board()[pos].value().token() << "\n";
+      //      std::cout << "Given piece from setup:\n";
+      //      std::cout << common::to_string(Team::RED) << ", " << pos << ", " << token << "\n";
+      //      std::cout << "Board piece:\n";
+      //      std::cout << common::to_string(state.board()[pos].value().team()) << ", "
+      //                << state.board()[pos].value().position() << ", "
+      //                << state.board()[pos].value().token() << "\n";
       EXPECT_EQ((state.board()[pos].value()), Piece(Team::RED, pos, token));
    }
 }
@@ -115,7 +115,8 @@ TEST_P(StateConstructorParamsF, constructor_arbitrary_dims)
    auto exp_token_pos_vecs = get_tokenpositions(setups);
 
    State s(Config(
-      starting_team, game_dims, setups, holes, fixed_starting_team, fixed_setups, max_turn_counts));
+      starting_team, game_dims, setups, holes, fixed_starting_team, fixed_setups, max_turn_counts
+   ));
 
    //   LOGD2("State", s.to_string())
    auto extracted_setups = Logic::extract_setup(s.board());
@@ -222,4 +223,6 @@ INSTANTIATE_TEST_SUITE_P(
                   std::pair{Position{3, 4}, Token::general},
                   std::pair{Position{4, 4}, Token::colonel},
                   std::pair{Position{6, 4}, Token::captain},
-                  std::pair{Position{7, 4}, Token::spy}})}}}));
+                  std::pair{Position{7, 4}, Token::spy}})}}}
+   )
+);

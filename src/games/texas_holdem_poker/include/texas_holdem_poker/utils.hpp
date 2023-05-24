@@ -109,7 +109,6 @@ struct hash< texholdem::Card > {
    }
 };
 
-
 }  // namespace std
 
 #endif  // NOR_TEXAS_HOLDEM_POKER_UTILS_HPP

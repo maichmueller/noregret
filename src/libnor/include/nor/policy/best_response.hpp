@@ -418,8 +418,8 @@ class BestResponsePolicy {
                and concepts::state_policy_view<
                   StatePolicy,
                   auto_info_state_type< std::remove_cvref_t< Env > >,
-                  auto_action_type< std::remove_cvref_t< Env > > > decltype(auto)
-   allocate(
+                  auto_action_type< std::remove_cvref_t< Env > > >
+   decltype(auto) allocate(
       Env&& env,
       const auto_world_state_type< std::remove_cvref_t< Env > >& root_state,
       const std::unordered_map< Player, StatePolicy >& player_policies,

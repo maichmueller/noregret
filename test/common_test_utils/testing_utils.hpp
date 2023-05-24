@@ -4,6 +4,7 @@
 #define NOR_COMMON_TESTING_UTILS_HPP
 
 #include <range/v3/all.hpp>
+
 #include "common/common.hpp"
 
 template < typename Range1, typename Range2 >
@@ -33,14 +34,17 @@ bool cmp_equal_rngs(Range1 rng1, Range2 rng2, Sorter1 sorter1, Sorter2 sorter2)
    });
 }
 
-
 struct flattable_sorter {
    template < typename T, typename U >
-      requires requires(T t)
-   {
-      {t.flatten()};
-   }
-               &&requires(U u) { {u.flatten()}; }
+      requires requires(T t) {
+         {
+            t.flatten()
+         };
+      } && requires(U u) {
+         {
+            u.flatten()
+         };
+      }
    auto operator()(T flattable1, U flattable2)
    {
       std::array< int, 2 > reduces{0, 0};

@@ -95,17 +95,17 @@ inline std::string to_string(const leduc::Action &value)
 }
 
 template <>
-struct printable<leduc::Rank> : std::true_type {};
+struct printable< leduc::Rank >: std::true_type {};
 template <>
-struct printable<leduc::Suit> : std::true_type {};
+struct printable< leduc::Suit >: std::true_type {};
 template <>
-struct printable<leduc::Action> : std::true_type {};
+struct printable< leduc::Action >: std::true_type {};
 template <>
-struct printable<leduc::ActionType> : std::true_type {};
+struct printable< leduc::ActionType >: std::true_type {};
 template <>
-struct printable<leduc::Player> : std::true_type {};
+struct printable< leduc::Player >: std::true_type {};
 template <>
-struct printable<leduc::Card> : std::true_type {};
+struct printable< leduc::Card >: std::true_type {};
 
 }  // namespace common
 

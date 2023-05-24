@@ -167,10 +167,12 @@ inline bool operator==(const History& left, const History& right)
       return false;
    }
    return ranges::all_of(
-      ranges::views::zip(left.sequence, right.sequence), [](const auto& paired_actions) {
+      ranges::views::zip(left.sequence, right.sequence),
+      [](const auto& paired_actions) {
          const auto& [left_action, right_action] = paired_actions;
          return left_action == right_action;
-      });
+      }
+   );
 }
 
 /**
@@ -191,8 +193,9 @@ class HistorySinceBet {
 
    bool all_acted(const std::vector< Player >& remaining_players)
    {
-      return ranges::all_of(
-         remaining_players, [&](Player player) { return m_container[as_int(player)].has_value(); });
+      return ranges::all_of(remaining_players, [&](Player player) {
+         return m_container[as_int(player)].has_value();
+      });
    }
 
    auto& container() { return m_container; }

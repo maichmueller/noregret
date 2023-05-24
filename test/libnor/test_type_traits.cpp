@@ -15,5 +15,6 @@ TEST(add_const_if, expected_constness)
 
 TEST(all_predicate, simple)
 {
-   EXPECT_TRUE((common::all_predicate_v< std::is_default_constructible, int, double, std::string >) );
+   EXPECT_TRUE((common::all_predicate_v< std::is_default_constructible, int, double, std::string >)
+   );
 }

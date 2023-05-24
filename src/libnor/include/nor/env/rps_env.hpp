@@ -24,9 +24,8 @@ inline auto to_team(const nor::Player& player)
 
 using Observation = std::string;
 
-std::string observation(
-   const State& state,
-   std::optional< Player > observing_player = std::nullopt);
+std::string
+observation(const State& state, std::optional< Player > observing_player = std::nullopt);
 
 class Publicstate: public DefaultPublicstate< Publicstate, Observation > {
    using base = DefaultPublicstate< Publicstate, Observation >;

@@ -53,10 +53,9 @@ inline bool operator==(const History& left, const History& right)
    if(left.size() != right.size()) {
       return false;
    }
-   return ranges::all_of(
-      ranges::views::zip(left, right), [](const auto& paired_actions) {
-         return std::get< 0 >(paired_actions) == std::get< 1 >(paired_actions);
-      });
+   return ranges::all_of(ranges::views::zip(left, right), [](const auto& paired_actions) {
+      return std::get< 0 >(paired_actions) == std::get< 1 >(paired_actions);
+   });
 }
 
 class State {

@@ -60,10 +60,7 @@ struct StringLiteral {
 };
 
 template < typename T >
-requires requires(T t)
-{
-   std::cout << t;
-}
+   requires requires(T t) { std::cout << t; }
 struct VectorPrinter {
    const std::vector< T >& value;
    std::string_view delimiter;
@@ -85,10 +82,7 @@ struct VectorPrinter {
 };
 
 template < typename T >
-requires requires(T t)
-{
-   std::cout << t;
-}
+   requires requires(T t) { std::cout << t; }
 struct SpanPrinter {
    std::span< T > value;
    std::string_view delimiter;
@@ -220,7 +214,8 @@ inline constexpr auto make_enum_vec(std::index_sequence< Is... >)
 template < typename T, typename Allocator, typename Accessor >
 inline auto counter(
    const std::vector< T, Allocator >& vals,
-   Accessor acc = [](const auto& iter) { return *iter; })
+   Accessor acc = [](const auto& iter) { return *iter; }
+)
 {
    std::map< T, unsigned int > rv;
 
@@ -234,7 +229,8 @@ inline auto counter(
 template < typename Container, typename Accessor >
 inline auto counter(
    const Container& vals,
-   Accessor acc = [](const auto& iter) { return *iter; })
+   Accessor acc = [](const auto& iter) { return *iter; }
+)
 {
    std::map< typename Container::mapped_type, unsigned int > rv;
 
@@ -271,14 +267,12 @@ template < typename T >
 concept is_enum = std::is_enum_v< T >;
 
 template < class T, class... Ts >
-struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {
-};
+struct is_any: ::std::disjunction< ::std::is_same< T, Ts >... > {};
 template < class T, class... Ts >
 inline constexpr bool is_any_v = is_any< T, Ts... >::value;
 
 template < class T, class... Ts >
-struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {
-};
+struct is_same: ::std::conjunction< ::std::is_same< T, Ts >... > {};
 template < class T, class... Ts >
 inline constexpr bool is_same_v = is_same< T, Ts... >::value;
 
@@ -288,8 +282,9 @@ struct CEMap {
 
    [[nodiscard]] constexpr Value at(const Key& key) const
    {
-      const auto itr = std::find_if(
-         begin(data), end(data), [&key](const auto& v) { return v.first == key; });
+      const auto itr = std::find_if(begin(data), end(data), [&key](const auto& v) {
+         return v.first == key;
+      });
       if(itr != end(data)) {
          return itr->second;
       } else {
@@ -303,7 +298,8 @@ struct CEBijection {
    std::array< std::pair< Key, Value >, Size > data;
 
    template < typename T >
-   requires is_any_v< T, Key, Value >[[nodiscard]] constexpr auto at(const T& elem) const
+      requires is_any_v< T, Key, Value >
+   [[nodiscard]] constexpr auto at(const T& elem) const
    {
       const auto itr = std::find_if(begin(data), end(data), [&elem](const auto& v) {
          if constexpr(std::is_same_v< T, Key >) {
@@ -412,7 +408,8 @@ struct hash< tuple< string, int > > {
    size_t operator()(const std::tuple< std::string, int >& s) const
    {
       return std::hash< std::string >()(
-         std::get< 0 >(s) + "!@#$%^&*()_" + std::to_string(std::get< 1 >(s)));
+         std::get< 0 >(s) + "!@#$%^&*()_" + std::to_string(std::get< 1 >(s))
+      );
    }
 };
 }  // namespace std

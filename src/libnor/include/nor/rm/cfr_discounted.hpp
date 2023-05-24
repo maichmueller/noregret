@@ -27,6 +27,6 @@ using CFRLinear = VanillaCFR<
    Policy,
    AveragePolicy >;
 
-}
+}  // namespace nor::rm
 
 #endif  // NOR_CFR_DISCOUNTED_HPP

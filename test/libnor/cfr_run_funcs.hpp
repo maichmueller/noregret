@@ -67,10 +67,8 @@ void run_cfr_on_kuhn_poker(
             env,
             games::kuhn::State{},
             std::unordered_map{
-               std::pair{
-                  Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
-               std::pair{
-                  Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
+               std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
+               std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
          );
       }
 #ifndef NDEBUG
@@ -145,10 +143,8 @@ void run_cfr_on_rps(
             env,
             games::rps::State{},
             std::unordered_map{
-               std::pair{
-                  Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
-               std::pair{
-                  Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
+               std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
+               std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
          );
       }
 #ifndef NDEBUG

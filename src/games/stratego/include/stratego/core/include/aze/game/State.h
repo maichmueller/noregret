@@ -43,7 +43,8 @@ class State {
       board_type board,
       size_t turn_count = 0,
       const history_type &history = {},
-      std::optional< std::variant< size_t, utils::random::RNG > > seed = std::nullopt);
+      std::optional< std::variant< size_t, utils::random::RNG > > seed = std::nullopt
+   );
 
    State(board_type board, std::optional< std::variant< size_t, utils::random::RNG > > seed);
 
@@ -107,12 +108,9 @@ void State< BoardType, HistoryType, PieceType, Action >::undo_last_rounds(size_t
 template < typename BoardType, typename HistoryType, typename PieceType, typename Action >
 void State< BoardType, HistoryType, PieceType, Action >::restore_to_round(size_t round)
 {
-   if(round > m_turn_count)
-      [[unlikely]]
-      {
-         throw std::invalid_argument("Given round is greater than current turn count.");
-      }
-   else {
+   if(round > m_turn_count) [[unlikely]] {
+      throw std::invalid_argument("Given round is greater than current turn count.");
+   } else {
       undo_last_rounds(m_turn_count - round);
    }
 }
@@ -122,7 +120,8 @@ State< BoardType, HistoryType, PieceType, Action >::State(
    board_type board,
    size_t turn_count,
    const history_type &history,
-   std::optional< std::variant< size_t, utils::random::RNG > > seed)
+   std::optional< std::variant< size_t, utils::random::RNG > > seed
+)
     : m_board(std::move(board)),
       m_status(Status(0)),
       m_status_checked(false),
@@ -131,13 +130,15 @@ State< BoardType, HistoryType, PieceType, Action >::State(
       m_rng(
          seed.has_value()
             ? std::visit([](auto input) { return utils::random::create_rng(input); }, seed.value())
-            : utils::random::create_rng())
+            : utils::random::create_rng()
+      )
 {
 }
 template < class BoardType, class HistoryType, class PieceType, class ActionType >
 State< BoardType, HistoryType, PieceType, ActionType >::State(
    board_type board,
-   std::optional< std::variant< size_t, utils::random::RNG > > seed)
+   std::optional< std::variant< size_t, utils::random::RNG > > seed
+)
     : m_board(std::move(board)),
       m_status(Status(0)),
       m_status_checked(false),
@@ -146,7 +147,8 @@ State< BoardType, HistoryType, PieceType, ActionType >::State(
       m_rng(
          seed.has_value()
             ? std::visit([](auto input) { return utils::random::create_rng(input); }, seed.value())
-            : utils::random::create_rng())
+            : utils::random::create_rng()
+      )
 {
 }
 

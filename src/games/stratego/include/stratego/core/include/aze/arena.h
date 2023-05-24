@@ -30,7 +30,8 @@ inline void print_round_results(
    int round,
    int num_rounds,
    const std::vector< std::string > &agent_names,
-   const std::vector< StatTrack > &stats)
+   const std::vector< StatTrack > &stats
+)
 {
    static const std::vector< std::string > colors{
       "\033[1;31m",  // RED
@@ -67,7 +68,8 @@ std::tuple< StatTrack, StatTrack > inline pit(
    GameType &game,
    int num_sims,
    bool show_game,
-   int print_every_n_sim)
+   int print_every_n_sim
+)
 {
    StatTrack stats0;
    StatTrack stats1;
@@ -91,7 +93,8 @@ std::tuple< StatTrack, StatTrack > inline pit(
       LOGD2("After game played", game.state()->to_string(false, false));
       if(sim % print_every_n_sim == 0) {
          print_round_results(
-            sim, num_sims, *game.get_agent_0(), *game.get_agent_1(), stats0, stats1);
+            sim, num_sims, *game.get_agent_0(), *game.get_agent_1(), stats0, stats1
+         );
       }
    }
    std::cout << std::endl;

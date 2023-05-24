@@ -81,14 +81,15 @@ TEST_F(KuhnPokerState, valid_chance_actions)
       std::vector{
          ChanceOutcome{Player::one, Card::jack},
          ChanceOutcome{Player::one, Card::queen},
-         ChanceOutcome{Player::one, Card::king}}));
+         ChanceOutcome{Player::one, Card::king}}
+   ));
 
    state.apply_action(ChanceOutcome{Player::one, Card::king});
 
    EXPECT_TRUE(cmp_equal_rngs(
       state.chance_actions(),
-      std::vector{
-         ChanceOutcome{Player::two, Card::jack}, ChanceOutcome{Player::two, Card::queen}}));
+      std::vector{ChanceOutcome{Player::two, Card::jack}, ChanceOutcome{Player::two, Card::queen}}
+   ));
 
    state.apply_action(ChanceOutcome{Player::two, Card::queen});
 
@@ -143,10 +144,9 @@ INSTANTIATE_TEST_SUITE_P(
          std::vector{Action::check, Action::bet},
          false},
       std::tuple{std::array{Card::queen, Card::king}, std::vector{Action::bet}, false},
-      std::tuple{
-         std::array{Card::king, Card::jack},
-         std::vector{Action::check, Action::bet},
-         false}));
+      std::tuple{std::array{Card::king, Card::jack}, std::vector{Action::check, Action::bet}, false}
+   )
+);
 
 TEST_P(PayoffParamsF, payoff_combinations)
 {
@@ -192,4 +192,6 @@ INSTANTIATE_TEST_SUITE_P(
       std::tuple{
          std::array{Card::queen, Card::king},
          std::vector{Action::check, Action::bet, Action::check},
-         std::array{-1, 1}}));
+         std::array{-1, 1}}
+   )
+);
