@@ -5,7 +5,12 @@
 
 #include <pybind11/pybind11.h>
 
-#include "env/py_env.hpp"
+#include "trampolines/action.hpp"
+#include "trampolines/chance_outcome.hpp"
+#include "trampolines/infostate.hpp"
+#include "trampolines/observation.hpp"
+#include "trampolines/publicstate.hpp"
+#include "trampolines/worldstate.hpp"
 
 namespace py = pybind11;
 

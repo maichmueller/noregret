@@ -10,8 +10,8 @@ using namespace nor;
 
 TEST(InfostateNode, storage_correctness)
 {
-   using namespace nor;
    using namespace nor::games::kuhn;
+
    std::unordered_map<
       sptr< Infostate >,
       rm::InfostateNodeData< Action >,

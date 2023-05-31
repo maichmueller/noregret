@@ -1,6 +1,6 @@
 
-#ifndef NOR_RPS_ENV_HPP
-#define NOR_RPS_ENV_HPP
+#ifndef NOR_ENV_RPS_HPP
+#define NOR_ENV_RPS_HPP
 
 #include "common/common.hpp"
 #include "kuhn_poker/kuhn_poker.hpp"
@@ -129,4 +129,4 @@ struct hash< StateType > {
 
 }  // namespace std
 
-#endif  // NOR_RPS_ENV_HPP
+#endif  // NOR_ENV_RPS_HPP

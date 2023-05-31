@@ -1,9 +1,9 @@
-Checks: '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-modernize-use-trailing-return-type,-llvm-*,-llvmlibc-*'
+Checks: '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-llvm-*,-llvmlibc-*,-modernize-use-trailing-return-type,-altera-struct-pack-align,-altera-unroll-loops'
 WarningsAsErrors: '*'
 HeaderFilterRegex: ''
 FormatStyle: none
-CheckOptions:
-  - key: altera-struct-pack-align
-    value: 0
-  - key: altera-unroll-loops
-    value: 0
+#CheckOptions:
+#  - key: altera-struct-pack-align
+#    value: 0
+#  - key: altera-unroll-loops
+#    value: 0

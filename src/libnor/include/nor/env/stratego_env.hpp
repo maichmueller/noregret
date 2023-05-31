@@ -1,6 +1,6 @@
 
-#ifndef NOR_STRATEGO_ENV_HPP
-#define NOR_STRATEGO_ENV_HPP
+#ifndef NOR_ENV_STRATEGO_HPP
+#define NOR_ENV_STRATEGO_HPP
 
 #include <range/v3/all.hpp>
 #include <string>
@@ -128,4 +128,4 @@ template < typename StateType >
 
 }  // namespace std
 
-#endif  // NOR_STRATEGO_ENV_HPP
+#endif  // NOR_ENV_STRATEGO_HPP

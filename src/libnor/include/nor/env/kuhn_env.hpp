@@ -1,6 +1,6 @@
 
-#ifndef NOR_KUHN_ENV_HPP
-#define NOR_KUHN_ENV_HPP
+#ifndef NOR_ENV_KUHN_HPP
+#define NOR_ENV_KUHN_HPP
 
 #include <range/v3/all.hpp>
 #include <string>
@@ -160,4 +160,4 @@ template < typename StateType >
 
 }  // namespace std
 
-#endif  // NOR_KUHN_ENV_HPP
+#endif  // NOR_ENV_KUHN_HPP
