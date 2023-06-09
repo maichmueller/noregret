@@ -90,7 +90,7 @@ struct Infostate {
    virtual ~Infostate() = default;
 
    /// non-const methods
-   NOR_VirtualBaseMethod(append, Infostate&, const Observation&);
+   NOR_VirtualBaseMethod(update, Infostate&, const Observation&, const Observation&);
    /// const methods
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const Infostate&);
@@ -110,7 +110,7 @@ struct Publicstate {
    virtual ~Publicstate() = default;
 
    /// non-const methods
-   NOR_VirtualBaseMethod(append, Publicstate&, const Observation&);
+   NOR_VirtualBaseMethod(update, Publicstate&, const Observation&);
    /// const methods
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const Publicstate&);
@@ -120,11 +120,8 @@ struct Publicstate {
 
 /// the current concept requirements on the c++ side for a worldstate are:
 /// 1. move constructible
-/// 2. cloneable
 struct Worldstate {
    virtual ~Worldstate() = default;
-
-   NOR_VirtualBaseMethodConst(clone, sptr< Worldstate >);
 };
 
 class Environment {
@@ -149,14 +146,14 @@ class Environment {
 
    NOR_VirtualBaseMethodConst(
       actions,
-      NOR_SINGLE_ARG(std::vector< uptr< action_type > >),
+      NOR_SINGLE_ARG(std::vector< ActionWrapper< action_type > >),
       nor::Player /*player*/,
       const world_state_type& /*wstate*/
    );
 
    NOR_VirtualBaseMethodConst(
       chance_actions,
-      NOR_SINGLE_ARG(std::vector< uptr< chance_outcome_type > >),
+      NOR_SINGLE_ARG(std::vector< ActionWrapper< chance_outcome_type > >),
       const world_state_type& /*wstate*/
    );
 
@@ -169,23 +166,26 @@ class Environment {
 
    NOR_VirtualBaseMethodConst(
       private_history,
-      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType<
-                        std::optional< std::variant< chance_outcome_type, action_type > > > >),
+      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::optional< std::variant<
+                        ChanceOutcomeWrapper< chance_outcome_type >,
+                        ActionWrapper< action_type > > > > >),
       nor::Player /*player*/,
       const world_state_type& /*wstate*/
    );
 
    NOR_VirtualBaseMethodConst(
       public_history,
-      NOR_SINGLE_ARG(std::vector<
-                     nor::PlayerInformedType< std::variant< chance_outcome_type, action_type > > >),
+      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::variant<
+                        ChanceOutcomeWrapper< chance_outcome_type >,
+                        ActionWrapper< action_type > > > >),
       const world_state_type& /*wstate*/
    );
 
    NOR_VirtualBaseMethodConst(
       open_history,
-      NOR_SINGLE_ARG(std::vector<
-                     nor::PlayerInformedType< std::variant< chance_outcome_type, action_type > > >),
+      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::variant<
+                        ChanceOutcomeWrapper< chance_outcome_type >,
+                        ActionWrapper< action_type > > > >),
       const world_state_type& /*wstate*/
    );
 
@@ -206,7 +206,6 @@ class Environment {
       nor::Player /*player*/
    );
    NOR_VirtualBaseMethod(reward, double, nor::Player /*player*/, world_state_type& /*wstate*/);
-
    NOR_VirtualBaseMethod(
       transition,
       void,
@@ -222,7 +221,7 @@ class Environment {
 
    NOR_VirtualBaseMethod(
       private_observation,
-      observation_type,
+      ObservationWrapper< observation_type >,
       nor::Player /*player*/,
       const world_state_type& /*wstate*/,
       const action_type& /*action*/,
@@ -230,7 +229,7 @@ class Environment {
    );
    NOR_VirtualBaseMethod(
       public_observation,
-      observation_type,
+      ObservationWrapper< observation_type >,
       const world_state_type& /*wstate*/,
       const action_type& /*action*/,
       const world_state_type& /*next_wstate*/
@@ -238,7 +237,7 @@ class Environment {
 
    NOR_VirtualBaseMethod(
       private_observation,
-      observation_type,
+      ObservationWrapper< observation_type >,
       nor::Player /*player*/,
       const world_state_type& /*wstate*/,
       const chance_outcome_type& /*chance_outcome*/,
@@ -246,7 +245,7 @@ class Environment {
    );
    NOR_VirtualBaseMethod(
       public_observation,
-      observation_type,
+      ObservationWrapper< observation_type >,
       const world_state_type& /*wstate*/,
       const chance_outcome_type& /*chance_outcome*/,
       const world_state_type& /*next_wstate*/
