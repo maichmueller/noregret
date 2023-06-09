@@ -31,9 +31,9 @@ struct ActionPolicyInterface {
    auto begin() const { return iterator_source.begin(); };
    auto end() const { return iterator_source.end(); }
 
-   virtual size_t size() const = 0;
+   [[nodiscard]] virtual size_t size() const = 0;
 
-   virtual double at(const action_type& action) const = 0;
+   [[nodiscard]] virtual double at(const action_type& action) const = 0;
 
   protected:
    /// type erased view to provide an iterator basis for the underlying policies.
@@ -72,9 +72,9 @@ class ActionPolicyView {
    struct View: interface_type {
       View(T& t) : interface_type(t), policy(&t) {}
 
-      virtual size_t size() const { return policy->size(); }
+      size_t size() const override { return policy->size(); }
 
-      virtual double at(const action_type& action) const override { return policy->at(action); }
+      double at(const action_type& action) const override { return policy->at(action); }
 
      private:
       T* policy;
@@ -84,9 +84,9 @@ class ActionPolicyView {
    struct OwningView: interface_type {
       OwningView(T t) : interface_type(policy), policy(std::move(t)) {}
 
-      virtual size_t size() const { return policy.size(); }
+      size_t size() const override { return policy.size(); }
 
-      virtual double at(const action_type& action) const override { return policy.at(action); }
+      double at(const action_type& action) const override { return policy.at(action); }
 
      private:
       T policy;
@@ -98,11 +98,10 @@ class ActionPolicyView {
    template < typename T >
    auto _init(T&& obj)
    {
-      if constexpr(std::is_lvalue_reference_v< T >) {
-         return std::make_shared< View< std::remove_reference_t< T > > >(obj);
-      } else {
-         return std::make_shared< OwningView< T > >(std::move(obj));
-      }
+      using T_raw = std::remove_reference_t< T >;
+      using view_type = std::
+         conditional_t< std::is_lvalue_reference_v< T >, View< T_raw >, OwningView< T_raw > >;
+      return std::make_shared< view_type >(std::forward< T >(obj));
    }
 };
 
