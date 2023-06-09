@@ -178,7 +178,7 @@ class VanillaCFR:
    VanillaCFR(VanillaCFR&&) = default;
    ~VanillaCFR() = default;
    VanillaCFR& operator=(const VanillaCFR&) = delete;
-   VanillaCFR& operator=(VanillaCFR&&) = default;
+   VanillaCFR& operator=(VanillaCFR&&) noexcept = default;
 
   private:
    // tag dispatch to explicitly call private constructor from public facing generic one.
