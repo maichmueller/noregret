@@ -1,9 +1,10 @@
 macro(run_conan)
   # Download automatically
+  set(CONAN_VERSION 0.18.1)
   if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
     message(STATUS "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
-    file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/release/0.17/conan.cmake"
-         "${CMAKE_BINARY_DIR}/conan.cmake")
+    file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/${CONAN_VERSION}/conan.cmake"
+         "${CMAKE_BINARY_DIR}/conan.cmake" TLS_VERIFY ON)
   endif()
 
   include(${CMAKE_BINARY_DIR}/conan.cmake)

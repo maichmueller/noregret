@@ -3,6 +3,7 @@
 #define NOR_ENV_POLYMORPHIC_HPP
 
 #include <range/v3/all.hpp>
+#include <span>
 #include <string>
 #include <vector>
 
