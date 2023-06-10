@@ -9,7 +9,7 @@ macro(run_conan)
 
   include(${CMAKE_BINARY_DIR}/conan.cmake)
 
-  find_program(CONAN conan PATHS ${CONAN_PATH})
+  find_program(CONAN conan REQUIRED PATHS ${CONAN_PATH})
 
   conan_cmake_run(
     CONANFILE
@@ -23,5 +23,10 @@ macro(run_conan)
     CMAKE_TARGETS # individual targets to link to
     KEEP_RPATHS
     BUILD
-    missing)
+    missing
+    PROFILE
+    default
+    PROFILE_AUTO
+    ALL # ALL means that all the settings are taken from CMake's detection
+  )
 endmacro()
