@@ -71,7 +71,7 @@ class ZeroDefaultPolicy {
    ZeroDefaultPolicy() = default;
 
    action_policy_type operator()(
-      const info_state_type& infostate,
+      const info_state_type&,
       const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >&
          legal_actions
    ) const
@@ -83,7 +83,7 @@ class ZeroDefaultPolicy {
       }
    }
 
-   action_policy_type operator()(const info_state_type& infostate) const
+   action_policy_type operator()(const info_state_type&) const
       requires(extent != std::dynamic_extent)
    {
       return action_policy_type(extent, 0.);

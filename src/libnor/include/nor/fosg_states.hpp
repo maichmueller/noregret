@@ -340,10 +340,7 @@ struct InfostateWrapper: public BaseWrapper< InfostateWrapper, Infostate > {
 
    const auto& operator[](auto index) const { return get()[size_t(index)]; }
 
-   Player player(const observation_type& public_obs, const observation_type& private_obs) const
-   {
-      return get().player();
-   }
+   Player player() const { return get().player(); }
 };
 
 template < typename Publicstate >
