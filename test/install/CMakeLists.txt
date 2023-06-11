@@ -14,11 +14,11 @@ include(${CMAKE_BINARY_DIR}/conan_paths.cmake)
 
 find_package(pybind11 REQUIRED)
 find_package(
-  nor
-  REQUIRED
-  CONFIG
-  PATHS
-  ${nor_path})
+    nor
+    REQUIRED
+    CONFIG
+    PATHS
+    ${nor_path})
 
 add_executable(nor_install_test main.cpp)
 target_link_libraries(nor_install_test PRIVATE nor::nor++)

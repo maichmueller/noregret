@@ -4,10 +4,10 @@ target_include_directories(common_testing_utils INTERFACE "${PROJECT_TEST_DIR}/c
 
 add_library(shared_test_libs INTERFACE)
 target_link_libraries(
-  shared_test_libs
-  INTERFACE ${nor_lib}
-            ${nor_lib}_envs
-            project_options
-            project_warnings
-            common_testing_utils
-            CONAN_PKG::gtest)
+    shared_test_libs
+    INTERFACE ${nor_lib}
+              ${nor_lib}_envs
+              project_options
+              project_warnings
+              common_testing_utils
+              CONAN_PKG::gtest)

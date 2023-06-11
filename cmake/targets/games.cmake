@@ -26,12 +26,12 @@ add_library(stratego SHARED ${STRATEGO_SOURCES})
 target_include_directories(stratego PUBLIC ${PROJECT_GAMES_DIR}/stratego/include)
 
 target_link_libraries(
-  stratego
-  PUBLIC project_options
-         common
-         stratego_core
-         CONAN_PKG::range-v3
-         CONAN_PKG::namedtype)
+    stratego
+    PUBLIC project_options
+           common
+           stratego_core
+           CONAN_PKG::range-v3
+           CONAN_PKG::namedtype)
 
 # ######################################################################################################################
 # Leduc Poker

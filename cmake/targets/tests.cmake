@@ -15,7 +15,7 @@ register_nor_target(${nor_test}_helpers test_helpers.cpp)
 register_nor_target(${nor_test}_exploitability test_exploitability.cpp)
 # for the overall test executable we simply merge all other test files together
 foreach(sources_list IN LISTS REGISTERED_TEST_SOURCES_LIST)
-  list(APPEND NOR_TEST_SOURCES ${${sources_list}})
+    list(APPEND NOR_TEST_SOURCES ${${sources_list}})
 endforeach()
 register_nor_target(${nor_test}_all ${NOR_TEST_SOURCES})
 
@@ -24,29 +24,29 @@ target_link_libraries(${nor_test}_all PRIVATE pybind11::module
                                               $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>)
 
 if(ENABLE_GAMES)
-  # this is a mere collector of all game test targets to build them via a single command to build all games (eg in
-  # workflow)
-  add_custom_target(game_test_targets_all)
+    # this is a mere collector of all game test targets to build them via a single command to build all games (eg in
+    # workflow)
+    add_custom_target(game_test_targets_all)
 
-  message(STATUS "Adding game targets.")
+    message(STATUS "Adding game targets.")
 
-  register_game_target(
-    stratego
-    stratego
-    stratego
-    test_logic.cpp
-    test_config.cpp
-    test_game.cpp
-    test_state.cpp
-    test_piece.cpp)
-  register_game_target(
-    kuhn_poker
-    kuhn_poker
-    kuhn_poker
-    test_state.cpp)
-  register_game_target(
-    leduc_poker
-    leduc_poker
-    leduc_poker
-    test_state.cpp)
+    register_game_target(
+        stratego
+        stratego
+        stratego
+        test_logic.cpp
+        test_config.cpp
+        test_game.cpp
+        test_state.cpp
+        test_piece.cpp)
+    register_game_target(
+        kuhn_poker
+        kuhn_poker
+        kuhn_poker
+        test_state.cpp)
+    register_game_target(
+        leduc_poker
+        leduc_poker
+        leduc_poker
+        test_state.cpp)
 endif()
