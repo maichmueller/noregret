@@ -66,15 +66,16 @@ class Environment {
       return wstate.chance_actions();
    }
 
-   std::vector<
+   [[nodiscard]] std::vector<
       PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
    private_history(Player player, const world_state_type& wstate) const;
 
-   std::vector<
+   [[nodiscard]] std::vector<
       PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
    public_history(const world_state_type& wstate) const;
 
-   std::vector< PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
+   [[nodiscard]] std::vector<
+      PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
    open_history(const world_state_type& wstate) const;
 
    inline double
@@ -87,7 +88,7 @@ class Environment {
    {
       return {Player::chance, Player::alex, Player::bob};
    }
-   Player active_player(const world_state_type& wstate) const;
+   [[nodiscard]] Player active_player(const world_state_type& wstate) const;
    static bool is_terminal(world_state_type& wstate);
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);

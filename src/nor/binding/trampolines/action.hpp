@@ -7,7 +7,7 @@
 namespace nor::py {
 
 /* Trampoline Class */
-struct PyAction: public nor::env::polymorph::Action {
+struct PyAction: public nor::games::polymorph::Action {
    /* Inherit the constructors */
    using Action::Action;
 
@@ -39,8 +39,8 @@ struct PyAction: public nor::env::polymorph::Action {
 namespace std {
 
 template <>
-struct hash< nor::env::polymorph::Action > {
-   size_t operator()(const nor::env::polymorph::Action& action) const { return action.hash(); }
+struct hash< nor::games::polymorph::Action > {
+   size_t operator()(const nor::games::polymorph::Action& action) const { return action.hash(); }
 };
 
 }  // namespace std

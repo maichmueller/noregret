@@ -165,20 +165,17 @@ class MCCFR:
    /// Constructors ///
    ////////////////////
 
-  private:
-   struct internal_construct_tag {};
-
   public:
    // forwarding wrapper constructor around all constructors
    template < typename T1, typename... Args >
    // exclude potential recursion traps
       requires common::is_none_v<
          std::remove_cvref_t< T1 >,  // remove cvref to avoid checking each ref-case individually
-         internal_construct_tag,  // don't recurse back from internal constructors or self
+         tag::internal_construct,  // don't recurse back from internal constructors or self
          MCCFR  // don't steal the copy/move constructor calls (std::remove_cvref ensures both)
          >
    MCCFR(T1&& t, Args&&... args)
-       : MCCFR(internal_construct_tag{}, std::forward< T1 >(t), std::forward< Args >(args)...)
+       : MCCFR(tag::internal_construct{}, std::forward< T1 >(t), std::forward< Args >(args)...)
    {
       _sanity_check_config();
       assert_serialized_and_unrolled(_env());
@@ -186,7 +183,7 @@ class MCCFR:
 
   private:
    MCCFR(
-      internal_construct_tag,
+      tag::internal_construct,
       Env env_,
       uptr< world_state_type > root_state_,
       Policy policy_ = Policy(),
@@ -201,7 +198,7 @@ class MCCFR:
    }
 
    MCCFR(
-      internal_construct_tag,
+      tag::internal_construct,
       Env env_,
       Policy policy_ = Policy(),
       AveragePolicy avg_policy_ = AveragePolicy(),
@@ -209,7 +206,7 @@ class MCCFR:
       size_t seed = std::random_device{}()
    )
        : MCCFR(
-          internal_construct_tag{},
+          tag::internal_construct{},
           std::move(env_),
           std::make_unique< world_state_type >(env.initial_world_state()),
           std::move(policy_),
@@ -221,7 +218,7 @@ class MCCFR:
    }
 
    MCCFR(
-      internal_construct_tag,
+      tag::internal_construct,
       Env env_,
       uptr< world_state_type > root_state_,
       std::unordered_map< Player, Policy > policy_,
@@ -250,16 +247,7 @@ class MCCFR:
 
   public:
    /**
-    * @brief executes n iterations of the VanillaCFR algorithm in unrolled form (no recursion).
-    *
-    * The decision for doing alternating updates or simultaneous updates happens at compile time via
-    * the cfr config. This optimizes some unncessary repeated if-branching away at the cost of
-    * higher maintenance. The user can also decide whether to store the public state at each node
-    * within the CFR config! This can save some memory, since the public states are not needed,
-    * unless one wants to e.g. perform analysis.
-    *
-    * By returning a pointer to the constant current policy after the n iterations, the user can
-    * select to store a copy of the policy at each step themselves.
+    * @brief executes n iterations of the VanillaCFR algorithm.
     *
     * @param n_iters the number of iterations to perform.
     * @return a pointer to the constant current policy after the update
@@ -270,13 +258,10 @@ class MCCFR:
     *
     * This overload only participates if the config defined alternating updates to be made.
     *
-    * By returning a pointer to the constant current policy after the n iterations, the user can
-    * select to store a copy of the policy at each step themselves.
-    *
     * @param player_to_update the optional player to update this iteration. If not provided, the
     * function will continue with the regular update cycle. By providing this parameter the user can
     * expressly modify the update cycle to even update individual players multiple times in a row.
-    * @return a pointer to the constant current policy after the update
+    * @return the game value of the iteration with the current policy
     */
    auto iterate(std::optional< Player > player_to_update = std::nullopt)
       requires(config.update_mode == UpdateMode::alternating);
@@ -285,16 +270,16 @@ class MCCFR:
    /// private member functions ///
    ////////////////////////////////
 
-   [[nodiscard]] inline auto& _infonodes() { return m_infonode; }
-   [[nodiscard]] inline auto& infonode(const sptr< info_state_type >& infostate) const
+   inline auto& _infonodes() { return m_infonode; }
+   inline auto& infonode(const sptr< info_state_type >& infostate) const
    {
       return m_infonode.at(infostate);
    }
-   [[nodiscard]] inline auto& _infonode(const sptr< info_state_type >& infostate)
+   inline auto& _infonode(const sptr< info_state_type >& infostate)
    {
       return m_infonode.at(infostate);
    }
-   [[nodiscard]] inline auto& infonode(const info_state_type& infostate) const
+   inline auto& infonode(const info_state_type& infostate) const
    {
       auto found = m_infonode.find(infostate);
       if(found == m_infonode.end()) {
@@ -302,7 +287,7 @@ class MCCFR:
       }
       return found->second;
    }
-   [[nodiscard]] inline auto& _infonode(const info_state_type& infostate)
+   inline auto& _infonode(const info_state_type& infostate)
    {
       auto found = m_infonode.find(infostate);
       if(found == m_infonode.end()) {

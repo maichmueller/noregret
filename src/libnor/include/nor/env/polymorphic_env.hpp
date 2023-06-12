@@ -31,7 +31,7 @@
       }
 #endif
 
-namespace nor::env::polymorph {
+namespace nor::games::polymorph {
 
 struct NotImplementedError: public std::exception {
    NotImplementedError(std::string_view msg) : m_msg(_make_msg(msg)) {}
@@ -43,8 +43,7 @@ struct NotImplementedError: public std::exception {
    static std::string _make_msg(std::string_view msg)
    {
       std::stringstream ss;
-      ss << "'" << msg << "'"
-         << " is not implemented.";
+      ss << "'" << msg << "' is not implemented.";
       return ss.str();
    }
 };
@@ -253,22 +252,22 @@ class Environment {
    );
 };
 
-}  // namespace nor::env::polymorph
+}  // namespace nor::games::polymorph
 
 namespace nor {
 
 template <>
-struct fosg_traits< env::polymorph::Infostate > {
-   using observation_type = nor::env::polymorph::Observation;
+struct fosg_traits< games::polymorph::Infostate > {
+   using observation_type = nor::games::polymorph::Observation;
 };
 
 template <>
-struct fosg_traits< nor::env::polymorph::Environment > {
-   using world_state_type = nor::env::polymorph::Worldstate;
-   using info_state_type = nor::env::polymorph::Infostate;
-   using public_state_type = nor::env::polymorph::Publicstate;
-   using action_type = nor::env::polymorph::Action;
-   using observation_type = nor::env::polymorph::Observation;
+struct fosg_traits< nor::games::polymorph::Environment > {
+   using world_state_type = nor::games::polymorph::Worldstate;
+   using info_state_type = nor::games::polymorph::Infostate;
+   using public_state_type = nor::games::polymorph::Publicstate;
+   using action_type = nor::games::polymorph::Action;
+   using observation_type = nor::games::polymorph::Observation;
 };
 
 }  // namespace nor
@@ -277,7 +276,7 @@ namespace std {
 
 template < typename StateType >
    requires common::
-      is_any_v< StateType, nor::env::polymorph::Publicstate, nor::env::polymorph::Infostate >
+      is_any_v< StateType, nor::games::polymorph::Publicstate, nor::games::polymorph::Infostate >
    struct hash< StateType > {
    size_t operator()(const StateType& state) const noexcept { return state.hash(); }
 };

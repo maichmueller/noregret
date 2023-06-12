@@ -5,7 +5,7 @@
 namespace nor::py {
 
 /* Trampoline Class */
-struct PyObservation: public nor::env::polymorph::Observation {
+struct PyObservation: public nor::games::polymorph::Observation {
    /* Inherit the constructors */
    using Observation::Observation;
 
@@ -37,8 +37,8 @@ struct PyObservation: public nor::env::polymorph::Observation {
 namespace std {
 
 template <>
-struct hash< nor::env::polymorph::Observation > {
-   size_t operator()(const nor::env::polymorph::Observation& observation) const
+struct hash< nor::games::polymorph::Observation > {
+   size_t operator()(const nor::games::polymorph::Observation& observation) const
    {
       return observation.hash();
    }

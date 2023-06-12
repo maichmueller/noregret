@@ -10,6 +10,8 @@ struct current_policy {};
 
 struct average_policy {};
 
+struct internal_construct {};
+
 }  // namespace nor::tag
 
 #endif  // NOR_TAG_HPP

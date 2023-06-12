@@ -6,7 +6,7 @@
 namespace nor::py {
 
 /* Trampoline Class */
-struct PyPublicstate: public nor::env::polymorph::Publicstate {
+struct PyPublicstate: public nor::games::polymorph::Publicstate {
    /* Inherit the constructors */
    using Publicstate::Publicstate;
 
@@ -43,10 +43,10 @@ struct PyPublicstate: public nor::env::polymorph::Publicstate {
       );
    }
 
-   const nor::env::polymorph::Observation& operator[](size_t arg) const override
+   const nor::games::polymorph::Observation& operator[](size_t arg) const override
    {
       PYBIND11_OVERRIDE_NAME(
-         const nor::env::polymorph::Observation&, /* Return type */
+         const nor::games::polymorph::Observation&, /* Return type */
          Publicstate, /* Parent class */
          "__getitem__", /* Name of function in Python */
          operator[], /* Name of function in C++ */
@@ -54,7 +54,7 @@ struct PyPublicstate: public nor::env::polymorph::Publicstate {
       );
    }
 
-   Publicstate& append(const nor::env::polymorph::Observation& obs) override
+   Publicstate& append(const nor::games::polymorph::Observation& obs) override
    {
       PYBIND11_OVERRIDE_NAME(
          Publicstate&, /* Return type */
@@ -71,8 +71,8 @@ struct PyPublicstate: public nor::env::polymorph::Publicstate {
 namespace std {
 
 template <>
-struct hash< nor::env::polymorph::Publicstate > {
-   size_t operator()(const nor::env::polymorph::Publicstate& publicstate) const
+struct hash< nor::games::polymorph::Publicstate > {
+   size_t operator()(const nor::games::polymorph::Publicstate& publicstate) const
    {
       return publicstate.hash();
    }

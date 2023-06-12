@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "nor/game_defs.hpp"
+#include "nor/rm/tag.hpp"
 #include "nor/utils/utils.hpp"
 
 namespace nor {
@@ -201,11 +202,9 @@ struct BaseWrapper {
       conditional_t< is_polymorphic, sptr< underlying_type >, underlying_type >;
 
   protected:
-   struct internal_construct_tag {};
-
    /// internal constructor to actually allocate the member
    template < typename... Ts >
-   BaseWrapper(internal_construct_tag, Ts&&... args)
+   BaseWrapper(tag::internal_construct, Ts&&... args)
        : m_member(_init_member(std::forward< Ts >(args)...))
    {
    }
@@ -214,12 +213,12 @@ struct BaseWrapper {
    template < typename T1, typename... Ts >
       requires common::is_none_v<
          std::decay_t< T1 >,  // decay_t to avoid checking each ref-case individually
-         internal_construct_tag,  // don't recurse back from internal constructors or self
+         tag::internal_construct,  // don't recurse back from internal constructors or self
          BaseWrapper  // don't steal the copy/move constructor calls (std::remove_cvref ensures
                       // both)
          >
    explicit BaseWrapper(T1&& t1, Ts&&... args)
-       : BaseWrapper(internal_construct_tag{}, std::forward< T1 >(t1), std::forward< Ts >(args)...)
+       : BaseWrapper(tag::internal_construct{}, std::forward< T1 >(t1), std::forward< Ts >(args)...)
    {
    }
 
@@ -231,7 +230,7 @@ struct BaseWrapper {
 
    BaseWrapper()
       requires std::is_default_constructible_v< underlying_type >
-       : BaseWrapper(internal_construct_tag{})
+       : BaseWrapper(tag::internal_construct{})
    {
    }
    /// implicit converion operators so that the contained type will be passable to functions that
@@ -263,10 +262,10 @@ struct BaseWrapper {
    [[nodiscard]] derived_wrapper_type copy() const
    {
       // copy_tag to avoid the implicit copy constructor
-      return derived_wrapper_type{internal_construct_tag{}, get()};
+      return derived_wrapper_type{tag::internal_construct{}, get()};
    }
 
-   std::string to_string() const
+   [[nodiscard]] std::string to_string() const
       requires requires(underlying_type obj) { obj.to_string(); }
    {
       return get().to_string();
@@ -288,7 +287,7 @@ struct BaseWrapper {
             return underlying_type{std::forward< Ts >(ts)...};
          }
       };
-      if constexpr(std::is_same_v< std::decay_t< FirstArg >, internal_construct_tag >) {
+      if constexpr(std::is_same_v< std::decay_t< FirstArg >, tag::internal_construct >) {
          return _init_member_impl(std::forward< Args >(args)...);
       } else {
          return _init_member_impl(
@@ -329,7 +328,7 @@ struct InfostateWrapper: public BaseWrapper< InfostateWrapper, Infostate > {
    using base::get;
    using observation_type = typename fosg_auto_traits< Infostate >::observation_type;
 
-   size_t size() const { return get().size(); }
+   [[nodiscard]] size_t size() const { return get().size(); }
 
    const auto& update(const observation_type& public_obs, const observation_type& private_obs)
    {
@@ -340,7 +339,7 @@ struct InfostateWrapper: public BaseWrapper< InfostateWrapper, Infostate > {
 
    const auto& operator[](auto index) const { return get()[size_t(index)]; }
 
-   Player player() const { return get().player(); }
+   [[nodiscard]] Player player() const { return get().player(); }
 };
 
 template < typename Publicstate >
@@ -350,7 +349,7 @@ struct PublicstateWrapper: public BaseWrapper< PublicstateWrapper, Publicstate >
    using base::get;
    using observation_type = typename fosg_auto_traits< Publicstate >::observation_type;
 
-   size_t size() const { return get().size(); }
+   [[nodiscard]] size_t size() const { return get().size(); }
 
    const auto& update(const observation_type& public_obs, const observation_type& private_obs)
    {

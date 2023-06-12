@@ -10,7 +10,7 @@
 namespace nor::py {
 
 /* Trampoline Class */
-struct PyChanceOutcome: public nor::env::polymorph::ChanceOutcome {
+struct PyChanceOutcome: public nor::games::polymorph::ChanceOutcome {
    /* Inherit the constructors */
    using ChanceOutcome::ChanceOutcome;
 

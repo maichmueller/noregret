@@ -25,6 +25,7 @@
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 #include "rm_utils.hpp"
+#include "tag.hpp"
 
 namespace nor::rm {
 
@@ -180,21 +181,16 @@ class VanillaCFR:
    VanillaCFR& operator=(const VanillaCFR&) = delete;
    VanillaCFR& operator=(VanillaCFR&&) noexcept = default;
 
-  private:
-   // tag dispatch to explicitly call private constructor from public facing generic one.
-   struct internal_construct_tag {};
-
-  public:
    // forwarding wrapper constructor around all constructors
    template < typename T1, typename... Args >
    // exclude potential recursion traps
       requires common::is_none_v<
          std::remove_cvref_t< T1 >,  // remove cvref to avoid checking each ref-case individually
-         internal_construct_tag,  // don't recurse back from internal constructors or self
+         tag::internal_construct,  // don't recurse back from internal constructors or self
          VanillaCFR  // don't steal the copy/move constructor calls (std::remove_cvref ensures both)
          >
    VanillaCFR(T1&& t, Args&&... args)
-       : VanillaCFR(internal_construct_tag{}, std::forward< T1 >(t), std::forward< Args >(args)...)
+       : VanillaCFR(tag::internal_construct{}, std::forward< T1 >(t), std::forward< Args >(args)...)
    {
       assert_serialized_and_unrolled(_env());
    }
@@ -205,21 +201,21 @@ class VanillaCFR:
          std::array{CFRWeightingMode::discounted, CFRWeightingMode::exponential},
          config.weighting_mode
       ))
-   VanillaCFR(internal_construct_tag, Args&&... args) : base(std::forward< Args >(args)...)
+   VanillaCFR(tag::internal_construct, Args&&... args) : base(std::forward< Args >(args)...)
    {
    }
 
    template < typename... Args >
       requires(config.weighting_mode == CFRWeightingMode::discounted)
-   VanillaCFR(internal_construct_tag, CFRDiscountedParameters params, Args&&... args)
-       : base(std::forward< Args >(args)...), m_dcfr_params(std::move(params))
+   VanillaCFR(tag::internal_construct, CFRDiscountedParameters params, Args&&... args)
+       : base(std::forward< Args >(args)...), m_dcfr_params(params)
    {
    }
 
    template < typename... Args >
       requires(config.weighting_mode == CFRWeightingMode::exponential)
-   VanillaCFR(internal_construct_tag, CFRExponentialParameters params, Args&&... args)
-       : base(std::forward< Args >(args)...), m_expcfr_params(std::move(params))
+   VanillaCFR(tag::internal_construct, CFRExponentialParameters params, Args&&... args)
+       : base(std::forward< Args >(args)...), m_expcfr_params(params)
    {
    }
 
