@@ -26,8 +26,8 @@ enum class Player {
    ten = 9
 };
 
-template < typename T, std::integral To = size_t >
-inline auto as_integral(T p)
+template < std::integral To = size_t, typename T >
+inline To as_int(T p)
 {
    // we let things silently fail in the call site if Player::chance is passed in here for example
    return static_cast< To >(p);
@@ -95,12 +95,11 @@ struct LeducConfig {
       {Rank::king, Suit::diamonds}};
 };
 
-inline auto leduc5_config()
+inline LeducConfig leduc5_config()
 {
    // returns a bigger betting range config, which will blow up the action space and thus game tree
    // enormously! as per Noam Brown's thesis: Nr of information sets for Leduc: 288, Leduc-5: 34224
-   return LeducConfig{
-      .bet_sizes_round_one = {0.5, 1, 2, 4, 8}, .bet_sizes_round_two = {1, 2, 4, 8, 16}};
+   return {.bet_sizes_round_one = {0.5, 1, 2, 4, 8}, .bet_sizes_round_two = {1, 2, 4, 8, 16}};
 }
 
 /**
@@ -110,19 +109,19 @@ class HistorySinceBet {
   public:
    HistorySinceBet(std::vector< std::optional< Action > > cont) : m_container(std::move(cont)) {}
 
-   auto& operator[](Player player) { return m_container[as_integral(player)]; }
+   auto& operator[](Player player) { return m_container[as_int(player)]; }
 
-   auto& operator[](Player player) const { return m_container[as_integral(player)]; }
+   auto& operator[](Player player) const { return m_container[as_int(player)]; }
 
    void reset()
    {
       ranges::for_each(m_container, [](auto& action_opt) { action_opt.reset(); });
    }
 
-   bool all_acted(const std::vector< Player >& remaining_players)
+   inline bool all_acted(const std::vector< Player >& remaining_players)
    {
       return ranges::all_of(remaining_players, [&](Player player) {
-         return m_container[as_integral(player)].has_value();
+         return m_container[as_int(player)].has_value();
       });
    }
 
@@ -149,7 +148,7 @@ inline bool operator==(const HistorySinceBet& left, const HistorySinceBet& right
 
 class State {
   public:
-   State(sptr< LeducConfig > config);
+   State(sptr< const LeducConfig > config);
 
    template < typename... Args >
    auto apply_action(Args... args)
@@ -160,7 +159,7 @@ class State {
    void apply_action(Card action);
    bool is_terminal();
    std::vector< double > payoff();
-   inline double payoff(Player player) { return payoff()[as_integral(player)]; }
+   inline double payoff(Player player) { return payoff()[as_int(player)]; }
 
    template < typename... Args >
    [[nodiscard]] auto is_valid(Args... args) const
@@ -174,7 +173,7 @@ class State {
    [[nodiscard]] double chance_probability(Card action) const;
 
    [[nodiscard]] auto active_player() const { return m_active_player; }
-   [[nodiscard]] auto card(Player player) const { return m_player_cards[as_integral(player)]; }
+   [[nodiscard]] auto card(Player player) const { return m_player_cards[as_int(player)]; }
    [[nodiscard]] auto public_card() const { return m_public_card; }
    [[nodiscard]] auto& history() const { return m_history; }
    [[nodiscard]] auto& cards() const { return m_player_cards; }
@@ -190,14 +189,27 @@ class State {
    HistorySinceBet m_history;
    bool m_is_terminal = false;
    bool m_terminal_checked = false;
-   sptr< LeducConfig > m_config;
+   sptr< const LeducConfig > m_config;
 
    static const std::vector< HistorySinceBet >& _all_terminal_histories();
    [[nodiscard]] bool _all_player_cards_assigned() const;
    [[nodiscard]] bool _has_higher_card(Player player) const;
    Player _next_active_player();
    void _single_pot_winner(std::vector< double >& payoffs, Player player) const;
-   void _split_pot(std::vector< double >& payoffs, ranges::span< Player > players_with_pairs) const;
+
+   template < ranges::sized_range Range >
+      requires std::is_same_v< ranges::value_type_t< Range >, Player >
+   void _split_pot(std::vector< double >& payoffs, const Range& players_with_pairs) const
+   {
+      ranges::for_each(
+         players_with_pairs,
+         [&,
+          pot = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.),
+          n_winners = static_cast< double >(players_with_pairs.size())](Player p) {
+            payoffs[as_int(p)] = pot / n_winners;
+         }
+      );
+   }
 };
 
 }  // namespace leduc

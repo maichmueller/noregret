@@ -10,16 +10,16 @@ using namespace leduc;
 
 TEST_F(LeducPokerState, apply_chance_action)
 {
-   state.apply_action(Card{Rank::king, Suit::diamonds});
-   state.apply_action(Card{Rank::jack, Suit::diamonds});
+   state.apply_action(Rank::king, Suit::diamonds);
+   state.apply_action(Rank::jack, Suit::diamonds);
    EXPECT_EQ(state.card(Player::one), Card(Rank::king, Suit::diamonds));
    EXPECT_EQ(state.card(Player::two), Card(Rank::jack, Suit::diamonds));
 }
 
 TEST_F(LeducPokerState, apply_action)
 {
-   state.apply_action(Card{Rank::king, Suit::diamonds});
-   state.apply_action(Card{Rank::jack, Suit::diamonds});
+   state.apply_action(Rank::king, Suit::diamonds);
+   state.apply_action(Rank::jack, Suit::diamonds);
 
    // P1 checks
    state.apply_action(ActionType::check);
@@ -71,8 +71,8 @@ TEST_F(LeducPokerState, is_valid_chance_action)
 
 TEST_F(LeducPokerState, is_valid_action)
 {
-   state.apply_action(Card{Rank::king, Suit::diamonds});
-   state.apply_action(Card{Rank::jack, Suit::diamonds});
+   state.apply_action(Rank::king, Suit::diamonds);
+   state.apply_action(Rank::jack, Suit::diamonds);
    EXPECT_TRUE(state.is_valid(ActionType::check));
    EXPECT_FALSE(state.is_valid(Rank::ace, Suit::clubs));
    EXPECT_FALSE(state.is_valid(Rank::king, Suit::diamonds));

@@ -1,6 +1,8 @@
 
 #include "leduc_poker/state.hpp"
 
+#include <unordered_set>
+
 namespace leduc {
 
 inline Player State::_next_active_player()
@@ -23,9 +25,10 @@ void State::apply_action(Action action)
    switch(action.action_type) {
       case ActionType::bet: {
          m_bets_this_round += 1;
-         m_stakes[as_integral(m_active_player
-         )] += (m_active_bettor.has_value() ? m_history[m_active_bettor.value()].value().bet : 0.)
-               + action.bet;
+         m_stakes[as_int(m_active_player)] += (m_active_bettor.has_value()
+                                                  ? m_history[*m_active_bettor]->bet
+                                                  : 0.)
+                                              + action.bet;
          m_active_bettor = m_active_player;
          // with a fresh bet we need to go around and ask every player anew for their response
          m_history.reset();
@@ -34,9 +37,7 @@ void State::apply_action(Action action)
       case ActionType::check: {
          if(m_active_bettor.has_value()) {
             // if there is a bettor then check is actually a call --> add to the player's stakes
-            m_stakes[as_integral(m_active_player)] += m_history[m_active_bettor.value()]
-                                                         .value()
-                                                         .bet;
+            m_stakes[as_int(m_active_player)] += m_history[*m_active_bettor]->bet;
          }
          break;
       }
@@ -85,20 +86,16 @@ bool State::is_terminal()
    if(m_terminal_checked) {
       return m_is_terminal;
    }
-   m_is_terminal = [&] {
-      if(m_remaining_players.size() == 1) {
+   m_is_terminal = std::invoke([&] {
+      if(m_remaining_players.size() <= 1) {
          return true;
       }
-
-      // there is more than 1 player remaining from here on out
 
       if(not m_public_card.has_value()) {
          // if the public card has not yet been set then the game cannot be over with more than 1
          // player remaining
          return false;
       }
-
-      // the public card has already been placed from here on out
 
       if(ranges::accumulate(
             m_history.container() | ranges::views::transform([](const auto& opt_action) {
@@ -114,8 +111,7 @@ bool State::is_terminal()
          return true;
       }
       return false;
-   }();
-
+   });
    m_terminal_checked = true;
    return m_is_terminal;
 }
@@ -123,9 +119,9 @@ bool State::is_terminal()
 void State::_single_pot_winner(std::vector< double >& payoffs, Player player) const
 {
    // the chosen player is the winnign player so all of the pot goes to him, the payoff is the
-   // surpluss with respet to his own bet
-   payoffs[as_integral(player)] = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.)
-                                  - static_cast< double >(m_stakes[as_integral(player)]);
+   // surpluss with respect to his own bet
+   payoffs[as_int(player)] = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.)
+                             - static_cast< double >(m_stakes[as_int(player)]);
 }
 
 std::vector< double > State::payoff()
@@ -134,70 +130,59 @@ std::vector< double > State::payoff()
       return std::vector(m_remaining_players.size(), 0.);
    }
    // initiate payoffs first as negative stakes for each player
-   auto payoffs = ranges::to_vector(ranges::views::transform(m_stakes, [](auto value) {
-      return -double(value);
-   }));
+   std::vector< double > payoffs;
+   payoffs.reserve(m_stakes.size());
+   ranges::insert(
+      payoffs, payoffs.begin(), m_stakes | ranges::views::transform([](const auto& value) {
+                                   return -value;
+                                })
+   );
 
    if(auto n_remaining = m_remaining_players.size(); n_remaining == 1) {
       _single_pot_winner(payoffs, m_remaining_players[0]);
    } else {
+      assert(m_public_card.has_value());
       // in the following we can also assume that the public card is set, since there is a showdown
       // (aka it is a terminal state)!
-      Card pub_card = m_public_card.value();
+      Card pub_card = *m_public_card;
       // there is a showdown between 2 or more players. We thus need to see who has the pair, if
       // any, or otherwise who has the highest card
-      std::vector< std::pair< Player, Card > > private_cards_left;
-      std::vector< Player > players_with_pairs;
-      private_cards_left.reserve(n_remaining);
+      std::vector< Player > winners;
       for(auto p : m_remaining_players) {
-         auto card = m_player_cards[as_integral(p)];
-         private_cards_left.emplace_back(std::pair{p, card});
-         if(card.rank == pub_card.rank) {
-            players_with_pairs.emplace_back(p);
+         if(m_player_cards[as_int(p)].rank == pub_card.rank) {
+            winners.emplace_back(p);
          }
       }
       // now we check for pairs with the public card first, and then for highest card
-      if(players_with_pairs.size() == 1) {
-         _single_pot_winner(payoffs, players_with_pairs[0]);
-      } else if(players_with_pairs.size() > 1) {
+      if(winners.size() == 1) {
+         _single_pot_winner(payoffs, winners[0]);
+      } else if(winners.size() > 1) {
          // more than one winner --> split pot
-         _split_pot(payoffs, players_with_pairs);
+         _split_pot(payoffs, winners);
       } else {
-         // no player has a pair --> next critera:
-         // of all the players who has the highest card?
-         std::vector< Player > winners{m_remaining_players[0]};
-         Rank highest_rank = m_player_cards[as_integral(m_remaining_players[0])].rank;
-         for(auto player_iter = m_remaining_players.begin() + 1;
-             player_iter != m_remaining_players.end();
-             player_iter++) {
-            auto curr_rank = m_player_cards[as_integral(*player_iter)].rank;
+         // no player has a pair --> next critera: who has the highest card?
+         auto rem_player_begin = m_remaining_players.begin();
+         winners.emplace_back(*rem_player_begin);
+         Rank highest_rank = m_player_cards[as_int(*rem_player_begin)].rank;
+         for(auto rem_player : ranges::subrange{rem_player_begin + 1, m_remaining_players.end()}) {
+            auto curr_rank = m_player_cards[as_int(rem_player)].rank;
             if(curr_rank > highest_rank) {
                winners.clear();
-               winners.emplace_back(*player_iter);
+               winners.emplace_back(rem_player);
                highest_rank = curr_rank;
             } else if(curr_rank == highest_rank) {
-               winners.emplace_back(*player_iter);
+               winners.emplace_back(rem_player);
             }
          }
          if(winners.size() == 1) {
-            _single_pot_winner(payoffs, winners[0]);
+            _single_pot_winner(payoffs, *winners.begin());
          } else {
             _split_pot(payoffs, winners);
          }
       }
    }
-
+   payoffs.shrink_to_fit();
    return payoffs;
-}
-
-void State::_split_pot(std::vector< double >& payoffs, ranges::span< Player > players_with_pairs)
-   const
-{
-   double pot = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.);
-   double n_winners = static_cast< double >(players_with_pairs.size());
-   for(Player p : players_with_pairs) {
-      payoffs[as_integral(p)] = pot / n_winners;
-   }
 }
 
 bool State::is_valid(Action action) const
@@ -258,7 +243,7 @@ double State::chance_probability(Card) const
    return 1. / double(chance_actions().size());
 }
 
-State::State(sptr< LeducConfig > config)
+State::State(sptr< const LeducConfig > config)
     : m_remaining_players(),
       m_player_cards(),
       m_stakes(config->n_players, config->small_blind),  // everyone places at least the small blind
