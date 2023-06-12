@@ -37,9 +37,8 @@ nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::
 {
    if(outcome.player == to_kuhn_player(observer)) {
       return std::string(common::to_string(outcome));
-   } else {
-      return "-";
    }
+   return "-";
 }
 
 nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::public_observation(
@@ -101,7 +100,7 @@ nor::games::kuhn::Environment::private_history(nor::Player player, const world_s
    }
    for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
       if(i != static_cast< size_t >(player)) {
-         out.emplace_back(std::move(action_or_outcome), to_nor_player(kuhn::Player(i)));
+         out.emplace_back(action_or_outcome, to_nor_player(kuhn::Player(i)));
       } else {
          out.emplace_back(std::nullopt, to_nor_player(kuhn::Player(i)));
       }
@@ -120,7 +119,7 @@ nor::games::kuhn::Environment::open_history(const world_state_type& wstate) cons
    auto action_history = wstate.history();
    out.reserve(action_history.size() + 2);
    for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
-      out.emplace_back(std::move(action), to_nor_player(kuhn::Player(i)));
+      out.emplace_back(action, to_nor_player(kuhn::Player(i)));
    }
    out.shrink_to_fit();
    return out;
@@ -132,7 +131,7 @@ nor::games::kuhn::Environment::public_history(const world_state_type& wstate) co
 {
    auto hist = private_history(Player::alex, wstate);
    // hide the first entry too, since this is private information to Alex
-   if(hist.size() > 0) {
+   if(not hist.empty()) {
       hist[0].value().reset();
    }
    return hist;

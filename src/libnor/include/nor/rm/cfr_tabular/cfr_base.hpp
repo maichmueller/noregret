@@ -16,13 +16,13 @@
 #include <vector>
 
 #include "common/common.hpp"
-#include "forest.hpp"
-#include "node.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/rm/forest.hpp"
+#include "nor/rm/node.hpp"
+#include "nor/rm/rm_utils.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
-#include "rm_utils.hpp"
 
 namespace nor::rm {
 

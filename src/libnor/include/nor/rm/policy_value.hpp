@@ -2,8 +2,6 @@
 #ifndef NOR_POLICY_VALUE_HPP
 #define NOR_POLICY_VALUE_HPP
 
-#include "cfr_config.hpp"
-#include "cfr_vanilla.hpp"
 #include "nor/concepts.hpp"
 #include "rm_utils.hpp"
 

@@ -3,11 +3,8 @@
 #define NOR_FACTORY_HPP
 
 #include "nor/policy/policy.hpp"
-#include "nor/rm/cfr_discounted.hpp"
-#include "nor/rm/cfr_exponential.hpp"
-#include "nor/rm/cfr_monte_carlo.hpp"
-#include "nor/rm/cfr_plus.hpp"
-#include "nor/rm/cfr_vanilla.hpp"
+#include "nor/rm/cfr_tabular/cfr.hpp"
+#include "nor/rm/cfr_tabular/mccfr.hpp"
 
 namespace nor {
 
