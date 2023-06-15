@@ -3,7 +3,7 @@
 #define NOR_PY_TRAMPOLINES_WORLDSTATE_HPP
 
 #include "nor/env/polymorphic_env.hpp"
-namespace nor::py {
+namespace nor::binding {
 
 /* Trampoline Class */
 struct PyWorldstate: public nor::games::polymorph::Worldstate {
@@ -11,6 +11,6 @@ struct PyWorldstate: public nor::games::polymorph::Worldstate {
    using Worldstate::Worldstate;
 };
 
-}  // namespace nor::py
+}  // namespace nor::binding
 
 #endif  // NOR_PY_TRAMPOLINES_WORLDSTATE_HPP

@@ -2,9 +2,9 @@
 #ifndef NOR_PY_TRAMPOLINES_ACTION_HPP
 #define NOR_PY_TRAMPOLINES_ACTION_HPP
 
-#include "nor/env.hpp"
+#include "nor/env/polymorphic_env.hpp"
 
-namespace nor::py {
+namespace nor::binding {
 
 /* Trampoline Class */
 struct PyAction: public nor::games::polymorph::Action {
@@ -34,7 +34,7 @@ struct PyAction: public nor::games::polymorph::Action {
    }
 };
 
-}  // namespace nor::py
+}  // namespace nor::binding
 
 namespace std {
 

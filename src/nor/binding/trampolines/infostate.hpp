@@ -6,12 +6,13 @@
 
 #include "nor/env/polymorphic_env.hpp"
 
-namespace nor::py {
+namespace nor::binding {
 
 /* Trampoline Class */
 struct PyInfostate: public nor::games::polymorph::Infostate {
    /* Inherit the constructors */
    using Infostate::Infostate;
+   using Infostate::observation_type;
 
    size_t hash() const override
    {
@@ -46,10 +47,10 @@ struct PyInfostate: public nor::games::polymorph::Infostate {
       );
    }
 
-   const nor::games::polymorph::Observation& operator[](size_t arg) const override
+   const observation_type& operator[](size_t arg) const override
    {
       PYBIND11_OVERRIDE_NAME(
-         const nor::games::polymorph::Observation&, /* Return type */
+         const observation_type&, /* Return type */
          Infostate, /* Parent class */
          "__getitem__", /* Name of function in Python */
          operator[], /* Name of function in C++ */
@@ -57,29 +58,20 @@ struct PyInfostate: public nor::games::polymorph::Infostate {
       );
    }
 
-   Infostate& append(const nor::games::polymorph::Observation& obs) override
+   Infostate& update(const observation_type& pub_obs, const observation_type& priv_obs) override
    {
       PYBIND11_OVERRIDE_NAME(
          Infostate&, /* Return type */
          Infostate, /* Parent class */
-         "append", /* Name of function in Python */
-         append, /* Name of function in C++ */
-         obs /* Arguments */
-      );
-   }
-
-   nor::Player player() const override
-   {
-      PYBIND11_OVERRIDE_NAME(
-         nor::Player, /* Return type */
-         Infostate, /* Parent class */
-         "player", /* Name of function in Python */
-         player, /* Name of function in C++ */
+         "update", /* Name of function in Python */
+         update, /* Name of function in C++ */
+         pub_obs, /* Arguments */
+         priv_obs
       );
    }
 };
 
-}  // namespace nor::py
+}  // namespace nor::binding
 
 namespace std {
 

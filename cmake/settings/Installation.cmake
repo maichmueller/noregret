@@ -1,4 +1,4 @@
-# use, i.e. don't skip the full RPATH for the build tree
+# use (i.e. don't skip) the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 
 # when building, don't use the install RPATH already (but later on when installing)
@@ -20,19 +20,18 @@ if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
 endif("${isSystemDir}" STREQUAL "-1")
 
-if(SKBUILD)
-    message("Building with scikit-build. Configuring only for python build.")
+if(INSTALL_PYMODULE)
+    message("Configuring installation for python module.")
     if(APPLE)
         set(rpath_orig "'@executable_path'")
     else()
         set(rpath_orig "'$ORIGIN'")
     endif()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath=$ORIGIN")
-    # install locally so that sciki-build can correctly install it The destination is relative to the path given to
-    # skbuild in the cmake_install_dir parameter within setup in setup.py
-    install(TARGETS ${nor_pymodule} LIBRARY DESTINATION pynor)
-    install(TARGETS ${nor_lib} LIBRARY DESTINATION pynor)
+
+    install(TARGETS ${nor_pymodule} LIBRARY DESTINATION nor)
 else()
+    message("Configuring installation for c++ library.")
     if(ENABLE_TESTING)
         find_package("GTest")
         enable_testing()

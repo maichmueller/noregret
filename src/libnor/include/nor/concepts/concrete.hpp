@@ -47,8 +47,8 @@ concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped)
 
 template < typename MapLike >
 concept mapping = (not common::is_specialization_v< MapLike, ranges::ref_view >)
-   // the first condition is merely a bugfix for an error associated with the range
-   // library which IMO should not occur: https://stackoverflow.com/q/74263486/6798071
+   // the first condition is merely a patch for a (IMO) bug associated with the range
+   // library: https://stackoverflow.com/q/74263486/6798071
    and requires(MapLike m) {
       // has to be key-value-like
       // to iterate over values and

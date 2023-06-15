@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.17)
 
 project(
     NOR
-    VERSION 0.1
+    VERSION 0.0.1
     LANGUAGES CXX)
 
 string(TOLOWER ${PROJECT_NAME} PROJECT_NAME_LOWERCASE)
@@ -11,7 +11,6 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
 # options
-
 option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be installed on the system" ON)
 option(ENABLE_BUILD_PYTHON_EXTENSION "Enable building the python extension." ON)
 option(ENABLE_BUILD_SANDBOX "Enable building of the sandbox testbed (Only for development purposes)." ON)
@@ -34,6 +33,7 @@ option(ENABLE_TESTING "Enable Test Builds" ON)
 option(ENABLE_GAMES "Enable Game Builds" ON)
 option(ENABLE_WARNING_PADDING "Warn when structs are memory padded" OFF)
 option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" ON)
+option(INSTALL_PYMODULE "Configure installation for python module." ON)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
 # settings
@@ -79,20 +79,24 @@ set(_cmake_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(_docs_OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/docs/_build)
 set(_docs_DOXYGEN_WORKING_DIR ${PROJECT_NOR_INCLUDE_DIR}) # has to be relative to CMAKE_CURRENT_SOURCE_DIR
 
-message(STATUS "NOR project files directory: ${PROJECT_SRC_DIR}")
-message(STATUS "NOR src directory: ${PROJECT_NOR_SRC_DIR}")
-message(STATUS "NOR include directory: ${PROJECT_NOR_INCLUDE_DIR}")
-message(STATUS "NOR bindings directory: ${PROJECT_NOR_BINDING_DIR}")
+message(STATUS "SETTINGS PRINT start:")
 
-message(STATUS "NOR c++ library name: ${nor_lib}")
-message(STATUS "NOR python extension name: ${nor_pymodule}")
-message(STATUS "BUILD_SHARED_LIBS: ${BUILD_SHARED_LIBS}")
-message(STATUS "FAST MATH SWITCH: ${ENABLE_FAST_MATH}")
+message("CMake Generator: ${CMAKE_GENERATOR}")
+message("C++ Compiler: ${CMAKE_CXX_COMPILER}")
+message("C++ Compiler Info: ${CMAKE_CXX_COMPILER_ID}, version ${CMAKE_CXX_COMPILER_VERSION}")
+message("CURRENT CMAKE BINARY DIR: ${CMAKE_CURRENT_BINARY_DIR}")
 
-message(STATUS "C++ Compiler: ${CMAKE_CXX_COMPILER}")
-message(STATUS "C++ Compiler Info: ${CMAKE_CXX_COMPILER_ID}, version ${CMAKE_CXX_COMPILER_VERSION}")
-message(STATUS "CURRENT CMAKE BINARY DIR: ${CMAKE_CURRENT_BINARY_DIR}")
-message(STATUS "settings print end.\n")
+message("NOR project files directory: ${PROJECT_SRC_DIR}")
+message("NOR src directory: ${PROJECT_NOR_SRC_DIR}")
+message("NOR include directory: ${PROJECT_NOR_INCLUDE_DIR}")
+message("NOR bindings directory: ${PROJECT_NOR_BINDING_DIR}")
+
+message("NOR c++ library name: ${nor_lib}")
+message("NOR python extension name: ${nor_pymodule}")
+message("BUILD_SHARED_LIBS: ${BUILD_SHARED_LIBS}")
+message("FAST MATH SWITCH: ${ENABLE_FAST_MATH}")
+
+message(STATUS "SETTINGS PRINT end.\n")
 
 # Set this path if the conan install is not in the standard directory This doesn't work due to a conan internal error
 # when conan is not found in the standard directory (/usr/bin on linux) It doesn't work in general when CONAN_COMMAND is
@@ -189,7 +193,7 @@ find_package(range-v3 REQUIRED)
 include(${_cmake_DIR}/targets/shared_libs.cmake)
 include(${_cmake_DIR}/targets/nor.cmake)
 if(ENABLE_BUILD_PYTHON_EXTENSION)
-    message(STATUS "Configuring Python Extension ${nor_pymodule}.")
+    message("Configuring Python Extension ${nor_pymodule}.")
     include(${_cmake_DIR}/targets/pynor.cmake)
 endif()
 if(ENABLE_GAMES)

@@ -3,12 +3,13 @@
 #define NOR_PY_TRAMPOLINES_PUBLICSTATE_HPP
 #include "nor/env/polymorphic_env.hpp"
 
-namespace nor::py {
+namespace nor::binding {
 
 /* Trampoline Class */
 struct PyPublicstate: public nor::games::polymorph::Publicstate {
    /* Inherit the constructors */
    using Publicstate::Publicstate;
+   using Publicstate::observation_type;
 
    size_t hash() const override
    {
@@ -43,10 +44,10 @@ struct PyPublicstate: public nor::games::polymorph::Publicstate {
       );
    }
 
-   const nor::games::polymorph::Observation& operator[](size_t arg) const override
+   const observation_type& operator[](size_t arg) const override
    {
       PYBIND11_OVERRIDE_NAME(
-         const nor::games::polymorph::Observation&, /* Return type */
+         const observation_type&, /* Return type */
          Publicstate, /* Parent class */
          "__getitem__", /* Name of function in Python */
          operator[], /* Name of function in C++ */
@@ -54,19 +55,19 @@ struct PyPublicstate: public nor::games::polymorph::Publicstate {
       );
    }
 
-   Publicstate& append(const nor::games::polymorph::Observation& obs) override
+   Publicstate& update(const observation_type& obs) override
    {
       PYBIND11_OVERRIDE_NAME(
          Publicstate&, /* Return type */
          Publicstate, /* Parent class */
-         "append", /* Name of function in Python */
-         append, /* Name of function in C++ */
+         "update", /* Name of function in Python */
+         update, /* Name of function in C++ */
          obs /* Arguments */
       );
    }
 };
 
-}  // namespace nor::py
+}  // namespace nor::binding
 
 namespace std {
 

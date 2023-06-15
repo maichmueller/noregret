@@ -237,6 +237,18 @@ struct BaseWrapper {
    /// use the underlying type (similar to reference_wrapper's behaviour)
    constexpr operator const underlying_type&() const noexcept { return get(); }
    constexpr operator underlying_type&() noexcept { return get(); }
+   /// implicit converion operators so that the passable to functions that use a shared_ptr of the
+   /// underlying type
+   constexpr operator const sptr< holder_type >&() const noexcept
+      requires is_polymorphic
+   {
+      return m_member;
+   }
+   constexpr operator sptr< holder_type >&() noexcept
+      requires is_polymorphic
+   {
+      return m_member;
+   }
 
    [[nodiscard]] const underlying_type& get() const
    {
@@ -253,11 +265,14 @@ struct BaseWrapper {
       return const_cast< underlying_type& >(std::as_const(*this).get());
    }
 
-   bool operator==(const BaseWrapper& other) const
+   /// equals always compares by value of the underlying type
+   bool equals(const BaseWrapper& other) const
       requires(std::equality_comparable< underlying_type >)
    {
-      return other.get() == get();
+      return get() == other.get();
    }
+   /// equality operator compares either by value or by pointer value depending on the holder type
+   bool operator==(const BaseWrapper& other) const { return m_member == other.m_member; }
 
    [[nodiscard]] derived_wrapper_type copy() const
    {
@@ -281,13 +296,20 @@ struct BaseWrapper {
    [[nodiscard]] holder_type _init_member(FirstArg&& first_arg, Args&&... args) const
    {
       constexpr auto _init_member_impl = []< typename... Ts >(Ts&&... ts) {
-         if constexpr(derived_wrapper_type::is_polymorphic) {
-            return std::make_shared< underlying_type >(std::forward< Ts >(ts)...);
+         if constexpr(is_polymorphic) {
+            if constexpr(std::same_as< std::remove_cvref_t< FirstArg >, underlying_type* > and sizeof...(Ts) == 1) {
+               // if we are only given a pointer to the underlying type then we assume the wrapper
+               // is supposed to take ownership of it and pass it to the smart pointer's constructor
+               return holder_type{std::forward< Ts >(ts)...};
+            } else {
+               // in all other cases we allocat a new smart pointer from the given arguments
+               return std::make_shared< underlying_type >(std::forward< Ts >(ts)...);
+            }
          } else {
             return underlying_type{std::forward< Ts >(ts)...};
          }
       };
-      if constexpr(std::is_same_v< std::decay_t< FirstArg >, tag::internal_construct >) {
+      if constexpr(std::same_as< std::decay_t< FirstArg >, tag::internal_construct >) {
          return _init_member_impl(std::forward< Args >(args)...);
       } else {
          return _init_member_impl(
@@ -351,10 +373,7 @@ struct PublicstateWrapper: public BaseWrapper< PublicstateWrapper, Publicstate >
 
    [[nodiscard]] size_t size() const { return get().size(); }
 
-   const auto& update(const observation_type& public_obs, const observation_type& private_obs)
-   {
-      return get().update(public_obs, private_obs);
-   }
+   const auto& update(const observation_type& obs) { return get().update(obs); }
 
    auto& operator[](auto index) { return get()[size_t(index)]; }
 

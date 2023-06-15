@@ -7,7 +7,7 @@
 
 #include "nor/env/polymorphic_env.hpp"
 
-namespace nor::py {
+namespace nor::binding {
 
 /* Trampoline Class */
 struct PyChanceOutcome: public nor::games::polymorph::ChanceOutcome {
@@ -37,13 +37,13 @@ struct PyChanceOutcome: public nor::games::polymorph::ChanceOutcome {
    }
 };
 
-}  // namespace nor::py
+}  // namespace nor::binding
 
 namespace std {
 
 template <>
-struct hash< nor::py::PyChanceOutcome > {
-   size_t operator()(const nor::py::PyChanceOutcome& chance_outcome) const
+struct hash< nor::binding::PyChanceOutcome > {
+   size_t operator()(const nor::binding::PyChanceOutcome& chance_outcome) const
    {
       return chance_outcome.hash();
    }

@@ -2,7 +2,7 @@
 #define NOR_PY_TRAMPOLINES_OBSERVATION_HPP
 
 #include "nor/env/polymorphic_env.hpp"
-namespace nor::py {
+namespace nor::binding {
 
 /* Trampoline Class */
 struct PyObservation: public nor::games::polymorph::Observation {
@@ -32,7 +32,7 @@ struct PyObservation: public nor::games::polymorph::Observation {
    }
 };
 
-}  // namespace nor::py
+}  // namespace nor::binding
 
 namespace std {
 

@@ -52,6 +52,7 @@ struct NotImplementedError: public std::exception {
 /// be used in a hash map. This requires us to have a hash function and equality function to check
 /// upon collision
 struct Action {
+   Action() = default;
    virtual ~Action() = default;
 
    NOR_VirtualBaseMethodConst(hash, size_t, );
@@ -62,7 +63,8 @@ struct Action {
 /// that it can be used in a hash map. This requires us to have a hash function and equality
 /// function to check upon collision
 struct ChanceOutcome {
-   virtual ~ChanceOutcome() = 0;
+   ChanceOutcome() = default;
+   virtual ~ChanceOutcome() = default;
 
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const ChanceOutcome&);
@@ -72,6 +74,7 @@ struct ChanceOutcome {
 /// can be used in a hash map. This requires us to have a hash function and equality function to
 /// check upon collision
 struct Observation {
+   Observation() = default;
    virtual ~Observation() = default;
 
    NOR_VirtualBaseMethodConst(hash, size_t);
@@ -87,16 +90,22 @@ struct Observation {
 /// 6. __getitem__ operator
 /// 7. player method
 struct Infostate {
+   using observation_type = Observation;
+
+   Infostate(Player player) : m_player(player) {}
    virtual ~Infostate() = default;
 
    /// non-const methods
-   NOR_VirtualBaseMethod(update, Infostate&, const Observation&, const Observation&);
+   NOR_VirtualBaseMethod(update, Infostate&, const observation_type&, const observation_type&);
    /// const methods
+   Player player() const { return m_player; }
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const Infostate&);
    NOR_VirtualBaseMethodConst(size, size_t);
-   NOR_VirtualBaseMethodConst(operator[], const Observation&, size_t);
-   NOR_VirtualBaseMethodConst(player, nor::Player);
+   NOR_VirtualBaseMethodConst(operator[], const observation_type&, size_t);
+
+  private:
+   Player m_player;
 };
 
 /// the current concept requirements on the c++ side for a publicstate are:
@@ -107,20 +116,23 @@ struct Infostate {
 /// 5. append method
 /// 6. __getitem__ operator
 struct Publicstate {
+   using observation_type = Observation;
+   Publicstate() = default;
    virtual ~Publicstate() = default;
 
    /// non-const methods
-   NOR_VirtualBaseMethod(update, Publicstate&, const Observation&);
+   NOR_VirtualBaseMethod(update, Publicstate&, const observation_type&);
    /// const methods
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const Publicstate&);
    NOR_VirtualBaseMethodConst(size, size_t);
-   NOR_VirtualBaseMethodConst(operator[], const Observation&, size_t);
+   NOR_VirtualBaseMethodConst(operator[], const observation_type&, size_t);
 };
 
 /// the current concept requirements on the c++ side for a worldstate are:
 /// 1. move constructible
 struct Worldstate {
+   Worldstate() = default;
    virtual ~Worldstate() = default;
 };
 

@@ -51,11 +51,9 @@ TEST(InfostateNode, storage_correctness)
    );
    state = next_state;
 
-   infonode_map
-      .emplace(
-         first_istate_alex, rm::InfostateNodeData< Action >{env.actions(nor::Player::alex, state)}
-      )
-      .first->second;
+   infonode_map.emplace(
+      first_istate_alex, rm::InfostateNodeData< Action >{env.actions(nor::Player::alex, state)}
+   );
 
    next_state.apply_action(player_action);
    first_istate_alex->update(
@@ -68,9 +66,9 @@ TEST(InfostateNode, storage_correctness)
    );
    state = next_state;
 
-   infonode_map
-      .emplace(istate_bob, rm::InfostateNodeData< Action >{env.actions(nor::Player::bob, state)})
-      .first->second;
+   infonode_map.emplace(
+      istate_bob, rm::InfostateNodeData< Action >{env.actions(nor::Player::bob, state)}
+   );
 
    auto second_istate_alex = std::make_shared< Infostate >(*first_istate_alex);
    next_state.apply_action(player_action);

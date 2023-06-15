@@ -1,7 +1,7 @@
 set(PYTHON_MODULE_SOURCES module.cpp)
 list(TRANSFORM PYTHON_MODULE_SOURCES PREPEND "${PROJECT_NOR_BINDING_DIR}/")
 
-if(SKBUILD)
+if(ENABLE_BUILD_PYTHON_EXTENSION AND INSTALL_PYMODULE)
     set(_pynor_exclude_from_all)
 else()
     set(_pynor_exclude_from_all EXCLUDE_FROM_ALL)

@@ -1,1 +1,1 @@
-from ._nor import *
+from ._noregret import *
