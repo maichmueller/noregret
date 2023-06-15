@@ -31,14 +31,7 @@ if(INSTALL_PYMODULE)
 
     install(TARGETS ${nor_pymodule} LIBRARY DESTINATION nor)
 else()
-    message("Configuring installation for c++ library.")
-    if(ENABLE_TESTING)
-        find_package("GTest")
-        enable_testing()
-        message(STATUS "Configuring Tests.")
-        include(${_cmake_DIR}/targets/tests.cmake)
-    endif()
-
+    message("Configuring Installation For C++ Library.")
     #
     # Install pkg-config file
     #
