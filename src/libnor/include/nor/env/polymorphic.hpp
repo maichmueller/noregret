@@ -158,14 +158,14 @@ class Environment {
 
    NOR_VirtualBaseMethodConst(
       actions,
-      NOR_SINGLE_ARG(std::vector< ActionWrapper< action_type > >),
+      NOR_SINGLE_ARG(std::vector< ActionHolder< action_type > >),
       nor::Player /*player*/,
       const world_state_type& /*wstate*/
    );
 
    NOR_VirtualBaseMethodConst(
       chance_actions,
-      NOR_SINGLE_ARG(std::vector< ActionWrapper< chance_outcome_type > >),
+      NOR_SINGLE_ARG(std::vector< ActionHolder< chance_outcome_type > >),
       const world_state_type& /*wstate*/
    );
 
@@ -179,8 +179,8 @@ class Environment {
    NOR_VirtualBaseMethodConst(
       private_history,
       NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::optional< std::variant<
-                        ChanceOutcomeWrapper< chance_outcome_type >,
-                        ActionWrapper< action_type > > > > >),
+                        ChanceOutcomeHolder< chance_outcome_type >,
+                        ActionHolder< action_type > > > > >),
       nor::Player /*player*/,
       const world_state_type& /*wstate*/
    );
@@ -188,16 +188,16 @@ class Environment {
    NOR_VirtualBaseMethodConst(
       public_history,
       NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::variant<
-                        ChanceOutcomeWrapper< chance_outcome_type >,
-                        ActionWrapper< action_type > > > >),
+                        ChanceOutcomeHolder< chance_outcome_type >,
+                        ActionHolder< action_type > > > >),
       const world_state_type& /*wstate*/
    );
 
    NOR_VirtualBaseMethodConst(
       open_history,
       NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::variant<
-                        ChanceOutcomeWrapper< chance_outcome_type >,
-                        ActionWrapper< action_type > > > >),
+                        ChanceOutcomeHolder< chance_outcome_type >,
+                        ActionHolder< action_type > > > >),
       const world_state_type& /*wstate*/
    );
 
@@ -209,55 +209,65 @@ class Environment {
 
    NOR_VirtualBaseMethodConst(active_player, nor::Player, const world_state_type& /*wstate*/);
 
-   NOR_VirtualBaseMethod(reset, void, const world_state_type& /*wstate*/);
-   NOR_VirtualBaseMethod(is_terminal, bool, world_state_type& /*wstate*/);
-   NOR_VirtualBaseMethod(
+   NOR_VirtualBaseMethodConst(is_terminal, bool, const world_state_type& /*wstate*/);
+   NOR_VirtualBaseMethodConst(
       is_partaking,
       bool,
       const world_state_type& /*wstate*/,
       nor::Player /*player*/
    );
-   NOR_VirtualBaseMethod(reward, double, nor::Player /*player*/, world_state_type& /*wstate*/);
-   NOR_VirtualBaseMethod(
+   NOR_VirtualBaseMethodConst(
+      reward,
+      double,
+      nor::Player /*player*/,
+      const world_state_type& /*wstate*/
+   );
+   NOR_VirtualBaseMethodConst(
+      rewards,
+      double,
+      std::vector< nor::Player > /*players*/,
+      const world_state_type& /*wstate*/
+   );
+   NOR_VirtualBaseMethodConst(
       transition,
       void,
       world_state_type& /*world_state*/,
       const action_type& /*action*/
    );
-   NOR_VirtualBaseMethod(
+   NOR_VirtualBaseMethodConst(
       transition,
       void,
       world_state_type& /*world_state*/,
       const chance_outcome_type& /*action*/
    );
 
-   NOR_VirtualBaseMethod(
+   NOR_VirtualBaseMethodConst(
       private_observation,
-      ObservationWrapper< observation_type >,
+      ObservationHolder< observation_type >,
       nor::Player /*player*/,
       const world_state_type& /*wstate*/,
       const action_type& /*action*/,
       const world_state_type& /*next_wstate*/
    );
-   NOR_VirtualBaseMethod(
+   NOR_VirtualBaseMethodConst(
       public_observation,
-      ObservationWrapper< observation_type >,
+      ObservationHolder< observation_type >,
       const world_state_type& /*wstate*/,
       const action_type& /*action*/,
       const world_state_type& /*next_wstate*/
    );
 
-   NOR_VirtualBaseMethod(
+   NOR_VirtualBaseMethodConst(
       private_observation,
-      ObservationWrapper< observation_type >,
+      ObservationHolder< observation_type >,
       nor::Player /*player*/,
       const world_state_type& /*wstate*/,
       const chance_outcome_type& /*chance_outcome*/,
       const world_state_type& /*next_wstate*/
    );
-   NOR_VirtualBaseMethod(
+   NOR_VirtualBaseMethodConst(
       public_observation,
-      ObservationWrapper< observation_type >,
+      ObservationHolder< observation_type >,
       const world_state_type& /*wstate*/,
       const chance_outcome_type& /*chance_outcome*/,
       const world_state_type& /*next_wstate*/
@@ -286,11 +296,16 @@ struct fosg_traits< nor::games::polymorph::Environment > {
 
 namespace std {
 
-template < typename StateType >
-   requires common::
-      is_any_v< StateType, nor::games::polymorph::Publicstate, nor::games::polymorph::Infostate >
-   struct hash< StateType > {
-   size_t operator()(const StateType& state) const noexcept { return state.hash(); }
+template < typename Type >
+   requires common::is_any_v<
+      Type,
+      nor::games::polymorph::Publicstate,
+      nor::games::polymorph::Infostate,
+      nor::games::polymorph::Action,
+      nor::games::polymorph::ChanceOutcome,
+      nor::games::polymorph::Observation >
+struct hash< Type > {
+   size_t operator()(const Type& t) const noexcept { return t.hash(); }
 };
 
 }  // namespace std

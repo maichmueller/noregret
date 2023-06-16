@@ -5,7 +5,7 @@
 
 #include <pybind11/pybind11.h>
 
-#include "nor/env/polymorphic_env.hpp"
+#include "nor/env/polymorphic.hpp"
 
 namespace nor::binding {
 

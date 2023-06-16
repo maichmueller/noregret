@@ -107,6 +107,7 @@ inline LeducConfig leduc5_config()
  */
 class HistorySinceBet {
   public:
+   HistorySinceBet(size_t n_players) : m_container({n_players, std::nullopt}) {}
    HistorySinceBet(std::vector< std::optional< Action > > cont) : m_container(std::move(cont)) {}
 
    auto& operator[](Player player) { return m_container[as_int(player)]; }
@@ -173,9 +174,17 @@ class State {
    [[nodiscard]] double chance_probability(Card action) const;
 
    [[nodiscard]] auto active_player() const { return m_active_player; }
+   [[nodiscard]] auto remaining_players() const { return m_remaining_players; }
+   [[nodiscard]] auto initial_players() const
+   {
+      return ranges::to_vector(
+         ranges::cpp20::views::iota(-1, int(m_config->n_players))
+         | ranges::views::transform([](int p) { return Player(p); })
+      );
+   }
    [[nodiscard]] auto card(Player player) const { return m_player_cards[as_int(player)]; }
    [[nodiscard]] auto public_card() const { return m_public_card; }
-   [[nodiscard]] auto& history() const { return m_history; }
+   [[nodiscard]] auto& history() const { return m_history_since_last_bet; }
    [[nodiscard]] auto& cards() const { return m_player_cards; }
 
   private:
@@ -186,7 +195,8 @@ class State {
    std::optional< Card > m_public_card = std::nullopt;
    std::optional< Player > m_active_bettor = std::nullopt;
    unsigned int m_bets_this_round = 0;
-   HistorySinceBet m_history;
+   HistorySinceBet m_history_since_last_bet;
+   std::vector< Action > m_history{};
    bool m_is_terminal = false;
    bool m_terminal_checked = false;
    sptr< const LeducConfig > m_config;

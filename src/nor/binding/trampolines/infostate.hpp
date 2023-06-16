@@ -4,7 +4,7 @@
 
 #include <pybind11/pybind11.h>
 
-#include "nor/env/polymorphic_env.hpp"
+#include "nor/env/polymorphic.hpp"
 
 namespace nor::binding {
 
@@ -58,10 +58,14 @@ struct PyInfostate: public nor::games::polymorph::Infostate {
       );
    }
 
-   Infostate& update(const observation_type& pub_obs, const observation_type& priv_obs) override
+   std::
+      pair< std::reference_wrapper< observation_type >, std::reference_wrapper< observation_type > >
+      update(const observation_type& pub_obs, const observation_type& priv_obs) override
    {
       PYBIND11_OVERRIDE_NAME(
-         Infostate&, /* Return type */
+         NOR_SINGLE_ARG(std::pair<
+                        std::reference_wrapper< observation_type >,
+                        std::reference_wrapper< observation_type > >), /* Return type */
          Infostate, /* Parent class */
          "update", /* Name of function in Python */
          update, /* Name of function in C++ */

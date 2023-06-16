@@ -1,5 +1,5 @@
 
-#include "nor/env/stratego_env.hpp"
+#include "nor/env/stratego.hpp"
 
 #include "common/common.hpp"
 #include "stratego/stratego.hpp"

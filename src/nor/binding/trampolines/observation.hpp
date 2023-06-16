@@ -1,7 +1,7 @@
 #ifndef NOR_PY_TRAMPOLINES_OBSERVATION_HPP
 #define NOR_PY_TRAMPOLINES_OBSERVATION_HPP
 
-#include "nor/env/polymorphic_env.hpp"
+#include "nor/env/polymorphic.hpp"
 namespace nor::binding {
 
 /* Trampoline Class */

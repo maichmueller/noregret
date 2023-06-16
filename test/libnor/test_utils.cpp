@@ -3,7 +3,7 @@
 
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
-#include "nor/env/kuhn_env.hpp"
+#include "nor/env/kuhn.hpp"
 #include "nor/factory.hpp"
 #include "nor/policy/action_policy.hpp"
 #include "nor/utils/utils.hpp"

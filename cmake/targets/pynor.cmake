@@ -1,4 +1,8 @@
-set(PYTHON_MODULE_SOURCES module.cpp)
+set(PYTHON_MODULE_SOURCES
+    module.cpp
+    env_polymorph.cpp
+    enums.cpp
+    policy.cpp)
 list(TRANSFORM PYTHON_MODULE_SOURCES PREPEND "${PROJECT_NOR_BINDING_DIR}/")
 
 if(ENABLE_BUILD_PYTHON_EXTENSION AND INSTALL_PYMODULE)

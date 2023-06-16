@@ -26,35 +26,34 @@ void State::apply_action(Action action)
       case ActionType::bet: {
          m_bets_this_round += 1;
          m_stakes[as_int(m_active_player)] += (m_active_bettor.has_value()
-                                                  ? m_history[*m_active_bettor]->bet
+                                                  ? m_history_since_last_bet[*m_active_bettor]->bet
                                                   : 0.)
                                               + action.bet;
          m_active_bettor = m_active_player;
          // with a fresh bet we need to go around and ask every player anew for their response
-         m_history.reset();
+         m_history_since_last_bet.reset();
          break;
       }
       case ActionType::check: {
          if(m_active_bettor.has_value()) {
             // if there is a bettor then check is actually a call --> add to the player's stakes
-            m_stakes[as_int(m_active_player)] += m_history[*m_active_bettor]->bet;
+            m_stakes[as_int(m_active_player)] += m_history_since_last_bet[*m_active_bettor]->bet;
          }
          break;
       }
       case ActionType::fold: {
          // take the folding player out of the competing player range
-         m_remaining_players.erase(
-            std::remove(m_remaining_players.begin(), m_remaining_players.end(), m_active_player)
-         );
+         m_remaining_players.erase(ranges::remove(m_remaining_players, m_active_player));
          break;
       }
    }
    // append the active player's action to the last action history
-   m_history[m_active_player] = std::move(action);
-   if(ranges::all_of(m_history.container(), [](const auto& opt) { return opt.has_value(); }))
-      [[unlikely]] {
-      // everyone acted in this round and the round is over --> on to the public card or the game is
-      // over anyway
+   m_history_since_last_bet[m_active_player] = std::move(action);
+   if(ranges::all_of(m_history_since_last_bet.container(), [](const auto& opt) {
+         return opt.has_value();
+      })) [[unlikely]] {
+      // everyone acted in this round and the round is over
+      // --> on to the public card or the game is over anyway
       m_active_player = Player::chance;
    } else [[likely]] {
       m_active_player = _next_active_player();
@@ -70,7 +69,7 @@ void State::apply_action(Card action)
       m_active_player = m_remaining_players[0];
       // reset the active bettor log. Noone is currently raising the stakes anymore
       m_active_bettor.reset();
-      m_history.reset();
+      m_history_since_last_bet.reset();
    } else [[likely]] {
       m_player_cards.emplace_back(action);
       // we have to recheck here since we added a card to the player cards
@@ -98,9 +97,10 @@ bool State::is_terminal()
       }
 
       if(ranges::accumulate(
-            m_history.container() | ranges::views::transform([](const auto& opt_action) {
-               return opt_action.has_value();
-            }),
+            m_history_since_last_bet.container()
+               | ranges::views::transform([](const auto& opt_action) {
+                    return opt_action.has_value();
+                 }),
             size_t(0),
             std::plus{}
          )
@@ -247,7 +247,7 @@ State::State(sptr< const LeducConfig > config)
     : m_remaining_players(),
       m_player_cards(),
       m_stakes(config->n_players, config->small_blind),  // everyone places at least the small blind
-      m_history({config->n_players, std::nullopt}),
+      m_history_since_last_bet(config->n_players),
       m_config(std::move(config))
 {
    size_t nr_players = m_config->n_players;

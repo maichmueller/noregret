@@ -1,7 +1,7 @@
 
 #ifndef NOR_PY_TRAMPOLINES_PUBLICSTATE_HPP
 #define NOR_PY_TRAMPOLINES_PUBLICSTATE_HPP
-#include "nor/env/polymorphic_env.hpp"
+#include "nor/env/polymorphic.hpp"
 
 namespace nor::binding {
 
