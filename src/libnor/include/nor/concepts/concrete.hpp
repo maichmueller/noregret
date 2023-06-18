@@ -83,7 +83,7 @@ concept chance_outcome = is::hashable< T > && std::equality_comparable< T >;
 template < typename T >
 concept observation = is::hashable< T > && std::equality_comparable< T >;
 
-template < typename T, typename Observation = typename fosg_auto_traits< T >::observation_type >
+template < typename T, typename Observation = auto_observation_type< T > >
 // clang-format off
 concept public_state =
 /**/  observation< Observation >
@@ -103,7 +103,7 @@ concept public_state =
       >;
 // clang-format on
 
-template < typename T, typename Observation = typename fosg_auto_traits< T >::observation_type >
+template < typename T, typename Observation = auto_observation_type< T > >
 // clang-format off
 concept info_state =
 /**/  observation< Observation >
@@ -127,14 +127,14 @@ concept info_state =
 template < typename T >
 concept world_state = std::is_move_constructible_v< T > and is::copyable_someway< T >;
 
-template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
+template < typename T, typename Action = auto_action_type< T > >
 // clang-format off
 concept action_policy_view =
       is::sized< T >
    && has::method::at_r< const T, double, Action >;
 // clang-format on
 
-template < typename T, typename Action = typename fosg_auto_traits< T >::action_type >
+template < typename T, typename Action = auto_action_type< T > >
 // clang-format off
 concept action_policy =
       action_policy_view<T, Action>
@@ -146,10 +146,10 @@ template <
    typename T,
    typename Infostate,
    typename Action,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept default_state_policy =
-/**/  info_state< Infostate, typename fosg_auto_traits< Infostate >::observation_type >
+/**/  info_state< Infostate, auto_observation_type< Infostate > >
    && action_policy< ActionPolicy >
    && has::method::call_r<
          T const,
@@ -163,23 +163,23 @@ namespace detail {
 
 template <
    typename T,
-   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
-   typename Action = typename fosg_auto_traits< T >::action_type,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename Infostate = auto_info_state_type< T >,
+   typename Action = auto_action_type< T >,
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept reference_state_policy_base =
-/**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
+/**/  info_state< Infostate,  auto_observation_type< Infostate >  >
    && action_policy< ActionPolicy >;
 // clang-format on
 
 template <
    typename T,
-   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
-   typename Action = typename fosg_auto_traits< T >::action_type,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename Infostate = auto_info_state_type< T >,
+   typename Action = auto_action_type< T >,
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept value_state_policy_base =
-/**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
+/**/  info_state< Infostate,  auto_observation_type< Infostate >  >
    && action_policy_view< ActionPolicy >;
 // clang-format on
 
@@ -187,11 +187,11 @@ concept value_state_policy_base =
 
 template <
    typename T,
-   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
-   typename Action = typename fosg_auto_traits< T >::action_type >
+   typename Infostate = auto_info_state_type< T >,
+   typename Action = auto_action_type< T > >
 // clang-format off
 concept state_policy_view =
-/**/  info_state< Infostate,  typename fosg_auto_traits< Infostate >::observation_type  >
+/**/  info_state< Infostate,  auto_observation_type< Infostate >  >
    && has::method::at_r<
          const T,
          typename T::action_policy_type,
@@ -201,9 +201,9 @@ concept state_policy_view =
 
 template <
    typename T,
-   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
-   typename Action = typename fosg_auto_traits< T >::action_type,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename Infostate = auto_info_state_type< T >,
+   typename Action = auto_action_type< T >,
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept reference_state_policy_no_default =
 /**/  detail::reference_state_policy_base< T, Infostate, Action, ActionPolicy >
@@ -222,9 +222,9 @@ concept reference_state_policy_no_default =
 template <
    typename T,
    typename DefaultPolicy,
-   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
-   typename Action = typename fosg_auto_traits< T >::action_type,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename Infostate = auto_info_state_type< T >,
+   typename Action = auto_action_type< T >,
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept reference_state_policy =
 /**/  reference_state_policy_no_default< T, Infostate, Action, ActionPolicy >
@@ -244,9 +244,9 @@ concept reference_state_policy =
 /// E.g. neural network based policies would fall under this concept
 template <
    typename T,
-   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
-   typename Action = typename fosg_auto_traits< T >::action_type,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename Infostate = auto_info_state_type< T >,
+   typename Action = auto_action_type< T >,
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept value_state_policy_no_default =
 /**/  detail::value_state_policy_base< T, Infostate, Action, ActionPolicy >
@@ -265,9 +265,9 @@ concept value_state_policy_no_default =
 template <
    typename T,
    typename DefaultPolicy,
-   typename Infostate = typename fosg_auto_traits< T >::info_state_type,
-   typename Action = typename fosg_auto_traits< T >::action_type,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename Infostate = auto_info_state_type< T >,
+   typename Action = auto_action_type< T >,
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept value_state_policy =
 /**/  value_state_policy_no_default< T, Infostate, Action, ActionPolicy >
@@ -284,7 +284,7 @@ template <
    typename T,
    typename Infostate,
    typename Action,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept state_policy_no_default =
 /**/  reference_state_policy_no_default< T, Infostate, Action, ActionPolicy >
@@ -296,7 +296,7 @@ template <
    typename DefaultPolicy,
    typename Infostate,
    typename Action,
-   typename ActionPolicy = typename fosg_auto_traits< T >::action_policy_type >
+   typename ActionPolicy = auto_action_policy_type< T > >
 // clang-format off
 concept state_policy =
 /**/  reference_state_policy< T,DefaultPolicy, Infostate, Action, ActionPolicy >
@@ -330,8 +330,8 @@ concept deterministic_env =
 
 template <
    typename Env,
-   typename Worldstate = typename fosg_auto_traits< Env >::world_state_type,
-   typename Outcome = typename fosg_auto_traits< Env >::chance_outcome_type >
+   typename Worldstate = auto_world_state_type< Env >,
+   typename Outcome = auto_chance_outcome_type< Env > >
 // clang-format off
 concept stochastic_env =
 /**/  not deterministic_env< Env >
@@ -341,12 +341,12 @@ concept stochastic_env =
 
 template <
    typename Env,
-   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
-   typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
-   typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
-   typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
-   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
-   typename Outcome = typename nor::fosg_auto_traits< Env >::chance_outcome_type >
+   typename Action = auto_action_type< Env >,
+   typename Observation = auto_observation_type< Env >,
+   typename Infostate = auto_info_state_type< Env >,
+   typename Publicstate = auto_public_state_type< Env >,
+   typename Worldstate = auto_world_state_type< Env >,
+   typename Outcome = auto_chance_outcome_type< Env > >
 // clang-format off
 concept fosg =
 /**/  action< Action >
@@ -375,15 +375,13 @@ concept fosg =
 
 template <
    typename Env,
-   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
-   typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
-   typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
-   typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
-   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
-   typename ChanceOutcomeType = std::conditional_t<
-      deterministic_env< Env >,
-      std::monostate,
-      typename fosg_auto_traits< Env >::chance_outcome_type > >
+   typename Action = auto_action_type< Env >,
+   typename Observation = auto_observation_type< Env >,
+   typename Infostate = auto_info_state_type< Env >,
+   typename Publicstate = auto_public_state_type< Env >,
+   typename Worldstate = auto_world_state_type< Env >,
+   typename ChanceOutcomeType = std::
+      conditional_t< deterministic_env< Env >, std::monostate, auto_chance_outcome_type< Env > > >
 // clang-format off
 concept supports_open_history =
       has::method::open_history< Env, Worldstate, Action, ChanceOutcomeType >;
@@ -391,12 +389,10 @@ concept supports_open_history =
 
 template <
    typename Env,
-   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
-   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
-   typename ChanceOutcomeType = std::conditional_t<
-      deterministic_env< Env >,
-      std::monostate,
-      typename fosg_auto_traits< Env >::chance_outcome_type > >
+   typename Action = auto_action_type< Env >,
+   typename Worldstate = auto_world_state_type< Env >,
+   typename ChanceOutcomeType = std::
+      conditional_t< deterministic_env< Env >, std::monostate, auto_chance_outcome_type< Env > > >
 // clang-format off
 concept supports_private_history =
       has::method::private_history< Env, Worldstate, Action, ChanceOutcomeType >
@@ -405,12 +401,10 @@ concept supports_private_history =
 
 template <
    typename Env,
-   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
-   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
-   typename ChanceOutcomeType = std::conditional_t<
-      deterministic_env< Env >,
-      std::monostate,
-      typename fosg_auto_traits< Env >::chance_outcome_type > >
+   typename Action = auto_action_type< Env >,
+   typename Worldstate = auto_world_state_type< Env >,
+   typename ChanceOutcomeType = std::
+      conditional_t< deterministic_env< Env >, std::monostate, auto_chance_outcome_type< Env > > >
 // clang-format off
 concept supports_all_histories =
       supports_private_history< Env, Action, Worldstate, ChanceOutcomeType>
@@ -422,11 +416,11 @@ concept supports_all_histories =
 
 template <
    typename Env,
-   typename Action = typename nor::fosg_auto_traits< Env >::action_type,
-   typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
-   typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
-   typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
-   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type >
+   typename Action = auto_action_type< Env >,
+   typename Observation = auto_observation_type< Env >,
+   typename Infostate = auto_info_state_type< Env >,
+   typename Publicstate = auto_public_state_type< Env >,
+   typename Worldstate = auto_world_state_type< Env > >
 // clang-format off
 concept deterministic_fosg =
 /**/  fosg< Env, Action, Observation, Infostate, Publicstate, Worldstate >
@@ -435,11 +429,11 @@ concept deterministic_fosg =
 
 template <
    typename Env,
-   typename Worldstate = typename nor::fosg_auto_traits< Env >::world_state_type,
-   typename Infostate = typename nor::fosg_auto_traits< Env >::info_state_type,
-   typename Publicstate = typename nor::fosg_auto_traits< Env >::public_state_type,
-   typename Observation = typename nor::fosg_auto_traits< Env >::observation_type,
-   typename Action = typename nor::fosg_auto_traits< Env >::action_type >
+   typename Worldstate = auto_world_state_type< Env >,
+   typename Infostate = auto_info_state_type< Env >,
+   typename Publicstate = auto_public_state_type< Env >,
+   typename Observation = auto_observation_type< Env >,
+   typename Action = auto_action_type< Env > >
 // clang-format off
 concept stochastic_fosg =
 /**/  fosg< Env, Action, Observation, Infostate, Publicstate, Worldstate >
@@ -460,16 +454,16 @@ concept tabular_cfr_requirements =
    && reference_state_policy<
          Policy,
          DefaultPolicy,
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::action_type
+         auto_info_state_type< Env >,
+         auto_action_type< Env >
       >
    && reference_state_policy<
          AveragePolicy,
          DefaultAveragePolicy,
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Env >::action_type
+         auto_info_state_type< Env >,
+         auto_action_type< Env >
       >;
 
-}  // namespace nor::concepts
+}
 
 #endif  // NOR_CONCRETE_HPP

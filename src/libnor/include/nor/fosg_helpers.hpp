@@ -19,10 +19,10 @@ auto map_histories_to_infostates(
 )
 {
    using env_type = std::remove_cvref_t< Env >;
-   using world_state_type = typename fosg_auto_traits< env_type >::world_state_type;
-   using info_state_type = typename fosg_auto_traits< env_type >::info_state_type;
+   using world_state_type = auto_world_state_type< env_type >;
+   using info_state_type = auto_info_state_type< env_type >;
 
-   using action_variant_type = typename fosg_auto_traits< env_type >::action_variant_type;
+   using action_variant_type = auto_action_variant_type< env_type >;
    // this hasher may be low quality given that boost's hash_combine paired with std::hash is not
    // necessarily a good hashing function (and long vectors may lead to many collisions)
    using history_type = std::vector< action_variant_type >;

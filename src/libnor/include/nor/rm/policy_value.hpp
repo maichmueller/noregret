@@ -215,7 +215,7 @@ struct policy_value_impl {
 template <
    typename Env,
    typename Policy,
-   typename ActionPolicy = typename fosg_auto_traits< Policy >::action_policy_type >
+   typename ActionPolicy = auto_action_policy_type< Policy > >
    requires concepts::state_policy_no_default<
                Policy,
                auto_info_state_type< std::remove_cvref_t< Env > >,

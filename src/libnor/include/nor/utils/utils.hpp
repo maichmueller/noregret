@@ -312,10 +312,9 @@ template <
    typename ObsBufferMap,
    typename InformationStateMap,
    typename Env,
-   typename Worldstate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::world_state_type,
-   typename Infostate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::info_state_type,
-   typename Observation =
-      typename fosg_auto_traits< std::remove_cvref_t< Env > >::observation_type >
+   typename Worldstate = auto_world_state_type< std::remove_cvref_t< Env > >,
+   typename Infostate = auto_info_state_type< std::remove_cvref_t< Env > >,
+   typename Observation = auto_observation_type< std::remove_cvref_t< Env > > >
 // clang-format off
 requires concepts::fosg< std::remove_cvref_t< Env >>
    and concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
@@ -380,10 +379,9 @@ template <
    typename ObsBufferMap,
    typename InformationStateMap,
    typename Env,
-   typename Worldstate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::world_state_type,
-   typename Infostate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::info_state_type,
-   typename Observation =
-      typename fosg_auto_traits< std::remove_cvref_t< Env > >::observation_type >
+   typename Worldstate = auto_world_state_type< std::remove_cvref_t< Env > >,
+   typename Infostate = auto_info_state_type< std::remove_cvref_t< Env > >,
+   typename Observation = auto_observation_type< std::remove_cvref_t< Env > > >
 // clang-format off
 requires concepts::fosg< std::remove_cvref_t< Env >>
    and concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >

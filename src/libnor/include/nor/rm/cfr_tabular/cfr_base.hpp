@@ -39,12 +39,8 @@ template < bool alternating_update, typename Env, typename Policy, typename Aver
       Env,
       Policy,
       AveragePolicy,
-      UniformPolicy<
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Policy >::action_policy_type >,
-      ZeroDefaultPolicy<
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
+      UniformPolicy< auto_info_state_type< Env >, auto_action_policy_type< Policy > >,
+      ZeroDefaultPolicy< auto_info_state_type< Env >, auto_action_policy_type< AveragePolicy > > >
 class TabularCFRBase {
    ////////////////////////////
    /// API: public typedefs ///
@@ -56,20 +52,20 @@ class TabularCFRBase {
    /// store the flag for alternating updates
    static constexpr bool alternating_updates = alternating_update;
    /// import all fosg aliases to be used in this class from the env type.
-   using action_type = typename fosg_auto_traits< Env >::action_type;
-   using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
-   using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
-   using public_state_type = typename fosg_auto_traits< Env >::public_state_type;
-   using observation_type = typename fosg_auto_traits< Env >::observation_type;
-   using chance_outcome_type = typename fosg_auto_traits< Env >::chance_outcome_type;
-   using chance_distribution_type = typename fosg_auto_traits< Env >::chance_distribution_type;
+   using action_type = auto_action_type< Env >;
+   using world_state_type = auto_world_state_type< Env >;
+   using info_state_type = auto_info_state_type< Env >;
+   using public_state_type = auto_public_state_type< Env >;
+   using observation_type = auto_observation_type< Env >;
+   using chance_outcome_type = auto_chance_outcome_type< Env >;
+   using chance_distribution_type = auto_chance_distribution_type< Env >;
 
    using uniform_policy_type = UniformPolicy<
-      typename fosg_auto_traits< Env >::info_state_type,
-      typename fosg_auto_traits< Policy >::action_policy_type >;
+      auto_info_state_type< Env >,
+      auto_action_policy_type< Policy > >;
    using zero_policy_type = UniformPolicy<
-      typename fosg_auto_traits< Env >::info_state_type,
-      typename fosg_auto_traits< Policy >::action_policy_type >;
+      auto_info_state_type< Env >,
+      auto_action_policy_type< Policy > >;
 
    /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
@@ -304,12 +300,8 @@ template < bool alternating_updates, typename Env, typename Policy, typename Ave
       Env,
       Policy,
       AveragePolicy,
-      UniformPolicy<
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Policy >::action_policy_type >,
-      ZeroDefaultPolicy<
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
+      UniformPolicy< auto_info_state_type< Env >, auto_action_policy_type< Policy > >,
+      ZeroDefaultPolicy< auto_info_state_type< Env >, auto_action_policy_type< AveragePolicy > > >
 Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle_player_to_update(
    std::optional< Player > player_to_update
 )
@@ -350,12 +342,8 @@ template < bool alternating_updates, typename Env, typename Policy, typename Ave
       Env,
       Policy,
       AveragePolicy,
-      UniformPolicy<
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< Policy >::action_policy_type >,
-      ZeroDefaultPolicy<
-         typename fosg_auto_traits< Env >::info_state_type,
-         typename fosg_auto_traits< AveragePolicy >::action_policy_type > >
+      UniformPolicy< auto_info_state_type< Env >, auto_action_policy_type< Policy > >,
+      ZeroDefaultPolicy< auto_info_state_type< Env >, auto_action_policy_type< AveragePolicy > > >
 template < bool current_policy >
 auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_policy(
    const info_state_type& infostate,

@@ -112,7 +112,7 @@ template <
    typename Policy,
    typename RegretMap,
    typename ActionWrapper,
-   typename Action = typename fosg_auto_traits< Policy >::action_type >
+   typename Action = auto_action_type< Policy > >
 // clang-format off
 requires
    concepts::map< RegretMap >
@@ -163,10 +163,7 @@ void regret_matching(
  * @tparam Action
  * @tparam Policy
  */
-template <
-   typename Policy,
-   typename RegretMap,
-   typename Action = typename fosg_auto_traits< Policy >::action_type >
+template < typename Policy, typename RegretMap, typename Action = auto_action_type< Policy > >
 // clang-format off
 requires
    concepts::map< RegretMap >
@@ -210,7 +207,7 @@ template <
    typename Policy,
    typename RegretMap,
    typename InstantRegretMap,
-   typename Action = typename fosg_auto_traits< Policy >::action_type >
+   typename Action = auto_action_type< Policy > >
 // clang-format off
 requires
    concepts::action_policy< Policy >
@@ -263,7 +260,7 @@ template <
    typename Policy,
    typename RegretMap,
    typename ActionWrapper,
-   typename Action = typename fosg_auto_traits< Policy >::action_type >
+   typename Action = auto_action_type< Policy > >
 // clang-format off
 requires
    concepts::map< RegretMap >
@@ -312,9 +309,7 @@ void regret_matching_plus(
  * non-terminal states would be problematic is dependant on the environment.
  * @param[in] terminal_wstate the terminal state to collect rewards for.
  */
-template <
-   typename Env,
-   typename Worldstate = typename fosg_auto_traits< std::remove_cvref_t< Env > >::world_state_type >
+template < typename Env, typename Worldstate = auto_world_state_type< std::remove_cvref_t< Env > > >
    requires concepts::fosg< std::remove_cvref_t< Env > >
 // clang-format off
 auto collect_rewards(

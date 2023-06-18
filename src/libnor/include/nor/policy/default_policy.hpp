@@ -36,8 +36,7 @@ class UniformPolicy {
 
    action_policy_type operator()(
       const info_state_type&,
-      const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >&
-         legal_actions
+      const std::vector< auto_action_type< action_policy_type > >& legal_actions
    ) const
    {
       if constexpr(extent == std::dynamic_extent) {
@@ -72,8 +71,7 @@ class ZeroDefaultPolicy {
 
    action_policy_type operator()(
       const info_state_type&,
-      const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >&
-         legal_actions
+      const std::vector< ActionHolder< auto_action_type< action_policy_type > > >& legal_actions
    ) const
    {
       if constexpr(extent == std::dynamic_extent) {

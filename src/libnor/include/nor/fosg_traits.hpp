@@ -318,27 +318,27 @@ struct fosg_traits_partial_match {
    template < typename A >
    constexpr static bool action_type_is_void()
    {
-      return std::is_same_v< typename nor::fosg_auto_traits< A >::action_type, void >;
+      return std::is_same_v< auto_action_type< A >, void >;
    }
    template < typename A >
    constexpr static bool observation_type_is_void()
    {
-      return std::is_same_v< typename nor::fosg_auto_traits< A >::observation_type, void >;
+      return std::is_same_v< auto_observation_type< A >, void >;
    }
    template < typename A >
    constexpr static bool info_state_type_is_void()
    {
-      return std::is_same_v< typename nor::fosg_auto_traits< A >::info_state_type, void >;
+      return std::is_same_v< auto_info_state_type< A >, void >;
    }
    template < typename A >
    constexpr static bool public_state_type_is_void()
    {
-      return std::is_same_v< typename nor::fosg_auto_traits< A >::public_state_type, void >;
+      return std::is_same_v< auto_public_state_type< A >, void >;
    }
    template < typename A >
    constexpr static bool world_state_type_is_void()
    {
-      return std::is_same_v< typename nor::fosg_auto_traits< A >::world_state_type, void >;
+      return std::is_same_v< auto_world_state_type< A >, void >;
    }
    template < typename A >
    constexpr static bool all_void()
@@ -354,19 +354,17 @@ struct fosg_traits_partial_match {
       } else {
          if constexpr(not action_type_is_void< SubsetType >()) {
             if constexpr(not std::is_same_v<
-                            typename nor::fosg_auto_traits< SubsetType >::action_type,
-                            typename nor::fosg_auto_traits< SupersetType >::action_type >) {
-               common::debug<
-                  typename nor::fosg_auto_traits< SubsetType >::action_type,
-                  typename nor::fosg_auto_traits< SupersetType >::action_type >{};
+                            auto_action_type< SubsetType >,
+                            auto_action_type< SupersetType > >) {
+               common::debug< auto_action_type< SubsetType >, auto_action_type< SupersetType > >{};
                static_assert(always_false< SubsetType, SupersetType >, "Action types do not match");
                return false;
             }
          }
          if constexpr(not observation_type_is_void< SubsetType >()) {
             if constexpr(not std::is_same_v<
-                            typename nor::fosg_auto_traits< SubsetType >::observation_type,
-                            typename nor::fosg_auto_traits< SupersetType >::observation_type >) {
+                            auto_observation_type< SubsetType >,
+                            auto_observation_type< SupersetType > >) {
                static_assert(
                   always_false< SubsetType, SupersetType >, "Observation types do not match"
                );
@@ -375,8 +373,8 @@ struct fosg_traits_partial_match {
          }
          if constexpr(not info_state_type_is_void< SubsetType >()) {
             if constexpr(not std::is_same_v<
-                            typename nor::fosg_auto_traits< SubsetType >::info_state_type,
-                            typename nor::fosg_auto_traits< SupersetType >::info_state_type >) {
+                            auto_info_state_type< SubsetType >,
+                            auto_info_state_type< SupersetType > >) {
                static_assert(
                   always_false< SubsetType, SupersetType >, "Infostate types do not match"
                );
@@ -385,8 +383,8 @@ struct fosg_traits_partial_match {
          }
          if constexpr(not public_state_type_is_void< SubsetType >()) {
             if constexpr(not std::is_same_v<
-                            typename nor::fosg_auto_traits< SubsetType >::public_state_type,
-                            typename nor::fosg_auto_traits< SupersetType >::public_state_type >) {
+                            auto_public_state_type< SubsetType >,
+                            auto_public_state_type< SupersetType > >) {
                static_assert(
                   always_false< SubsetType, SupersetType >, "Publicstate types do not match"
                );
@@ -395,8 +393,8 @@ struct fosg_traits_partial_match {
          }
          if constexpr(not world_state_type_is_void< SubsetType >()) {
             if constexpr(not std::is_same_v<
-                            typename nor::fosg_auto_traits< SubsetType >::world_state_type,
-                            typename nor::fosg_auto_traits< SupersetType >::world_state_type >) {
+                            auto_world_state_type< SubsetType >,
+                            auto_world_state_type< SupersetType > >) {
                static_assert(
                   always_false< SubsetType, SupersetType >, "Worldstate types do not match"
                );
