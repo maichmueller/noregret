@@ -11,6 +11,7 @@
 #include "nor/holder.hpp"
 #include "nor/policy/policy.hpp"
 #include "nor/rm.hpp"
+#include "nor/tag.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 
