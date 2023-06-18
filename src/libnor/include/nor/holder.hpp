@@ -5,9 +5,9 @@
 #include <string>
 #include <vector>
 
+#include "nor/fosg_traits.hpp"
 #include "nor/game_defs.hpp"
-#include "nor/rm/tag.hpp"
-#include "nor/utils/utils.hpp"
+#include "nor/tag.hpp"
 
 namespace nor {
 
