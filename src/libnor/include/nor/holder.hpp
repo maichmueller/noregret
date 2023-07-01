@@ -3,28 +3,44 @@
 
 #include <range/v3/all.hpp>
 #include <string>
+#include <type_traits>
 #include <vector>
 
+#include "nor/concepts/concrete.hpp"
+#include "nor/concepts/has.hpp"
 #include "nor/fosg_traits.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/tag.hpp"
 
 namespace nor {
 
-template < template < typename > class DerivedHolder, typename Type >
-struct BaseHolder {
-   using derived_wrapper_type = DerivedHolder< Type >;
-   using underlying_type = std::remove_cvref_t< Type >;
-   static constexpr bool is_polymorphic = std::is_polymorphic_v< underlying_type >;
-   // convenience def
-   static constexpr bool is_not_polymorphic = not is_polymorphic;
-   using holder_type = std::
-      conditional_t< is_polymorphic, sptr< underlying_type >, underlying_type >;
+template <
+   class DerivedHolder,
+   typename Type,
+   typename force_dynamic_storage = std::false_type >
+   requires(
+      not std::is_polymorphic_v< Type >  //
+      or (
+         std::is_polymorphic_v< Type >  //
+         and concepts::has::method::clone_r< Type, std::unique_ptr >
+         )  //
+   )
+struct HolderBase {
+   using derived_holder_type = DerivedHolder;
+   using type = std::remove_cvref_t< Type >;
+
+   static constexpr bool force_dynamic_memory = force_dynamic_storage::value;
+   static constexpr bool is_polymorphic = std::is_polymorphic_v< type >;
+   static constexpr bool dynamic_storage = is_polymorphic or force_dynamic_memory;
+
+   using value_type = std::conditional_t< dynamic_storage, sptr< type >, type >;
 
   protected:
    /// internal constructor to actually allocate the member
    template < typename... Ts >
-   BaseHolder(tag::internal_construct, Ts&&... args)
+   HolderBase(tag::internal_construct, Ts&&... args) noexcept(
+      noexcept(this->_init_member(std::forward< Ts >(args)...))
+   )
        : m_member(_init_member(std::forward< Ts >(args)...))
    {
    }
@@ -34,179 +50,367 @@ struct BaseHolder {
       requires common::is_none_v<
          std::remove_cvref_t< T1 >,  // remove_cvref to avoid checking each ref-case individually
          tag::internal_construct,  // don't recurse back from internal constructors or self
-         BaseHolder,  // don't steal the copy/move constructor calls
-         DerivedHolder< underlying_type >  // (std::remove_cvref ensures both)
+         HolderBase,  // don't steal the copy/move constructor calls
+         derived_holder_type  // (std::remove_cvref ensures both)
          >
-   explicit BaseHolder(T1&& t1, Ts&&... args)
-       : BaseHolder(tag::internal_construct{}, std::forward< T1 >(t1), std::forward< Ts >(args)...)
+   explicit HolderBase(T1&& t1, Ts&&... args) noexcept(noexcept(
+      HolderBase(tag::internal_construct{}, std::forward< T1 >(t1), std::forward< Ts >(args)...)
+   ))
+       : HolderBase(tag::internal_construct{}, std::forward< T1 >(t1), std::forward< Ts >(args)...)
+   {
+   }
+   /// forego explicit construction from the underlying type
+   template < typename T >
+   HolderBase(T&& t) noexcept(noexcept(HolderBase(tag::internal_construct{}, std::forward< T >(t))))
+      requires(common::is_none_v<
+                 std::remove_cvref_t< T >,  // remove_cvref to avoid checking ref-case individually
+                 tag::internal_construct,  // don't recurse back from internal constructors or self
+                 HolderBase,  // don't steal the copy/move constructor calls
+                 derived_holder_type >  // (std::remove_cvref ensures both)
+              )  //
+              and (
+                 (std::is_base_of_v< type, std::remove_cvref_t< T > > and is_polymorphic) //
+                 or std::same_as< std::remove_cvref_t< T >, type >
+              )
+       : HolderBase(tag::internal_construct{}, std::forward< T >(t))
    {
    }
 
-   BaseHolder()
-      requires std::is_default_constructible_v< underlying_type >
-       : BaseHolder(tag::internal_construct{})
+   HolderBase() noexcept(noexcept(HolderBase(tag::internal_construct{})))
+      requires std::is_default_constructible_v< type >
+       : HolderBase(tag::internal_construct{})
    {
    }
+
+   HolderBase(const HolderBase&) = default;
+   HolderBase(HolderBase&&) = default;
+   HolderBase& operator=(const HolderBase&) = default;
+   HolderBase& operator=(HolderBase&&) = default;
+   ~HolderBase() = default;
    /// implicit converion operators so that the contained type will be passable to functions that
    /// use the underlying type (similar to reference_wrapper's behaviour)
-   constexpr operator const underlying_type&() const noexcept { return get(); }
-   constexpr operator underlying_type&() noexcept { return get(); }
+   constexpr operator const type&() const noexcept { return get(); }
+   constexpr operator type&() noexcept { return get(); }
+
+   constexpr operator const type*() const noexcept { return &get(); }
+   constexpr operator type*() noexcept { return &get(); }
    /// implicit converion operators so that the passable to functions that use a shared_ptr of the
    /// underlying type
-   constexpr operator const sptr< holder_type >&() const noexcept
-      requires is_polymorphic
+   constexpr operator const sptr< value_type >&() const noexcept
+      requires dynamic_storage
    {
       return m_member;
    }
-   constexpr operator sptr< holder_type >&() noexcept
-      requires is_polymorphic
+   constexpr operator sptr< value_type >&() noexcept
+      requires dynamic_storage
    {
       return m_member;
    }
 
-   [[nodiscard]] const underlying_type& get() const
+   /// if the holder has a polymorphic type then we can always switch specializations
+   /// in the force_dynamic dimension
+   template < typename any_setting >
+   constexpr operator derived_holder_type&() noexcept
+      requires is_polymorphic
    {
-      if constexpr(is_polymorphic) {
+      return {m_member};
+   }
+
+   [[nodiscard]] const type& get() const noexcept
+   {
+      if constexpr(dynamic_storage) {
          return *m_member;
       } else {
          return m_member;
       }
    }
-   [[nodiscard]] underlying_type& get()
+   [[nodiscard]] type& get() noexcept
    {
       // clang-tidy complains, but since the member function calling it is non-const, the object
       // itself is non-const. Thus, casting away the const is fine.
-      return const_cast< underlying_type& >(std::as_const(*this).get());
+      return const_cast< type& >(std::as_const(*this).get());
    }
 
-   /// equals always compares by value of the underlying type
-   bool equals(const BaseHolder& other) const
-      requires(std::equality_comparable< underlying_type >)
-   {
-      return get() == other.get();
-   }
-   /// equality operator compares either by value or by pointer value depending on the holder type
-   bool operator==(const BaseHolder& other) const { return m_member == other.m_member; }
+   const type& operator*() const noexcept { return get(); }
+   type& operator*() noexcept { return get(); }
 
-   [[nodiscard]] derived_wrapper_type copy() const
+   [[nodiscard]] std::reference_wrapper< const type > ref() const noexcept
    {
-      // copy_tag to avoid the implicit copy constructor
-      return derived_wrapper_type{tag::internal_construct{}, get()};
+      return std::ref(get());
+   }
+   [[nodiscard]] std::reference_wrapper< type > ref() { return std::ref(get()); }
+
+   [[nodiscard]] const type* ptr() const noexcept { return &get(); }
+   [[nodiscard]] type* ptr() noexcept { return &get(); }
+
+   const type* operator->() const noexcept { return &get(); }
+   type* operator->() noexcept { return &get(); }
+
+   /// equals always compares by value of the value-type
+   bool equals(const type& other) const noexcept
+      requires(std::equality_comparable< type >)
+   {
+      return get() == other;
+   }
+   /// equals always compares by value of the value-type
+   bool uneqals(const type& other) const noexcept
+      requires(std::equality_comparable< type >)
+   {
+      return not equals(other);
+   }
+   /// compares the two objects by object identity
+   /// types that are not further specififed below will never be the same as this one
+   template < typename T >
+   bool is(const T&) const noexcept
+   {
+      return false;
+   }
+   /// compares the two objects by object identity
+   template < std::derived_from< type > T >
+   bool is(const T& other) const noexcept
+   {
+      return ptr() == &other;
+   }
+   bool is(const HolderBase& other) const noexcept { return ptr() == &*other; }
+   /// compares the two objects by object identity
+   /// types that are not further specififed below will never be the same as this one
+   template < typename T >
+   bool is_not(const T&) const noexcept
+   {
+      return true;
+   }
+   /// compares the two objects by object identity
+   template < std::derived_from< type > T >
+   bool is_not(const T& other) const noexcept
+   {
+      return ptr() != &other;
+   }
+   bool is_not(const HolderBase& other) const noexcept { return ptr() != &*other; }
+
+   /// equality operator always compares the value equivalence, not object equivalence
+   bool operator==(const type& other) const noexcept { return equals(other); }
+   bool operator!=(const type& other) const noexcept { return uneqals(other); }
+
+   template < typename HolderTypeOut = derived_holder_type >
+   [[nodiscard]] HolderTypeOut copy(
+   ) const& noexcept(not dynamic_storage and noexcept(HolderTypeOut{get()}))
+   {
+      // internal_construct tag to avoid the implicit copy constructor
+      if constexpr(is_polymorphic) {
+         return HolderTypeOut{get().clone()};
+      }
+      return HolderTypeOut{get()};
+   }
+
+   /// rvalue ref overload for when we are calling copy on a temporary holder type
+   template < typename HolderTypeOut = derived_holder_type >
+   [[nodiscard]] HolderTypeOut copy() && noexcept(not dynamic_storage and noexcept(HolderTypeOut{
+      get()}))
+   {
+      // internal_construct tag to avoid the implicit copy constructor
+      constexpr auto move_pointer = [&] {
+         // we are the only owner of this data, so we can safely move the pointer along
+         return HolderTypeOut{std::move(m_member)};
+      };
+      constexpr auto clone_pointer = [&] {
+         // we are not the only owner of the data, so we need to clone the data
+         return HolderTypeOut{get().clone()};
+      };
+      constexpr auto move_data = [&] {
+         // we are the only owner of the data, so we may simply move the data along
+         return HolderTypeOut{std::move(get())};
+      };
+      constexpr auto copy_data = [&] {
+         // we may not be the only owner of this memory but since it is non-polymorphic we can
+         // simply copy it normally.
+         return HolderTypeOut{get()};
+      };
+
+      if constexpr(is_polymorphic) {
+         if(m_member.use_count() == 1) {
+            return move_pointer();
+         }
+         return clone_pointer();
+      } else if constexpr(dynamic_storage) {
+         if(m_member.use_count() == 1) {
+            return move_pointer();
+         }
+         return copy_data();
+      } else {
+         return move_data();
+      }
    }
 
    [[nodiscard]] std::string to_string() const
-      requires requires(underlying_type obj) { obj.to_string(); }
+      requires requires(type obj) {
+         {
+            obj.to_string()
+         } -> std::same_as< std::string >;
+      }
    {
       return get().to_string();
    }
 
-   const BaseHolder* operator->() const { return &get(); }
-   BaseHolder* operator->() { return &get(); }
-
   private:
-   holder_type m_member;
+   value_type m_member;
 
-   static constexpr bool _nothrow_default_constructible =
-      is_polymorphic or (is_not_polymorphic and std::is_nothrow_constructible_v< underlying_type >);
+   static constexpr bool _nothrow_default_constructible = std::is_nothrow_constructible_v< type >;
 
    static constexpr bool _nothrow_constructible_from_lvalue =
-      is_polymorphic
-      or (is_not_polymorphic and std::is_nothrow_copy_constructible_v< underlying_type >);
+      is_polymorphic or (not dynamic_storage and std::is_nothrow_copy_constructible_v< type >);
 
-   template < typename FirstArg, typename... Args >
-      requires(
-         not (
-            sizeof...(Args) == 0
-            and common::is_any_v< //
-               std::remove_cvref_t< FirstArg >,  //
-               underlying_type*,  //
-               sptr< underlying_type >  //
-               >
-         )
-         and not std::same_as<std::remove_cvref_t< FirstArg >, tag::internal_construct>
-      )
-   [[nodiscard]] holder_type _init_member(FirstArg&& first_arg, Args&&... args) const
-      noexcept(noexcept(
-         _init_member_impl(std::forward< FirstArg >(first_arg), std::forward< Args >(args)...)
-      ))
+   value_type _init_member() const noexcept(not dynamic_storage and _nothrow_default_constructible)
+      requires std::is_default_constructible_v< type >
    {
-      return _init_member_impl(std::forward< FirstArg >(first_arg), std::forward< Args >(args)...);
+      if constexpr(dynamic_storage) {
+         return std::make_shared< type >();
+      } else {
+         return type{};
+      }
    }
 
-   holder_type _init_member() const noexcept(_nothrow_default_constructible)
-      requires(
-         is_polymorphic
-         or (is_not_polymorphic and std::is_default_constructible_v< underlying_type >)
-      )
+   template < typename U >
+   value_type _init_member(sptr< U > ptr) const
+      noexcept(dynamic_storage or (not dynamic_storage and _nothrow_constructible_from_lvalue))
    {
-      // we either return a nullpointer in the polymorphic case or a default constructed value of
-      // the underlying type
-      return holder_type{};
+      if constexpr(dynamic_storage) {
+         // even if we are only given a pointer to the underlying type then we assume the wrapper
+         // is supposed to take ownership of it and pass it to the smart pointer's constructor
+         return value_type{std::move(ptr)};
+      } else {
+         // otherwise we simply copy the contents
+         return type{*ptr};
+      }
+   }
+
+   template < typename T >
+   value_type _init_member(T* ptr) const noexcept(_nothrow_constructible_from_lvalue)
+   {
+      if constexpr(dynamic_storage) {
+         // even if we are only given a pointer to the underlying type then we assume the wrapper
+         // is supposed to take ownership of it and pass it to the smart pointer's constructor
+         return value_type{std::move(ptr)};
+      } else {
+         // otherwise we simply copy the contents
+         return type{*ptr};
+      }
+   }
+
+   template < typename U, typename Deleter = std::default_delete< type > >
+   value_type _init_member(std::unique_ptr< U, Deleter > ptr) const noexcept
+   {
+      if constexpr(dynamic_storage) {
+         static_assert(
+            std::is_convertible_v< U*, type* >,
+            "Held type of unique pointer must be convertible to the contained type of the holder."
+         );
+         return value_type(std::move(ptr));
+      } else {
+         // otherwise we move the contents
+         return type{std::move(*ptr.release())};
+      }
+   }
+
+   template < typename T >
+      requires std::is_base_of_v< type, std::remove_cvref_t< T > > and dynamic_storage
+   value_type _init_member(T&& t) const
+   {
+      // we have to clone no matter what, since we don't know if the storage location of `t` is
+      // dynamic and thus safe to take ownership of.
+      if constexpr(is_polymorphic) {
+         return value_type(t.clone());
+      } else {
+         return value_type(std::make_shared< type >(std::forward< T >(t)));
+      }
+   }
+
+   template < typename T >
+      requires std::is_base_of_v< type, std::remove_cvref_t< T > > and (not dynamic_storage)
+   value_type _init_member(T&& t) const noexcept(noexcept(type{std::forward< T >(t)}))
+   {
+      return type{std::forward< T >(t)};
+   }
+
+   template < typename FirstArg, typename... Args >
+      requires(  //
+         not std::is_base_of_v< type, std::remove_cvref_t< FirstArg > >  //
+         and not std::same_as< std::remove_cvref_t< FirstArg >, tag::internal_construct >  //
+      )
+   [[nodiscard]] value_type _init_member(FirstArg&& first_arg, Args&&... args) const
+      noexcept(noexcept(
+         this->_init_member_impl(std::forward< FirstArg >(first_arg), std::forward< Args >(args)...)
+      ))
+   {
+      return this->_init_member_impl(
+         std::forward< FirstArg >(first_arg), std::forward< Args >(args)...
+      );
    }
 
    template < typename... Ts >
-      requires(sizeof...(Ts) > 0)
-   holder_type _init_member_impl(Ts&&... ts) const
-      noexcept(is_not_polymorphic and noexcept(underlying_type{std::forward< Ts >(ts)...}))
+      requires(sizeof...(Ts) > 0) and (not dynamic_storage)
+              and concepts::brace_initializable< type, Ts... >
+   value_type _init_member_impl(Ts&&... ts) const
+      noexcept(noexcept(type{std::forward< Ts >(ts)...}))
    {
-      if constexpr(is_polymorphic) {
-         return std::make_shared< underlying_type >(std::forward< Ts >(ts)...);
-      } else {
-         return underlying_type{std::forward< Ts >(ts)...};
-      }
-   };
+      return type{std::forward< Ts >(ts)...};
+   }
 
-   template < typename T >
-      requires common::
-         is_any_v< std::remove_cvref_t< T >, underlying_type*, sptr< underlying_type > >
-      holder_type _init_member_impl(std::conditional_t< is_polymorphic, T, const T& > ptr) const
-      noexcept(_nothrow_constructible_from_lvalue)
+   template < typename... Ts >
+      requires(sizeof...(Ts) > 0) and dynamic_storage
+              and concepts::brace_initializable< type, Ts... >
+   value_type _init_member_impl(Ts&&... ts) const
    {
-      if constexpr(is_polymorphic) {
-         // if we are only given a pointer to the underlying type then we assume the wrapper
-         // is supposed to take ownership of it and pass it to the smart pointer's constructor
-         return holder_type{std::move(ptr)};
-      } else {
-         // otherwise we simply copy the contents
-         return underlying_type{*ptr};
-      }
+      return std::make_shared< type >(std::forward< Ts >(ts)...);
    }
 };
 
-template < typename Action >
-struct ActionHolder: public BaseHolder< ActionHolder, Action > {
-   using base = BaseHolder< ActionHolder, Action >;
+template < typename Action, typename... Options >
+struct BasicHolder: public HolderBase< ActionHolder< Action, Options... >, Action, Options... > {
+   using base = HolderBase< ActionHolder< Action, Options... >, Action, Options... >;
    using base::base;
 };
 
-template < typename ChanceOutcome >
-struct ChanceOutcomeHolder: public BaseHolder< ChanceOutcomeHolder, ChanceOutcome > {
-   using base = BaseHolder< ChanceOutcomeHolder, ChanceOutcome >;
+template < typename Action, typename... Options >
+struct ActionHolder: public HolderBase< ActionHolder< Action, Options... >, Action, Options... > {
+   using base = HolderBase< ActionHolder< Action, Options... >, Action, Options... >;
    using base::base;
 };
 
-template < typename Observation >
-struct ObservationHolder: public BaseHolder< ObservationHolder, Observation > {
-   using base = BaseHolder< ObservationHolder, Observation >;
+template < typename ChOutcome, typename... Options >
+struct ChanceOutcomeHolder:
+    public HolderBase< ChanceOutcomeHolder< ChOutcome, Options... >, ChOutcome, Options... > {
+   using base = HolderBase< ChanceOutcomeHolder< ChOutcome, Options... >, ChOutcome, Options... >;
    using base::base;
 };
 
-template < typename Worldstate >
-struct WorldstateHolder: public BaseHolder< WorldstateHolder, Worldstate > {
-   using base = BaseHolder< WorldstateHolder, Worldstate >;
+template < typename Observation, typename... Options >
+struct ObservationHolder:
+    public HolderBase< ObservationHolder< Observation, Options... >, Observation, Options... > {
+   using base = HolderBase< ObservationHolder< Observation, Options... >, Observation, Options... >;
    using base::base;
 };
 
-template < typename Infostate >
-struct InfostateHolder: public BaseHolder< InfostateHolder, Infostate > {
-   using base = BaseHolder< InfostateHolder, Infostate >;
+template < typename Worldstate, typename... Options >
+struct WorldstateHolder:
+    public HolderBase< WorldstateHolder< Worldstate, Options... >, Worldstate, Options... > {
+   using base = HolderBase< WorldstateHolder< Worldstate, Options... >, Worldstate, Options... >;
+   using base::base;
+};
+
+template < typename Infostate, typename... Options >
+struct InfostateHolder:
+    public HolderBase< InfostateHolder< Infostate, Options... >, Infostate, Options... > {
+   using base = HolderBase< InfostateHolder< Infostate, Options... >, Infostate, Options... >;
    using base::base;
    using base::get;
-   using observation_type = typename fosg_auto_traits< Infostate >::observation_type;
+   using observation_type = auto_observation_type< Infostate >;
 
    [[nodiscard]] size_t size() const { return get().size(); }
 
-   const auto& update(const observation_type& public_obs, const observation_type& private_obs)
+   void update(
+      const ObservationHolder< observation_type >& public_obs,
+      const ObservationHolder< observation_type >& private_obs
+   )
    {
       return get().update(public_obs, private_obs);
    }
@@ -218,12 +422,13 @@ struct InfostateHolder: public BaseHolder< InfostateHolder, Infostate > {
    [[nodiscard]] Player player() const { return get().player(); }
 };
 
-template < typename Publicstate >
-struct PublicstateHolder: public BaseHolder< PublicstateHolder, Publicstate > {
-   using base = BaseHolder< PublicstateHolder, Publicstate >;
+template < typename Publicstate, typename... Options >
+struct PublicstateHolder:
+    public HolderBase< PublicstateHolder< Publicstate, Options... >, Publicstate, Options... > {
+   using base = HolderBase< PublicstateHolder< Publicstate, Options... >, Publicstate, Options... >;
    using base::base;
    using base::get;
-   using observation_type = typename fosg_auto_traits< Publicstate >::observation_type;
+   using observation_type = auto_observation_type< Publicstate >;
 
    [[nodiscard]] size_t size() const { return get().size(); }
 
@@ -240,21 +445,63 @@ namespace std {
 template < typename T >
    requires common::logical_or_v<
       common::is_specialization< std::remove_cvref_t< T >, nor::ActionHolder >,
+      common::is_specialization< std::remove_cvref_t< T >, nor::ChanceOutcomeHolder >,
       common::is_specialization< std::remove_cvref_t< T >, nor::ObservationHolder >,
       common::is_specialization< std::remove_cvref_t< T >, nor::InfostateHolder >,
       common::is_specialization< std::remove_cvref_t< T >, nor::PublicstateHolder > >
 struct hash< T > {
-   size_t operator()(const T& t) const
-   {
-      constexpr auto underlying_hasher = std::hash< std::conditional_t<
-         std::remove_cvref_t< T >::is_polymorphic,
-         typename std::remove_cvref_t< T >::underlying_type::element_type,
-         typename std::remove_cvref_t< T >::underlying_type > >{};
-
-      return underlying_hasher(t.get());
-   }
+   size_t operator()(const T& t) const { return std::hash< typename T::type >{}(t); }
 };
 
 }  // namespace std
+
+namespace common {
+
+// extend this template to the holder cases
+template < typename T >
+// clang-format off
+   requires(any_of<
+      is_specialization_v< ::std::remove_cvref_t< T >, ::nor::ActionHolder >,
+      is_specialization_v< ::std::remove_cvref_t< T >, ::nor::ChanceOutcomeHolder >,
+      is_specialization_v< ::std::remove_cvref_t< T >, ::nor::ObservationHolder >,
+      is_specialization_v< ::std::remove_cvref_t< T >, ::nor::InfostateHolder >,
+      is_specialization_v< ::std::remove_cvref_t< T >, ::nor::PublicstateHolder >,
+      is_specialization_v< ::std::remove_cvref_t< T >, ::nor::WorldstateHolder >
+      >
+   )
+decltype(auto)  // clang-format on
+deref(T&& t)
+{
+   return *std::forward< T >(t);
+}
+
+// these specializations are not needed (and in fact lead to compiler errors due to ambiguity with
+// the specializations of the underlying type and implicit conversions to said type)
+
+// template < typename T >
+//    requires(any_of<
+//             is_specialization_v< T, ::nor::ActionHolder >,
+//             is_specialization_v< T, ::nor::ChanceOutcomeHolder >,
+//             is_specialization_v< T, ::nor::ObservationHolder >,
+//             is_specialization_v< T, ::nor::InfostateHolder >,
+//             is_specialization_v< T, ::nor::PublicstateHolder >,
+//             is_specialization_v< T, ::nor::WorldstateHolder > >)
+// inline std::string to_string(const T& value)
+//{
+//    return to_string(value.get());
+// }
+
+//// holders are printable if the contained type is printable
+// template < typename T >
+//    requires(any_of<
+//             is_specialization_v< T, ::nor::ActionHolder >,
+//             is_specialization_v< T, ::nor::ChanceOutcomeHolder >,
+//             is_specialization_v< T, ::nor::ObservationHolder >,
+//             is_specialization_v< T, ::nor::InfostateHolder >,
+//             is_specialization_v< T, ::nor::PublicstateHolder >,
+//             is_specialization_v< T, ::nor::WorldstateHolder > >)
+// struct printable< T >: public printable< typename T::type > {};
+
+}  // namespace common
 
 #endif  // NOR_HOLDER_HPP

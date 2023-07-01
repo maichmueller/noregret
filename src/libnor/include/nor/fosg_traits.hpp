@@ -262,8 +262,11 @@ template < typename Action, typename ChanceOutcome >
    requires(not std::is_void_v< Action > or not std::is_void_v< ChanceOutcome >)
 struct action_variant_type_generator< Action, ChanceOutcome > {
    using type = std::variant<
-      std::conditional_t< std::is_void_v< Action >, std::monostate, Action >,
-      std::conditional_t< std::is_void_v< ChanceOutcome >, std::monostate, ChanceOutcome > >;
+      std::conditional_t< std::is_void_v< Action >, std::monostate, ActionHolder< Action > >,
+      std::conditional_t<
+         std::is_void_v< ChanceOutcome >,
+         std::monostate,
+         ChanceOutcomeHolder< ChanceOutcome > > >;
 };
 
 template < typename Action, typename ChanceOutcome >
@@ -307,10 +310,9 @@ using auto_public_state_type = typename fosg_auto_traits< T >::public_state_type
 template < typename T >
 using auto_world_state_type = typename fosg_auto_traits< T >::world_state_type;
 template < typename T >
-using auto_action_variant_type = typename fosg_auto_traits< T >::action_variant_type;
-
-template < class... T >
-constexpr bool always_false = false;
+using auto_action_variant_type = action_variant_type_generator_t<
+   auto_action_type< T >,
+   auto_chance_outcome_type< T > >;
 
 template < typename SubsetType, typename SupersetType >
 struct fosg_traits_partial_match {

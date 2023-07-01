@@ -7,9 +7,10 @@
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/tag.hpp"
 #include "player_informed_type.hpp"
 
-namespace nor::utils {
+namespace nor {
 
 constexpr auto is_chance_player_pred = [](Player player) { return player == Player::chance; };
 constexpr auto is_actual_player_pred = [](Player player) {
@@ -25,28 +26,28 @@ struct hashable_empty {
    constexpr bool operator==(const hashable_empty&) { return true; }
 };
 
-}  // namespace nor::utils
+}  // namespace nor
 
 namespace std {
 
 template <>
-struct hash< nor::utils::hashable_empty > {
-   size_t operator()(const nor::utils::hashable_empty&) const { return 0; }
+struct hash< nor::hashable_empty > {
+   size_t operator()(const nor::hashable_empty&) const { return 0; }
 };
 }  // namespace std
 
-namespace nor::utils {
+namespace nor {
 
 template < class >
 inline constexpr bool always_false_v = false;
 
 template < bool condition, typename T >
-inline std::conditional_t< condition, T&&, T& > move_if(T& obj)
+inline decltype(auto) move_if(T&& obj)
 {
    if constexpr(condition) {
-      return std::move(obj);
+      return std::move(std::forward< T >(obj));
    } else {
-      return obj;
+      return std::forward< T >(obj);
    }
 }
 
@@ -61,7 +62,7 @@ inline std::conditional_t< UnaryPredicate< T >::value, T&&, T& > move_if(T& obj)
 }
 
 template < typename T >
-auto clone_any_way(const T& obj)
+auto clone(const T& obj)
 {
    if constexpr(concepts::has::method::clone< T >) {
       return std::unique_ptr< T >(obj.clone());
@@ -77,13 +78,33 @@ auto clone_any_way(const T& obj)
 template < typename T >
    requires concepts::is::smart_pointer_like< T > or concepts::is::pointer< T >
             or concepts::is::specialization< T, std::reference_wrapper >
-auto clone_any_way(const T& obj)
+auto clone(const T& obj)
 {
    if constexpr(concepts::is::specialization< T, std::reference_wrapper >) {
-      return clone_any_way(obj.get());
+      return clone(obj.get());
    } else {
-      return clone_any_way(*obj);
+      return clone(*obj);
    }
+}
+
+template <
+   typename Env,
+   typename WorldstateHolderType,
+   typename WstateHolderOut = WorldstateHolderType >
+// clang-format off
+requires(
+      concepts::fosg< std::remove_cvref_t< Env > >
+      and common::is_specialization_v<WorldstateHolderType, WorldstateHolder>
+)
+// clang-format on
+WstateHolderOut
+child_state(Env&& env, const WorldstateHolderType& state, const auto& action_or_outcome)
+{
+   // clone the current world state first before transitioniong it with this action
+   auto next_wstate = state.copy();
+   // move the new world state forward by the current action
+   env.transition(next_wstate, action_or_outcome);
+   return next_wstate;
 }
 
 template < typename Derived, typename Base, typename Deleter >
@@ -213,18 +234,18 @@ constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_b
    std::pair{Stochasticity::sample, "sample"},
    std::pair{Stochasticity::choice, "choice"}};
 
-}  // namespace nor::utils
+}  // namespace nor
 
 namespace common {
 template <>
 inline std::string to_string(const nor::Player& e)
 {
-   return std::string(nor::utils::player_name_bij.at(e));
+   return std::string(nor::player_name_bij.at(e));
 }
 template <>
 inline std::string to_string(const nor::Stochasticity& e)
 {
-   return std::string(nor::utils::stochasticity_name_bij.at(e));
+   return std::string(nor::stochasticity_name_bij.at(e));
 }
 
 template <>
@@ -235,7 +256,7 @@ struct printable< nor::Stochasticity >: std::true_type {};
 template <>
 inline nor::Player from_string< nor::Player >(std::string_view str)
 {
-   return nor::utils::player_name_bij.at(str);
+   return nor::player_name_bij.at(str);
 }
 
 }  // namespace common
@@ -309,30 +330,34 @@ auto update_infostate(Infostate& infostate_ref_or_ptr, auto public_obs, auto pri
  */
 
 template <
-   typename ObsBufferMap,
-   typename InformationStateMap,
+   nor::concepts::mapping ObsBufferMap,
+   nor::concepts::mapping InformationStateMap,
    typename Env,
-   typename Worldstate = auto_world_state_type< std::remove_cvref_t< Env > >,
-   typename Infostate = auto_info_state_type< std::remove_cvref_t< Env > >,
-   typename Observation = auto_observation_type< std::remove_cvref_t< Env > > >
+   concepts::is::specialization< WorldstateHolder > WorldstateHolderType,
+   concepts::is::specialization< InfostateHolder > InfostateHolderType = std::remove_cvref_t<
+      decltype(*(ranges::views::values(std::declval< InformationStateMap& >()).begin())) >,
+   concepts::is::specialization< ObservationHolder > ObservationHolderType =
+      std::remove_cvref_t< decltype(std::get< 0 >(
+         // assume: ObsBufferMap holds a container with std::pair like mapped_type whose pair
+         // entries are the obs holders
+         *((*(ranges::views::values(std::declval< const ObsBufferMap& >()).begin())).begin())
+      )) > >
 // clang-format off
-requires concepts::fosg< std::remove_cvref_t< Env >>
-   and concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
-   and (
-         concepts::map< InformationStateMap, Player, sptr< Infostate > >
-         or concepts::map< InformationStateMap, Player, uptr< Infostate > >
-         or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
-         or concepts::map< InformationStateMap, Player, Infostate* >
-         or concepts::map< InformationStateMap, Player, Infostate >
-      )
+requires concepts::fosg< std::remove_cvref_t< Env > >
+   and concepts::map_specced<
+      ObsBufferMap,
+      Player,
+      std::vector< std::pair< ObservationHolderType, ObservationHolderType > >
+   >
+   and concepts::map_specced< InformationStateMap, Player, InfostateHolderType >
 // clang-format on
 void next_infostate_and_obs_buffers_inplace(
    Env&& env,
    ObsBufferMap& observation_buffer,
    InformationStateMap& infostate_map,
-   const Worldstate& state,
+   const WorldstateHolderType& state,
    const auto& action_or_outcome,
-   const Worldstate& next_state
+   const WorldstateHolderType& next_state
 )
 {
    // the public observation will be given to every player, so we can establish it outside the loop
@@ -376,79 +401,65 @@ void next_infostate_and_obs_buffers_inplace(
 }
 
 template <
-   typename ObsBufferMap,
-   typename InformationStateMap,
+   nor::concepts::mapping ObsBufferMap,
+   nor::concepts::mapping InformationStateMap,
    typename Env,
-   typename Worldstate = auto_world_state_type< std::remove_cvref_t< Env > >,
-   typename Infostate = auto_info_state_type< std::remove_cvref_t< Env > >,
-   typename Observation = auto_observation_type< std::remove_cvref_t< Env > > >
+   typename WorldstateHolderType,
+   typename InfostateHolderType = std::remove_cvref_t<
+      decltype(*(ranges::views::values(std::declval< const InformationStateMap& >()).begin())) >,
+   typename ObservationHolderType = std::remove_cvref_t< decltype(std::get< 0 >(
+      // assume: ObsBufferMap holds a container with std::pair like mapped_type whose pair
+      // entries are the obs holders
+      *((*(ranges::views::values(std::declval< const ObsBufferMap& >()).begin())).begin())
+   )) > >
 // clang-format off
-requires concepts::fosg< std::remove_cvref_t< Env >>
-   and concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
-   and (
-         concepts::map< InformationStateMap, Player, sptr< Infostate > >
-         or concepts::map< InformationStateMap, Player, uptr< Infostate > >
-         or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
-         or concepts::map< InformationStateMap, Player, Infostate* >
-         or concepts::map< InformationStateMap, Player, Infostate >
-      )
+requires concepts::fosg< std::remove_cvref_t< Env > >
+   and concepts::map_specced<
+      ObsBufferMap,
+      Player,
+      std::vector< std::pair< ObservationHolderType, ObservationHolderType > >
+   >
+   and concepts::map_specced< InformationStateMap, Player, InfostateHolderType >
+   and common::is_specialization_v< WorldstateHolderType, WorldstateHolder >
+   and common::is_specialization_v< InfostateHolderType, InfostateHolder >
+   and common::is_specialization_v< ObservationHolderType, ObservationHolder >
 // clang-format on
 auto next_infostate_and_obs_buffers(
    Env&& env,
-   ObsBufferMap observation_buffer,
-   InformationStateMap infostate_map,
-   const Worldstate& state,
+   const ObsBufferMap& observation_buffer,
+   const InformationStateMap& infostate_map,
+   const WorldstateHolderType& state,
    const auto& action_or_outcome,
-   const Worldstate& next_state
+   const WorldstateHolderType& next_state
 )
 {
-   using mapped_infostate_type = typename InformationStateMap::mapped_type;
-   // if the infostate types are referenced values or reference_wrappers then we need to actually
-   // copy their pointed to contents.
-
-   // Note that the caller needs to be aware of potential memory leaks occuring from this function!
-
-   if constexpr(std::same_as< mapped_infostate_type, std::reference_wrapper< Infostate > >) {
-      for(auto& [player, mapped] : infostate_map) {
-         mapped = std::ref(new Infostate(mapped.get()));
-      }
-   } else if constexpr(std::same_as< mapped_infostate_type, Infostate* >) {
-      for(auto& [player, mapped] : infostate_map) {
-         mapped = new Infostate(*mapped);
-      }
-   } else if constexpr(std::same_as< mapped_infostate_type, sptr< Infostate > >) {
-      for(auto& [player, mapped] : infostate_map) {
-         mapped = std::make_shared< Infostate >(*mapped);
-      }
-   } else if constexpr(std::same_as< mapped_infostate_type, uptr< Infostate > >) {
-      for(auto& [player, mapped] : infostate_map) {
-         mapped = std::make_unique< Infostate >(utils::clone_any_way(mapped));
-      }
+   ObsBufferMap new_obs_buffer{};
+   if constexpr(requires(ObsBufferMap m) {
+                   m.reserve(size_t(0));
+                } and nor::concepts::is::sized< ObsBufferMap >) {
+      new_obs_buffer.reserve(observation_buffer.size());
+   }
+   if constexpr(requires(InformationStateMap m) {
+                   m.reserve(size_t(0));
+                } and nor::concepts::is::sized< InformationStateMap >) {
+      new_obs_buffer.reserve(observation_buffer.size());
+   }
+   InformationStateMap new_infostate_map{};
+   for(const auto& [player, mapped] : observation_buffer) {
+      // move-then-copy assures the value is moved into itself if it is not stored dynamically.
+      // Otherwise there may be a new dynamic allocation for the copy depending on the use_count
+      new_obs_buffer.emplace(player, mapped);
+   }
+   for(const auto& [player, mapped] : infostate_map) {
+      // move-then-copy assures the value is moved into itself if it is not stored dynamically.
+      // Otherwise there may be a new dynamic allocation for the copy depending on the use_count
+      new_infostate_map.emplace(player, mapped.copy());
    }
 
    next_infostate_and_obs_buffers_inplace(
-      env, observation_buffer, infostate_map, state, action_or_outcome, next_state
+      env, new_obs_buffer, new_infostate_map, state, action_or_outcome, next_state
    );
-   return std::tuple{std::move(observation_buffer), std::move(infostate_map)};
-}
-
-template < typename Env, typename Worldstate >
-// clang-format off
-requires(
-      concepts::fosg< std::remove_cvref_t< Env > >
-      and not concepts::is::smart_pointer_like< Worldstate >
-      and not concepts::is::pointer< Worldstate >
-)
-// clang-format on
-uptr< Worldstate > child_state(Env&& env, const Worldstate& state, const auto& action_or_outcome)
-{
-   // clone the current world state first before transitioniong it with this action
-   uptr< Worldstate > next_wstate_uptr = utils::static_unique_ptr_downcast< Worldstate >(
-      utils::clone_any_way(state)
-   );
-   // move the new world state forward by the current action
-   env.transition(*next_wstate_uptr, action_or_outcome);
-   return next_wstate_uptr;
+   return std::tuple{std::move(new_obs_buffer), std::move(new_infostate_map)};
 }
 
 template < ranges::range Policy >
@@ -489,6 +500,45 @@ auto normalize_state_policy(const Policy& policy)
    normalize_state_policy_inplace(copy);
    return copy;
 };
+
+template < typename ConvertToType, typename Container, typename tag_dispatch >
+auto to_holder_vector(Container&& container, tag_dispatch)
+{
+   using contained_type = std::remove_cvref_t< decltype(*container.begin()) >;
+   static_assert(
+      std::convertible_to< contained_type, ConvertToType >,
+      "Contained value type of the container is not convertible to the given type."
+   );
+
+   using HolderType = common::switch_<
+      common::case_< std::same_as< tag_dispatch, tag::action >, ActionHolder< ConvertToType > >,
+      common::case_<
+         std::same_as< tag_dispatch, tag::chance_outcome >,
+         ChanceOutcomeHolder< ConvertToType > >,
+      common::case_<
+         std::same_as< tag_dispatch, tag::observation >,
+         ObservationHolder< ConvertToType > >,
+      common::
+         case_< std::same_as< tag_dispatch, tag::infostate >, InfostateHolder< ConvertToType > >,
+      common::case_<
+         std::same_as< tag_dispatch, tag::publicstate >,
+         PublicstateHolder< ConvertToType > >,
+      common::case_<
+         std::same_as< tag_dispatch, tag::worldstate >,
+         WorldstateHolder< ConvertToType > > >::type;
+
+   return ranges::to_vector(ranges::views::transform(container, [](const auto& elem) {
+      return HolderType{elem};
+   }));
+}
+
+template < typename To >
+constexpr auto static_to = [](const auto& t) { return static_cast< To >(t); };
+
+// has to be imported because otherwise the holder specializations are not used for some reason
+// TODO: perhaps there is a better solution to the problem for ActionHolder, ObservationHolder, etc.
+//  specialization
+using ::common::deref;
 
 }  // namespace nor
 

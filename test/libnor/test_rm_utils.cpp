@@ -109,7 +109,7 @@ TEST(InfostateNode, storage_correctness)
 class RegretMatchingParamsF:
     public ::testing::TestWithParam< std::tuple<
        std::vector< double >,  // regret values
-       std::unordered_map< int, double >,  // the expected policy
+       std::unordered_map< ActionHolder< int >, double >,  // the expected policy
        nor::HashmapActionPolicy< int >  // the policy
        > > {
   protected:
@@ -120,7 +120,7 @@ TEST_P(RegretMatchingParamsF, integer_actions)
 {
    auto [regret, expected, policy] = GetParam();
 
-   std::unordered_map< int, double > regret_map;
+   std::unordered_map< ActionHolder< int >, double > regret_map;
    for(auto [a, r] : ranges::views::zip(actions, regret)) {
       regret_map[a] = r;
    }
@@ -135,10 +135,10 @@ template <>
 auto value_pack< 0 >()
 {
    std::vector< double > r{1., 2., 3., 4., 5.};
-   std::unordered_map< int, double > exp{
+   std::unordered_map< ActionHolder< int >, double > exp{
       {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}};
-   nor::HashmapActionPolicy< int > pol{std::unordered_map< int, double >{
-      {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}}};
+   nor::HashmapActionPolicy< int > pol{
+      {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}};
    return std::tuple{r, exp, pol};
 }
 
@@ -146,10 +146,10 @@ template <>
 auto value_pack< 1 >()
 {
    std::vector< double > r{1, -1, 1, -1, 1};
-   std::unordered_map< int, double > exp{
+   std::unordered_map< ActionHolder< int >, double > exp{
       {1, 1. / 3.}, {2, 0.}, {3, 1. / 3.}, {4, 0.}, {5, 1. / 3.}};
-   nor::HashmapActionPolicy< int > pol{std::unordered_map< int, double >{
-      {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}}};
+   nor::HashmapActionPolicy< int > pol{
+      {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}};
    return std::tuple{r, exp, pol};
 }
 
@@ -157,9 +157,10 @@ template <>
 auto value_pack< 2 >()
 {
    std::vector< double > r{-1, -1, 0, -1, -1};
-   std::unordered_map< int, double > exp{{1, 0.2}, {2, 0.2}, {3, 0.2}, {4, 0.2}, {5, 0.2}};
-   nor::HashmapActionPolicy< int > pol{std::unordered_map< int, double >{
-      {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}}};
+   std::unordered_map< ActionHolder< int >, double > exp{
+      {1, 0.2}, {2, 0.2}, {3, 0.2}, {4, 0.2}, {5, 0.2}};
+   nor::HashmapActionPolicy< int > pol{
+      {1, 1. / 15.}, {2, 2. / 15.}, {3, 3. / 15.}, {4, 4. / 15.}, {5, 5. / 15.}};
    return std::tuple{r, exp, pol};
 }
 
