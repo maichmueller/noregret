@@ -85,21 +85,35 @@ inline T _zero(Args&&...)
  *
  * @tparam Action
  */
-template < concepts::action Action >
+template <
+   concepts::action Action,
+   concepts::map Table = std::unordered_map<
+      ActionHolder< Action >,
+      double,
+      common::value_hasher< Action >,
+      common::value_comparator< Action > > >
 class HashmapActionPolicy {
   public:
    using action_type = Action;
-   using map_type = std::unordered_map< Action, double >;
+   using table_type = Table;
+   using mapped_type = typename Table::mapped_type;
+   using key_type = typename Table::key_type;
+   using value_type = std::conditional_t<
+      requires() { typename table_type::value_type; },  //
+      typename table_type::value_type,  //
+      std::pair< key_type, mapped_type >  //
+      >;
 
-   using iterator = typename map_type::iterator;
-   using const_iterator = typename map_type::const_iterator;
+   using iterator = typename table_type::iterator;
+   using const_iterator = typename table_type::const_iterator;
 
    HashmapActionPolicy(std::function< double() > dvg = &_zero< double >)
        : m_def_value_gen(std::move(dvg))
    {
    }
 
-   HashmapActionPolicy(ranges::range auto&& actions, double value, std::function< double() > dvg = &_zero< double >)
+   template < ranges::range ActionsRange >
+   HashmapActionPolicy(ActionsRange&& actions, double value, std::function< double() > dvg = &_zero< double >)
        : m_map(), m_def_value_gen(std::move(dvg))
    {
       for(auto&& action : actions) {
@@ -108,20 +122,39 @@ class HashmapActionPolicy {
    }
 
    template < typename T >
-      requires concepts::maps< T, action_type > and concepts::mapping_of< T, double >
-   HashmapActionPolicy(T&& action_value_pairs, std::function< double() > dvg = &_zero< double >)
+      requires concepts::
+                     map_specced< std::remove_cvref_t< T >, ActionHolder< action_type >, double >
+                  and (not common::
+                          is_specialization_v< std::remove_cvref_t< T >, HashmapActionPolicy >)
+   HashmapActionPolicy(T&& mapping, std::function< double() > dvg = &_zero< double >)
        : m_map(), m_def_value_gen(std::move(dvg))
    {
-      for(auto&& [action, value] : action_value_pairs) {
+      for(auto&& [action, value] : mapping) {
          emplace(std::forward< decltype(action) >(action), std::forward< decltype(value) >(value));
       }
    }
 
-   HashmapActionPolicy(std::initializer_list< std::pair< action_type, double > > init_list)
+   HashmapActionPolicy(std::initializer_list< value_type > init_list)
        : m_map(), m_def_value_gen(&_zero< double >)
    {
-      for(auto&& [action, value] : init_list) {
-         emplace(std::move(action), std::move(value));
+      for(auto& value : init_list) {
+         emplace(std::move(value));
+      }
+   }
+   template < typename ActionType, std::floating_point Float >
+   HashmapActionPolicy(std::initializer_list< std::pair< ActionHolder< ActionType >, Float > > init_list, std::function< double() > dvg = &_zero< double >)
+       : m_map(), m_def_value_gen(std::move(dvg))
+   {
+      for(auto& [action, value] : init_list) {
+         emplace(std::move(action), double(value));
+      }
+   }
+   template < typename ActionType, std::floating_point Float >
+   HashmapActionPolicy(std::initializer_list< std::pair< ActionType, Float > > init_list, std::function< double() > dvg = &_zero< double >)
+       : m_map(), m_def_value_gen(std::move(dvg))
+   {
+      for(auto& [action, value] : init_list) {
+         emplace(std::move(action), double(value));
       }
    }
    HashmapActionPolicy(size_t n_actions, std::function< double() > dvg = &_zero< double >)
@@ -129,7 +162,7 @@ class HashmapActionPolicy {
        : m_map(), m_def_value_gen(std::move(dvg))
    {
       for(auto a : ranges::views::iota(size_t(0), n_actions)) {
-         emplace(a, m_def_value_gen());
+         emplace(ActionHolder< action_type >{a}, m_def_value_gen());
       }
    }
    //   HashmapActionPolicy(map_type map, std::function< double() > dvg = &_zero< double >)
@@ -154,6 +187,7 @@ class HashmapActionPolicy {
    inline auto end() { return m_map.end(); }
    [[nodiscard]] inline auto end() const { return m_map.end(); }
 
+   inline auto find(const ActionHolder< action_type >& action) { return m_map.find(action); }
    inline auto find(const action_type& action) { return m_map.find(action); }
    [[nodiscard]] inline auto find(const action_type& action) const { return m_map.find(action); }
 
@@ -169,7 +203,7 @@ class HashmapActionPolicy {
       });
    }
 
-   inline auto& operator[](const action_type& action)
+   inline auto& operator[](const ActionHolder< action_type >& action)
    {
       if(auto found = find(action); found != end()) {
          return found->second;
@@ -177,6 +211,7 @@ class HashmapActionPolicy {
          return emplace(action, m_def_value_gen()).first->second;
       }
    }
+   [[nodiscard]] inline auto& at(const action_type& action) { return this->operator[](action); }
    [[nodiscard]] inline auto at(const action_type& action) const
    {
       if(auto found = find(action); found != end()) {
@@ -185,18 +220,24 @@ class HashmapActionPolicy {
          return m_def_value_gen();
       }
    }
-   inline auto operator[](const action_type& action) const
-   {
-      if(auto found = find(action); found != end()) {
-         return found->second;
-      }
-      return m_def_value_gen();
-   }
 
   private:
-   map_type m_map;
+   table_type m_map;
    std::function< double() > m_def_value_gen;
 };
+
+// deduction guide
+template < ranges::range ActionsRange >
+HashmapActionPolicy(ActionsRange&& actions, double value, std::function< double() > dvg = &_zero< double >)
+   -> HashmapActionPolicy< typename std::decay_t< decltype(*(actions.begin())) >::type >;
+
+template < typename ActionType, std::floating_point Float >
+HashmapActionPolicy(std::initializer_list< std::pair< ActionHolder< ActionType >, Float > > init_list, std::function< double() > dvg = &_zero< double >)
+   -> HashmapActionPolicy< ActionType >;
+
+template < typename ActionType, std::floating_point Float >
+HashmapActionPolicy(std::initializer_list< std::pair< ActionType, Float > > init_list, std::function< double() > dvg = &_zero< double >)
+   -> HashmapActionPolicy< ActionType >;
 
 }  // namespace nor
 

@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "action_policy.hpp"
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
 #include "nor/rm/forest.hpp"
@@ -31,7 +32,7 @@ struct best_response_impl {
    using action_type = auto_action_type< Env >;
    using action_variant_type = auto_action_variant_type< Env >;
 
-   using mapped_type = mapped_br_type< config, action_type >;
+   using mapped_type = mapped_br_type< config, ActionHolder< action_type > >;
 
    struct WorldNode {
       /// the state value of this node.
@@ -73,20 +74,25 @@ struct best_response_impl {
       std::vector< WorldNode* >,
       common::variant_hasher< action_variant_type > >;
 
-   std::unordered_map< info_state_type, child_node_map > m_infostate_children_map;
+   std::unordered_map<
+      InfostateHolder< info_state_type >,
+      child_node_map,
+      common::value_hasher< info_state_type >,
+      common::value_comparator< info_state_type > >
+      m_infostate_children_map;
 
    template < typename StatePolicy >
    void _run(
       Env& env,
       player_hash_map< StatePolicy > player_policies,
-      const world_state_type& root_state,
-      player_hash_map< std::unordered_map< info_state_type, mapped_type > >&
+      const WorldstateHolder< world_state_type >& root_state,
+      player_hash_map< std::unordered_map< InfostateHolder< info_state_type >, mapped_type > >&
          best_response_map_to_fill,
-      std::unordered_map< Player, info_state_type > root_infostates = {}
+      std::unordered_map< Player, InfostateHolder< info_state_type > > root_infostates
    );
 
    void _compute_best_responses(
-      player_hash_map< std::unordered_map< info_state_type, mapped_type > >&
+      player_hash_map< std::unordered_map< InfostateHolder< info_state_type >, mapped_type > >&
          best_response_map_to_fill
    );
 
@@ -100,9 +106,10 @@ template < typename StatePolicy >
 void best_response_impl< config, Env >::_run(
    Env& env,
    player_hash_map< StatePolicy > player_policies,
-   const world_state_type& root_state,
-   player_hash_map< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill,
-   std::unordered_map< Player, info_state_type > root_infostates
+   const WorldstateHolder< world_state_type >& root_state,
+   player_hash_map< std::unordered_map< InfostateHolder< info_state_type >, mapped_type > >&
+      best_response_map_to_fill,
+   std::unordered_map< Player, InfostateHolder< info_state_type > > root_infostates
 )
 {
    auto players = env.players(root_state);
@@ -124,14 +131,18 @@ void best_response_impl< config, Env >::_run(
    }
    for(auto player : players) {
       if(not root_infostates.contains(player)) {
-         root_infostates.emplace(player, info_state_type{player});
+         root_infostates.emplace(player, InfostateHolder< info_state_type >{player});
       }
    }
 
    struct VisitData {
       double opp_reach_prob;
-      std::unordered_map< Player, info_state_type > infostates;
-      std::unordered_map< Player, std::vector< std::pair< observation_type, observation_type > > >
+      std::unordered_map< Player, InfostateHolder< info_state_type > > infostates;
+      std::unordered_map<
+         Player,
+         std::vector< std::pair<
+            ObservationHolder< observation_type >,
+            ObservationHolder< observation_type > > > >
          observation_buffer;
       WorldNode* parent = nullptr;
    };
@@ -139,8 +150,8 @@ void best_response_impl< config, Env >::_run(
    auto child_hook = [&](
                         const VisitData& visit_data,
                         const action_variant_type* curr_action,
-                        world_state_type* curr_state,
-                        world_state_type* next_state
+                        const WorldstateHolder< world_state_type >* curr_state,
+                        const WorldstateHolder< world_state_type >* next_state
                      ) {
       auto curr_player = env.active_player(*curr_state);
       bool curr_player_is_br = common::isin(curr_player, m_br_players);
@@ -166,7 +177,7 @@ void best_response_impl< config, Env >::_run(
                   }
                });
                double prob = std::invoke([&] {
-                  if constexpr(std::same_as< ActionT, action_type >) {
+                  if constexpr(std::same_as< ActionT, ActionHolder< action_type > >) {
                      return prob = curr_player_is_br ? 1.
                                                      : player_policies.at(curr_player)
                                                           .at(visit_data.infostates.at(curr_player))
@@ -217,7 +228,7 @@ void best_response_impl< config, Env >::_run(
          );
          auto& [infostate, child_nodes] = *iter;
          // assign this infostate to the node
-         visit_data.parent->infostate_ptr = &infostate;
+         visit_data.parent->infostate_ptr = infostate.ptr();
          // if the parent is a BR node then we have to emplace all potential child worldnodes for
          // this infostate
          child_nodes[*curr_action].emplace_back(next_parent);
@@ -237,7 +248,7 @@ void best_response_impl< config, Env >::_run(
       bool root_is_br = common::isin(root_player, m_br_players);
       if(root_is_br) {
          auto [iter, _] = m_infostate_children_map.try_emplace(root_infostates.at(root_player));
-         infostate_ptr = &(iter->first);
+         infostate_ptr = iter->first.ptr();
       }
       return WorldNode{
          .opp_reach_prob = 1.,
@@ -246,7 +257,7 @@ void best_response_impl< config, Env >::_run(
          .infostate_ptr = infostate_ptr};
    });
    forest::GameTreeTraverser(env).walk(
-      utils::dynamic_unique_ptr_cast< world_state_type >(utils::clone_any_way(root_state)),
+      root_state.copy(),
       VisitData{
          .opp_reach_prob = 1.,
          .infostates = std::move(root_infostates),
@@ -260,7 +271,8 @@ void best_response_impl< config, Env >::_run(
 
 template < BRConfig config, concepts::fosg Env >
 void best_response_impl< config, Env >::_compute_best_responses(
-   player_hash_map< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill
+   player_hash_map< std::unordered_map< InfostateHolder< info_state_type >, mapped_type > >&
+      best_response_map_to_fill
 )
 {
    auto build_mapped_type_args = [&](auto& br) {
@@ -301,7 +313,7 @@ auto best_response_impl< config, Env >::_best_response(const info_state_type& in
 {
    // we can assume that this is an infostate of the best responding player
    Player best_responder = infostate.player();
-   std::optional< action_type > best_action = std::nullopt;
+   std::optional< ActionHolder< action_type > > best_action = std::nullopt;
    double state_value = std::numeric_limits< double >::lowest();
    for(const auto& [action_variant, node_vec] : m_infostate_children_map.at(infostate)) {
       double action_value = ranges::accumulate(
@@ -318,7 +330,7 @@ auto best_response_impl< config, Env >::_best_response(const info_state_type& in
    }
    return std::invoke([&] {
       struct {
-         action_type action;
+         ActionHolder< action_type > action;
          double value;
       } value{.action = std::move(best_action.value()), .value = state_value};
       return value;
@@ -369,10 +381,10 @@ const player_hash_map< double >& best_response_impl< config, Env >::_value(World
 }
 
 template < BRConfig config, typename Env, typename... Args >
-best_response_impl< config, std::remove_cvref_t< Env > >
-make_best_response_impl(std::vector< Player > br_players, Env&& env, Args&&... args)
+best_response_impl< config, Env >
+make_best_response_impl(std::vector< Player > br_players, Env& env, Args&&... args)
 {
-   return {std::move(br_players), std::forward< Env >(env), std::forward< Args >(args)...};
+   return {std::move(br_players), env, std::forward< Args >(args)...};
 }
 
 }  // namespace detail
@@ -387,7 +399,7 @@ class BestResponsePolicy {
    using action_type = Action;
    using action_policy_type = HashmapActionPolicy< action_type >;
 
-   using mapped_type = detail::mapped_br_type< config, action_type >;
+   using mapped_type = detail::mapped_br_type< config, ActionHolder< action_type > >;
 
    BestResponsePolicy(Player best_response_player) : m_best_responders{best_response_player} {}
    BestResponsePolicy(std::vector< Player > best_response_players)
@@ -397,7 +409,8 @@ class BestResponsePolicy {
 
    BestResponsePolicy(
       Player best_response_player,
-      const std::unordered_map< info_state_type, mapped_type >& cached_br_map = {}
+      const std::unordered_map< InfostateHolder< info_state_type >, mapped_type >& cached_br_map =
+         {}
    )
        : m_best_responders{best_response_player}, m_best_response()
    {
@@ -405,7 +418,8 @@ class BestResponsePolicy {
    }
    BestResponsePolicy(
       std::vector< Player > best_response_players,
-      const std::unordered_map< info_state_type, mapped_type >& cached_br_map = {}
+      const std::unordered_map< InfostateHolder< info_state_type >, mapped_type >& cached_br_map =
+         {}
    )
        : m_best_responders{std::move(best_response_players)},
          m_best_response(std::move(cached_br_map))
@@ -414,21 +428,21 @@ class BestResponsePolicy {
    }
 
    template < typename Env, typename StatePolicy >
-      requires concepts::fosg< std::remove_cvref_t< Env > >
+      requires concepts::fosg< Env >
                and concepts::state_policy_view<
                   StatePolicy,
-                  auto_info_state_type< std::remove_cvref_t< Env > >,
-                  auto_action_type< std::remove_cvref_t< Env > > >
+                  auto_info_state_type< Env >,
+                  auto_action_type< Env > >
    decltype(auto) allocate(
-      Env&& env,
-      const auto_world_state_type< std::remove_cvref_t< Env > >& root_state,
+      Env env,
+      const WorldstateHolder< auto_world_state_type< Env > >& root_state,
       const std::unordered_map< Player, StatePolicy >& player_policies,
-      std::unordered_map< Player, info_state_type > root_infostates = {}
+      std::unordered_map< Player, InfostateHolder< info_state_type > > root_infostates = {}
    )
    {
       detail::make_best_response_impl< config >(
          m_best_responders,
-         std::forward< Env >(env),
+         env,
          player_policies,
          root_state,
          m_best_response,
@@ -439,8 +453,8 @@ class BestResponsePolicy {
 
    [[nodiscard]] auto operator()(const info_state_type& infostate, auto&&...) const
    {
-      return HashmapActionPolicy< action_type >{std::array{
-         std::pair{_get_action(m_best_response.at(infostate.player()).at(infostate)), 1.}}};
+      return HashmapActionPolicy< action_type >{
+         std::pair{_get_action(m_best_response.at(infostate.player()).at(infostate)), 1.}};
    }
 
    [[nodiscard]] auto at(const info_state_type& infostate, auto&&...) const
@@ -464,7 +478,8 @@ class BestResponsePolicy {
 
   private:
    std::vector< Player > m_best_responders;
-   player_hash_map< std::unordered_map< info_state_type, mapped_type > > m_best_response;
+   player_hash_map< std::unordered_map< InfostateHolder< info_state_type >, mapped_type > >
+      m_best_response;
 
    [[nodiscard]] const auto& _get_action(const mapped_type& mapped_elem) const
    {
