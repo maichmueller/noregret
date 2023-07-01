@@ -3,7 +3,8 @@
 #define NOR_FOSG_TRAITS_HPP
 
 #include "common/common.hpp"
-#include "nor/concepts/has.hpp"
+#include "fwd.hpp"
+#include "nor/concepts/traits.hpp"
 
 namespace nor {
 
@@ -262,17 +263,19 @@ template < typename Action, typename ChanceOutcome >
    requires(not std::is_void_v< Action > or not std::is_void_v< ChanceOutcome >)
 struct action_variant_type_generator< Action, ChanceOutcome > {
    using type = std::variant<
-      std::conditional_t< std::is_void_v< Action >, std::monostate, ActionHolder< Action > >,
       std::conditional_t<
-         std::is_void_v< ChanceOutcome >,
+         common::is_any_v< Action, void, std::monostate >,
+         std::monostate,
+         ActionHolder< Action > >,
+      std::conditional_t<
+         common::is_any_v< ChanceOutcome, void, std::monostate >,
          std::monostate,
          ChanceOutcomeHolder< ChanceOutcome > > >;
 };
 
 template < typename Action, typename ChanceOutcome >
-using action_variant_type_generator_t = typename action_variant_type_generator<
-   Action,
-   ChanceOutcome >::type;
+using action_variant_type_generator_t =  //
+   typename action_variant_type_generator< Action, ChanceOutcome >::type;
 
 ////
 
@@ -289,26 +292,39 @@ struct fosg_auto_traits {
    using info_state_type = info_state_type_trait_t< fosg_traits< T >, T >;
    using public_state_type = public_state_type_trait_t< fosg_traits< T >, T >;
    using world_state_type = world_state_type_trait_t< fosg_traits< T >, T >;
-
    using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
 };
 
 template < typename T >
-using auto_action_type = typename fosg_auto_traits< T >::action_type;
+using auto_action_type = typename fosg_auto_traits< std::remove_cvref_t< T > >::action_type;
+
 template < typename T >
-using auto_chance_outcome_type = typename fosg_auto_traits< T >::chance_outcome_type;
+using auto_chance_outcome_type = typename fosg_auto_traits<
+   std::remove_cvref_t< T > >::chance_outcome_type;
+
 template < typename T >
-using auto_action_policy_type = typename fosg_auto_traits< T >::action_policy_type;
+using auto_action_policy_type = typename fosg_auto_traits<
+   std::remove_cvref_t< T > >::action_policy_type;
+
 template < typename T >
-using auto_chance_distribution_type = typename fosg_auto_traits< T >::chance_distribution_type;
+using auto_chance_distribution_type = typename fosg_auto_traits<
+   std::remove_cvref_t< T > >::chance_distribution_type;
+
 template < typename T >
-using auto_observation_type = typename fosg_auto_traits< T >::observation_type;
+using auto_observation_type = typename fosg_auto_traits<
+   std::remove_cvref_t< T > >::observation_type;
+
 template < typename T >
-using auto_info_state_type = typename fosg_auto_traits< T >::info_state_type;
+using auto_info_state_type = typename fosg_auto_traits< std::remove_cvref_t< T > >::info_state_type;
+
 template < typename T >
-using auto_public_state_type = typename fosg_auto_traits< T >::public_state_type;
+using auto_public_state_type = typename fosg_auto_traits<
+   std::remove_cvref_t< T > >::public_state_type;
+
 template < typename T >
-using auto_world_state_type = typename fosg_auto_traits< T >::world_state_type;
+using auto_world_state_type = typename fosg_auto_traits<
+   std::remove_cvref_t< T > >::world_state_type;
+
 template < typename T >
 using auto_action_variant_type = action_variant_type_generator_t<
    auto_action_type< T >,
@@ -349,6 +365,13 @@ struct fosg_traits_partial_match {
              && info_state_type_is_void< A >() && public_state_type_is_void< A >()
              && world_state_type_is_void< A >();
    }
+
+   template < typename... >
+   constexpr static bool always_false()
+   {
+      return false;
+   }
+
    constexpr static bool eval()
    {
       if constexpr(all_void< SubsetType >()) {
@@ -359,7 +382,9 @@ struct fosg_traits_partial_match {
                             auto_action_type< SubsetType >,
                             auto_action_type< SupersetType > >) {
                common::debug< auto_action_type< SubsetType >, auto_action_type< SupersetType > >{};
-               static_assert(always_false< SubsetType, SupersetType >, "Action types do not match");
+               static_assert(
+                  always_false< SubsetType, SupersetType >(), "Action types do not match"
+               );
                return false;
             }
          }
@@ -368,7 +393,7 @@ struct fosg_traits_partial_match {
                             auto_observation_type< SubsetType >,
                             auto_observation_type< SupersetType > >) {
                static_assert(
-                  always_false< SubsetType, SupersetType >, "Observation types do not match"
+                  always_false< SubsetType, SupersetType >(), "Observation types do not match"
                );
                return false;
             }
@@ -378,7 +403,7 @@ struct fosg_traits_partial_match {
                             auto_info_state_type< SubsetType >,
                             auto_info_state_type< SupersetType > >) {
                static_assert(
-                  always_false< SubsetType, SupersetType >, "Infostate types do not match"
+                  always_false< SubsetType, SupersetType >(), "Infostate types do not match"
                );
                return false;
             }

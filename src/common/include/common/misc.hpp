@@ -184,6 +184,9 @@ struct Printer< std::span< T > > {
 
    friend auto& operator<<(std::ostream& os, const Printer& printer)
    {
+      if(printer.value.empty()) {
+         return os << "[]";
+      }
       os << "[";
       for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
          os << printer.value[i] << printer.delimiter;
@@ -196,6 +199,78 @@ struct Printer< std::span< T > > {
 // additional deduction guide needed to disambiguate type T
 template < class T >
 Printer(std::span< T >) -> Printer< std::span< T > >;
+
+template < ranges::range Rng >
+   requires requires(Rng t) { std::cout << *(t.begin()); }
+struct RangePrinter {
+   ranges::ref_view< Rng > value;
+   std::string delimiter;
+
+   RangePrinter(Rng& range, std::string delim = ", ") : value(range), delimiter(std::move(delim)) {}
+
+   friend auto& operator<<(std::ostream& os, RangePrinter printer)
+   {
+      auto iter = printer.value.begin();
+      auto end = printer.value.end();
+      if(iter == end) {
+         // empty range
+         return os << "[]";
+      }
+      os << "[";
+      // we need a lookahead because not all iterators admissible by this printer type are
+      // bidirectional. So we cannot simply use end() - 1 to print the last element.
+      auto lookahead = std::next(iter);
+      do {
+         os << *iter << printer.delimiter << std::flush;
+         std::advance(iter, 1);
+         std::advance(lookahead, 1);
+      } while(lookahead != end);
+      os << *iter << "]";
+      return os;
+   }
+};
+
+template < ranges::range Rng >
+   requires requires(Rng t) {
+      // elements must be decomposable into key and value
+      ranges::views::keys(t);
+      ranges::views::values(t);
+      // elements must be printable
+      std::cout << *(ranges::views::keys(t).begin());
+      std::cout << *(ranges::views::values(t).begin());
+   }
+struct KeyValueRangePrinter {
+   ranges::ref_view< Rng > view;
+   std::string delimiter;
+
+   KeyValueRangePrinter(Rng& range, std::string delim = ", ")
+       : view(range), delimiter(std::move(delim))
+   {
+   }
+
+   friend auto& operator<<(std::ostream& os, KeyValueRangePrinter printer)
+   {
+      auto iter = printer.view.begin();
+      auto end = printer.view.end();
+      if(iter == end) {
+         // empty range
+         return os << "[]";
+      }
+      os << "[";
+      // we need a lookahead because not all iterators admissible by this printer type are
+      // bidirectional. So we cannot simply use end() - 1 to print the last element.
+      auto lookahead = std::next(printer.view.begin());
+      do {
+         const auto& [key, value] = *iter;
+         os << key << ": " << value << printer.delimiter;
+         std::advance(iter, 1);
+         std::advance(lookahead, 1);
+      } while(lookahead != end);
+      const auto& [key, value] = *iter;
+      os << key << ": " << value << "]";
+      return os;
+   }
+};
 
 template < class Lambda, int = (Lambda{}(), 0) >
 constexpr bool is_constexpr(Lambda)
@@ -258,16 +333,29 @@ constexpr auto min(first f, second s)
    return std::min(f, s);
 }
 
-template < class T, std::size_t N >
-auto make_vector(std::array< T, N >&& a) -> std::vector< T >
+/// prints a type's name
+/// taken from:
+/// https://stackoverflow.com/questions/81870/is-it-possible-to-print-a-variables-type-in-standard-c/56766138#56766138
+template < typename T >
+constexpr auto type_name()
 {
-   return {std::make_move_iterator(std::begin(a)), std::make_move_iterator(std::end(a))};
-}
-
-template < class... T >
-auto make_vector(T&&... t)
-{
-   return make_vector(std::to_array({std::forward< T >(t)...}));
+   std::string_view name, prefix, suffix;
+#ifdef __clang__
+   name = __PRETTY_FUNCTION__;
+   prefix = "auto type_name() [T = ";
+   suffix = "]";
+#elif defined(__GNUC__)
+   name = __PRETTY_FUNCTION__;
+   prefix = "constexpr auto type_name() [with T = ";
+   suffix = "]";
+#elif defined(_MSC_VER)
+   name = __FUNCSIG__;
+   prefix = "auto __cdecl type_name<";
+   suffix = ">(void)";
+#endif
+   name.remove_prefix(prefix.size());
+   name.remove_suffix(suffix.size());
+   return name;
 }
 
 };  // namespace common

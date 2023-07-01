@@ -13,12 +13,12 @@ namespace nor {
 template < typename Env >
    requires concepts::fosg< std::remove_cvref_t< Env > >
 auto map_histories_to_infostates(
-   Env&& env,
-   const auto_world_state_type< std::remove_cvref_t< Env > >& root,
+   Env env,
+   const WorldstateHolder< auto_world_state_type< Env > >& root,
    bool include_inactive_player_states = false
 )
 {
-   using env_type = std::remove_cvref_t< Env >;
+   using env_type = Env;
    using world_state_type = auto_world_state_type< env_type >;
    using info_state_type = auto_info_state_type< env_type >;
 
@@ -43,10 +43,11 @@ auto map_histories_to_infostates(
       return hash;
    });
 
-   using infostate_map_type = std::unordered_map< Player, sptr< info_state_type > >;
+   using infostate_map_type = std::
+      unordered_map< Player, InfostateHolder< info_state_type, std::true_type > >;
 
    std::unordered_set<
-      sptr< info_state_type >,
+      InfostateHolder< info_state_type, std::true_type >,
       common::value_hasher< info_state_type >,
       common::value_comparator< info_state_type > >
       existing_infostates;
@@ -71,8 +72,8 @@ auto map_histories_to_infostates(
    auto child_hook = [&](
                         const VisitData& visit_data,
                         const action_variant_type* curr_action,
-                        world_state_type* curr_state,
-                        world_state_type* next_state
+                        const WorldstateHolder< world_state_type >* curr_state,
+                        const WorldstateHolder< world_state_type >* next_state
                      ) {
       auto child_action_sequence = visit_data.action_sequence;
       infostate_map_type child_istates_map;
@@ -100,7 +101,8 @@ auto map_histories_to_infostates(
                   },
                   [&](const std::monostate&) {
                      return std::pair{
-                        auto_observation_type< env_type >{}, auto_observation_type< env_type >{}};
+                        ObservationHolder< auto_observation_type< env_type > >{},
+                        ObservationHolder< auto_observation_type< env_type > >{}};
                   }},
                *curr_action
             );
@@ -110,7 +112,7 @@ auto map_histories_to_infostates(
                auto find_iter = existing_infostates.find(infostate);
                return find_iter != existing_infostates.end()
                          ? *find_iter
-                         : std::make_shared< info_state_type >(std::move(infostate));
+                         : InfostateHolder< info_state_type, std::true_type >(std::move(infostate));
             });
             child_istates_map.emplace(player, infostate_sptr);
 
@@ -128,25 +130,23 @@ auto map_histories_to_infostates(
       return VisitData{
          .istate_map = std::move(child_istates_map),
          .action_sequence = std::move(child_action_sequence)};
-      ;
    };
 
    forest::GameTreeTraverser{env}.walk(
-      utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(root)),
+      root.copy(),
       VisitData{
-         .istate_map =
-            [&] {
-               auto root_istate_map = infostate_map_type{};
-               for(auto player : env.players(root)) {
-                  if(player != Player::chance) {
-                     auto [iter, _] = root_istate_map.emplace(
-                        player, std::make_shared< info_state_type >(player)
-                     );
-                     existing_infostates.emplace(iter->second);
-                  }
+         .istate_map = std::invoke([&] {
+            auto root_istate_map = infostate_map_type{};
+            for(auto player : env.players(root)) {
+               if(player != Player::chance) {
+                  auto [iter, _] = root_istate_map.emplace(
+                     player, InfostateHolder< info_state_type, std::true_type >(player)
+                  );
+                  existing_infostates.emplace(iter->second);
                }
-               return root_istate_map;
-            }(),
+            }
+            return root_istate_map;
+         }),
          .action_sequence = history_type{}},
       forest::TraversalHooks{.child_hook = std::move(child_hook)}
    );

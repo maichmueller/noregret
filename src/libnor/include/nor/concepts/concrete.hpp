@@ -4,65 +4,68 @@
 
 #include <concepts>
 #include <range/v3/all.hpp>
-#include <ranges>
+// #include <ranges>
 #include <utility>
 #include <vector>
 
 #include "has.hpp"
 #include "is.hpp"
 #include "nor/fosg_traits.hpp"
+#include "nor/fwd.hpp"
 #include "nor/game_defs.hpp"
+#include "traits.hpp"
 
 namespace nor::concepts {
 
+template < typename T, typename... Args >
+concept brace_initializable = requires(Args&&... args) { T{std::forward< Args >(args)...}; };
+
 template < typename T >
 // clang-format off
-concept iterable =
-/**/  has::method::begin< T >
-   && has::method::begin< const T >
-   && has::method::end< T >
-   && has::method::end< const T >;
+concept iterable = ranges::range<T> and ranges::range<const T>;
 // clang-format on
 
-template <
-   typename Map,
-   typename KeyType = typename Map::key_type,
-   typename MappedType = typename Map::mapped_type >
-concept map = iterable< Map > && requires(Map m, KeyType key, MappedType mapped) {
-   typename Map::key_type;
-   typename Map::mapped_type;
-   m.emplace(key, mapped);
-   m.find(key);
-   {
-      m[key]
-   } -> std::same_as< MappedType& >;
-   {
-      m.at(key)
-   } -> std::same_as< MappedType& >;
-} and requires(const Map m, KeyType key, MappedType mapped) {
-   {
-      m.at(key)
-   } -> std::same_as< const MappedType& >;
-};
+template < typename Map >
+concept map =
+   iterable< Map > && has::trait::key_type< Map > && has::trait::mapped_type< Map >
+   && requires(Map m, typename Map::key_type key, typename Map::mapped_type mapped) {
+         m.emplace(key, mapped);
+         m.find(key);
+         {
+            m[key]
+         } -> std::same_as< typename Map::mapped_type& >;
+         {
+            m.at(key)
+         } -> std::same_as< typename Map::mapped_type& >;
+      } and requires(const Map m, typename Map::key_type key, typename Map::mapped_type mapped) {
+         {
+            m.at(key)
+         } -> std::convertible_to< typename Map::mapped_type >;
+      };
+
+template < typename Map, typename KeyType, typename MappedType >
+concept map_specced = map< Map > && std::same_as< KeyType, typename Map::key_type >
+                      && std::same_as< MappedType, typename Map::mapped_type >;
 
 template < typename MapLike >
-concept mapping = (not common::is_specialization_v< MapLike, ranges::ref_view >)
-   // the first condition is merely a patch for a (IMO) bug associated with the range
-   // library: https://stackoverflow.com/q/74263486/6798071
-   and requires(MapLike m) {
-      // has to be key-value-like
-      // to iterate over values and
-      // keys only repsectively
-      std::ranges::views::keys(m);
-      std::ranges::views::values(m);
-   };
+concept mapping = (not common::is_specialization_v< MapLike, ranges::ref_view >) and ranges::
+   detail::kv_pair_like_< ranges::range_reference_t< MapLike > >;
+//   // the first condition is merely a patch for a (IMO) bug associated with the range
+//   // library: https://stackoverflow.com/q/74263486/6798071
+//   and requires(MapLike m) {
+//      // has to be key-value-like
+//      // to iterate over values and
+//      // keys only repsectively
+////      ranges::views::keys(m);
+////      ranges::views::values(m);
+//   };
 
 template < typename MapLike, typename KeyType >
 concept maps = mapping< MapLike > and requires(MapLike m) {
    requires std::convertible_to<  // given key type has to be
                                   // convertible to actual key type
       KeyType,
-      std::remove_cvref_t< decltype(*(std::ranges::views::keys(m).begin())) > >;
+      std::remove_cvref_t< decltype(*(ranges::views::keys(m).begin())) > >;
 };
 
 template < typename MapLike, typename MappedType = double >
@@ -71,7 +74,7 @@ concept mapping_of = requires(MapLike m) {
    // mapped type has to be convertible to the value type
    requires std::is_convertible_v<
       MappedType,
-      std::remove_cvref_t< decltype(*(std::ranges::views::values(m).begin())) > >;
+      std::remove_cvref_t< decltype(*(ranges::views::values(m).begin())) > >;
 };
 
 template < typename T >
@@ -91,14 +94,14 @@ concept public_state =
    && is::hashable< T >
    && std::copy_constructible< T >
    && std::equality_comparable< T >
-   && has::method::update_publicstate<
+   && has::method::update<
          T,
-         Observation&,
-         Observation
+         void,
+         ObservationHolder< Observation >  // public observation
       >
    && has::method::getitem_r<
          T,
-         Observation&,
+         ObservationHolder< Observation >,
          size_t
       >;
 // clang-format on
@@ -112,16 +115,27 @@ concept info_state =
    && is::hashable< T >
    && std::copy_constructible< T >
    && std::equality_comparable< T >
-   && has::method::update_infostate<
-      T,
-      std::pair< Observation, Observation>&,
-      Observation
-   >
+   && has::method::update<
+         T,
+         void,
+         ObservationHolder< Observation >, // public observation
+         ObservationHolder< Observation >  // private observation
+      >
    && has::method::getitem_r<
-      T,
-      std::pair< Observation, Observation>&,
-      size_t
-   >;
+         T,
+         std::pair<
+            ObservationHolder< Observation >,
+            ObservationHolder< Observation >
+         >,
+         size_t
+      >
+   && has::method::latest<
+         T,
+         std::pair<
+            ObservationHolder< Observation >,
+            ObservationHolder< Observation >
+         >
+      >;
 // clang-format on
 
 template < typename T >
@@ -139,7 +153,7 @@ template < typename T, typename Action = auto_action_type< T > >
 concept action_policy =
       action_policy_view<T, Action>
    && iterable< T >
-   && has::method::getitem_r< T, double&, Action >;
+   && has::method::getitem_r< T, double&, ActionHolder< Action > >;
 // clang-format on
 
 template <
@@ -155,7 +169,7 @@ concept default_state_policy =
          T const,
          ActionPolicy,
          const Infostate&,
-         const std::vector< Action >&
+         const std::span< ActionHolder< Action > >&
       >;
 // clang-format on
 
@@ -320,9 +334,11 @@ concept chance_distribution =
 template < typename Env >
 // clang-format off
 concept deterministic_env =
-/**/ requires (Env e) {
-         // checks if the stochasticity function is static and constexpr
-         {std::bool_constant< (Env::stochasticity(), true) >() } -> std::same_as<std::true_type>;
+/**/ requires {
+         // checks if the stochasticity function is static
+         Env::stochasticity();
+         // checks if the stochasticity function is constexpr
+         requires common::is_constexpr([] { Env::stochasticity();});
          // checks if the function is also giving the correct value
          requires is::deterministic< Env >;
       };

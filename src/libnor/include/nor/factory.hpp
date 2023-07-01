@@ -15,7 +15,7 @@ struct factory {
    to_map(ranges::range auto players, const ValueType& value)
    {
       std::unordered_map< Player, ValueType > map;
-      for(auto player : players | utils::is_actual_player_filter) {
+      for(auto player : players | is_actual_player_filter) {
          map.emplace(player, value);
       }
       return map;
@@ -498,6 +498,12 @@ struct factory {
    ////////////////////////////////// Policy Table Factory /////////////////////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
+   template < typename Infostate, typename ActionPolicy >
+   static TabularPolicy< Infostate, ActionPolicy > make_tabular_policy()
+   {
+      return {};
+   }
+
    template < typename Infostate, typename ActionPolicy, typename Table >
    static TabularPolicy< Infostate, ActionPolicy, Table > make_tabular_policy(
       Table&& table = Table()
@@ -513,15 +519,15 @@ struct factory {
    }
 
    template < typename Infostate, typename ActionPolicy, size_t extent = std::dynamic_extent >
-   static UniformPolicy< Infostate, ActionPolicy, extent > make_uniform_policy()
+   static auto make_uniform_policy()
    {
-      return {};
+      return UniformPolicy< Infostate, ActionPolicy, extent >{};
    }
 
    template < typename Infostate, typename ActionPolicy, size_t extent = std::dynamic_extent >
-   static ZeroDefaultPolicy< Infostate, ActionPolicy, extent > make_zero_policy()
+   static auto make_zero_policy()
    {
-      return {};
+      return ZeroDefaultPolicy< Infostate, ActionPolicy, extent >{};
    }
 
    template <
@@ -530,7 +536,9 @@ struct factory {
       BRConfig config = BRConfig{.store_infostate_values = false} >
    static BestResponsePolicy< Infostate, Action, config > make_best_response_policy(
       std::vector< Player > best_response_players,
-      std::unordered_map< Infostate, detail::mapped_br_type< config, Action > > cached_br_map = {}
+      std::unordered_map<
+         InfostateHolder< Infostate >,
+         detail::mapped_br_type< config, ActionHolder< Action > > > cached_br_map = {}
    )
    {
       return {best_response_players, std::move(cached_br_map)};
@@ -541,7 +549,9 @@ struct factory {
       BRConfig config = BRConfig{.store_infostate_values = false} >
    static BestResponsePolicy< Infostate, Action, config > make_best_response_policy(
       Player best_response_player,
-      std::unordered_map< Infostate, detail::mapped_br_type< config, Action > > cached_br_map = {}
+      std::unordered_map<
+         InfostateHolder< Infostate >,
+         detail::mapped_br_type< config, ActionHolder< Action > > > cached_br_map = {}
    )
    {
       return {{best_response_player}, std::move(cached_br_map)};

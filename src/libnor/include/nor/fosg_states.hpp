@@ -8,7 +8,7 @@
 
 #include "nor/game_defs.hpp"
 #include "nor/holder.hpp"
-#include "nor/rm/tag.hpp"
+#include "nor/tag.hpp"
 #include "nor/utils/utils.hpp"
 
 namespace nor {
@@ -33,16 +33,20 @@ class DefaultPublicstate {
 
    DefaultPublicstate() = default;
 
-   auto& operator[](std::convertible_to< size_t > auto index) { return m_history[size_t(index)]; }
+   auto& operator[](std::convertible_to< size_t > auto index) const
+   {
+      return m_history[size_t(index)];
+   }
+
+   auto& latest() const { return m_history.back(); }
 
    [[nodiscard]] auto& history() const { return m_history; }
    [[nodiscard]] size_t size() const { return m_history.size(); }
 
-   auto& update(observation_type public_obs)
+   void update(const ObservationHolder< observation_type >& public_obs)
    {
-      auto& ret_val = m_history.emplace_back(std::move(public_obs));
+      m_history.emplace_back(public_obs.copy());
       _hash();
-      return ret_val;
    }
 
    [[nodiscard]] size_t hash() const { return m_hash_cache; }
@@ -52,8 +56,8 @@ class DefaultPublicstate {
    {
       return _build_string([this](std::string& s) {
          for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
-            s += std::get< 0 >(observation) + "\n";
-            s += std::get< 1 >(observation) + "\n";
+            s += std::get< 0 >(observation.get()) + "\n";
+            s += std::get< 1 >(observation.get()) + "\n";
          };
       });
    }
@@ -67,12 +71,12 @@ class DefaultPublicstate {
             s += "pub_";
             s += round_str;
             s += ": ";
-            s += std::get< 0 >(observation);
+            s += std::get< 0 >(observation).get();
             s += "\n";
             s += "prv_";
             s += round_str;
             s += ": ";
-            s += std::get< 1 >(observation);
+            s += std::get< 1 >(observation).get();
             s += "\n";
          }
       });
@@ -92,7 +96,7 @@ class DefaultPublicstate {
   private:
    /// the private_history (action trajectory) container of the state.
    /// Each entry is an observation of a state followed by an action.
-   std::vector< Observation > m_history{};
+   std::vector< ObservationHolder< observation_type > > m_history{};
    /// the cache of the current hash value of the public state
    size_t m_hash_cache{0};
 
@@ -128,17 +132,23 @@ class DefaultInfostate {
    DefaultInfostate(Player player)
        : m_player(player), m_hash_cache(std::hash< int >{}(static_cast< int >(player))){};
 
-   auto& operator[](std::convertible_to< size_t > auto index) { return m_history[size_t(index)]; }
+   auto& operator[](std::convertible_to< size_t > auto index) const
+   {
+      return m_history[size_t(index)];
+   }
+
+   auto& latest() const { return m_history.back(); }
 
    [[nodiscard]] auto& history() const { return m_history; }
    [[nodiscard]] size_t size() const { return m_history.size(); }
 
-   auto& update(observation_type public_obs, observation_type private_obs)
+   void update(
+      const ObservationHolder< observation_type >& public_obs,
+      const ObservationHolder< observation_type >& private_obs
+   )
    {
-      auto& ret_val = m_history.emplace_back(std::pair{
-         std::move(public_obs), std::move(private_obs)});
+      m_history.emplace_back(public_obs.copy(), private_obs.copy());
       _hash();
-      return ret_val;
    }
 
    [[nodiscard]] size_t hash() const { return m_hash_cache; }
@@ -151,9 +161,9 @@ class DefaultInfostate {
       s.reserve(size() * avg_string_size_expectation);
       for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
          s += "{";
-         s += std::get< 0 >(observation);
+         s += std::get< 0 >(observation).get();
          s += sep;
-         s += std::get< 1 >(observation);
+         s += std::get< 1 >(observation).get();
          s += "}";
          s += delim;
       }
@@ -166,9 +176,15 @@ class DefaultInfostate {
       if(size() != other.size() or m_player != other.player()) {
          return false;
       }
-      return ranges::all_of(ranges::views::zip(m_history, other.history()), [](const auto& pair) {
-         return std::get< 0 >(pair) == std::get< 1 >(pair);
-      });
+      return ranges::all_of(
+         ranges::views::zip(m_history, other.history()),
+         [](const auto& pair_of_pairs) {
+            const auto& [pair1, pair2] = pair_of_pairs;
+            const auto& [public_obs_1, private_obs_1] = pair1;
+            const auto& [public_obs_2, private_obs_2] = pair2;
+            return public_obs_1.equals(public_obs_2) and private_obs_1.equals(private_obs_2);
+         }
+      );
    }
    inline bool operator!=(const DefaultInfostate& other) const { return not (*this == other); }
 
@@ -178,7 +194,8 @@ class DefaultInfostate {
    Player m_player;
    /// the private_history (action trajectory) container of the state.
    /// Each entry is an observation of a state followed by an action.
-   std::vector< std::pair< Observation, Observation > > m_history{};
+   std::vector< std::pair< ObservationHolder< Observation >, ObservationHolder< Observation > > >
+      m_history{};
    /// the cache of the current hash value of the public state
    size_t m_hash_cache{0};
 
@@ -187,8 +204,8 @@ class DefaultInfostate {
       if constexpr(std::is_same_v< observation_type, std::string >) {
          constexpr auto string_hasher = std::hash< std::string >{};
          const auto& latest_entry = m_history.back();
-         common::hash_combine(m_hash_cache, string_hasher(std::get< 0 >(latest_entry)));
-         common::hash_combine(m_hash_cache, string_hasher(std::get< 1 >(latest_entry)));
+         common::hash_combine(m_hash_cache, string_hasher(std::get< 0 >(latest_entry).get()));
+         common::hash_combine(m_hash_cache, string_hasher(std::get< 1 >(latest_entry).get()));
       } else {
          m_hash_cache = static_cast< derived_type* >(this)->_hash_impl();
       }

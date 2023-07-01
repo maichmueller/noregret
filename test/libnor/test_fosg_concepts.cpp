@@ -39,7 +39,7 @@ template <
    typename T,
    typename Infostate,
    typename Action,
-   typename ActionPolicy = auto_action_policy_type< T > >
+   typename ActionPolicy = nor::auto_action_policy_type< T > >
    requires nor::concepts::default_state_policy< T, Infostate, Action, ActionPolicy >
 void concept_default_state_policy_check()
 {
@@ -110,15 +110,30 @@ void concept_deterministic_fosg_check()
 
 TEST(concrete, fosg_dummy)
 {
-   concept_fosg_check< dummy::Env >();
+   concept_fosg_check< dummy::Env<> >();
 
-   EXPECT_TRUE((nor::concepts::fosg< dummy::Env >) );
+   EXPECT_TRUE((nor::concepts::fosg< dummy::Env<> >) );
 }
 
 TEST(concrete, fosg_kuhn)
 {
    EXPECT_TRUE((nor::concepts::fosg< nor::games::kuhn::Environment >) );
    EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::kuhn::Environment >) );
+}
+
+TEST(concrete, fosg_leduc)
+{
+   EXPECT_TRUE((nor::concepts::fosg< nor::games::leduc::Environment >) );
+   EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::leduc::Environment >) );
+}
+
+TEST(concrete, fosg_polymorphic)
+{
+   concept_fosg_check< nor::games::polymorph::Environment >();
+   //   concept_deterministic_fosg_check< nor::games::polymorph::Environment >();
+
+   EXPECT_TRUE((nor::concepts::fosg< nor::games::polymorph::Environment >) );
+   EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::polymorph::Environment >) );
 }
 
 TEST(concrete, fosg_stratego)

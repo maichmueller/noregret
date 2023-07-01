@@ -213,225 +213,251 @@ class ValueChecker {
    double m_tolerance = 1e-8;
 };
 
-using kuhn_action_variant_type = typename nor::fosg_auto_traits<
-   nor::games::kuhn::Environment >::action_variant_type;
+using kuhn_action_variant_type = nor::auto_action_variant_type< nor::games::kuhn::Environment >;
 inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >, 12 >
    kuhn_istate_to_history_rep = {
       std::pair{
          "j?",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::jack,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::jack,
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::queen,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::queen,  // which card here does not matter
             }}},
       std::pair{
          "q?",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::queen,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::queen,
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::jack,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::jack,  // which card here does not matter
             }}},
       std::pair{
          "k?",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::king,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::king,
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::jack,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::jack,  // which card here does not matter
             }}},
       std::pair{
          "j?cb",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::jack,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::jack,
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::queen,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::queen,  // which card here does not matter
             },
-            kuhn::Action::check,
-            kuhn::Action::bet}},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::check},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::bet}}},
       std::pair{
          "q?cb",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::queen,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::queen,
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::jack,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::jack,  // which card here does not matter
             },
-            kuhn::Action::check,
-            kuhn::Action::bet}},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::check},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::bet}}},
       std::pair{
          "k?cb",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::king,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::king,
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::jack,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::jack,  // which card here does not matter
             },
-            kuhn::Action::check,
-            kuhn::Action::bet}},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::check},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::bet}}},
       std::pair{
          "?jc",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::queen,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::queen,  // which card here does not matter
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::jack,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::jack,
             },
-            kuhn::Action::check}},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::check}}},
       std::pair{
          "?jb",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::queen,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::queen,  // which card here does not matter
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::jack,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::jack,
             },
-            kuhn::Action::bet}},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::bet}}},
       std::pair{
          "?qc",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::jack,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::jack,  // which card here does not matter
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::queen,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::queen,
             },
-            kuhn::Action::check}},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::check}}},
       std::pair{
          "?qb",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::jack,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::jack,  // which card here does not matter
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::queen,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::queen,
             },
-            kuhn::Action::bet}},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::bet}}},
       std::pair{
          "?kc",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::queen,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::queen,  // which card here does not matter
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::king,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::king,
             },
-            kuhn::Action::check}},
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::check}}},
       std::pair{
          "?kb",
          std::vector< kuhn_action_variant_type >{
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::one,
-               .card = kuhn::Card::queen,  // which card here does not matter
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::one,
+               kuhn::Card::queen,  // which card here does not matter
             },
-            kuhn::ChanceOutcome{
-               .player = kuhn::Player::two,
-               .card = kuhn::Card::king,
+            nor::ChanceOutcomeHolder< kuhn::ChanceOutcome >{
+               kuhn::Player::two,
+               kuhn::Card::king,
             },
-            kuhn::Action::bet}}};
+            nor::ActionHolder< kuhn::Action >{kuhn::Action::bet}}}};
 
 inline auto kuhn_optimal(double alpha)
 {
    using namespace nor;
    using namespace games::kuhn;
 
-   std::unordered_map< Infostate, HashmapActionPolicy< Action > > alex_policy;
+   auto alex_policy = factory::make_tabular_policy< Infostate, HashmapActionPolicy< Action > >();
+   auto bob_policy = factory::make_tabular_policy< Infostate, HashmapActionPolicy< Action > >();
 
-   auto env = Environment{};
-   auto state = State{};
-   auto [_, history_to_istate] = map_histories_to_infostates(env, state);
+   auto [_, history_to_istate] = map_histories_to_infostates(
+      Environment{}, WorldstateHolder< State >{}
+   );
 
    auto fetch_infostate = [&](std::string infostate_str, nor::Player player) {
+      //      return nor::InfostateHolder< Infostate >{
+      //         *(history_to_istate.find(kuhn_istate_to_history_rep.at(infostate_str))
+      //              ->second.second.at(player))};
       return *(history_to_istate.find(kuhn_istate_to_history_rep.at(infostate_str))
                   ->second.second.at(player));
    };
 
+   using action_holder = nor::ActionHolder< kuhn::Action >;
+
    alex_policy.emplace(
       fetch_infostate("j?", nor::Player::alex),
-      HashmapActionPolicy{std::pair{Action::check, 1. - alpha}, std::pair{Action::bet, alpha}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 1. - alpha},
+         std::pair{action_holder{Action::bet}, alpha}}
    );
    alex_policy.emplace(
       fetch_infostate("j?cb", nor::Player::alex),
-      HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 1.},  //
+         std::pair{action_holder{Action::bet}, 0.}}
    );
    alex_policy.emplace(
       fetch_infostate("q?", nor::Player::alex),
-      HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 1.},  //
+         std::pair{action_holder{Action::bet}, 0.}}
    );
    alex_policy.emplace(
       fetch_infostate("q?cb", nor::Player::alex),
       HashmapActionPolicy{
-         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}
+         std::pair{action_holder{Action::check}, 2. / 3. - alpha},
+         std::pair{action_holder{Action::bet}, 1. / 3. + alpha}}
    );
    alex_policy.emplace(
       fetch_infostate("k?", nor::Player::alex),
       HashmapActionPolicy{
-         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}
+         std::pair{action_holder{Action::check}, 1. - 3. * alpha},
+         std::pair{action_holder{Action::bet}, 3. * alpha}}
    );
    alex_policy.emplace(
       fetch_infostate("k?cb", nor::Player::alex),
-      HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 0.},  //
+         std::pair{action_holder{Action::bet}, 1.}}
    );
 
-   std::unordered_map< Infostate, HashmapActionPolicy< Action > > bob_policy;
    bob_policy.emplace(
       fetch_infostate("?jc", nor::Player::bob),
-      HashmapActionPolicy{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 2. / 3.},
+         std::pair{action_holder{Action::bet}, 1. / 3.}}
    );
    bob_policy.emplace(
       fetch_infostate("?jb", nor::Player::bob),
-      HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 1.},  //
+         std::pair{action_holder{Action::bet}, 0.}}
    );
    bob_policy.emplace(
       fetch_infostate("?qc", nor::Player::bob),
-      HashmapActionPolicy{std::pair{Action::check, 1.}, std::pair{Action::bet, 0.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 1.},  //
+         std::pair{action_holder{Action::bet}, 0.}}
    );
    bob_policy.emplace(
       fetch_infostate("?qb", nor::Player::bob),
-      HashmapActionPolicy{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 2. / 3.},
+         std::pair{action_holder{Action::bet}, 1. / 3.}}
    );
    bob_policy.emplace(
       fetch_infostate("?kc", nor::Player::bob),
-      HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 0.},  //
+         std::pair{action_holder{Action::bet}, 1.}}
    );
    bob_policy.emplace(
       fetch_infostate("?kb", nor::Player::bob),
-      HashmapActionPolicy{std::pair{Action::check, 0.}, std::pair{Action::bet, 1.}}
+      HashmapActionPolicy{
+         std::pair{action_holder{Action::check}, 0.},  //
+         std::pair{action_holder{Action::bet}, 1.}}
    );
 
-   return std::tuple{std::move(alex_policy), std::move(bob_policy)};
+   return std::pair{std::move(alex_policy), std::move(bob_policy)};
 }
 
 inline auto kuhn_policy_always_mix_like(double check_prob = 0.5, double bet_prob = 0.5)
@@ -439,15 +465,19 @@ inline auto kuhn_policy_always_mix_like(double check_prob = 0.5, double bet_prob
    using namespace nor;
    using namespace games::kuhn;
 
+   using action_holder = nor::ActionHolder< kuhn::Action >;
+
    auto [alex_policy, bob_policy] = kuhn_optimal(0);
 
    for(auto& [infostate, policy] : alex_policy) {
       policy = HashmapActionPolicy{
-         std::pair{Action::check, check_prob}, std::pair{Action::bet, bet_prob}};
+         std::pair{action_holder{Action::check}, check_prob},
+         std::pair{action_holder{Action::bet}, bet_prob}};
    }
    for(auto& [infostate, policy] : bob_policy) {
       policy = HashmapActionPolicy{
-         std::pair{Action::check, check_prob}, std::pair{Action::bet, bet_prob}};
+         std::pair{action_holder{Action::check}, check_prob},
+         std::pair{action_holder{Action::bet}, bet_prob}};
    }
 
    return std::tuple{std::move(alex_policy), std::move(bob_policy)};
@@ -529,20 +559,19 @@ inline auto setup_rps_test()
    using namespace nor;
    games::rps::Environment env{};
 
-   auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{}
-   );
+   using action_holder = ActionHolder< games::rps::Action >;
 
-   auto tabular_policy_alex = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{}
-   );
+   auto avg_tabular_policy = factory::
+      make_tabular_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >();
 
-   auto tabular_policy_bob = factory::make_tabular_policy(
-      std::unordered_map< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >{}
-   );
+   auto tabular_policy_alex = factory::
+      make_tabular_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >();
 
-   auto infostate_alex = games::rps::Infostate{Player::alex};
-   auto infostate_bob = games::rps::Infostate{Player::bob};
+   auto tabular_policy_bob = factory::
+      make_tabular_policy< games::rps::Infostate, HashmapActionPolicy< games::rps::Action > >();
+
+   auto infostate_alex = InfostateHolder< games::rps::Infostate >{Player::alex};
+   auto infostate_bob = InfostateHolder< games::rps::Infostate >{Player::bob};
    games::rps::State state{}, next_state{};
 
    auto action_alex = games::rps::Action::rock;
@@ -558,17 +587,19 @@ inline auto setup_rps_test()
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_alex.emplace(
       infostate_alex,
-      std::pair{games::rps::Action::rock, 1. / 10.},
-      std::pair{games::rps::Action::paper, 2. / 10.},
-      std::pair{games::rps::Action::scissors, 7. / 10.}
+      HashmapActionPolicy{
+         std::pair{action_holder{games::rps::Action::rock}, 1. / 10.},
+         std::pair{action_holder{games::rps::Action::paper}, 2. / 10.},
+         std::pair{action_holder{games::rps::Action::scissors}, 7. / 10.}}
    );
 
    // off-set the given policy by very bad initial values to test the algorithm bouncing back
    tabular_policy_bob.emplace(
       infostate_bob,
-      std::pair{games::rps::Action::rock, 9. / 10.},
-      std::pair{games::rps::Action::paper, .5 / 10.},
-      std::pair{games::rps::Action::scissors, .5 / 10.}
+      HashmapActionPolicy{
+         std::pair{action_holder{games::rps::Action::rock}, 9. / 10.},
+         std::pair{action_holder{games::rps::Action::paper}, .5 / 10.},
+         std::pair{action_holder{games::rps::Action::scissors}, .5 / 10.}}
    );
 
    return std::tuple{

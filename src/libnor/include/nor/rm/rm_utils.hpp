@@ -72,8 +72,11 @@ cf_reach_probability(const Player& player, const KVdouble& reach_probability_con
  * @tparam Action
  * @tparam Policy
  */
-template < concepts::action Action, concepts::action_policy< Action > Policy >
-void regret_matching(Policy& policy_map, const std::unordered_map< Action, double >& cumul_regret)
+template < concepts::action Action, concepts::action_policy< ActionHolder< Action > > Policy >
+void regret_matching(
+   Policy& policy_map,
+   const std::unordered_map< ActionHolder< Action >, double >& cumul_regret
+)
 {
    // sum up the positivized regrets and store them in a new vector
    std::unordered_map< Action, double > pos_regrets;
@@ -110,13 +113,12 @@ void regret_matching(Policy& policy_map, const std::unordered_map< Action, doubl
  */
 template <
    typename Policy,
-   typename RegretMap,
+   concepts::map RegretMap,
    typename ActionWrapper,
    typename Action = auto_action_type< Policy > >
 // clang-format off
 requires
-   concepts::map< RegretMap >
-   and std::is_convertible_v< typename RegretMap::mapped_type, double>
+   std::is_convertible_v< typename RegretMap::mapped_type, double>
    and std::invocable< ActionWrapper, Action >
    and concepts::action_policy<
       Policy
@@ -163,11 +165,10 @@ void regret_matching(
  * @tparam Action
  * @tparam Policy
  */
-template < typename Policy, typename RegretMap, typename Action = auto_action_type< Policy > >
+template < typename Policy, concepts::map RegretMap, typename Action = auto_action_type< Policy > >
 // clang-format off
 requires
-   concepts::map< RegretMap >
-   and std::is_convertible_v< typename RegretMap::mapped_type, double>
+   std::is_convertible_v< typename RegretMap::mapped_type, double>
    and concepts::action_policy< Policy >
 // clang-format on
 void regret_matching_plus(Policy& policy_map, RegretMap& cumul_regret)
@@ -314,11 +315,7 @@ template < typename Env, typename Worldstate = auto_world_state_type< std::remov
 // clang-format off
 auto collect_rewards(
    Env&& env,
-   common::const_ref_if_t<   // the fosg concept asserts a reward function taking world_state_type.
-                     // But if it can be passed a const world state then do so instead
-      nor::concepts::has::method::reward_multi< std::remove_cvref_t< Env >, const Worldstate& >
-         or concepts::has::method::reward< std::remove_cvref_t< Env >, const Worldstate& >,
-      Worldstate > terminal_wstate,
+    const Worldstate& terminal_wstate,
    std::vector< Player > players = {})
 // clang-format on
 {
@@ -327,7 +324,7 @@ auto collect_rewards(
       players = env.players(terminal_wstate);
    }
    // erase non-actual player elements (e.g. chance or unknown)
-   std::erase_if(players, common::not_pred(utils::is_actual_player_pred));
+   std::erase_if(players, common::not_pred(is_actual_player_pred));
 
    std::unordered_map< Player, double > rewards;
    rewards.reserve(players.size());
