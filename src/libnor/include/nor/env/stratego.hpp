@@ -47,6 +47,7 @@ class Environment {
    using action_type = Action;
    using observation_type = Observation;
    using chance_outcome_type = std::monostate;
+   using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
@@ -54,20 +55,30 @@ class Environment {
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
+  private:
+   using action_holder = ActionHolder< action_type >;
+   using chance_outcome_holder = ChanceOutcomeHolder< chance_outcome_type >;
+   using observation_holder = ObservationHolder< observation_type >;
+   using info_state_holder = InfostateHolder< info_state_type >;
+   using public_state_holder = PublicstateHolder< public_state_type >;
+   using world_state_holder = WorldstateHolder< world_state_type >;
+
+  public:
    Environment() = default;
 
-   std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
+   std::vector< ActionHolder< action_type > > actions(Player player, const world_state_type& wstate)
+      const;
 
-   std::vector<
-      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+   std::vector< PlayerInformedType< std::optional< action_variant_type > > >
    private_history(Player player, const world_state_type& wstate) const;
 
-   std::vector<
-      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
-   public_history(const world_state_type& wstate) const;
+   std::vector< PlayerInformedType< std::optional< action_variant_type > > > public_history(
+      const world_state_type& wstate
+   ) const;
 
-   std::vector< PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
-   open_history(const world_state_type& wstate) const;
+   std::vector< PlayerInformedType< action_variant_type > > open_history(
+      const world_state_type& wstate
+   ) const;
 
    static inline std::vector< Player > players(const world_state_type&)
    {
@@ -75,7 +86,7 @@ class Environment {
    }
    Player active_player(const world_state_type& wstate) const;
    void reset(world_state_type& wstate) const;
-   static bool is_terminal(world_state_type& wstate);
+   static bool is_terminal(const world_state_type& wstate);
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;

@@ -54,7 +54,7 @@ struct NotImplementedError: public std::exception {
 struct Action {
    Action() = default;
    virtual ~Action() = default;
-
+   virtual uptr< Action > clone() const { return std::make_unique< Action >(); }
    NOR_VirtualBaseMethodConst(hash, size_t, );
    NOR_VirtualBaseMethodConst(operator==, bool, const Action&);
 };
@@ -65,7 +65,7 @@ struct Action {
 struct ChanceOutcome {
    ChanceOutcome() = default;
    virtual ~ChanceOutcome() = default;
-
+   virtual uptr< ChanceOutcome > clone() const { return std::make_unique< ChanceOutcome >(); }
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const ChanceOutcome&);
 };
@@ -76,6 +76,8 @@ struct ChanceOutcome {
 struct Observation {
    Observation() = default;
    virtual ~Observation() = default;
+
+   virtual uptr< Observation > clone() const { return std::make_unique< Observation >(); }
 
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const Observation&);
@@ -95,14 +97,32 @@ struct Infostate {
    Infostate(Player player) : m_player(player) {}
    virtual ~Infostate() = default;
 
+   virtual uptr< Infostate > clone() const { return std::make_unique< Infostate >(player()); }
    /// non-const methods
-   NOR_VirtualBaseMethod(update, Infostate&, const observation_type&, const observation_type&);
+   NOR_VirtualBaseMethod(
+      update, //
+      void,  //
+      const ObservationHolder<observation_type>&,  //
+      const ObservationHolder<observation_type>&
+      );
    /// const methods
    Player player() const { return m_player; }
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const Infostate&);
    NOR_VirtualBaseMethodConst(size, size_t);
-   NOR_VirtualBaseMethodConst(operator[], const observation_type&, size_t);
+   NOR_VirtualBaseMethodConst(
+      operator[],
+      NOR_SINGLE_ARG(const std::pair<
+                     ObservationHolder< observation_type >,
+                     ObservationHolder< observation_type > >&),
+      size_t
+   );
+   NOR_VirtualBaseMethodConst(
+      latest,
+      NOR_SINGLE_ARG(const std::pair<
+                     ObservationHolder< observation_type >,
+                     ObservationHolder< observation_type > >&)
+   );
 
   private:
    Player m_player;
@@ -120,13 +140,16 @@ struct Publicstate {
    Publicstate() = default;
    virtual ~Publicstate() = default;
 
+   virtual uptr< Publicstate > clone() const { return std::make_unique< Publicstate >(); }
+
    /// non-const methods
-   NOR_VirtualBaseMethod(update, Publicstate&, const observation_type&);
+   NOR_VirtualBaseMethod(update, void, const observation_type&);
    /// const methods
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const Publicstate&);
    NOR_VirtualBaseMethodConst(size, size_t);
-   NOR_VirtualBaseMethodConst(operator[], const observation_type&, size_t);
+   NOR_VirtualBaseMethodConst(operator[], const ObservationHolder< observation_type >&, size_t);
+   NOR_VirtualBaseMethodConst(latest, const ObservationHolder< observation_type >&);
 };
 
 /// the current concept requirements on the c++ side for a worldstate are:
@@ -134,6 +157,7 @@ struct Publicstate {
 struct Worldstate {
    Worldstate() = default;
    virtual ~Worldstate() = default;
+   virtual uptr< Worldstate > clone() const { return std::make_unique< Worldstate >(); }
 };
 
 class Environment {
@@ -145,6 +169,20 @@ class Environment {
    using action_type = Action;
    using observation_type = Observation;
    using chance_outcome_type = ChanceOutcome;
+
+  private:
+   using action_holder = ActionHolder< action_type >;
+   using chance_outcome_holder = ChanceOutcomeHolder< chance_outcome_type >;
+   using observation_holder = ObservationHolder< observation_type >;
+   using info_state_holder = InfostateHolder< info_state_type >;
+   using public_state_holder = PublicstateHolder< public_state_type >;
+   using world_state_holder = WorldstateHolder< world_state_type >;
+
+  public:
+   Environment() = default;
+
+   virtual ~Environment() = default;
+
    // nor fosg traits
    virtual size_t max_player_count() { return std::dynamic_extent; }
    virtual size_t player_count() { return std::dynamic_extent; }
@@ -152,20 +190,18 @@ class Environment {
    NOR_VirtualBaseMethodConst(serialized, bool);
    NOR_VirtualBaseMethodConst(unrolled, bool);
 
-   Environment() = default;
-
-   virtual ~Environment() = default;
+   // API
 
    NOR_VirtualBaseMethodConst(
       actions,
-      NOR_SINGLE_ARG(std::vector< ActionHolder< action_type > >),
+      NOR_SINGLE_ARG(std::vector< action_holder >),
       nor::Player /*player*/,
       const world_state_type& /*wstate*/
    );
 
    NOR_VirtualBaseMethodConst(
       chance_actions,
-      NOR_SINGLE_ARG(std::vector< ActionHolder< chance_outcome_type > >),
+      NOR_SINGLE_ARG(std::vector< chance_outcome_holder >),
       const world_state_type& /*wstate*/
    );
 
@@ -178,26 +214,23 @@ class Environment {
 
    NOR_VirtualBaseMethodConst(
       private_history,
-      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::optional< std::variant<
-                        ChanceOutcomeHolder< chance_outcome_type >,
-                        ActionHolder< action_type > > > > >),
+      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType<
+                        std::optional< std::variant< chance_outcome_holder, action_holder > > > >),
       nor::Player /*player*/,
       const world_state_type& /*wstate*/
    );
 
    NOR_VirtualBaseMethodConst(
       public_history,
-      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::variant<
-                        ChanceOutcomeHolder< chance_outcome_type >,
-                        ActionHolder< action_type > > > >),
+      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType<
+                        std::variant< chance_outcome_holder, action_holder > > >),
       const world_state_type& /*wstate*/
    );
 
    NOR_VirtualBaseMethodConst(
       open_history,
-      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType< std::variant<
-                        ChanceOutcomeHolder< chance_outcome_type >,
-                        ActionHolder< action_type > > > >),
+      NOR_SINGLE_ARG(std::vector< nor::PlayerInformedType<
+                        std::variant< chance_outcome_holder, action_holder > > >),
       const world_state_type& /*wstate*/
    );
 
@@ -243,7 +276,7 @@ class Environment {
 
    NOR_VirtualBaseMethodConst(
       private_observation,
-      ObservationHolder< observation_type >,
+      observation_holder,
       nor::Player /*player*/,
       const world_state_type& /*wstate*/,
       const action_type& /*action*/,
@@ -251,7 +284,7 @@ class Environment {
    );
    NOR_VirtualBaseMethodConst(
       public_observation,
-      ObservationHolder< observation_type >,
+      observation_holder,
       const world_state_type& /*wstate*/,
       const action_type& /*action*/,
       const world_state_type& /*next_wstate*/
@@ -259,7 +292,7 @@ class Environment {
 
    NOR_VirtualBaseMethodConst(
       private_observation,
-      ObservationHolder< observation_type >,
+      observation_holder,
       nor::Player /*player*/,
       const world_state_type& /*wstate*/,
       const chance_outcome_type& /*chance_outcome*/,
@@ -267,7 +300,7 @@ class Environment {
    );
    NOR_VirtualBaseMethodConst(
       public_observation,
-      ObservationHolder< observation_type >,
+      observation_holder,
       const world_state_type& /*wstate*/,
       const chance_outcome_type& /*chance_outcome*/,
       const world_state_type& /*next_wstate*/

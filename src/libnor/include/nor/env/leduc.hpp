@@ -55,17 +55,29 @@ class Environment {
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::choice; }
 
+  private:
+   using action_holder = ActionHolder< action_type >;
+   using chance_outcome_holder = ChanceOutcomeHolder< chance_outcome_type >;
+   using observation_holder = ObservationHolder< observation_type >;
+   using info_state_holder = InfostateHolder< info_state_type >;
+   using public_state_holder = PublicstateHolder< public_state_type >;
+   using world_state_holder = WorldstateHolder< world_state_type >;
+
+  public:
    Environment() = default;
 
-   std::vector< action_type > actions(Player, const world_state_type& wstate) const
+   std::vector< ActionHolder< action_type > > actions(Player, const world_state_type& wstate) const
    {
-      return wstate.actions();
+      return to_holder_vector< action_type >(wstate.actions(), tag::action{});
    }
-   inline std::vector< chance_outcome_type > chance_actions(const world_state_type& wstate) const
+   inline std::vector< ChanceOutcomeHolder< chance_outcome_type > > chance_actions(
+      const world_state_type& wstate
+   ) const
    {
-      return wstate.chance_actions();
+      return to_holder_vector< chance_outcome_type >(
+         wstate.chance_actions(), tag::chance_outcome{}
+      );
    }
-
    [[nodiscard]] std::vector<
       PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
    private_history(Player player, const world_state_type& wstate) const;
@@ -90,13 +102,13 @@ class Environment {
       std::vector< Player > vec_out;
       vec_out.reserve(rem_players.size());
       std::ranges::copy(
-         rem_players | std::ranges::views::transform([](auto p) { return Player(p); }),
+         rem_players | ranges::views::transform([](auto p) { return Player(p); }),
          std::back_inserter(vec_out)
       );
       return vec_out;
    }
    [[nodiscard]] Player active_player(const world_state_type& wstate) const;
-   static bool is_terminal(world_state_type& wstate);
+   static bool is_terminal(const world_state_type& wstate);
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
 
