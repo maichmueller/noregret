@@ -101,7 +101,7 @@ WstateHolderOut
 child_state(Env&& env, const WorldstateHolderType& state, const auto& action_or_outcome)
 {
    // clone the current world state first before transitioniong it with this action
-   auto next_wstate = state.copy();
+   auto next_wstate = state.template copy< WstateHolderOut >();
    // move the new world state forward by the current action
    env.transition(next_wstate, action_or_outcome);
    return next_wstate;

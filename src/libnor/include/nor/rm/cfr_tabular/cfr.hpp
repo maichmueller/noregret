@@ -23,7 +23,7 @@
 #include "nor/rm/forest.hpp"
 #include "nor/rm/node.hpp"
 #include "nor/rm/rm_utils.hpp"
-#include "nor/rm/tag.hpp"
+#include "nor/tag.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 
@@ -156,13 +156,8 @@ class VanillaCFR:
    using typename base::public_state_type;
    using typename base::observation_type;
    using typename base::chance_outcome_type;
+   using typename base::action_variant_type;
    using typename base::chance_distribution_type;
-   using action_variant_type = std::variant<
-      action_type,
-      std::conditional_t<
-         std::is_same_v< chance_outcome_type, void >,
-         std::monostate,
-         chance_outcome_type > >;
    /// the data to store per infostate entry
    using infostate_data_type = typename detail::VCFRNodeDataSelector< config, env_type >::type;
    /// strong-types for player based maps
@@ -282,7 +277,7 @@ class VanillaCFR:
     * @brief updates the regret and policy tables of the infostate with the state-values.
     */
    void update_regret_and_policy(
-      const info_state_type& infostate,
+      const InfostateHolder< info_state_type >& infostate,
       const ReachProbabilityMap& reach_probability,
       const StateValueMap& state_value,
       const std::unordered_map< action_variant_type, StateValueMap >& action_value_map
@@ -294,7 +289,7 @@ class VanillaCFR:
    ////////////////////////////////
 
    [[nodiscard]] inline auto& _infonodes() { return m_infonode; }
-   [[nodiscard]] inline auto& _infonode(const info_state_type& infostate) const
+   [[nodiscard]] inline const auto& _infonode(const info_state_type& infostate) const
    {
       return m_infonode.find(infostate)->second;
    }
@@ -302,7 +297,7 @@ class VanillaCFR:
    {
       return m_infonode.find(infostate)->second;
    }
-   [[nodiscard]] inline auto& _infonode(const sptr< info_state_type >& infostate) const
+   [[nodiscard]] inline const auto& _infonode(const sptr< info_state_type >& infostate) const
    {
       return m_infonode.at(infostate);
    }
@@ -323,7 +318,7 @@ class VanillaCFR:
 
    /// the relevant data stored at each infostate
    std::unordered_map<
-      sptr< info_state_type >,
+      InfostateHolder< info_state_type, std::true_type >,
       infostate_data_type,
       common::value_hasher< info_state_type >,
       common::value_comparator< info_state_type > >
@@ -369,7 +364,7 @@ class VanillaCFR:
    template < bool initialize_infonodes, bool use_current_policy = true >
    StateValueMap _traverse(
       std::optional< Player > player_to_update,
-      uptr< world_state_type > curr_worldstate,
+      WorldstateHolder< world_state_type > curr_worldstate,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap observation_buffer,
       InfostateSptrMap infostate_map
@@ -379,7 +374,7 @@ class VanillaCFR:
    void _traverse_player_actions(
       std::optional< Player > player_to_update,
       Player active_player,
-      uptr< world_state_type > state,
+      WorldstateHolder< world_state_type > state,
       const ReachProbabilityMap& reach_probability,
       const ObservationbufferMap& observation_buffer,
       InfostateSptrMap infostate_map,
@@ -391,7 +386,7 @@ class VanillaCFR:
    void _traverse_chance_actions(
       std::optional< Player > player_to_update,
       Player active_player,
-      uptr< world_state_type > state,
+      WorldstateHolder< world_state_type > state,
       const ReachProbabilityMap& reach_probability,
       const ObservationbufferMap& observation_buffer,
       InfostateSptrMap infostate_map,
@@ -402,14 +397,14 @@ class VanillaCFR:
    void _initiate_regret_minimization(const std::optional< Player >& player_to_update);
 
    void _invoke_regret_minimizer(
-      const info_state_type& infostate,
+      const InfostateHolder< info_state_type >& infostate,
       infostate_data_type& istate_data,
       [[maybe_unused]] double policy_weight,
       [[maybe_unused]] const auto& regret_weights
    );
 
    void _invoke_regret_minimizer(
-      const info_state_type& infostate,
+      const InfostateHolder< info_state_type >& infostate,
       infostate_data_type& istate_data,
       auto&&...
    )

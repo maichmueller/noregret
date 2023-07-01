@@ -61,7 +61,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
    auto root_players = _env().players(root_state());
    auto root_game_value = _traverse< initializing_run, use_current_policy >(
       player_to_update,
-      utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(_root_state_uptr())
+      static_unique_ptr_downcast< world_state_type >(clone(_root_state_uptr())
       ),
       std::invoke([&] {
          ReachProbabilityMap rp_map{{}};
@@ -72,7 +72,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       }),
       std::invoke([&] {
          ObservationbufferMap obs_map{{}};
-         for(auto player : root_players | utils::is_actual_player_filter) {
+         for(auto player : root_players | is_actual_player_filter) {
             obs_map.get().emplace(
                player, std::vector< std::pair< observation_type, observation_type > >{}
             );
@@ -81,7 +81,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       }),
       std::invoke([&] {
          InfostateSptrMap infostates{{}};
-         for(auto player : root_players | utils::is_actual_player_filter) {
+         for(auto player : root_players | is_actual_player_filter) {
             infostates.get().emplace(player, std::make_shared< info_state_type >(player));
          }
          return infostates;
@@ -171,7 +171,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimiza
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
-   const info_state_type& infostate,
+   const InfostateHolder< info_state_type >& infostate,
    infostate_data_type& istate_data,
    [[maybe_unused]] double policy_weight,
    [[maybe_unused]] const auto& regret_weights
@@ -200,17 +200,20 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 
    // we provide the accessor lambda to get the underlying referenced action, as the infodata
    // stores only reference wrappers to the actions
-   if constexpr(config.pruning_mode == CFRPruningMode::regret_based and config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
+   if constexpr(config.pruning_mode == CFRPruningMode::regret_based //
+                and config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
       m_regret_minimizer(
          current_policy,
          regret_table,
-         [](const action_type& action) { return std::ref(action); },
+         [](const ActionHolder< action_type >& action) { return std::ref(action.get()); },
          istate_data.template storage_element< 1 >()
       );
    } else {
-      m_regret_minimizer(current_policy, regret_table, [](const action_type& action) {
-         return std::ref(action);
-      });
+      m_regret_minimizer(
+         current_policy,
+         regret_table,
+         [](const ActionHolder< action_type >& action) { return std::ref(action.get()); }
+      );
    }
 
    // now we update the current accumulated policy by the iteration factor, again as per
@@ -228,7 +231,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
-   const info_state_type& infostate,
+   const InfostateHolder< info_state_type >& infostate,
    infostate_data_type& istate_data,
    auto&&...
 )
@@ -268,7 +271,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    auto& curr_policy = fetch_policy< PolicyLabel::current >(infostate, istate_data.actions());
    auto& regret_table = istate_data.regret();
    for(auto& [action, cumul_regret] : regret_table) {
-      auto action_ref = std::cref(action);
+      auto action_ref = std::cref(action.get());
       auto& instant_regret = instant_regret_table[action_ref];
       LOGD2("Action", action);
       LOGD2("L1 weight", exp_l1_weights[action_ref]);
@@ -297,7 +300,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    for(auto& [action, avg_policy_prob] :
        fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())) {
       double reach_prob = istate_data.template storage_element< 2 >();
-      double l1_weight = exp_l1_weights[std::cref(action)];
+      double l1_weight = exp_l1_weights[std::cref(action.get())];
       // this is the cumulative enumerator update
       LOGD2("Cumul Policy Reach prob", reach_prob);
       LOGD2("Cumul Policy L1 Weight prob", l1_weight);
@@ -306,7 +309,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       avg_policy_prob += l1_weight * reach_prob * curr_policy[action];
       // this is the cumulative denominator update
       LOGD2("Cumul Policy denominator update", l1_weight * reach_prob);
-      istate_data.template storage_element< 3 >(std::cref(action)) += l1_weight * reach_prob;
+      istate_data.template storage_element< 3 >(std::cref(action.get())) += l1_weight * reach_prob;
    }
 
    LOGD2("Cumul Policy after", ranges::views::values(istate_data.template storage_element< 3 >()));
@@ -316,8 +319,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 
    // we provide the accessor lambda to get the underlying referenced action, as the infodata
    // stores only reference wrappers to the actions
-   m_regret_minimizer(curr_policy, regret_table, [](const action_type& action) {
-      return std::ref(action);
+   m_regret_minimizer(curr_policy, regret_table, [](const ActionHolder< action_type >& action) {
+      return std::ref(action.get());
    });
 }
 
@@ -325,7 +328,7 @@ template < CFRConfig config, typename Env, typename Policy, typename AveragePoli
 template < bool initialize_infonodes, bool use_current_policy >
 StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    std::optional< Player > player_to_update,
-   uptr< world_state_type > state,
+   WorldstateHolder< world_state_type > state,
    ReachProbabilityMap reach_probability,
    ObservationbufferMap observation_buffer,
    InfostateSptrMap infostates
@@ -341,7 +344,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
          // each player
          return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
-            for(auto player : _env().players(*state) | utils::is_actual_player_pred) {
+            for(auto player : _env().players(*state) | is_actual_player_pred) {
                map[player] = 0.;
             }
             return map;
@@ -412,7 +415,7 @@ template < bool initialize_infonodes, bool use_current_policy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    std::optional< Player > player_to_update,
    Player active_player,
-   uptr< world_state_type > state,
+   WorldstateHolder< world_state_type > state,
    const ReachProbabilityMap& reach_probability,
    const ObservationbufferMap& observation_buffer,
    InfostateSptrMap infostate_map,
@@ -477,7 +480,7 @@ template < bool initialize_infonodes, bool use_current_policy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
    std::optional< Player > player_to_update,
    Player active_player,
-   uptr< world_state_type > state,
+   WorldstateHolder< world_state_type > state,
    const ReachProbabilityMap& reach_probability,
    const ObservationbufferMap& observation_buffer,
    InfostateSptrMap infostate_map,
@@ -514,7 +517,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
-   const info_state_type& infostate,
+   const InfostateHolder< info_state_type >& infostate,
    const ReachProbabilityMap& reach_probability,
    const StateValueMap& state_value,
    const std::unordered_map< action_variant_type, StateValueMap >& action_value_map

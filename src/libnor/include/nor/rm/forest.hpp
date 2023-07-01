@@ -44,7 +44,7 @@ class GameTreeTraverser {
    using info_state_type = auto_info_state_type< Env >;
    using action_variant_type = auto_action_variant_type< Env >;
 
-   GameTreeTraverser(Env& env) : m_env(&env) {}
+   GameTreeTraverser(Env env) : m_env(std::move(env)) {}
 
    /**
     * @brief Traverses all selected game actions and connects the nodes along the way.
@@ -58,7 +58,7 @@ class GameTreeTraverser {
     * children of a node during traversal)
     */
    template <
-      typename VisitationData = utils::empty,
+      typename VisitationData = empty,
       typename PreChildVisitHook = common::noop,
       typename ChildVisitHook = common::noop,
       typename PostChildVisitHook = common::noop,
@@ -69,23 +69,27 @@ class GameTreeTraverser {
          VisitationData,  // the expected return type
          ChildVisitHook,  // the actual functor
          VisitationData&,  // current node's visitation data access
-         action_variant_type*,  // the action that lead to this child
-         world_state_type*,  // current world state
-         world_state_type*  // child world state
+         const action_variant_type*,  // the action that lead to this child
+         const WorldstateHolder< world_state_type >*,  // current world state
+         const WorldstateHolder< world_state_type >*  // child world state
       >
       and std::invocable<
          PreChildVisitHook,  // the actual functor
          VisitationData&,  // current node's visitation data access
-         world_state_type*  // current world state
+         const WorldstateHolder< world_state_type >*  // current world state
       >
       and std::invocable<
          PostChildVisitHook,  // the actual functor
-         world_state_type*  // current world state
+         const WorldstateHolder< world_state_type >*  // current world state
+      >
+      and std::invocable<
+         RootVisitHook,  // the actual functor
+         const WorldstateHolder< world_state_type >*  // root world state
       >
       and std::is_move_constructible_v< VisitationData >
    // clang-format on
    inline void walk(
-      uptr< world_state_type > root_state,
+      const WorldstateHolder< world_state_type >& root_state,
       VisitationData vis_data = {},
       TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook > hooks =
          {}
@@ -93,7 +97,7 @@ class GameTreeTraverser {
    {
       // we need to fill the root node's data (if desired) before entering the loop, since the
       // loop assumes all entered nodes to have their data node emplaced already.
-      hooks.root_hook(root_state.get());
+      hooks.root_hook(&root_state);
 
       // the tree needs to be traversed. To do so, every node (starting from the root node aka
       // the current game state) will emplace its child states - as generated from its possible
@@ -111,23 +115,20 @@ class GameTreeTraverser {
 
       // the visitation stack. Each node in this stack will be visited once according to the
       // traversal strategy selected.
-      std::stack< std::tuple< uptr< world_state_type >, VisitationData > > visit_stack;
+      std::stack< std::tuple< const WorldstateHolder< world_state_type >, VisitationData > >
+         visit_stack;
       // emplace the root node into the visitation stack
-      visit_stack.emplace(
-         utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(root_state)),
-         std::move(vis_data)
-      );
+      visit_stack.emplace(root_state, std::move(vis_data));
 
       while(not visit_stack.empty()) {
          // get the top node and world state from the stack and move them into our values.
-         auto [curr_wstate_uptr, visit_data] = std::move(visit_stack.top());
+         auto [curr_wstate, visit_data] = std::move(visit_stack.top());
          // remove those elements from the stack (there is no unified pop-and-return method for
          // stack)
          visit_stack.pop();
 
-         auto curr_wstate_raw_ptr = curr_wstate_uptr.get();
-         auto curr_player = m_env->active_player(*curr_wstate_uptr.get());
-         hooks.pre_child_hook(curr_wstate_raw_ptr, visit_data);
+         auto curr_player = m_env.active_player(curr_wstate);
+         hooks.pre_child_hook(curr_wstate, visit_data);
 
          for(const action_variant_type& action_variant : [&] {
                 auto to_variant_transform = ranges::views::transform([](const auto& any) {
@@ -135,22 +136,21 @@ class GameTreeTraverser {
                 });
                 if constexpr(concepts::stochastic_env< Env >) {
                    if(curr_player == Player::chance) {
-                      auto actions = m_env->chance_actions(*curr_wstate_uptr.get());
-                      return ranges::to< std::vector >(actions | to_variant_transform);
+                      auto actions = m_env.chance_actions(curr_wstate);
+                      return ranges::to_vector(actions | to_variant_transform);
                    }
                 }
-                auto actions = m_env->actions(curr_player, *curr_wstate_uptr.get());
-                return ranges::to< std::vector >(actions | to_variant_transform);
+                auto actions = m_env.actions(curr_player, curr_wstate);
+                return ranges::to_vector(actions | to_variant_transform);
              }()) {
             // beginning of for loop body
 
-            auto next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
-               utils::clone_any_way(curr_wstate_uptr)
-            );
+            auto next_wstate = curr_wstate.copy();
+
             // move the new world state forward by the current action
             std::visit(
                common::Overload{
-                  [&](const auto& any_action) { m_env->transition(*next_wstate_uptr, any_action); },
+                  [&](const auto& any_action) { m_env.transition(next_wstate, any_action); },
                   [&](const std::monostate&) {},
                },
                action_variant
@@ -161,23 +161,23 @@ class GameTreeTraverser {
             // consistency in our call signature
 
             auto new_visitation_data = hooks.child_hook(
-               visit_data, &action_variant, curr_wstate_raw_ptr, next_wstate_uptr.get()
+               visit_data, &action_variant, &curr_wstate, &next_wstate
             );
 
-            if(not m_env->is_terminal(*next_wstate_uptr)) {
+            if(not m_env.is_terminal(next_wstate)) {
                // if the newly reached world state is not a terminal state, then we merely append
                // the new child node to the queue. This way we further explore its child states
                // as reachable from the next possible actions.
-               visit_stack.emplace(std::move(next_wstate_uptr), std::move(new_visitation_data));
+               visit_stack.emplace(std::move(next_wstate), std::move(new_visitation_data));
             }
          }
-         hooks.post_child_hook(curr_wstate_raw_ptr);
+         hooks.post_child_hook(&curr_wstate);
       }
    }
 
   private:
-   /// pointer to the environment used to traverse the tree
-   Env* m_env;
+   /// environment used to traverse the tree
+   Env m_env;
 };
 
 // template < concepts::fosg Env >
@@ -324,7 +324,7 @@ class GameTreeTraverser {
 //
 //    // emplace the root node into the visitation stack
 //    visit_stack.emplace(
-//       utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(m_root_state)),
+//       static_unique_ptr_downcast< world_state_type >(clone(m_root_state)),
 //       VisitationData{
 //          .infostates =
 //             [&] {
@@ -574,8 +574,8 @@ class GameTreeTraverser {
 //
 //         for(const auto& action : ranges::views::keys(curr_node->children)) {
 //            // copy the current nodes world state
-//            auto next_wstate_uptr = utils::static_unique_ptr_downcast< world_state_type >(
-//               utils::clone_any_way(curr_wstate));
+//            auto next_wstate_uptr = static_unique_ptr_downcast< world_state_type >(
+//               clone(curr_wstate));
 //            // move the new world state forward by the current action
 //            env.transition(*next_wstate_uptr, action);
 //            // the child node has shared ownership by each player's game tree

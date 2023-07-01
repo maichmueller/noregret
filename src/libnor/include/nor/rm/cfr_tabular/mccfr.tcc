@@ -93,7 +93,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
    auto players = _env().players(*_root_state_uptr());
    auto init_infostates = [&] {
       std::unordered_map< Player, sptr< info_state_type > > infostates;
-      for(auto player : players | utils::is_actual_player_filter) {
+      for(auto player : players | is_actual_player_filter) {
          infostates.emplace(player, std::make_shared< info_state_type >(player));
       }
       return InfostateSptrMap{std::move(infostates)};
@@ -108,7 +108,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
    auto init_obs_buffer = [&] {
       std::unordered_map< Player, std::vector< std::pair< observation_type, observation_type > > >
          obs_map;
-      for(auto player : players | utils::is_actual_player_filter) {
+      for(auto player : players | is_actual_player_filter) {
          obs_map[player];
       }
       return ObservationbufferMap{std::move(obs_map)};
@@ -118,8 +118,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
       // in outcome-sampling we only have a single trajectory to traverse in the tree. Hence, we
       // can maintain the lifetime of that world state in this upstream function call and merely
       // pass in the state as reference
-      auto init_world_state = utils::static_unique_ptr_downcast< world_state_type >(
-         utils::clone_any_way(_root_state_uptr())
+      auto init_world_state = static_unique_ptr_downcast< world_state_type >(
+         clone(_root_state_uptr())
       );
 
       return _traverse(
@@ -132,12 +132,12 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
          std::invoke([&] {
             if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
                std::unordered_map< Player, double > weights;
-               for(auto player : players | utils::is_actual_player_filter) {
+               for(auto player : players | is_actual_player_filter) {
                   weights.emplace(player, 0.);
                }
                return WeightMap{std::move(weights)};
             } else {
-               return utils::empty{};
+               return empty{};
             }
          })
       );
@@ -153,8 +153,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
       delayed_update_set update_set{};
       auto value = _traverse(
          player_to_update.value(),
-         utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(_root_state_uptr())
+         static_unique_ptr_downcast< world_state_type >(
+            clone(_root_state_uptr())
          ),
          init_obs_buffer(),
          init_infostates(),
@@ -179,8 +179,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
       delayed_update_set update_set{};
       auto values = _traverse(
          player_to_update,
-         utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(_root_state_uptr())
+         static_unique_ptr_downcast< world_state_type >(
+            clone(_root_state_uptr())
          ),
          init_reach_probs(),
          init_obs_buffer(),
@@ -276,8 +276,8 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
 
          reach_probability.get()[Player::chance] *= chance_prob;
 
-         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(state)
+         auto state_before_transition = static_unique_ptr_downcast< world_state_type >(
+            clone(state)
          );
          _env().transition(state, chosen_outcome);
 
@@ -305,7 +305,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    // we have to clone the infostate to ensure that it is not written to upon further traversal
    // (we need this state after traversal to update policy and regrets)
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      utils::clone_any_way(infostates.get().at(active_player)), infostate_data_type{}
+      clone(infostates.get().at(active_player)), infostate_data_type{}
    );
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
@@ -344,8 +344,8 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       active_weight = active_weight * action_policy_prob
                       + infonode_data.template storage_element< 1 >(std::cref(sampled_action));
    }
-   auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
-      utils::clone_any_way(state)
+   auto state_before_transition = static_unique_ptr_downcast< world_state_type >(
+      clone(state)
    );
 
    _env().transition(state, sampled_action);
@@ -373,7 +373,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       if constexpr(config.weighting == MCCFRWeightingMode::lazy)
          return Weight{weights.get()[active_player]};
       else
-         return utils::empty{};
+         return empty{};
    };
 
    if constexpr(config.update_mode == UpdateMode::simultaneous) {
@@ -458,7 +458,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_terminal_value(
          Probability{1.}};
    } else {
       static_assert(
-         utils::always_false_v< Env >, "Update Mode not one of alternating or simultaneous"
+         always_false_v< Env >, "Update Mode not one of alternating or simultaneous"
       );
    }
 }
@@ -683,8 +683,8 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       if(active_player == Player::chance) {
          auto chosen_outcome = _sample_outcome< false >(*state);
 
-         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(*state)
+         auto state_before_transition = static_unique_ptr_downcast< world_state_type >(
+            clone(*state)
          );
          _env().transition(*state, chosen_outcome);
 
@@ -708,7 +708,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    }
 
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      utils::clone_any_way(infostates.get().at(active_player)), infostate_data_type{}
+      clone(infostates.get().at(active_player)), infostate_data_type{}
    );
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
@@ -855,7 +855,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          // each player
          return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
-            for(auto player : _env().players(*curr_worldstate) | utils::is_actual_player_pred) {
+            for(auto player : _env().players(*curr_worldstate) | is_actual_player_pred) {
                map[player] = 0.;
             }
             return map;
@@ -875,8 +875,8 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       if(active_player == Player::chance) {
          auto [chosen_outcome, _] = _sample_outcome(*curr_worldstate);
 
-         auto next_state = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(curr_worldstate)
+         auto next_state = static_unique_ptr_downcast< world_state_type >(
+            clone(curr_worldstate)
          );
          _env().transition(*next_state, chosen_outcome);
 
@@ -900,7 +900,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      utils::clone_any_way(infostates.get().at(active_player)), infostate_data_type{}
+      clone(infostates.get().at(active_player)), infostate_data_type{}
    );
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;

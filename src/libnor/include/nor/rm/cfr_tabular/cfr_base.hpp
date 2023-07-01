@@ -58,6 +58,7 @@ class TabularCFRBase {
    using public_state_type = auto_public_state_type< Env >;
    using observation_type = auto_observation_type< Env >;
    using chance_outcome_type = auto_chance_outcome_type< Env >;
+   using action_variant_type = auto_action_variant_type< Env >;
    using chance_distribution_type = auto_chance_distribution_type< Env >;
 
    using uniform_policy_type = UniformPolicy<
@@ -74,7 +75,9 @@ class TabularCFRBase {
       NamedType< player_hash_map< sptr< info_state_type > >, struct reach_prob_tag >;
 
    using ObservationbufferMap = fluent::NamedType<
-      player_hash_map< std::vector< std::pair< observation_type, observation_type > > >,
+      player_hash_map< std::vector< std::pair<
+         ObservationHolder< observation_type >,
+         ObservationHolder< observation_type > > > >,
       struct observation_buffer_tag >;
 
    ////////////////////
@@ -103,7 +106,7 @@ class TabularCFRBase {
          m_curr_policy(),
          m_avg_policy()
    {
-      for(auto player : game.players(*m_root_state) | utils::is_actual_player_filter) {
+      for(auto player : game.players(*m_root_state) | is_actual_player_filter) {
          m_curr_policy.emplace(player, policy);
          m_avg_policy.emplace(player, avg_policy);
       }
@@ -160,13 +163,18 @@ class TabularCFRBase {
     * node
     */
    template < bool current_policy >
-   auto& fetch_policy(const info_state_type& infostate, const std::vector< action_type >& actions);
+   auto& fetch_policy(
+      const InfostateHolder< info_state_type >& infostate,
+      const std::vector< ActionHolder< action_type > >& actions
+   );
    /**
     * @brief Policy fetching overload for explicit naming of the policy.
     */
    template < PolicyLabel label >
-   decltype(auto)
-   fetch_policy(const info_state_type& infostate, const std::vector< action_type >& actions)
+   decltype(auto) fetch_policy(
+      const InfostateHolder< info_state_type >& infostate,
+      const std::vector< ActionHolder< action_type > >& actions
+   )
    {
       static_assert(
          label == PolicyLabel::current or label == PolicyLabel::average,
@@ -182,9 +190,9 @@ class TabularCFRBase {
     */
    template < bool current_policy >
    inline auto& fetch_policy(
-      const info_state_type& infostate,
-      const std::vector< action_type >& actions,
-      const action_type& action
+      const InfostateHolder< info_state_type >& infostate,
+      const std::vector< ActionHolder< action_type > >& actions,
+      const ActionHolder< action_type >& action
    )
    {
       return fetch_policy< current_policy >(infostate, actions)[action];
@@ -346,8 +354,8 @@ template < bool alternating_updates, typename Env, typename Policy, typename Ave
       ZeroDefaultPolicy< auto_info_state_type< Env >, auto_action_policy_type< AveragePolicy > > >
 template < bool current_policy >
 auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_policy(
-   const info_state_type& infostate,
-   const std::vector< action_type >& actions
+   const InfostateHolder< info_state_type >& infostate,
+   const std::vector< ActionHolder< action_type > >& actions
 )
 {
    if constexpr(current_policy) {

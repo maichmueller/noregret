@@ -130,9 +130,9 @@ class MCCFR:
       NamedType< std::unordered_map< Player, double >, struct weight_map_tag >;
 
    using ConditionalWeightMap = std::
-      conditional_t< config.weighting == MCCFRWeightingMode::lazy, WeightMap, utils::empty >;
+      conditional_t< config.weighting == MCCFRWeightingMode::lazy, WeightMap, empty >;
    using ConditionalWeight = std::
-      conditional_t< config.weighting == MCCFRWeightingMode::lazy, Weight, utils::empty >;
+      conditional_t< config.weighting == MCCFRWeightingMode::lazy, Weight, empty >;
 
    /// a hash set to store which infostates and their associated data types need to be updated in
    /// terms of regret minimization POST cfr iteration
@@ -327,7 +327,7 @@ class MCCFR:
          return rm::regret_matching(std::forward< Args >(args)...);
       }
       if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
-         static_assert(utils::always_false_v< env_type >, "MCCFR+ is not yet implemented.");
+         static_assert(always_false_v< env_type >, "MCCFR+ is not yet implemented.");
          // return rm::regret_matching_plus(std::forward< Args >(args)...);
       }
    };
