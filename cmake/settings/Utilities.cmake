@@ -25,7 +25,7 @@ function(register_nor_target target_name)
     message(STATUS "Target Source Contents (pathed): ${${target_name}_sources_list}")
 
     add_executable(${target_name} ${PROJECT_TEST_DIR}/main_tests.cpp ${${target_name}_sources_list}) # a list of source
-                                                                                                     # files to append
+    # files to append
 
     target_link_libraries(${target_name} PRIVATE shared_test_libs)
 
@@ -64,11 +64,11 @@ function(
     message(STATUS "Target Source Contents (pathed): ${${target_name}_sources_list}")
 
     add_executable(${target_name} ${PROJECT_TEST_DIR}/main_tests.cpp ${${target_name}_sources_list}) # a list of source
-                                                                                                     # files to append
+    # files to append
 
     set_target_properties(
         ${target_name} PROPERTIES EXCLUDE_FROM_ALL True # don't build tests when ALL is asked to be built. Only on
-                                                        # demand.
+                                  # demand.
     )
 
     target_link_libraries(${target_name} PRIVATE shared_test_libs ${lib_name})

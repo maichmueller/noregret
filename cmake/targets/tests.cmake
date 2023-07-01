@@ -12,6 +12,7 @@ register_nor_target(${nor_test}_cfr_exponential test_cfr_exponential.cpp)
 register_nor_target(${nor_test}_cfr_monte_carlo test_cfr_monte_carlo.cpp)
 register_nor_target(${nor_test}_policy test_policy.cpp)
 register_nor_target(${nor_test}_helpers test_helpers.cpp)
+register_nor_target(${nor_test}_holder test_holder.cpp)
 register_nor_target(${nor_test}_exploitability test_exploitability.cpp)
 # for the overall test executable we simply merge all other test files together
 foreach(sources_list IN LISTS REGISTERED_TEST_SOURCES_LIST)
