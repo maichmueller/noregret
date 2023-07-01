@@ -3,14 +3,14 @@
 
 namespace stratego {
 
-aze::Status Logic::check_terminal(State &state)
+aze::Status Logic::check_terminal(const State &state)
 {
    if(state.graveyard(Team::BLUE).at(Token::flag) != 0) {
       // flag of team 0 has been captured (killed), therefore team 0 lost
-      return state.status(aze::Status::WIN_RED);
+      return Status::WIN_RED;
    } else if(state.graveyard(Team::RED).at(Token::flag) != 0) {
       // flag of team 1 has been captured (killed), therefore team 1 lost
-      return state.status(aze::Status::WIN_BLUE);
+      return Status::WIN_BLUE;
    }
 
    // committing draw rules here
@@ -18,18 +18,18 @@ aze::Status Logic::check_terminal(State &state)
    // Rule 1: If the active team has no moves left -> loss
    if(not has_valid_actions(state, state.active_team())) {
       if(state.active_team() == Team::BLUE) {
-         return state.status(Status::WIN_RED);
+         return Status::WIN_RED;
       } else {
-         return state.status(Status::WIN_BLUE);
+         return Status::WIN_BLUE;
       }
    }
 
    // Rule 2: The maximum turn count has been reached
    if(std::cmp_greater_equal(state.turn_count(), state.config().max_turn_count)) {
       LOGD2("Turn count on finish: ", state.turn_count());
-      return state.status(aze::Status::TIE);
+      return Status::TIE;
    }
-   return state.status(Status::ONGOING);
+   return Status::ONGOING;
 }
 
 void Logic::apply_action(State &state, const Action &action)

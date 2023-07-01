@@ -69,7 +69,7 @@ std::string State::to_string(std::optional< Team > team, bool hide_unknowns) con
 {
    return utils::print_board(board(), team, hide_unknowns);
 }
-aze::Status State::check_terminal()
+aze::Status State::check_terminal() const
 {
    return m_logic->check_terminal(*this);
 }

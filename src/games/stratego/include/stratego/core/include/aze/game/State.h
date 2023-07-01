@@ -55,7 +55,7 @@ class State {
    virtual ~State() = default;
 
    virtual void transition(const action_type &action) = 0;
-   virtual Status check_terminal() = 0;
+   virtual Status check_terminal() const = 0;
    virtual void restore_to_round(size_t round);
 
    [[nodiscard]] virtual Team active_team() const = 0;
@@ -77,6 +77,12 @@ class State {
       m_status_checked = true;
       m_status = check_terminal();
       return m_status;
+   }
+   Status status() const
+   {
+      if(m_status_checked)
+         return m_status;
+      return check_terminal();
    }
    [[nodiscard]] inline auto history() const { return m_move_history; }
    [[nodiscard]] inline auto &history() { return m_move_history; }

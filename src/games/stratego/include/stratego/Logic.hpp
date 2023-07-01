@@ -26,7 +26,7 @@ class Logic {
 
    void apply_action(State &state, const Action &action);
 
-   aze::Status check_terminal(State &state);
+   aze::Status check_terminal(const State &state);
 
    bool is_valid(
       const State &state,

@@ -129,7 +129,8 @@ class State: public aze::State< Board, History, Piece, Action > {
 
    void transition(const action_type &action) override;
    void transition(Move move);
-   aze::Status check_terminal() override;
+   aze::Status check_terminal() { return status(std::as_const(*this).check_terminal()); }
+   aze::Status check_terminal() const override;
    [[nodiscard]] Team active_team() const override
    {
       return Team((turn_count() + static_cast< size_t >(m_config.starting_team)) % 2);
