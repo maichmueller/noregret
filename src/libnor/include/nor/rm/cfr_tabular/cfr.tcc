@@ -14,7 +14,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
       StateValueMap value = std::invoke([&] {
          if constexpr(config.update_mode == UpdateMode::alternating) {
             auto player_to_update = _cycle_player_to_update();
-            if(_iteration() < _env().players(*_root_state_uptr()).size() - 1) [[unlikely]] {
+            if(_iteration() < _env().players(*_root_state()).size() - 1) [[unlikely]] {
                return _iterate< true >(player_to_update);
             } else [[likely]] {
                return _iterate< false >(player_to_update);
@@ -42,7 +42,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(
    LOGD2("Iteration number: ", _iteration());
    // run the iteration
    StateValueMap values = [&] {
-      if(_iteration() < _env().players(*_root_state_uptr()).size() - 1)
+      if(_iteration() < _env().players(*_root_state()).size() - 1)
          return _iterate< true >(_cycle_player_to_update(player_to_update));
       else
          return _iterate< false >(_cycle_player_to_update(player_to_update));
@@ -61,8 +61,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
    auto root_players = _env().players(root_state());
    auto root_game_value = _traverse< initializing_run, use_current_policy >(
       player_to_update,
-      static_unique_ptr_downcast< world_state_type >(clone(_root_state_uptr())
-      ),
+      _root_state().copy(),
       std::invoke([&] {
          ReachProbabilityMap rp_map{{}};
          for(auto player : root_players) {
@@ -74,13 +73,16 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
          ObservationbufferMap obs_map{{}};
          for(auto player : root_players | is_actual_player_filter) {
             obs_map.get().emplace(
-               player, std::vector< std::pair< observation_type, observation_type > >{}
+               player,
+               std::vector< std::pair<
+                  ObservationHolder< observation_type >,
+                  ObservationHolder< observation_type > > >{}
             );
          }
          return ObservationbufferMap{std::move(obs_map)};
       }),
       std::invoke([&] {
-         InfostateSptrMap infostates{{}};
+         SharedInfostateMap infostates{{}};
          for(auto player : root_players | is_actual_player_filter) {
             infostates.get().emplace(player, std::make_shared< info_state_type >(player));
          }
@@ -329,22 +331,22 @@ template < bool initialize_infonodes, bool use_current_policy >
 StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    std::optional< Player > player_to_update,
    WorldstateHolder< world_state_type > state,
-   ReachProbabilityMap reach_probability,
+   ReachProbabilityMap reach_probability_map,
    ObservationbufferMap observation_buffer,
-   InfostateSptrMap infostates
+   SharedInfostateMap infostates
 )
 {
-   if(_env().is_terminal(*state)) {
-      return StateValueMap{collect_rewards(_env(), *state)};
+   if(_env().is_terminal(state)) {
+      return StateValueMap{collect_rewards(_env(), state)};
    }
 
    if constexpr(config.pruning_mode == CFRPruningMode::partial) {
-      if(_partial_pruning_condition(player_to_update, reach_probability)) {
+      if(_partial_pruning_condition(player_to_update, reach_probability_map)) {
          // if the entire subtree is pruned then the values that could be found are all 0. for
          // each player
          return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
-            for(auto player : _env().players(*state) | is_actual_player_pred) {
+            for(auto player : _env().players(state) | is_actual_player_pred) {
                map[player] = 0.;
             }
             return map;
@@ -352,7 +354,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   Player active_player = _env().active_player(*state);
+   Player active_player = _env().active_player(state);
    // the state's value for each player. To be filled by the action traversal functions.
    StateValueMap state_value{{}};
    // each action's value for each player. To be filled by the action traversal functions.
@@ -366,7 +368,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
             player_to_update,
             active_player,
             std::move(state),
-            reach_probability,
+            reach_probability_map,
             std::move(observation_buffer),
             std::move(infostates),
             state_value,
@@ -378,13 +380,15 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   sptr< info_state_type > this_infostate = infostates.get().at(active_player);
+   InfostateHolder< info_state_type, std::true_type > this_infostate = infostates.get().at(
+      active_player
+   );
 
    _traverse_player_actions< initialize_infonodes, use_current_policy >(
       player_to_update,
       active_player,
       std::move(state),
-      reach_probability,
+      reach_probability_map,
       std::move(observation_buffer),
       std::move(infostates),
       state_value,
@@ -399,12 +403,16 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
          // in alternating updates, we only update the regret and strategy if the current
          // player is the chosen player to update.
          if(active_player == player_to_update.value()) {
-            update_regret_and_policy(*this_infostate, reach_probability, state_value, action_value);
+            update_regret_and_policy(
+               *this_infostate, reach_probability_map, state_value, action_value
+            );
          }
       } else {
          // if we do simultaenous updates, then we always update the regret and strategy
          // values of the node's active player.
-         update_regret_and_policy(*this_infostate, reach_probability, state_value, action_value);
+         update_regret_and_policy(
+            *this_infostate, reach_probability_map, state_value, action_value
+         );
       }
    }
    return StateValueMap{std::move(state_value)};
@@ -418,7 +426,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    WorldstateHolder< world_state_type > state,
    const ReachProbabilityMap& reach_probability,
    const ObservationbufferMap& observation_buffer,
-   InfostateSptrMap infostate_map,
+   SharedInfostateMap infostate_map,
    StateValueMap& state_value,
    std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
@@ -426,11 +434,11 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    const auto& this_infostate = infostate_map.get().at(active_player);
    if constexpr(initialize_infonodes) {
       _infonodes().emplace(
-         this_infostate, infostate_data_type{_env().actions(active_player, *state)}
+         this_infostate, infostate_data_type{_env().actions(active_player, state)}
       );
    }
    const auto& actions = _infonode(this_infostate).actions();
-   auto& action_policy = fetch_policy< use_current_policy >(*this_infostate, actions);
+   auto& action_policy = fetch_policy< use_current_policy >(this_infostate, actions);
    double normalizing_factor = std::invoke([&] {
       if constexpr(not use_current_policy) {
          // we try to normalize only for the average policy, since iterations with the current
@@ -454,17 +462,17 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       auto child_reach_prob = reach_probability.get();
       child_reach_prob[active_player] *= action_prob;
 
-      uptr< world_state_type > next_wstate_uptr = child_state(_env(), *state, action);
+      auto next_wstate = child_state(_env(), state, action);
       auto [child_observation_buffer, child_infostate_map] = next_infostate_and_obs_buffers(
-         _env(), observation_buffer.get(), infostate_map.get(), *state, action, *next_wstate_uptr
+         _env(), observation_buffer.get(), infostate_map.get(), state, action, next_wstate
       );
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
          player_to_update,
-         std::move(next_wstate_uptr),
+         std::move(next_wstate),
          ReachProbabilityMap{std::move(child_reach_prob)},
          ObservationbufferMap{std::move(child_observation_buffer)},
-         InfostateSptrMap{std::move(child_infostate_map)}
+         SharedInfostateMap{std::move(child_infostate_map)}
       );
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action
@@ -483,28 +491,28 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
    WorldstateHolder< world_state_type > state,
    const ReachProbabilityMap& reach_probability,
    const ObservationbufferMap& observation_buffer,
-   InfostateSptrMap infostate_map,
+   SharedInfostateMap infostate_map,
    StateValueMap& state_value,
    std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
 {
-   for(auto&& outcome : _env().chance_actions(*state)) {
-      uptr< world_state_type > next_wstate_uptr = child_state(_env(), *state, outcome);
+   for(auto&& outcome : _env().chance_actions(state)) {
+      auto next_wstate = child_state(_env(), state, outcome);
 
       auto child_reach_prob = reach_probability.get();
       auto outcome_prob = _env().chance_probability(*state, outcome);
       child_reach_prob[active_player] *= outcome_prob;
 
       auto [child_observation_buffer, child_infostate_map] = next_infostate_and_obs_buffers(
-         _env(), observation_buffer.get(), infostate_map.get(), *state, outcome, *next_wstate_uptr
+         _env(), observation_buffer.get(), infostate_map.get(), state, outcome, next_wstate
       );
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
          player_to_update,
-         std::move(next_wstate_uptr),
+         std::move(next_wstate),
          ReachProbabilityMap{std::move(child_reach_prob)},
          ObservationbufferMap{std::move(child_observation_buffer)},
-         InfostateSptrMap{std::move(child_infostate_map)}
+         SharedInfostateMap{std::move(child_infostate_map)}
       );
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action

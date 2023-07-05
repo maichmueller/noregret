@@ -71,8 +71,9 @@ class TabularCFRBase {
    /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
    /// strong-types for argument passing
-   using InfostateSptrMap = fluent::
-      NamedType< player_hash_map< sptr< info_state_type > >, struct reach_prob_tag >;
+   using SharedInfostateMap = fluent::NamedType<
+      player_hash_map< InfostateHolder< info_state_type, std::true_type > >,
+      struct infostate_map_tag >;
 
    using ObservationbufferMap = fluent::NamedType<
       player_hash_map< std::vector< std::pair<
@@ -90,7 +91,7 @@ class TabularCFRBase {
 
    TabularCFRBase(
       Env game,
-      uptr< world_state_type > root_state,
+      const WorldstateHolder< world_state_type >& root_state,
       const Policy& policy = Policy(),
       const AveragePolicy& avg_policy = AveragePolicy()
    )
@@ -101,12 +102,9 @@ class TabularCFRBase {
             Policy,
             AveragePolicy >
        // clang-format on
-       : m_env(std::move(game)),
-         m_root_state(std::move(root_state)),
-         m_curr_policy(),
-         m_avg_policy()
+       : m_env(std::move(game)), m_root_state(root_state.copy()), m_curr_policy(), m_avg_policy()
    {
-      for(auto player : game.players(*m_root_state) | is_actual_player_filter) {
+      for(auto player : game.players(m_root_state) | is_actual_player_filter) {
          m_curr_policy.emplace(player, policy);
          m_avg_policy.emplace(player, avg_policy);
       }
@@ -122,24 +120,19 @@ class TabularCFRBase {
       requires
          concepts::has::method::initial_world_state< Env >
        // clang-format on
-       : TabularCFRBase(
-          std::move(env),
-          std::make_unique< world_state_type >(env.initial_world_state()),
-          policy,
-          avg_policy
-       )
+       : TabularCFRBase(std::move(env), env.initial_world_state(), policy, avg_policy)
    {
       _init_player_update_schedule();
    }
 
    TabularCFRBase(
       Env game,
-      uptr< world_state_type > root_state,
+      const WorldstateHolder< world_state_type >& root_state,
       std::unordered_map< Player, Policy > policy,
       std::unordered_map< Player, AveragePolicy > avg_policy
    )
        : m_env(std::move(game)),
-         m_root_state(std::move(root_state)),
+         m_root_state(root_state.copy()),
          m_curr_policy(std::move(policy)),
          m_avg_policy(std::move(avg_policy))
    {
@@ -162,17 +155,17 @@ class TabularCFRBase {
     * @return action_policy_type the player's state policy (distribution) over all actions at this
     * node
     */
-   template < bool current_policy >
+   template < bool current_policy, typename InfostateHolderOrType >
    auto& fetch_policy(
-      const InfostateHolder< info_state_type >& infostate,
+      const InfostateHolderOrType& infostate,
       const std::vector< ActionHolder< action_type > >& actions
    );
    /**
     * @brief Policy fetching overload for explicit naming of the policy.
     */
-   template < PolicyLabel label >
+   template < PolicyLabel label, typename InfostateHolderOrType >
    decltype(auto) fetch_policy(
-      const InfostateHolder< info_state_type >& infostate,
+      const InfostateHolderOrType& infostate,
       const std::vector< ActionHolder< action_type > >& actions
    )
    {
@@ -200,7 +193,7 @@ class TabularCFRBase {
 
    /// getter methods for stored data
 
-   [[nodiscard]] inline const auto& root_state() const { return *m_root_state; }
+   [[nodiscard]] inline const auto& root_state() const { return m_root_state; }
    [[nodiscard]] inline auto iteration() const { return m_iteration; }
    [[nodiscard]] inline const auto& policy() const { return m_curr_policy; }
    [[nodiscard]] inline const auto& average_policy() const { return m_avg_policy; }
@@ -213,7 +206,7 @@ class TabularCFRBase {
   protected:
    /// protected member access for derived classes
    [[nodiscard]] inline auto& _env() { return m_env; }
-   [[nodiscard]] inline const auto& _root_state_uptr() const { return m_root_state; }
+   [[nodiscard]] inline const auto& _root_state() const { return m_root_state; }
    [[nodiscard]] inline auto& _iteration() { return m_iteration; }
    [[nodiscard]] inline auto& _policy() { return m_curr_policy; }
    [[nodiscard]] inline auto& _average_policy() { return m_avg_policy; }
@@ -240,7 +233,7 @@ class TabularCFRBase {
    inline void _init_player_update_schedule()
    {
       if constexpr(alternating_updates) {
-         for(auto player : m_env.players(*m_root_state)) {
+         for(auto player : m_env.players(m_root_state)) {
             if(player != Player::chance) {
                m_player_update_schedule.push_back(player);
             }
@@ -289,7 +282,7 @@ class TabularCFRBase {
    /// the environment object to maneuver the states with.
    env_type m_env;
    /// the root game state.
-   uptr< world_state_type > m_root_state;
+   WorldstateHolder< world_state_type > m_root_state;
    /// a map of the current policy $\pi^t$ that each player is following in this iteration (t).
    player_hash_map< Policy > m_curr_policy;
    /// the average policy table. The values stored in this table are the UNNORMALIZED average state
@@ -352,18 +345,19 @@ template < bool alternating_updates, typename Env, typename Policy, typename Ave
       AveragePolicy,
       UniformPolicy< auto_info_state_type< Env >, auto_action_policy_type< Policy > >,
       ZeroDefaultPolicy< auto_info_state_type< Env >, auto_action_policy_type< AveragePolicy > > >
-template < bool current_policy >
+template < bool current_policy, typename InfostateHolderOrType >
 auto& TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::fetch_policy(
-   const InfostateHolder< info_state_type >& infostate,
+   const InfostateHolderOrType& infostate,
    const std::vector< ActionHolder< action_type > >& actions
 )
 {
+   const info_state_type& infostate_ref = common::deref(infostate);
    if constexpr(current_policy) {
-      auto& player_policy = m_curr_policy[infostate.player()];
-      return player_policy(infostate, actions, uniform_policy_type{});
+      auto& player_policy = m_curr_policy[infostate_ref.player()];
+      return player_policy(infostate_ref, actions, uniform_policy_type{});
    } else {
-      auto& player_policy = m_avg_policy[infostate.player()];
-      return player_policy(infostate, actions, zero_policy_type{});
+      auto& player_policy = m_avg_policy[infostate_ref.player()];
+      return player_policy(infostate_ref, actions, zero_policy_type{});
    }
 }
 

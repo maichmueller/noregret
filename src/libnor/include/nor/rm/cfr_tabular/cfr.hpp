@@ -161,7 +161,7 @@ class VanillaCFR:
    /// the data to store per infostate entry
    using infostate_data_type = typename detail::VCFRNodeDataSelector< config, env_type >::type;
    /// strong-types for player based maps
-   using InfostateSptrMap = typename base::InfostateSptrMap;
+   using SharedInfostateMap = typename base::SharedInfostateMap;
    using ObservationbufferMap = typename base::ObservationbufferMap;
 
    ////////////////////
@@ -309,7 +309,7 @@ class VanillaCFR:
    /// import the parent's member variable accessors and protected utilities
    using base::_env;
    using base::_iteration;
-   using base::_root_state_uptr;
+   using base::_root_state;
    using base::_policy;
    using base::_average_policy;
    using base::_player_update_schedule;
@@ -365,9 +365,9 @@ class VanillaCFR:
    StateValueMap _traverse(
       std::optional< Player > player_to_update,
       WorldstateHolder< world_state_type > curr_worldstate,
-      ReachProbabilityMap reach_probability,
+      ReachProbabilityMap reach_probability_map,
       ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostate_map
+      SharedInfostateMap infostate_map
    );
 
    template < bool initialize_infonodes, bool use_current_policy = true >
@@ -377,7 +377,7 @@ class VanillaCFR:
       WorldstateHolder< world_state_type > state,
       const ReachProbabilityMap& reach_probability,
       const ObservationbufferMap& observation_buffer,
-      InfostateSptrMap infostate_map,
+      SharedInfostateMap infostate_map,
       StateValueMap& state_value,
       std::unordered_map< action_variant_type, StateValueMap >& action_value
    );
@@ -389,7 +389,7 @@ class VanillaCFR:
       WorldstateHolder< world_state_type > state,
       const ReachProbabilityMap& reach_probability,
       const ObservationbufferMap& observation_buffer,
-      InfostateSptrMap infostate_map,
+      SharedInfostateMap infostate_map,
       StateValueMap& state_value,
       std::unordered_map< action_variant_type, StateValueMap >& action_value
    );

@@ -50,7 +50,7 @@ struct MCCFRNodeDataSelector {
       action_type,
       // the extra storage is the sampled action at the infostate for the current iteration. It
       // needs to be reset after every iteration!
-      std::optional< action_type > >;
+      std::optional< ActionHolder< action_type > > >;
    /// for eg external sampling or stochastic weighetd outcome sampling we merely need the regret
    /// storage
    using basic_node_type = InfostateNodeData< action_type >;
@@ -114,7 +114,7 @@ class MCCFR:
    using typename base::observation_type;
    using typename base::chance_outcome_type;
    using typename base::chance_distribution_type;
-   using typename base::InfostateSptrMap;
+   using typename base::SharedInfostateMap;
    using typename base::ObservationbufferMap;
    using action_variant_type = auto_action_variant_type< env_type >;
    /// the data to store per infostate entry
@@ -136,29 +136,32 @@ class MCCFR:
 
    /// a hash set to store which infostates and their associated data types need to be updated in
    /// terms of regret minimization POST cfr iteration
-   using istate_and_data_tuple = std::
-      tuple< info_state_type*, std::reference_wrapper< infostate_data_type > >;
+   using istate_and_data_tuple = std::tuple< const info_state_type&, infostate_data_type& >;
+
+  private:
+   inline static constexpr auto _istate_value_cmp = common::value_comparator< info_state_type >{};
+   inline static constexpr auto _istate_value_hash = common::value_hasher< info_state_type >{};
+
+  public:
    using delayed_update_set = std::unordered_set<
       istate_and_data_tuple,
       decltype(common::TransparentOverload{
          [](const istate_and_data_tuple& tuple) {
-            return common::value_hasher< info_state_type >{}(std::get< 0 >(tuple));
+            return _istate_value_hash(std::get< 0 >(tuple));
          },
-         [](const auto& any) { return common::value_hasher< info_state_type >{}(any); },
+         [](const auto& any) { return _istate_value_hash(any); },
       }),
       decltype(common::TransparentOverload{
          [](const istate_and_data_tuple& t1, const istate_and_data_tuple& t2) {
-            return common::value_comparator< info_state_type >{}(
-               std::get< 0 >(t1), std::get< 0 >(t2)
-            );
+            return _istate_value_cmp(std::get< 0 >(t1), std::get< 0 >(t2));
          },
          [](const istate_and_data_tuple& t1, const auto& any) {
-            return common::value_comparator< info_state_type >{}(std::get< 0 >(t1), any);
+            return _istate_value_cmp(std::get< 0 >(t1), any);
          },
          [](const auto& any, const istate_and_data_tuple& t1) {
-            return common::value_comparator< info_state_type >{}(std::get< 0 >(t1), any);
+            return _istate_value_cmp(std::get< 0 >(t1), any);
          },
-         [](const auto& any) { return common::value_comparator< info_state_type >{}(any); },
+         [](const auto& any, const auto& any2) { return _istate_value_cmp(any, any2); },
       }) >;
 
    ////////////////////
@@ -185,13 +188,13 @@ class MCCFR:
    MCCFR(
       tag::internal_construct,
       Env env_,
-      uptr< world_state_type > root_state_,
+      const WorldstateHolder< world_state_type >& root_state_,
       Policy policy_ = Policy(),
       AveragePolicy avg_policy_ = AveragePolicy(),
       double epsilon = 0.6,
       size_t seed = std::random_device{}()
    )
-       : base(std::move(env_), std::move(root_state_), std::move(policy_), std::move(avg_policy_)),
+       : base(std::move(env_), root_state_, std::move(policy_), std::move(avg_policy_)),
          m_epsilon(epsilon),
          m_rng(seed)
    {
@@ -208,7 +211,7 @@ class MCCFR:
        : MCCFR(
           tag::internal_construct{},
           std::move(env_),
-          std::make_unique< world_state_type >(env.initial_world_state()),
+          env.initial_world_state(),
           std::move(policy_),
           std::move(avg_policy_),
           epsilon,
@@ -220,13 +223,13 @@ class MCCFR:
    MCCFR(
       tag::internal_construct,
       Env env_,
-      uptr< world_state_type > root_state_,
+      const WorldstateHolder< world_state_type >& root_state_,
       std::unordered_map< Player, Policy > policy_,
       std::unordered_map< Player, AveragePolicy > avg_policy_,
       double epsilon = 0.6,
       size_t seed = std::random_device{}()
    )
-       : base(std::move(env_), std::move(root_state_), std::move(policy_), std::move(avg_policy_)),
+       : base(std::move(env_), root_state_, std::move(policy_), std::move(avg_policy_)),
          m_epsilon(epsilon),
          m_rng(seed)
    {
@@ -271,14 +274,6 @@ class MCCFR:
    ////////////////////////////////
 
    inline auto& _infonodes() { return m_infonode; }
-   inline auto& infonode(const sptr< info_state_type >& infostate) const
-   {
-      return m_infonode.at(infostate);
-   }
-   inline auto& _infonode(const sptr< info_state_type >& infostate)
-   {
-      return m_infonode.at(infostate);
-   }
    inline auto& infonode(const info_state_type& infostate) const
    {
       auto found = m_infonode.find(infostate);
@@ -300,7 +295,7 @@ class MCCFR:
    /// import the parent's member variable accessors and protected utilities
    using base::_env;
    using base::_iteration;
-   using base::_root_state_uptr;
+   using base::_root_state;
    using base::_policy;
    using base::_average_policy;
    using base::_player_update_schedule;
@@ -310,7 +305,7 @@ class MCCFR:
 
    /// the relevant data stored at each infostate
    std::unordered_map<
-      sptr< info_state_type >,
+      InfostateHolder< info_state_type >,
       infostate_data_type,
       common::value_hasher< info_state_type >,
       common::value_comparator< info_state_type > >
@@ -356,8 +351,8 @@ class MCCFR:
       std::optional< Player > player_to_update,
       world_state_type& state,
       ReachProbabilityMap reach_probability,
-      ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostates,
+      ObservationbufferMap& observation_buffer,
+      player_hash_map< InfostateHolder< info_state_type > >& infostates,
       Probability sample_probability,
       ConditionalWeightMap weights
    )
@@ -365,9 +360,9 @@ class MCCFR:
 
    StateValue _traverse(
       Player player_to_update,
-      uptr< world_state_type > state,
+      WorldstateHolder< world_state_type > state,
       ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostates,
+      SharedInfostateMap infostates,
       delayed_update_set& infostates_to_update
    )  // clang-format off
       requires(
@@ -381,10 +376,10 @@ class MCCFR:
 
    StateValueMap _traverse(
       std::optional< Player > player_to_update,
-      uptr< world_state_type > curr_worldstate,
+      WorldstateHolder< world_state_type > curr_worldstate,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostates,
+      SharedInfostateMap infostates,
       [[maybe_unused]] delayed_update_set& infostates_to_update
    )  // clang-format off
       requires(
@@ -441,19 +436,30 @@ class MCCFR:
    )
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
+   template < typename InfostateHolderType >
+   std::pair< const InfostateHolder< info_state_type >*, infostate_data_type* >
+   maybe_emplace_infonode(
+      const world_state_type& state,
+      const player_hash_map< InfostateHolderType >& infostates_map,
+      Player active_player
+   );
+
    auto _sample_action(
       Player active_player,
       std::optional< Player > player_to_update,
-      const std::vector< action_type >& actions,
+      const std::vector< ActionHolder< action_type > >& actions,
       auto& action_policy
    );
 
-   auto _sample_action_on_policy(const std::vector< action_type >& actions, auto& action_policy);
+   auto _sample_action_on_policy(
+      const std::vector< ActionHolder< action_type > >& actions,
+      auto& action_policy
+   );
 
    template < bool return_likelihood = true >
    auto _sample_outcome(const world_state_type& state);
 
-   void _initiate_regret_minimization(const delayed_update_set& update_set);
+   void _initiate_regret_minimization(const delayed_update_set& infostate_and_data);
 
    void _invoke_regret_minimizer(const info_state_type& infostate, infostate_data_type& data);
 
