@@ -187,7 +187,6 @@ class HashmapActionPolicy {
    inline auto end() { return m_map.end(); }
    [[nodiscard]] inline auto end() const { return m_map.end(); }
 
-   inline auto find(const ActionHolder< action_type >& action) { return m_map.find(action); }
    inline auto find(const action_type& action) { return m_map.find(action); }
    [[nodiscard]] inline auto find(const action_type& action) const { return m_map.find(action); }
 
@@ -203,15 +202,16 @@ class HashmapActionPolicy {
       });
    }
 
-   inline auto& operator[](const ActionHolder< action_type >& action)
+   inline auto& operator[](const action_type& action)
    {
       if(auto found = find(action); found != end()) {
          return found->second;
       } else {
-         return emplace(action, m_def_value_gen()).first->second;
+         return emplace(ActionHolder< action_type >{action}, m_def_value_gen()).first->second;
       }
    }
-   [[nodiscard]] inline auto& at(const action_type& action) { return this->operator[](action); }
+   //   [[nodiscard]] inline auto& at(const action_type& action) { return this->operator[](action);
+   //   }
    [[nodiscard]] inline auto at(const action_type& action) const
    {
       if(auto found = find(action); found != end()) {

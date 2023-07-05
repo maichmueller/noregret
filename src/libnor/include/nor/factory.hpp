@@ -48,13 +48,13 @@ struct factory {
          auto players = env.players(*root_state);
          return {
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             to_map(players, std::forward< Policy >(policy)),
             to_map(players, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             std::forward< Policy >(policy),
             std::forward< AveragePolicy >(avg_policy)};
       }
@@ -69,10 +69,7 @@ struct factory {
    )
    {
       return {
-         std::forward< Env >(env),
-         std::move(root_state),
-         std::move(policy_map),
-         std::move(avg_policy_map)};
+         std::forward< Env >(env), root_state, std::move(policy_map), std::move(avg_policy_map)};
    }
 
    template < rm::CFRConfig cfg, bool as_map, typename Env, typename Policy >
@@ -82,9 +79,7 @@ struct factory {
       const Policy& policy
    )
    {
-      return make_cfr_vanilla< cfg, as_map >(
-         std::forward< Env >(env), std::move(root_state), policy, policy
-      );
+      return make_cfr_vanilla< cfg, as_map >(std::forward< Env >(env), root_state, policy, policy);
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -102,22 +97,22 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_plus(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy
    )
    {
       if constexpr(as_map) {
-         auto players = env.players(*root_state);
+         auto players = env.players(root_state);
          return {
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             to_map(players, std::forward< Policy >(policy)),
             to_map(players, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             std::forward< Policy >(policy),
             std::forward< AveragePolicy >(avg_policy)};
       }
@@ -126,28 +121,23 @@ struct factory {
    template < typename Env, typename Policy, typename AveragePolicy >
    static rm::CFRPlus< Env, Policy, AveragePolicy > make_cfr_plus(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map
    )
    {
       return {
-         std::forward< Env >(env),
-         std::move(root_state),
-         std::move(policy_map),
-         std::move(avg_policy_map)};
+         std::forward< Env >(env), root_state, std::move(policy_map), std::move(avg_policy_map)};
    }
 
    template < bool as_map, typename Env, typename Policy >
    static rm::CFRPlus< Env, Policy, Policy > make_cfr_plus(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       const Policy& policy
    )
    {
-      return make_cfr_plus< as_map >(
-         std::forward< Env >(env), std::move(root_state), policy, policy
-      );
+      return make_cfr_plus< as_map >(std::forward< Env >(env), root_state, policy, policy);
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
@@ -167,7 +157,7 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_discounted(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy,
       rm::CFRDiscountedParameters params = {}
@@ -178,14 +168,14 @@ struct factory {
          return {
             std::move(params),
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             to_map(players, std::forward< Policy >(policy)),
             to_map(players, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
             std::move(params),
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             std::forward< Policy >(policy),
             std::forward< AveragePolicy >(avg_policy)};
       }
@@ -194,7 +184,7 @@ struct factory {
    template < rm::CFRDiscountedConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::CFRDiscounted< cfg, Env, Policy, AveragePolicy > make_cfr_discounted(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
       rm::CFRDiscountedParameters params = {}
@@ -203,7 +193,7 @@ struct factory {
       return {
          std::move(params),
          std::forward< Env >(env),
-         std::move(root_state),
+         root_state,
          std::move(policy_map),
          std::move(avg_policy_map)};
    }
@@ -211,13 +201,13 @@ struct factory {
    template < rm::CFRDiscountedConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::CFRDiscounted< cfg, Env, Policy, Policy > make_cfr_discounted(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       const Policy& policy,
       rm::CFRDiscountedParameters params = {}
    )
    {
       return make_cfr_discounted< cfg, as_map >(
-         std::move(params), std::forward< Env >(env), std::move(root_state), policy, policy
+         std::move(params), std::forward< Env >(env), root_state, policy, policy
       );
    }
 
@@ -238,7 +228,7 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_linear(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy
    )
@@ -248,14 +238,14 @@ struct factory {
          return {
             rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             to_map(players, std::forward< Policy >(policy)),
             to_map(players, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
             rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             std::forward< Policy >(policy),
             std::forward< AveragePolicy >(avg_policy)};
       }
@@ -264,7 +254,7 @@ struct factory {
    template < rm::CFRLinearConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::CFRLinear< cfg, std::remove_cvref_t< Env >, Policy, AveragePolicy > make_cfr_linear(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map
    )
@@ -272,7 +262,7 @@ struct factory {
       return {
          rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
          std::forward< Env >(env),
-         std::move(root_state),
+         root_state,
          std::move(policy_map),
          std::move(avg_policy_map)};
    }
@@ -280,14 +270,14 @@ struct factory {
    template < rm::CFRLinearConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::CFRLinear< cfg, std::remove_cvref_t< Env >, Policy, Policy > make_cfr_linear(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       const Policy& policy
    )
    {
       return make_cfr_linear< cfg, as_map >(
          rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
          std::forward< Env >(env),
-         std::move(root_state),
+         root_state,
          policy,
          policy
       );
@@ -310,7 +300,7 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_exponential(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy,
       rm::CFRExponentialParameters params = {}
@@ -321,14 +311,14 @@ struct factory {
          return {
             std::move(params),
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             to_map(players, std::forward< Policy >(policy)),
             to_map(players, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
             std::move(params),
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             std::forward< Policy >(policy),
             std::forward< AveragePolicy >(avg_policy)};
       }
@@ -337,7 +327,7 @@ struct factory {
    template < rm::CFRExponentialConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::CFRExponential< cfg, Env, Policy, AveragePolicy > make_cfr_exponential(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
       rm::CFRExponentialParameters params = {}
@@ -346,7 +336,7 @@ struct factory {
       return {
          std::move(params),
          std::forward< Env >(env),
-         std::move(root_state),
+         root_state,
          std::move(policy_map),
          std::move(avg_policy_map)};
    }
@@ -354,13 +344,13 @@ struct factory {
    template < rm::CFRExponentialConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::CFRExponential< cfg, Env, Policy, Policy > make_cfr_exponential(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       const Policy& policy,
       rm::CFRExponentialParameters params = {}
    )
    {
       return make_cfr_exponential< cfg, as_map >(
-         std::move(params), std::forward< Env >(env), std::move(root_state), policy, policy
+         std::move(params), std::forward< Env >(env), root_state, policy, policy
       );
    }
 
@@ -377,7 +367,7 @@ struct factory {
       std::remove_cvref_t< AvgPolicy > >
    make_mccfr(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       Policy&& policy,
       AvgPolicy&& avg_policy,
       double epsilon,
@@ -395,7 +385,7 @@ struct factory {
             std::remove_cvref_t< Policy >,
             std::remove_cvref_t< AvgPolicy > >{
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             std::move(each_player_current_policy_map),
             std::move(each_player_avg_policy_map),
             epsilon,
@@ -403,7 +393,7 @@ struct factory {
       } else {
          return {
             std::forward< Env >(env),
-            std::move(root_state),
+            root_state,
             std::forward< Policy >(policy),
             std::forward< AvgPolicy >(avg_policy),
             epsilon,
@@ -414,7 +404,7 @@ struct factory {
    template < rm::MCCFRConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::MCCFR< cfg, Env, Policy, AveragePolicy > make_mccfr(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
       double epsilon,
@@ -423,7 +413,7 @@ struct factory {
    {
       return {
          std::forward< Env >(env),
-         std::move(root_state),
+         root_state,
          std::move(policy_map),
          std::move(avg_policy_map),
          epsilon,
@@ -433,14 +423,14 @@ struct factory {
    template < rm::MCCFRConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::MCCFR< cfg, Env, Policy, Policy > make_mccfr(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       const Policy& policy,
       double epsilon,
       size_t seed = 0
    )
    {
       return make_mccfr< cfg, as_map >(
-         std::forward< Env >(env), std::move(root_state), policy, policy, epsilon, seed
+         std::forward< Env >(env), root_state, policy, policy, epsilon, seed
       );
    }
 

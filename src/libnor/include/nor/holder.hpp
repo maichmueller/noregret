@@ -15,9 +15,10 @@
 namespace nor {
 
 template <
+   template <typename...> class DerivedHolderTemplate,
    class DerivedHolder,
    typename Type,
-   typename force_dynamic_storage = std::false_type >
+   typename force_dynamic_storage_type = std::false_type >
    requires(
       not std::is_polymorphic_v< Type >  //
       or (
@@ -29,11 +30,15 @@ struct HolderBase {
    using derived_holder_type = DerivedHolder;
    using type = std::remove_cvref_t< Type >;
 
-   static constexpr bool force_dynamic_memory = force_dynamic_storage::value;
+   static constexpr bool force_dynamic_storage = force_dynamic_storage_type::value;
    static constexpr bool is_polymorphic = std::is_polymorphic_v< type >;
-   static constexpr bool dynamic_storage = is_polymorphic or force_dynamic_memory;
+   static constexpr bool dynamic_storage = is_polymorphic or force_dynamic_storage;
 
    using value_type = std::conditional_t< dynamic_storage, sptr< type >, type >;
+
+   using effective_derived_holder_type = DerivedHolderTemplate<
+      Type,
+      std::bool_constant< dynamic_storage > >;
 
   protected:
    /// internal constructor to actually allocate the member
@@ -70,7 +75,7 @@ struct HolderBase {
               )  //
               and (
                  (std::is_base_of_v< type, std::remove_cvref_t< T > > and is_polymorphic) //
-                 or std::same_as< std::remove_cvref_t< T >, type >
+                 or std::same_as< type, std::remove_cvref_t< T > >
               )
        : HolderBase(tag::internal_construct{}, std::forward< T >(t))
    {
@@ -107,15 +112,6 @@ struct HolderBase {
       return m_member;
    }
 
-   /// if the holder has a polymorphic type then we can always switch specializations
-   /// in the force_dynamic dimension
-   template < typename any_setting >
-   constexpr operator derived_holder_type&() noexcept
-      requires is_polymorphic
-   {
-      return {m_member};
-   }
-
    [[nodiscard]] const type& get() const noexcept
    {
       if constexpr(dynamic_storage) {
@@ -126,8 +122,9 @@ struct HolderBase {
    }
    [[nodiscard]] type& get() noexcept
    {
-      // clang-tidy complains, but since the member function calling it is non-const, the object
-      // itself is non-const. Thus, casting away the const is fine.
+      // The member function calling it is non-const
+      // --> the object itself is non-const.
+      // --> casting to const and then away the const is fine.
       return const_cast< type& >(std::as_const(*this).get());
    }
 
@@ -153,7 +150,7 @@ struct HolderBase {
       return get() == other;
    }
    /// equals always compares by value of the value-type
-   bool uneqals(const type& other) const noexcept
+   bool unequals(const type& other) const noexcept
       requires(std::equality_comparable< type >)
    {
       return not equals(other);
@@ -189,7 +186,7 @@ struct HolderBase {
 
    /// equality operator always compares the value equivalence, not object equivalence
    bool operator==(const type& other) const noexcept { return equals(other); }
-   bool operator!=(const type& other) const noexcept { return uneqals(other); }
+   bool operator!=(const type& other) const noexcept { return unequals(other); }
 
    template < typename HolderTypeOut = derived_holder_type >
    [[nodiscard]] HolderTypeOut copy(
@@ -241,14 +238,27 @@ struct HolderBase {
       }
    }
 
-   [[nodiscard]] std::string to_string() const
+   [[nodiscard]] std::string to_string(std::string_view delim = "") const
       requires requires(type obj) {
+         {
+            obj.to_string(delim)
+         } -> std::same_as< std::string >;
+      } or requires(type obj) {
          {
             obj.to_string()
          } -> std::same_as< std::string >;
       }
    {
-      return get().to_string();
+      if constexpr(requires(type obj) {
+                      {
+                         obj.to_string(delim)
+                      } -> std::same_as< std::string >;
+                   }) {
+         return get().to_string(delim);
+      } else {
+         // if the underlying type does not support delimiters then we just ignore it
+         return get().to_string();
+      }
    }
 
   private:
@@ -365,42 +375,76 @@ struct HolderBase {
 };
 
 template < typename Action, typename... Options >
-struct BasicHolder: public HolderBase< ActionHolder< Action, Options... >, Action, Options... > {
-   using base = HolderBase< ActionHolder< Action, Options... >, Action, Options... >;
+struct BasicHolder:
+    public HolderBase< BasicHolder, BasicHolder< Action, Options... >, Action, Options... > {
+   using base = HolderBase< BasicHolder, BasicHolder< Action, Options... >, Action, Options... >;
    using base::base;
 };
 
 template < typename Action, typename... Options >
-struct ActionHolder: public HolderBase< ActionHolder< Action, Options... >, Action, Options... > {
-   using base = HolderBase< ActionHolder< Action, Options... >, Action, Options... >;
+struct ActionHolder:
+    public HolderBase< ActionHolder, ActionHolder< Action, Options... >, Action, Options... > {
+   using base = HolderBase< ActionHolder, ActionHolder< Action, Options... >, Action, Options... >;
    using base::base;
 };
 
 template < typename ChOutcome, typename... Options >
 struct ChanceOutcomeHolder:
-    public HolderBase< ChanceOutcomeHolder< ChOutcome, Options... >, ChOutcome, Options... > {
-   using base = HolderBase< ChanceOutcomeHolder< ChOutcome, Options... >, ChOutcome, Options... >;
+    public HolderBase<
+       ChanceOutcomeHolder,
+       ChanceOutcomeHolder< ChOutcome, Options... >,
+       ChOutcome,
+       Options... > {
+   using base = HolderBase<
+      ChanceOutcomeHolder,
+      ChanceOutcomeHolder< ChOutcome, Options... >,
+      ChOutcome,
+      Options... >;
    using base::base;
 };
 
 template < typename Observation, typename... Options >
 struct ObservationHolder:
-    public HolderBase< ObservationHolder< Observation, Options... >, Observation, Options... > {
-   using base = HolderBase< ObservationHolder< Observation, Options... >, Observation, Options... >;
+    public HolderBase<
+       ObservationHolder,
+       ObservationHolder< Observation, Options... >,
+       Observation,
+       Options... > {
+   using base = HolderBase<
+      ObservationHolder,
+      ObservationHolder< Observation, Options... >,
+      Observation,
+      Options... >;
    using base::base;
 };
 
 template < typename Worldstate, typename... Options >
 struct WorldstateHolder:
-    public HolderBase< WorldstateHolder< Worldstate, Options... >, Worldstate, Options... > {
-   using base = HolderBase< WorldstateHolder< Worldstate, Options... >, Worldstate, Options... >;
+    public HolderBase<
+       WorldstateHolder,
+       WorldstateHolder< Worldstate, Options... >,
+       Worldstate,
+       Options... > {
+   using base = HolderBase<
+      WorldstateHolder,
+      WorldstateHolder< Worldstate, Options... >,
+      Worldstate,
+      Options... >;
    using base::base;
 };
 
 template < typename Infostate, typename... Options >
 struct InfostateHolder:
-    public HolderBase< InfostateHolder< Infostate, Options... >, Infostate, Options... > {
-   using base = HolderBase< InfostateHolder< Infostate, Options... >, Infostate, Options... >;
+    public HolderBase<
+       InfostateHolder,
+       InfostateHolder< Infostate, Options... >,
+       Infostate,
+       Options... > {
+   using base = HolderBase<
+      InfostateHolder,
+      InfostateHolder< Infostate, Options... >,
+      Infostate,
+      Options... >;
    using base::base;
    using base::get;
    using observation_type = auto_observation_type< Infostate >;
@@ -424,8 +468,16 @@ struct InfostateHolder:
 
 template < typename Publicstate, typename... Options >
 struct PublicstateHolder:
-    public HolderBase< PublicstateHolder< Publicstate, Options... >, Publicstate, Options... > {
-   using base = HolderBase< PublicstateHolder< Publicstate, Options... >, Publicstate, Options... >;
+    public HolderBase<
+       PublicstateHolder,
+       PublicstateHolder< Publicstate, Options... >,
+       Publicstate,
+       Options... > {
+   using base = HolderBase<
+      PublicstateHolder,
+      PublicstateHolder< Publicstate, Options... >,
+      Publicstate,
+      Options... >;
    using base::base;
    using base::get;
    using observation_type = auto_observation_type< Publicstate >;
@@ -439,7 +491,35 @@ struct PublicstateHolder:
    const auto& operator[](auto index) const { return get()[size_t(index)]; }
 };
 
+namespace concepts::is {
+
+template < typename T, typename holder_tag, typename ExpectedContainedType = void >
+concept holder_specialization =
+   ((std::same_as< holder_tag, tag::action > and common::is_specialization_v< T, ActionHolder >)
+    or (std::same_as< holder_tag, tag::chance_outcome > and common::is_specialization_v< T, ChanceOutcomeHolder >)
+    or (std::same_as< holder_tag, tag::observation > and common::is_specialization_v< T, ObservationHolder >)
+    or (std::same_as< holder_tag, tag::infostate > and common::is_specialization_v< T, InfostateHolder >)
+    or (std::same_as< holder_tag, tag::publicstate > and common::is_specialization_v< T, PublicstateHolder >)
+    or (std::same_as< holder_tag, tag::worldstate > and common::is_specialization_v< T, WorldstateHolder >)
+   )
+   // match the contained type as well if the expected is not simply void
+   and (std::is_void_v< ExpectedContainedType > or (concepts::has::trait::type< T > and std::same_as< ExpectedContainedType, typename T::type >));
+
+}  // namespace concepts::is
+
+template < typename T, typename holder_tag, typename ExpectedContainedType = void >
+using is_holder_specialization = std::bool_constant<
+   concepts::is::holder_specialization< T, holder_tag, ExpectedContainedType > >;
+
+template < typename T, typename holder_tag, typename ExpectedContainedType = void >
+constexpr bool is_holder_specialization_v = is_holder_specialization<  //
+   T,  //
+   holder_tag,  //
+   ExpectedContainedType  //
+   >::value;
+
 }  // namespace nor
+
 namespace std {
 
 template < typename T >
@@ -469,8 +549,8 @@ template < typename T >
       is_specialization_v< ::std::remove_cvref_t< T >, ::nor::WorldstateHolder >
       >
    )
-decltype(auto)  // clang-format on
-deref(T&& t)
+// clang-format on
+decltype(auto) deref(T&& t)
 {
    return *std::forward< T >(t);
 }
@@ -490,7 +570,7 @@ deref(T&& t)
 //{
 //    return to_string(value.get());
 // }
-
+//
 //// holders are printable if the contained type is printable
 // template < typename T >
 //    requires(any_of<

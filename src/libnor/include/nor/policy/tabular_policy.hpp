@@ -7,6 +7,7 @@
 
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
+#include "nor/holder.hpp"
 
 namespace nor {
 
@@ -38,8 +39,8 @@ class TabularPolicy {
       table.find(std::declval< info_state_type >());
    };
    template < typename InfostateOrHolder >
-   static constexpr bool _accepts_holder_or_value =
-      std::same_as< InfostateOrHolder, InfostateHolder< info_state_type > >
+   static constexpr bool _accepts_holder_and_value =
+      concepts::is::holder_specialization< InfostateOrHolder, tag::infostate, info_state_type >
       or (std::same_as< InfostateOrHolder, info_state_type > and _allows_heterogenous_lookup);
 
   public:
@@ -75,8 +76,6 @@ class TabularPolicy {
       );
    }
 
-   //   using table_type::emplace;
-
    inline auto find(const info_state_type& infostate) { return m_table.find(infostate); }
    [[nodiscard]] inline auto find(const info_state_type& infostate) const
    {
@@ -85,21 +84,24 @@ class TabularPolicy {
 
    template <
       typename ActionContainer,
+      concepts::is::holder_specialization< tag::infostate, info_state_type > InfostateHolderType,
       typename DefaultPolicy = UniformPolicy< Infostate, ActionPolicy > >
       requires concepts::
          default_state_policy< DefaultPolicy, info_state_type, action_type, action_policy_type >
-      //               and std::
-      //                  convertible_to< ActionContainer, std::span< ActionHolder< action_type > >
-      //                  >
       auto find_or_default(
-         const InfostateHolder< info_state_type >& infostate,
+         const InfostateHolderType& infostate,
          ActionContainer&& actions,
          const DefaultPolicy& default_policy = {}
       )
    {
       auto found_action_policy_iter = find(infostate);
       if(found_action_policy_iter == m_table.end()) {
-         return m_table.emplace(infostate, default_policy(infostate, std::span{actions})).first;
+         return m_table
+            .emplace(
+               infostate.template copy< InfostateHolder< info_state_type > >(),
+               default_policy(infostate, std::span{actions})
+            )
+            .first;
       }
       return found_action_policy_iter;
    }
@@ -132,7 +134,7 @@ class TabularPolicy {
    }
 
    template < typename InfostateOrHolder >
-      requires _accepts_holder_or_value< InfostateOrHolder >
+      requires _accepts_holder_and_value< InfostateOrHolder >
    auto& operator()(const InfostateOrHolder& infostate)
    {
       auto found = find(infostate);
@@ -153,7 +155,7 @@ class TabularPolicy {
                   info_state_type,
                   action_type,
                   action_policy_type >
-               and _accepts_holder_or_value< InfostateOrHolder >
+               and _accepts_holder_and_value< InfostateOrHolder >
    action_policy_type& operator()(
       const InfostateOrHolder& infostate,
       ActionContainer&& actions,
@@ -170,7 +172,7 @@ class TabularPolicy {
                   info_state_type,
                   action_type,
                   action_policy_type >
-               and _accepts_holder_or_value< InfostateOrHolder >
+               and _accepts_holder_and_value< InfostateOrHolder >
    action_policy_type operator()(
       const InfostateOrHolder& infostate,
       ActionContainer&& actions,
@@ -196,7 +198,7 @@ class TabularPolicy {
                   info_state_type,
                   action_type,
                   action_policy_type >
-               and _accepts_holder_or_value< InfostateOrHolder >
+               and _accepts_holder_and_value< InfostateOrHolder >
                and std::
                   constructible_from< std::span< ActionHolder< action_type > >, ActionContainer >
    action_policy_type operator()(
@@ -216,14 +218,14 @@ class TabularPolicy {
    }
 
    template < typename InfostateOrHolder >
-      requires _accepts_holder_or_value< InfostateOrHolder >
+      requires _accepts_holder_and_value< InfostateOrHolder >
    const action_policy_type& at(const InfostateOrHolder& infostate) const
    {
       return m_table.at(infostate);
    }
 
    template < typename InfostateOrHolder >
-      requires _accepts_holder_or_value< InfostateOrHolder >
+      requires _accepts_holder_and_value< InfostateOrHolder >
    action_policy_type at(const InfostateOrHolder& infostate, tag::normalize) const
    {
       return normalize_action_policy(at(infostate));
