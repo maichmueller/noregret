@@ -4,57 +4,56 @@
 #include <unordered_set>
 
 using namespace nor;
+using namespace nor::games::kuhn;
 
-Player games::kuhn::Environment::active_player(const world_state_type& wstate) const
+nor::Player Environment::active_player(const world_state_type& wstate) const
 {
    return to_nor_player(wstate.active_player());
 }
 
-bool games::kuhn::Environment::is_terminal(world_state_type& wstate)
+bool Environment::is_terminal(const world_state_type& wstate)
 {
    return wstate.is_terminal();
 }
 
-double games::kuhn::Environment::reward(Player player, world_state_type& wstate)
+double Environment::reward(Player player, const world_state_type& wstate)
 {
    return wstate.payoff(to_kuhn_player(player));
 }
 
-std::string games::kuhn::Environment::
+ObservationHolder< Environment::observation_type > Environment::
    private_observation(Player, const world_state_type&, const action_type&, const world_state_type&)
       const
 {
-   return "-";
+   return observation_holder{"-"};
 }
-std::string games::kuhn::Environment::
+ObservationHolder< Environment::observation_type > Environment::
    public_observation(const world_state_type&, const action_type& action, const world_state_type&)
       const
 {
-   return common::to_string(action);
+   return observation_holder{common::to_string(action)};
 }
 
-games::kuhn::Environment::observation_type games::kuhn::Environment::
+ObservationHolder< Environment::observation_type > Environment::
    private_observation(Player observer, const world_state_type&, const chance_outcome_type& outcome, const world_state_type&)
       const
 {
    if(outcome.player == to_kuhn_player(observer)) {
-      return std::string(common::to_string(outcome));
+      return observation_holder{std::string(common::to_string(outcome))};
    }
-   return "-";
+   return observation_holder{"-"};
 }
 
-games::kuhn::Environment::observation_type games::kuhn::Environment::public_observation(
+ObservationHolder< Environment::observation_type > Environment::public_observation(
    const world_state_type& wstate,
    const chance_outcome_type& action,
    const world_state_type& next_wstate
 ) const
 {
-   return std::to_string(static_cast< int >(action.player)) + ":?";
+   return observation_holder{std::to_string(static_cast< int >(action.player)) + ":?"};
 }
 
-games::kuhn::Environment::observation_type games::kuhn::Environment::tiny_repr(
-   const world_state_type& wstate
-) const
+Environment::observation_type Environment::tiny_repr(const world_state_type& wstate) const
 {
    std::stringstream ss;
    for(auto [idx, card] : ranges::views::enumerate(wstate.cards())) {
@@ -74,14 +73,10 @@ games::kuhn::Environment::observation_type games::kuhn::Environment::tiny_repr(
    return ss.str();
 }
 
-std::vector< PlayerInformedType< std::optional< std::variant<
-   games::kuhn::Environment::chance_outcome_type,
-   games::kuhn::Environment::action_type > > > >
-games::kuhn::Environment::private_history(Player player, const world_state_type& wstate) const
+std::vector< PlayerInformedType< std::optional< Environment::action_variant_type > > >
+Environment::private_history(Player player, const world_state_type& wstate) const
 {
-   std::vector<
-      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
-      out;
+   std::vector< PlayerInformedType< std::optional< action_variant_type > > > out;
    auto action_history = wstate.history();
    out.reserve(action_history.size() + 2);
    for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.cards())) {
@@ -92,7 +87,7 @@ games::kuhn::Environment::private_history(Player player, const world_state_type&
 
       if(i == static_cast< size_t >(player)) {
          out.emplace_back(
-            chance_outcome_type{.player = kuhn::Player(i), .card = outcome_opt.value()},
+            ChanceOutcomeHolder< chance_outcome_type >{kuhn::Player(i), *outcome_opt},
             Player::chance
          );
       } else {
@@ -101,7 +96,9 @@ games::kuhn::Environment::private_history(Player player, const world_state_type&
    }
    for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
       if(i != static_cast< size_t >(player)) {
-         out.emplace_back(action_or_outcome, to_nor_player(kuhn::Player(i)));
+         out.emplace_back(
+            ActionHolder< action_type >{action_or_outcome}, to_nor_player(kuhn::Player(i))
+         );
       } else {
          out.emplace_back(std::nullopt, to_nor_player(kuhn::Player(i)));
       }
@@ -110,25 +107,22 @@ games::kuhn::Environment::private_history(Player player, const world_state_type&
    return out;
 }
 
-std::vector< PlayerInformedType< std::variant<
-   games::kuhn::Environment::chance_outcome_type,
-   games::kuhn::Environment::action_type > > >
-games::kuhn::Environment::open_history(const world_state_type& wstate) const
+std::vector< PlayerInformedType< Environment::action_variant_type > > Environment::open_history(
+   const world_state_type& wstate
+) const
 {
-   using action_chance_variant = std::variant< chance_outcome_type, action_type >;
-   std::vector< PlayerInformedType< action_chance_variant > > out;
+   std::vector< PlayerInformedType< action_variant_type > > out;
    auto action_history = wstate.history();
    out.reserve(action_history.size() + 2);
    for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
-      out.emplace_back(action, to_nor_player(kuhn::Player(i)));
+      out.emplace_back(ActionHolder< action_type >{action}, to_nor_player(kuhn::Player(i)));
    }
    out.shrink_to_fit();
    return out;
 }
-std::vector< PlayerInformedType< std::optional< std::variant<
-   games::kuhn::Environment::chance_outcome_type,
-   games::kuhn::Environment::action_type > > > >
-games::kuhn::Environment::public_history(const world_state_type& wstate) const
+
+std::vector< PlayerInformedType< std::optional< Environment::action_variant_type > > >
+Environment::public_history(const world_state_type& wstate) const
 {
    auto hist = private_history(Player::alex, wstate);
    // hide the first entry too, since this is private information to Alex
