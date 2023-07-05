@@ -5,6 +5,9 @@
 namespace nor::concepts::has::trait {
 
 template < typename T >
+concept type = requires(T t) { typename T::type; };
+
+template < typename T >
 concept action_policy_type = requires(T t) { typename T::action_policy_type; };
 
 template < typename T >

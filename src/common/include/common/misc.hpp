@@ -54,9 +54,7 @@ inline auto& choose(const RAContainer& cont, RNG& rng)
          rng
       )];
    };
-   if constexpr(std::random_access_iterator< decltype(std::declval< RAContainer >().begin()) > and requires {
-                   cont.size();
-                }) {
+   if constexpr(ranges::random_access_range< RAContainer > and ranges::sized_range< RAContainer >) {
       return chooser(cont);
    } else {
       auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([](const auto& elem) {
@@ -77,23 +75,16 @@ template < typename RAContainer, typename Policy >
    }
 inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
 {
-   if constexpr(requires {
-                   cont.size();
-                } and std::random_access_iterator< decltype(std::declval< RAContainer >().begin()) >) {
+   if constexpr(ranges::random_access_range< RAContainer > and ranges::sized_range< RAContainer >) {
       std::vector< double > weights;
       weights.reserve(cont.size());
       for(const auto& elem : cont) {
          weights.emplace_back(policy(elem));
       }
-      // the ranges::to_vector method here fails with a segmentation fault for no apparent reason
-      //      auto weights = ranges::to_vector(cont | ranges::views::transform(policy));
-      //      auto choice = std::discrete_distribution< size_t >(weights.begin(),
-      //      weights.end())(rng);
-      //      return cont[choice];
       return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
    } else {
       std::vector< double > weights;
-      if constexpr(requires { cont.size(); }) {
+      if constexpr(ranges::sized_range< RAContainer >) {
          // if we can know how many elements are in the container, then reserve that amount.
          weights.reserve(cont.size());
       }

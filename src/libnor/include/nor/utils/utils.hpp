@@ -95,6 +95,7 @@ template <
 requires(
       concepts::fosg< std::remove_cvref_t< Env > >
       and common::is_specialization_v<WorldstateHolderType, WorldstateHolder>
+      and common::is_specialization_v<WstateHolderOut, WorldstateHolder>
 )
 // clang-format on
 WstateHolderOut
@@ -102,6 +103,32 @@ child_state(Env&& env, const WorldstateHolderType& state, const auto& action_or_
 {
    // clone the current world state first before transitioniong it with this action
    auto next_wstate = state.template copy< WstateHolderOut >();
+   // move the new world state forward by the current action
+   env.transition(next_wstate, action_or_outcome);
+   return next_wstate;
+}
+
+/// overload for declaring the out-holder type as the sole input to the templates
+template < typename WstateHolderOut, typename Env, typename WorldstateHolderType >
+WstateHolderOut
+child_state(Env&& env, const WorldstateHolderType& state, const auto& action_or_outcome)
+{
+   return child_state< Env, WorldstateHolderType, WstateHolderOut >(
+      std::forward< Env >(env), state, action_or_outcome
+   );
+}
+
+template < typename WstateHolderOut, typename Env, typename WorldstateType >
+// clang-format off
+requires(
+      concepts::fosg< std::remove_cvref_t< Env > >
+      and common::is_specialization_v<WstateHolderOut, WorldstateHolder>
+)
+// clang-format on
+WstateHolderOut child_state(Env&& env, const WorldstateType& state, const auto& action_or_outcome)
+{
+   // clone the current world state first before transitioniong it with this action
+   auto next_wstate = WstateHolderOut{state};
    // move the new world state forward by the current action
    env.transition(next_wstate, action_or_outcome);
    return next_wstate;
@@ -293,26 +320,6 @@ inline auto& operator<<(std::ostream& os, nor::Stochasticity e)
    #define NEW_EMPTY_TYPE decltype([]() {})
 #endif
 
-namespace detail {
-
-template < typename Infostate >
-auto update_infostate(Infostate& infostate_ref_or_ptr, auto public_obs, auto private_obs)
-{
-   auto update_impl = [&](auto& contained_istate) {
-      contained_istate.update(std::move(public_obs), std::move(private_obs));
-   };
-
-   if constexpr(concepts::is::smart_pointer_like< Infostate > or std::is_pointer_v< Infostate >) {
-      update_impl(*infostate_ref_or_ptr);
-   } else if constexpr(concepts::is::specialization< Infostate, std::reference_wrapper >) {
-      update_impl(infostate_ref_or_ptr.get());
-   } else {
-      update_impl(infostate_ref_or_ptr);
-   }
-}
-
-}  // namespace detail
-
 /**
  * @brief Fills the infostate of each player with the current observations from the intermittent
  * buffers.
@@ -333,7 +340,7 @@ template <
    nor::concepts::mapping ObsBufferMap,
    nor::concepts::mapping InformationStateMap,
    typename Env,
-   concepts::is::specialization< WorldstateHolder > WorldstateHolderType,
+   concepts::world_state WorldstateType,
    concepts::is::specialization< InfostateHolder > InfostateHolderType = std::remove_cvref_t<
       decltype(*(ranges::views::values(std::declval< InformationStateMap& >()).begin())) >,
    concepts::is::specialization< ObservationHolder > ObservationHolderType =
@@ -355,9 +362,9 @@ void next_infostate_and_obs_buffers_inplace(
    Env&& env,
    ObsBufferMap& observation_buffer,
    InformationStateMap& infostate_map,
-   const WorldstateHolderType& state,
+   const WorldstateType& state,
    const auto& action_or_outcome,
-   const WorldstateHolderType& next_state
+   const WorldstateType& next_state
 )
 {
    // the public observation will be given to every player, so we can establish it outside the loop
@@ -388,13 +395,11 @@ void next_infostate_and_obs_buffers_inplace(
          // cleared observation buffer is still returned and reused, but is now empty.
          auto& obs_history = observation_buffer[active_player];
          for(auto& obs : obs_history) {
-            detail::update_infostate(infostate_holder, std::move(obs.first), std::move(obs.second));
+            infostate_holder.update(std::move(obs.first), std::move(obs.second));
          }
          obs_history.clear();
-         detail::update_infostate(
-            infostate_holder,
-            public_obs,
-            env.private_observation(player, state, action_or_outcome, next_state)
+         infostate_holder.update(
+            public_obs, env.private_observation(player, state, action_or_outcome, next_state)
          );
       }
    }
@@ -402,13 +407,13 @@ void next_infostate_and_obs_buffers_inplace(
 
 template <
    nor::concepts::mapping ObsBufferMap,
-   nor::concepts::mapping InformationStateMap,
+   nor::concepts::mapping InfostateMap,
    typename Env,
-   typename WorldstateHolderType,
+   concepts::world_state WorldstateType,
    typename InfostateHolderType = std::remove_cvref_t<
-      decltype(*(ranges::views::values(std::declval< const InformationStateMap& >()).begin())) >,
+      decltype(*(ranges::views::values(std::declval< const InfostateMap& >()).begin())) >,
    typename ObservationHolderType = std::remove_cvref_t< decltype(std::get< 0 >(
-      // assume: ObsBufferMap holds a container with std::pair like mapped_type whose pair
+      // assume: ObsBufferMap is a container with std::pair like mapped_type whose pair
       // entries are the obs holders
       *((*(ranges::views::values(std::declval< const ObsBufferMap& >()).begin())).begin())
    )) > >
@@ -419,18 +424,17 @@ requires concepts::fosg< std::remove_cvref_t< Env > >
       Player,
       std::vector< std::pair< ObservationHolderType, ObservationHolderType > >
    >
-   and concepts::map_specced< InformationStateMap, Player, InfostateHolderType >
-   and common::is_specialization_v< WorldstateHolderType, WorldstateHolder >
+   and concepts::map_specced< InfostateMap, Player, InfostateHolderType >
    and common::is_specialization_v< InfostateHolderType, InfostateHolder >
    and common::is_specialization_v< ObservationHolderType, ObservationHolder >
 // clang-format on
 auto next_infostate_and_obs_buffers(
    Env&& env,
    const ObsBufferMap& observation_buffer,
-   const InformationStateMap& infostate_map,
-   const WorldstateHolderType& state,
+   const InfostateMap& infostate_map,
+   const WorldstateType& state,
    const auto& action_or_outcome,
-   const WorldstateHolderType& next_state
+   const WorldstateType& next_state
 )
 {
    ObsBufferMap new_obs_buffer{};
@@ -439,23 +443,23 @@ auto next_infostate_and_obs_buffers(
                 } and nor::concepts::is::sized< ObsBufferMap >) {
       new_obs_buffer.reserve(observation_buffer.size());
    }
-   if constexpr(requires(InformationStateMap m) {
+   InfostateMap new_infostate_map{};
+   if constexpr(requires(InfostateMap m) {
                    m.reserve(size_t(0));
-                } and nor::concepts::is::sized< InformationStateMap >) {
-      new_obs_buffer.reserve(observation_buffer.size());
+                } and nor::concepts::is::sized< InfostateMap >) {
+      new_infostate_map.reserve(infostate_map.size());
    }
-   InformationStateMap new_infostate_map{};
    for(const auto& [player, mapped] : observation_buffer) {
-      // move-then-copy assures the value is moved into itself if it is not stored dynamically.
-      // Otherwise there may be a new dynamic allocation for the copy depending on the use_count
-      new_obs_buffer.emplace(player, mapped);
+      new_obs_buffer.emplace(
+         player, ranges::to_vector(mapped | ranges::views::transform([&](const auto& pair) {
+                                      const auto& [pub_obs, priv_obs] = pair;
+                                      return std::pair{pub_obs.copy(), priv_obs.copy()};
+                                   }))
+      );
    }
    for(const auto& [player, mapped] : infostate_map) {
-      // move-then-copy assures the value is moved into itself if it is not stored dynamically.
-      // Otherwise there may be a new dynamic allocation for the copy depending on the use_count
       new_infostate_map.emplace(player, mapped.copy());
    }
-
    next_infostate_and_obs_buffers_inplace(
       env, new_obs_buffer, new_infostate_map, state, action_or_outcome, next_state
    );
@@ -467,7 +471,8 @@ auto& normalize_action_policy_inplace(Policy& policy)
 {
    auto sum = ranges::accumulate(
       /*range=*/policy | ranges::views::values,
-      /*init_value=*/std::remove_cvref_t< decltype(*(ranges::views::values(policy).begin())) >{0},
+      /*init_value=*/
+      std::remove_cvref_t< decltype(*(ranges::views::values(policy).begin())) >{0},
       /*operation=*/std::plus{}
    );
    for(auto& [action, prob] : policy) {
@@ -536,7 +541,8 @@ template < typename To >
 constexpr auto static_to = [](const auto& t) { return static_cast< To >(t); };
 
 // has to be imported because otherwise the holder specializations are not used for some reason
-// TODO: perhaps there is a better solution to the problem for ActionHolder, ObservationHolder, etc.
+// TODO: perhaps there is a better solution to the problem for ActionHolder, ObservationHolder,
+// etc.
 //  specialization
 using ::common::deref;
 

@@ -15,6 +15,8 @@ namespace nor::rm {
 template < typename Action, typename... OptionalData >
 class InfostateNodeData {
   public:
+   using action_type = Action;
+
    using regret_map_type = std::unordered_map<
       std::reference_wrapper< const Action >,
       double,
@@ -60,7 +62,7 @@ class InfostateNodeData {
       }
       for(auto& action : actions) {
          auto& action_in_vec = m_legal_actions.emplace_back(std::move(action));
-         regret().emplace(std::cref(action_in_vec), 0.);
+         regret().emplace(std::cref(static_cast< const action_type& >(action_in_vec)), 0.);
       }
    }
 
@@ -69,11 +71,13 @@ class InfostateNodeData {
    auto& regret(const Action& action) { return regret()[std::ref(action)]; }
 
    auto& storage() { return m_storage; }
+
    template < size_t N = 0 >
    auto& storage_element()
    {
       return std::get< N >(m_storage);
    }
+
    /// if the storage is a map of some sorts, then this method will also be available for the
    /// correct key types of the map (
    template < size_t N, typename T >
@@ -117,7 +121,7 @@ class InfostateNodeData {
    }
 
   private:
-   std::vector< Action > m_legal_actions;
+   std::vector< ActionHolder< Action > > m_legal_actions;
    /// the storage at this infostate node.
    /// Index 0 is always the cumulative regret the active player amassed for each action.
    /// (Cumulative with regards to the number of CFR iterations)

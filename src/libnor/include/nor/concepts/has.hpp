@@ -238,7 +238,7 @@ template < typename T, typename Worldstate = typename T::world_state_type >
 concept initial_world_state = requires(T t) {
    {
       t.initial_world_state()
-   } -> std::same_as< Worldstate >;
+   } -> std::same_as< WorldstateHolder< Worldstate > >;
 };
 
 template <

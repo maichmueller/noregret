@@ -430,10 +430,7 @@ struct value_hasher {
    // allow for heterogenous lookup
    using is_transparent = std::true_type;
 
-   auto operator()(std::reference_wrapper< T > ref) const noexcept
-   {
-      return operator()(std::cref(ref.get()));
-   }
+   auto operator()(std::reference_wrapper< T > ref) const noexcept { return Hasher{}(ref); }
    auto operator()(std::reference_wrapper< const T > ref) const noexcept { return Hasher{}(ref); }
    auto operator()(const detail::pointer_like_to< T > auto& ptr_like) const noexcept
    {
@@ -729,6 +726,30 @@ class not_pred {
   protected:
    Predicate m_pred;
 };
+
+template < typename T >
+struct inferred_iter_value_type {
+   using type = std::remove_cvref_t< decltype(*(ranges::begin(std::declval< T& >()))) >;
+};
+
+template < typename T >
+using inferred_iter_value_type_t = typename inferred_iter_value_type< T >::type;
+
+template < typename T >
+struct inferred_iter_first_value_type {
+   using type = std::remove_cvref_t< decltype(ranges::begin(std::declval< T& >())->first) >;
+};
+
+template < typename T >
+using inferred_iter_first_value_type_t = typename inferred_iter_first_value_type< T >::type;
+
+template < typename T >
+struct inferred_iter_second_value_type {
+   using type = std::remove_cvref_t< decltype(ranges::begin(std::declval< T& >())->second) >;
+};
+
+template < typename T >
+using inferred_iter_second_value_type_t = typename inferred_iter_second_value_type< T >::type;
 
 template < typename T >
 decltype(auto) deref(T&& t)

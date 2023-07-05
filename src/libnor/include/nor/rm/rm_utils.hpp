@@ -72,18 +72,26 @@ cf_reach_probability(const Player& player, const KVdouble& reach_probability_con
  * @tparam Action
  * @tparam Policy
  */
-template < concepts::action Action, concepts::action_policy< ActionHolder< Action > > Policy >
-void regret_matching(
-   Policy& policy_map,
-   const std::unordered_map< ActionHolder< Action >, double >& cumul_regret
-)
+template < typename Policy, concepts::map RegretMap, typename Action = auto_action_type< Policy > >
+   requires std::is_convertible_v< typename RegretMap::mapped_type, double >
+            and concepts::action_policy< Policy, Action > and concepts::action< Action >
+void regret_matching(Policy& policy_map, const RegretMap& cumul_regret)
 {
-   // sum up the positivized regrets and store them in a new vector
-   std::unordered_map< Action, double > pos_regrets;
+// sum up the positivized regrets and store them in a new vector
+#ifndef NDEBUG
+   std::unordered_map<
+      std::reference_wrapper< const Action >,
+      double,
+      common::value_hasher< Action >,
+      common::value_comparator< Action > >
+      pos_regrets;
+#endif
    double pos_regret_sum{0.};
    for(const auto& [action, regret] : cumul_regret) {
-      double pos_regret = std::max(0., regret);
-      pos_regrets.emplace(action, pos_regret);
+      double pos_regret = std::max< double >(0., regret);
+#ifndef NDEBUG
+      pos_regrets.emplace(std::ref(static_cast< const Action& >(action)), pos_regret);
+#endif
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy
@@ -95,7 +103,7 @@ void regret_matching(
          );
       }
       std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
-         return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
+         return std::get< 1 >(entry) = std::max< double >(0., cumul_regret.at(std::get< 0 >(entry)))
                                        / pos_regret_sum;
       });
    } else {
@@ -130,12 +138,16 @@ void regret_matching(
    ActionWrapper action_wrapper = [](const Action& action) { return action; }
 )
 {
-   // sum up the positivized regrets and store them in a new vector
+#ifndef NDEBUG
+   // sum up the positivized regrets and store them in a new map
    RegretMap pos_regrets;
+#endif
    double pos_regret_sum{0.};
    for(const auto& [action, regret] : cumul_regret) {
-      double pos_regret = std::max(0., regret);
+      double pos_regret = std::max< double >(0., regret);
+#ifndef NDEBUG
       pos_regrets.emplace(action, pos_regret);
+#endif
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy
