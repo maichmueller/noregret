@@ -99,9 +99,11 @@ using clone_types = ::testing::Types<
    Tester< 2, TestConfig{.copy_constructible = false, .copy_method = false, .clone_method = true} >,
    Tester< 3, TestConfig{.copy_constructible = true, .copy_method = true, .clone_method = false} >,
    Tester< 4, TestConfig{.copy_constructible = true, .copy_method = false, .clone_method = true} >,
+   Tester< 5, TestConfig{.copy_constructible = false, .copy_method = true, .clone_method = true} >,
    Tester<
-      5,
-      TestConfig{.copy_constructible = false, .copy_method = true, .clone_method = true} > >;
+      6,
+      TestConfig{.copy_constructible = true, .copy_method = true, .clone_method = true} >  //
+   >;
 
 TYPED_TEST_SUITE(clone_fixture, clone_types);
 
@@ -121,15 +123,21 @@ TYPED_TEST(clone_fixture, test_all_paths)
       size_t clone_meth_count = 0;
    };
 
-   // these expected values are associated with the Tester types in 'clone_types' above
-   constexpr std::array< ExpectedCounts, 6 > expected_counts = std::array{
+   // these expected values are associated with the Tester types in 'clone_types' above:
+   // each line refers to one entry in `clone_types`, i.e. the first line names the expected counts
+   // for the various copying/cloning ways of the tester with constexpr index 0. The second line for
+   // the test with index 1, etc...
+   constexpr auto expected_counts = std::array{
       ExpectedCounts{.copy_cstructor_count = 7},
       ExpectedCounts{.copy_meth_count = 7},
       ExpectedCounts{.clone_meth_count = 7},
       ExpectedCounts{.copy_meth_count = 7},
       ExpectedCounts{.clone_meth_count = 7},
+      ExpectedCounts{.clone_meth_count = 7},
       ExpectedCounts{.clone_meth_count = 7}};
 
+   // since our expected_counts are stored in an array we can use interger access to fetch expected
+   // values
    EXPECT_EQ(
       TypeParam::counter_access::copy_constructor_counter,
       expected_counts[TypeParam::index].copy_cstructor_count

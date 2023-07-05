@@ -21,16 +21,14 @@ void run_cfr_on_kuhn_poker(
    using namespace nor;
    games::kuhn::Environment env{};
 
-   auto root_state = std::make_unique< games::kuhn::State >();
-   auto players = env.players(*root_state);
+   auto root_state = WorldstateHolder< games::kuhn::State >();
+   auto players = env.players(root_state);
 
-   auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{}
-   );
+   auto avg_tabular_policy = factory::
+      make_tabular_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >();
 
-   auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{}
-   );
+   auto tabular_policy = factory::
+      make_tabular_policy< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >();
 
    auto solver = factory::make_cfr< config, true >(
       std::move(env),
@@ -72,14 +70,16 @@ void run_cfr_on_kuhn_poker(
          );
       }
 #ifndef NDEBUG
-      std::cout << "Exploitability: " << expl << "\n";
+      std::cout << "Exploitability: "
+                << ((update_freq < n_iters)
+                       ? std::to_string(expl)
+                       : ("#iteration < (update frequency=" + std::to_string(update_freq) + ")"))
+                << "\n";
       evaluate_policies< true >(solver, initial_curr_policy_profile, n_iters, "Current Policy");
       evaluate_policies< false >(solver, initial_policy_profile, n_iters);
 #endif
    }
-   evaluate_policies< false >(
-      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"
-   );
+   evaluate_policies< false >(solver, players | is_actual_player_filter, n_iters, "Final Policy");
    EXPECT_TRUE(expl <= EXPLOITABILITY_THRESHOLD);
 }
 
@@ -101,8 +101,8 @@ void run_cfr_on_rps(
        infostate_bob,
        init_state] = setup_rps_test();
 
-   auto root_state = std::make_unique< games::rps::State >();
-   auto players = env.players(*root_state);
+   auto root_state = WorldstateHolder< games::rps::State >();
+   auto players = env.players(root_state);
 
    auto solver = factory::make_cfr< config >(
       std::move(env),
@@ -153,9 +153,7 @@ void run_cfr_on_rps(
       evaluate_policies< false >(solver, initial_policy_profile, n_iters);
 #endif
    }
-   evaluate_policies< false >(
-      solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"
-   );
+   evaluate_policies< false >(solver, players | is_actual_player_filter, n_iters, "Final Policy");
    EXPECT_TRUE(expl <= EXPLOITABILITY_THRESHOLD);
 }
 

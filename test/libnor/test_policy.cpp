@@ -28,19 +28,6 @@ struct hash< TestInfostate > {
 };
 }  // namespace std
 
-template < typename T >
-   requires nor::concepts::map< T >
-void concept_tabular_policy_map_check()
-{
-}
-
-TEST(TabularPolicy, concept_fulfillment)
-{
-   using namespace nor;
-   concept_tabular_policy_map_check< TabularPolicy< TestInfostate, HashmapActionPolicy< int > > >();
-   EXPECT_TRUE((nor::concepts::map< TabularPolicy< TestInfostate, HashmapActionPolicy< int > > >) );
-}
-
 TEST(TabularPolicy, uniform_default)
 {
    using namespace nor;
@@ -58,7 +45,7 @@ TEST(TabularPolicy, uniform_default)
    }
    initial_policy[3] += 5;
    for(auto i : actions) {
-      if(i.uneqals(3)) {
+      if(i.unequals(3)) {
          ASSERT_NEAR(initial_policy[i], .2, 1e-10);
       } else {
          ASSERT_NEAR(initial_policy[3], 5.2, 1e-10);
@@ -185,12 +172,7 @@ class BestResponse_RPS_ParamsF:
       State state{}, next_state{};
       istate_alex = Infostate{nor::Player::alex};
       istate_bob = Infostate{nor::Player::bob};
-      actions = std::invoke([&] {
-         auto acts = env.actions(nor::Player::alex, state);
-         return ranges::to_vector(acts | ranges::views::transform([](auto action) {
-                                     return action.get();
-                                  }));
-      });
+      actions = env.actions(nor::Player::alex, state);
       next_state.apply_action(actions[0]);
       istate_bob.update(
          env.public_observation(state, actions[0], next_state),
@@ -209,7 +191,7 @@ class BestResponse_RPS_ParamsF:
       nor::games::rps::Infostate,
       nor::HashmapActionPolicy< nor::games::rps::Action > >
       state_policy_bob{};
-   std::vector< nor::games::rps::Action > actions{};
+   std::vector< nor::ActionHolder< nor::games::rps::Action > > actions{};
    nor::games::rps::Environment env{};
 };
 
@@ -243,9 +225,7 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
    nor::Player opponent = opp(best_responder);
    auto& infostate = player_infostate(best_responder);
    auto& opp_policy = player_policy(opponent);
-   opp_policy(
-      player_infostate(opponent), nor::to_holder_vector< Action >(actions, nor::tag::action{})
-   ) = input_policy;
+   opp_policy(player_infostate(opponent), actions) = input_policy;
 
    auto best_response = nor::factory::
       make_best_response_policy< Infostate, Action, nor::BRConfig{.store_infostate_values = true} >(

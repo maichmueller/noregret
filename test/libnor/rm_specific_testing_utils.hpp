@@ -13,13 +13,13 @@ inline std::string print_action_policy(const ActionPolicy& action_policy)
 {
    size_t max_len_action = ranges::max(
       action_policy | ranges::views::keys
-      | ranges::views::transform([](auto p) { return common::to_string(p).size(); })
+      | ranges::views::transform([](const auto& p) { return common::to_string(*p).size(); })
    );
 
    std::stringstream ss;
    ss << "[ ";
    for(const auto& [key, value] : action_policy) {
-      ss << std::setw(static_cast< int >(max_len_action)) << common::to_string(key) + ": ";
+      ss << std::setw(static_cast< int >(max_len_action)) << common::to_string(*key) + ": ";
       ss << std::setw(6) << std::setprecision(3) << value << " ";
    }
    ss << "]";

@@ -14,16 +14,16 @@ TEST(Holder, all_class_constants)
    using namespace dummy;
    EXPECT_FALSE(ActionHolder< Action >::dynamic_storage);
    EXPECT_FALSE(ActionHolder< Action >::is_polymorphic);
-   EXPECT_FALSE(ActionHolder< Action >::force_dynamic_memory);
+   EXPECT_FALSE(ActionHolder< Action >::force_dynamic_storage);
    EXPECT_TRUE((std::same_as< ActionHolder< Action >::value_type, Action >) );
    EXPECT_TRUE(ActionHolder< PolyActionBase >::dynamic_storage);
    EXPECT_TRUE(ActionHolder< PolyActionBase >::is_polymorphic);
-   EXPECT_FALSE(ActionHolder< PolyActionBase >::force_dynamic_memory);
+   EXPECT_FALSE(ActionHolder< PolyActionBase >::force_dynamic_storage);
    EXPECT_TRUE((std::same_as< ActionHolder< PolyActionBase >::value_type, sptr< PolyActionBase > >)
    );
    EXPECT_TRUE((ActionHolder< Action, std::true_type >::dynamic_storage));
    EXPECT_FALSE((ActionHolder< Action, std::true_type >::is_polymorphic));
-   EXPECT_TRUE((ActionHolder< Action, std::true_type >::force_dynamic_memory));
+   EXPECT_TRUE((ActionHolder< Action, std::true_type >::force_dynamic_storage));
    EXPECT_TRUE((std::same_as< ActionHolder< Action, std::true_type >::value_type, sptr< Action > >)
    );
 
@@ -125,7 +125,7 @@ TEST(Holder, construction_polymorphic)
    auto raw_ptr = action2_uptr.get();
    {
       // construction from raw pointer, we expect the holder to grab ownership of the memory!
-      ActionHolder< PolyAction > holder5(raw_ptr);
+      ActionHolder< PolyActionBase > holder5(raw_ptr);
       // with the deletion of holder5 the pointed to memory by action2_uptr should also be already
       // deleted!
       EXPECT_EQ(raw_ptr, holder5.ptr());
@@ -235,4 +235,30 @@ TEST(Holder, copying)
    EXPECT_FALSE(holder_copy.is(holder_deviating_copy));
    EXPECT_TRUE(holder_copy.is_not(holder));
    EXPECT_TRUE(holder_copy.is_not(holder_deviating_copy));
+}
+
+TEST(Holder, implicit_conversions)
+{
+   using namespace dummy;
+
+   EXPECT_TRUE((std::same_as<
+                ActionHolder< PolyActionBase >::effective_derived_holder_type,
+                ActionHolder< PolyActionBase, std::true_type >::effective_derived_holder_type >) );
+   EXPECT_TRUE((std::same_as<
+                ActionHolder< PolyActionBase, std::false_type >::effective_derived_holder_type,
+                ActionHolder< PolyActionBase, std::true_type >::effective_derived_holder_type >) );
+
+   EXPECT_FALSE((std::same_as<
+                 ActionHolder< Action >::effective_derived_holder_type,
+                 ActionHolder< Action, std::true_type >::effective_derived_holder_type >) );
+   EXPECT_TRUE((std::same_as<
+                ActionHolder< Action, std::false_type >::effective_derived_holder_type,
+                ActionHolder< Action >::effective_derived_holder_type >) );
+
+   EXPECT_TRUE((std::is_convertible_v< ActionHolder< PolyActionBase >&, PolyActionBase& >) );
+   EXPECT_TRUE((std::is_convertible_v< ActionHolder< PolyActionBase >&, const PolyActionBase& >) );
+   EXPECT_TRUE(
+      (std::is_convertible_v< const ActionHolder< PolyActionBase >&, const PolyActionBase& >)
+   );
+   EXPECT_FALSE((std::is_convertible_v< const ActionHolder< PolyActionBase >&, PolyActionBase& >) );
 }
