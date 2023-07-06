@@ -29,10 +29,11 @@ TEST(concrete, sized)
 
 TEST(concrete, action_policy)
 {
-   EXPECT_TRUE((nor::concepts::action_policy< nor::HashmapActionPolicy< int > >) );
-   EXPECT_TRUE(
-      (nor::concepts::action_policy< nor::HashmapActionPolicy< nor::games::stratego::Action > >)
-   );
+   using namespace nor;
+   using namespace games::stratego;
+
+   EXPECT_TRUE((nor::concepts::action_policy< HashmapActionPolicy< int > >) );
+   EXPECT_TRUE((nor::concepts::action_policy< HashmapActionPolicy< Action > >) );
 }
 
 template <
@@ -47,15 +48,18 @@ void concept_default_state_policy_check()
 
 TEST(concrete, default_state_policy)
 {
+   using namespace nor;
+   using namespace dummy;
+
    concept_default_state_policy_check<
-      nor::UniformPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
-      dummy::Infostate,
+      UniformPolicy< Infostate, HashmapActionPolicy< int > >,
+      Infostate,
       int,
-      nor::HashmapActionPolicy< int > >();
+      HashmapActionPolicy< int > >();
 
    EXPECT_TRUE((nor::concepts::default_state_policy<
-                nor::UniformPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
-                dummy::Infostate,
+                UniformPolicy< Infostate, HashmapActionPolicy< int > >,
+                Infostate,
                 int >) );
 }
 
@@ -73,26 +77,28 @@ template <
 
 TEST(concrete, referencing_state_policy)
 {
+   using namespace nor;
+   using namespace dummy;
+
    static_assert(std::is_same_v<
-                 typename nor::TabularPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >::
-                    action_type,
+                 typename TabularPolicy< Infostate, HashmapActionPolicy< int > >::action_type,
                  int >);
    static_assert(std::is_same_v<
-                 typename nor::TabularPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >::
+                 typename TabularPolicy< Infostate, HashmapActionPolicy< int > >::
                     action_policy_type,
-                 nor::HashmapActionPolicy< int > >);
+                 HashmapActionPolicy< int > >);
 
    concept_reference_state_policy_check<
-      nor::TabularPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
-      nor::UniformPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
-      dummy::Infostate,
+      TabularPolicy< Infostate, HashmapActionPolicy< int > >,
+      UniformPolicy< Infostate, HashmapActionPolicy< int > >,
+      Infostate,
       int,
-      nor::HashmapActionPolicy< int > >();
+      HashmapActionPolicy< int > >();
 
    EXPECT_TRUE((nor::concepts::reference_state_policy<
-                nor::TabularPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
-                nor::UniformPolicy< dummy::Infostate, nor::HashmapActionPolicy< int > >,
-                dummy::Infostate,
+                TabularPolicy< Infostate, HashmapActionPolicy< int > >,
+                UniformPolicy< Infostate, HashmapActionPolicy< int > >,
+                Infostate,
                 int >) );
 }
 
@@ -110,15 +116,17 @@ void concept_deterministic_fosg_check()
 
 TEST(concrete, fosg_dummy)
 {
-   concept_fosg_check< dummy::Env<> >();
+   using namespace dummy;
+   concept_fosg_check< Env<> >();
 
-   EXPECT_TRUE((nor::concepts::fosg< dummy::Env<> >) );
+   EXPECT_TRUE((nor::concepts::fosg< Env<> >) );
 }
 
 TEST(concrete, fosg_kuhn)
 {
-   EXPECT_TRUE((nor::concepts::fosg< nor::games::kuhn::Environment >) );
-   EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::kuhn::Environment >) );
+   using namespace nor::games::kuhn;
+   EXPECT_TRUE((nor::concepts::fosg< Environment >) );
+   EXPECT_FALSE((nor::concepts::deterministic_fosg< Environment >) );
 }
 
 TEST(concrete, fosg_leduc)
@@ -129,20 +137,22 @@ TEST(concrete, fosg_leduc)
 
 TEST(concrete, fosg_polymorphic)
 {
-   concept_fosg_check< nor::games::polymorph::Environment >();
+   using namespace nor::games::polymorph;
+   concept_fosg_check< Environment >();
    //   concept_deterministic_fosg_check< nor::games::polymorph::Environment >();
 
-   EXPECT_TRUE((nor::concepts::fosg< nor::games::polymorph::Environment >) );
-   EXPECT_FALSE((nor::concepts::deterministic_fosg< nor::games::polymorph::Environment >) );
+   EXPECT_TRUE((nor::concepts::fosg< Environment >) );
+   EXPECT_FALSE((nor::concepts::deterministic_fosg< Environment >) );
 }
 
 TEST(concrete, fosg_stratego)
 {
-   concept_fosg_check< nor::games::stratego::Environment >();
-   concept_deterministic_fosg_check< nor::games::stratego::Environment >();
+   using namespace nor::games::stratego;
+   concept_fosg_check< Environment >();
+   concept_deterministic_fosg_check< Environment >();
 
-   EXPECT_TRUE((nor::concepts::fosg< nor::games::stratego::Environment >) );
-   EXPECT_TRUE((nor::concepts::deterministic_fosg< nor::games::stratego::Environment >) );
+   EXPECT_TRUE((nor::concepts::fosg< Environment >) );
+   EXPECT_TRUE((nor::concepts::deterministic_fosg< Environment >) );
 }
 
 TEST(concrete, vanilla_requirements) {}

@@ -39,7 +39,7 @@ struct factory {
       std::remove_cvref_t< AveragePolicy > >
    make_cfr_vanilla(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       Policy&& policy,
       AveragePolicy&& avg_policy
    )
@@ -63,7 +63,7 @@ struct factory {
    template < rm::CFRConfig cfg, typename Env, typename Policy, typename AveragePolicy >
    static rm::VanillaCFR< cfg, Env, Policy, AveragePolicy > make_cfr_vanilla(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map
    )
@@ -75,7 +75,7 @@ struct factory {
    template < rm::CFRConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::VanillaCFR< cfg, Env, Policy, Policy > make_cfr_vanilla(
       Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const WorldstateHolder< auto_world_state_type< std::remove_cvref_t< Env > > >& root_state,
       const Policy& policy
    )
    {

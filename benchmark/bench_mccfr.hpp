@@ -14,22 +14,18 @@ void mccfr_bench(benchmark::State& state)
 {
    using env = std::remove_cvref_t< Env >;
 
-   auto root_state = std::make_unique< auto_world_state_type< env > >();
+   auto root_state = WorldstateHolder< auto_world_state_type< env > >();
 
-   auto avg_tabular_policy = factory::make_tabular_policy(
-      std::unordered_map<
-         auto_info_state_type< env >,
-         HashmapActionPolicy< auto_action_type< env > > >{}
-   );
+   auto avg_tabular_policy = factory::make_tabular_policy<
+      auto_info_state_type< env >,
+      HashmapActionPolicy< auto_action_type< env > > >();
 
-   auto tabular_policy = factory::make_tabular_policy(
-      std::unordered_map<
-         auto_info_state_type< env >,
-         HashmapActionPolicy< auto_action_type< env > > >{}
-   );
+   auto tabular_policy = factory::make_tabular_policy<
+      auto_info_state_type< env >,
+      HashmapActionPolicy< auto_action_type< env > > >();
 
    auto solver = factory::make_mccfr< config, true >(
-      env{}, std::move(root_state), tabular_policy, avg_tabular_policy, 0.5
+      env{}, root_state, tabular_policy, avg_tabular_policy, 0.5
    );
    if constexpr(nr_warmup_iters > 0) {
       // iterate a few rounds to assure all necessary allocations have been made
