@@ -834,7 +834,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
    if constexpr(config.algorithm != MCCFRAlgorithmMode::pure_cfr and config.pruning_mode == CFRPruningMode::partial) {
       if(_partial_pruning_condition(player_to_update, reach_probability)) {
-         // if the entire subtree is pruned then the values that could be found are all 0. for
+         // if the entire subtree is pruned then the values that could be found are all 0 for
          // each player
          return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
@@ -858,8 +858,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       if(active_player == Player::chance) {
          auto [chosen_outcome, _] = _sample_outcome(*curr_worldstate);
 
-         auto next_state = curr_worldstate.copy();
-         _env().transition(*next_state, chosen_outcome);
+         auto next_state = child_state(_env(), curr_worldstate, chosen_outcome);
 
          next_infostate_and_obs_buffers_inplace(
             _env(),
