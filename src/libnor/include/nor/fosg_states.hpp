@@ -43,9 +43,9 @@ class DefaultPublicstate {
    [[nodiscard]] auto& history() const { return m_history; }
    [[nodiscard]] size_t size() const { return m_history.size(); }
 
-   void update(const ObservationHolder< observation_type >& public_obs)
+   void update(const observation_type& public_obs)
    {
-      m_history.emplace_back(public_obs.copy());
+      m_history.emplace_back(ObservationHolder< observation_type >{public_obs});
       _hash();
    }
 
@@ -142,12 +142,12 @@ class DefaultInfostate {
    [[nodiscard]] auto& history() const { return m_history; }
    [[nodiscard]] size_t size() const { return m_history.size(); }
 
-   void update(
-      const ObservationHolder< observation_type >& public_obs,
-      const ObservationHolder< observation_type >& private_obs
-   )
+   void update(const observation_type& public_obs, const observation_type& private_obs)
    {
-      m_history.emplace_back(public_obs.copy(), private_obs.copy());
+      m_history.emplace_back(
+         ObservationHolder< observation_type >{public_obs},
+         ObservationHolder< observation_type >{private_obs}
+      );
       _hash();
    }
 

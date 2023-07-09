@@ -102,8 +102,8 @@ struct Infostate {
    NOR_VirtualBaseMethod(
       update, //
       void,  //
-      const ObservationHolder<observation_type>&,  //
-      const ObservationHolder<observation_type>&
+      const observation_type&,  //
+      const observation_type&
       );
    /// const methods
    Player player() const { return m_player; }

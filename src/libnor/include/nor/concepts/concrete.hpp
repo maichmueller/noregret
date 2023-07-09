@@ -97,7 +97,7 @@ concept public_state =
    && has::method::update<
          T,
          void,
-         ObservationHolder< Observation >  // public observation
+         const Observation&  // public observation
       >
    && has::method::getitem_r<
          T,
@@ -118,8 +118,8 @@ concept info_state =
    && has::method::update<
          T,
          void,
-         ObservationHolder< Observation >, // public observation
-         ObservationHolder< Observation >  // private observation
+         const Observation&, // public observation
+         const Observation&  // private observation
       >
    && has::method::getitem_r<
          T,

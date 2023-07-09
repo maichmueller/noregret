@@ -47,10 +47,13 @@ struct PyInfostate: public nor::games::polymorph::Infostate {
       );
    }
 
-   const observation_type& operator[](size_t arg) const override
+   const std::pair< ObservationHolder< observation_type >, ObservationHolder< observation_type > >&
+   operator[](size_t arg) const override
    {
       PYBIND11_OVERRIDE_NAME(
-         const observation_type&, /* Return type */
+         NOR_SINGLE_ARG(const std::pair<
+                        ObservationHolder< observation_type >,
+                        ObservationHolder< observation_type > >&), /* Return type */
          Infostate, /* Parent class */
          "__getitem__", /* Name of function in Python */
          operator[], /* Name of function in C++ */
@@ -58,14 +61,10 @@ struct PyInfostate: public nor::games::polymorph::Infostate {
       );
    }
 
-   std::
-      pair< std::reference_wrapper< observation_type >, std::reference_wrapper< observation_type > >
-      update(const observation_type& pub_obs, const observation_type& priv_obs) override
+   void update(const observation_type& pub_obs, const observation_type& priv_obs) override
    {
       PYBIND11_OVERRIDE_NAME(
-         NOR_SINGLE_ARG(std::pair<
-                        std::reference_wrapper< observation_type >,
-                        std::reference_wrapper< observation_type > >), /* Return type */
+         void, /* Return type */
          Infostate, /* Parent class */
          "update", /* Name of function in Python */
          update, /* Name of function in C++ */
