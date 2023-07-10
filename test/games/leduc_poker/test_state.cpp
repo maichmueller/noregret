@@ -24,33 +24,33 @@ TEST_F(LeducPokerState, apply_action)
    // P1 checks
    state.apply_action(ActionType::check);
    EXPECT_EQ(state.cards().size(), 2);
-   EXPECT_EQ(state.history()[Player::one], Action{ActionType::check});
-   EXPECT_EQ(state.history().container()[0], Action{ActionType::check});
-   EXPECT_EQ(state.history().container().size(), 2);
+   EXPECT_EQ(state.history_since_bet(Player::one), Action{ActionType::check});
+   EXPECT_EQ(state.history_since_bet().container()[0], Action{ActionType::check});
+   EXPECT_EQ(state.history_since_bet().container().size(), 2);
    // P2 bets 2
    state.apply_action(ActionType::bet, 2.);
-   EXPECT_EQ(state.history().container().size(), 2);
-   EXPECT_EQ(state.history()[Player::two], Action(ActionType::bet, 2.));
-   EXPECT_EQ(state.history().container()[1], Action(ActionType::bet, 2.));
+   EXPECT_EQ(state.history_since_bet().container().size(), 2);
+   EXPECT_EQ(state.history_since_bet(Player::two), Action(ActionType::bet, 2.));
+   EXPECT_EQ(state.history_since_bet(1), Action(ActionType::bet, 2.));
    // P1 raises 2
    state.apply_action(ActionType::bet, 2.);
-   EXPECT_EQ(state.history().container().size(), 2);
-   EXPECT_EQ(state.history().container()[0], Action(ActionType::bet, 2.));
-   EXPECT_EQ(state.history().container()[1], std::nullopt);
+   EXPECT_EQ(state.history_since_bet().container().size(), 2);
+   EXPECT_EQ(state.history_since_bet(0), Action(ActionType::bet, 2.));
+   EXPECT_EQ(state.history_since_bet(1), std::nullopt);
    // P2 calls
    state.apply_action(ActionType::check);
-   EXPECT_EQ(state.history().container().size(), 2);
-   EXPECT_EQ(state.history().container()[0], Action(ActionType::bet, 2.));
-   EXPECT_EQ(state.history().container()[1], Action{ActionType::check});
+   EXPECT_EQ(state.history_since_bet().container().size(), 2);
+   EXPECT_EQ(state.history_since_bet(0), Action(ActionType::bet, 2.));
+   EXPECT_EQ(state.history_since_bet(1), Action{ActionType::check});
    // now the public card is added
    state.apply_action(Card{Rank::queen, Suit::diamonds});
    EXPECT_EQ(state.public_card(), Card(Rank::queen, Suit::diamonds));
    // P1 checks
    state.apply_action(ActionType::check);
-   EXPECT_EQ(state.history().container()[0], Action(ActionType::check));
+   EXPECT_EQ(state.history_since_bet().container()[0], Action(ActionType::check));
    // P2 checks
    state.apply_action(Action{ActionType::check});
-   EXPECT_EQ(state.history().container()[1], Action(ActionType::check));
+   EXPECT_EQ(state.history_since_bet().container()[1], Action(ActionType::check));
 }
 
 TEST_F(LeducPokerState, is_valid_chance_action)

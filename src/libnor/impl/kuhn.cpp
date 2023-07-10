@@ -96,9 +96,7 @@ Environment::private_history(Player player, const world_state_type& wstate) cons
    }
    for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
       if(i != static_cast< size_t >(player)) {
-         out.emplace_back(
-            ActionHolder< action_type >{action_or_outcome}, to_nor_player(kuhn::Player(i))
-         );
+         out.emplace_back(action_holder{action_or_outcome}, to_nor_player(kuhn::Player(i)));
       } else {
          out.emplace_back(std::nullopt, to_nor_player(kuhn::Player(i)));
       }

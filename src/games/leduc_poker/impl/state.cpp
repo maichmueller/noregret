@@ -85,35 +85,37 @@ bool State::is_terminal()
    if(m_terminal_checked) {
       return m_is_terminal;
    }
-   m_is_terminal = std::invoke([&] {
-      if(m_remaining_players.size() <= 1) {
-         return true;
-      }
-
-      if(not m_public_card.has_value()) {
-         // if the public card has not yet been set then the game cannot be over with more than 1
-         // player remaining
-         return false;
-      }
-
-      if(ranges::accumulate(
-            m_history_since_last_bet.container()
-               | ranges::views::transform([](const auto& opt_action) {
-                    return opt_action.has_value();
-                 }),
-            size_t(0),
-            std::plus{}
-         )
-         == m_remaining_players.size()) {
-         // everyone has responded since the last bet, thus the round is over
-         // Note that this also implies that noone raised, as then all previous responses would have
-         // been erased
-         return true;
-      }
-      return false;
-   });
+   m_is_terminal = std::as_const(*this).is_terminal();
    m_terminal_checked = true;
    return m_is_terminal;
+}
+
+bool State::is_terminal() const
+{
+   if(m_remaining_players.size() <= 1) {
+      return true;
+   }
+
+   if(not m_public_card.has_value()) {
+      // if the public card has not yet been set then the game cannot be over with more than 1
+      // player remaining
+      return false;
+   }
+
+   if(ranges::accumulate(
+         m_history_since_last_bet.container()
+            | ranges::views::transform([](const auto& opt_action) { return opt_action.has_value(); }
+            ),
+         size_t(0),
+         std::plus{}
+      )
+      == m_remaining_players.size()) {
+      // everyone has responded since the last bet, thus the round is over
+      // Note that this also implies that noone raised, as otherwise all previous responses would
+      // have been erased
+      return true;
+   }
+   return false;
 }
 
 void State::_single_pot_winner(std::vector< double >& payoffs, Player player) const
@@ -256,6 +258,9 @@ State::State(sptr< const LeducConfig > config)
    for(size_t p = 0; p < nr_players; p++) {
       m_remaining_players.emplace_back(Player(p));
    }
+}
+State::State(LeducConfig config) : State(std::make_shared< const LeducConfig >(std::move(config)))
+{
 }
 
 }  // namespace leduc

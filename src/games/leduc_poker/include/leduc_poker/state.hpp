@@ -80,27 +80,71 @@ inline bool operator==(const Action& action1, const Action& action2)
           and std::fabs(action1.bet - action2.bet) <= std::numeric_limits< double >::epsilon();
 }
 
-struct LeducConfig {
-   size_t n_players = 2;
-   size_t n_raises_allowed = 2;
-   double small_blind = 1.;
-   std::vector< double > bet_sizes_round_one = {2};
-   std::vector< double > bet_sizes_round_two = {4};
-   std::vector< Card > available_cards = {
-      {Rank::jack, Suit::clubs},
-      {Rank::jack, Suit::diamonds},
-      {Rank::queen, Suit::clubs},
-      {Rank::queen, Suit::diamonds},
-      {Rank::king, Suit::clubs},
-      {Rank::king, Suit::diamonds}};
-};
+class LeducConfig {
+  public:
+   static LeducConfig make(
+      size_t n_players = 2,
+      size_t n_raises_allowed = 2,
+      double small_blind = 1.,
+      std::vector< double > bet_sizes_round_one = {2},
+      std::vector< double > bet_sizes_round_two = {4},
+      std::vector< Card > available_cards =
+         {{Rank::jack, Suit::clubs},
+          {Rank::jack, Suit::diamonds},
+          {Rank::queen, Suit::clubs},
+          {Rank::queen, Suit::diamonds},
+          {Rank::king, Suit::clubs},
+          {Rank::king, Suit::diamonds}}
+   )
+   {
+      LeducConfig config;
+      config.n_players = n_players;
+      config.n_raises_allowed = n_raises_allowed;
+      config.small_blind = small_blind;
+      config.bet_sizes_round_one = std::move(bet_sizes_round_one);
+      config.bet_sizes_round_two = std::move(bet_sizes_round_two);
+      config.available_cards = std::move(available_cards);
+      return config;
+   }
 
-inline LeducConfig leduc5_config()
-{
-   // returns a bigger betting range config, which will blow up the action space and thus game tree
-   // enormously! as per Noam Brown's thesis: Nr of information sets for Leduc: 288, Leduc-5: 34224
-   return {.bet_sizes_round_one = {0.5, 1, 2, 4, 8}, .bet_sizes_round_two = {1, 2, 4, 8, 16}};
-}
+   /// returns a wider betting range confi --> increases the game tree enormously!
+   /// As per Noam Brown's thesis the nr of information sets are...
+   /// Leduc:      288
+   /// Leduc-5:    34224
+   static LeducConfig make_leduc5(
+      size_t n_players = 2,
+      size_t n_raises_allowed = 2,
+      double small_blind = 1.0,
+      std::vector< Card > available_cards =
+         {{Rank::jack, Suit::clubs},
+          {Rank::jack, Suit::diamonds},
+          {Rank::queen, Suit::clubs},
+          {Rank::queen, Suit::diamonds},
+          {Rank::king, Suit::clubs},
+          {Rank::king, Suit::diamonds}}
+   )
+   {
+      return make(
+         n_players,
+         n_raises_allowed,
+         small_blind,
+         /*bet_sizes_round_one=*/std::vector{0.5, 1., 2., 4., 8.},
+         /*bet_sizes_round_two=*/std::vector{1., 2., 4., 8., 16.},
+         std::move(available_cards)
+      );
+   }
+
+  private:
+   LeducConfig() = default;
+
+  public:
+   size_t n_players;
+   size_t n_raises_allowed;
+   double small_blind;
+   std::vector< double > bet_sizes_round_one;
+   std::vector< double > bet_sizes_round_two;
+   std::vector< Card > available_cards;
+};
 
 /**
  * @brief stores the currently commited action sequence
@@ -149,6 +193,7 @@ inline bool operator==(const HistorySinceBet& left, const HistorySinceBet& right
 
 class State {
   public:
+   State(LeducConfig config);
    State(sptr< const LeducConfig > config);
 
    template < typename... Args >
@@ -159,6 +204,7 @@ class State {
    void apply_action(Action action);
    void apply_action(Card action);
    bool is_terminal();
+   bool is_terminal() const;
    std::vector< double > payoff();
    inline double payoff(Player player) { return payoff()[as_int(player)]; }
 
@@ -184,8 +230,15 @@ class State {
    }
    [[nodiscard]] auto card(Player player) const { return m_player_cards[as_int(player)]; }
    [[nodiscard]] auto public_card() const { return m_public_card; }
-   [[nodiscard]] auto& history() const { return m_history_since_last_bet; }
+   [[nodiscard]] auto& history() const { return m_history; }
+   [[nodiscard]] auto& history_since_bet() const { return m_history_since_last_bet; }
+   template < typename IntType >
+   [[nodiscard]] auto& history_since_bet(IntType player) const
+   {
+      return m_history_since_last_bet[Player(player)];
+   }
    [[nodiscard]] auto& cards() const { return m_player_cards; }
+   [[nodiscard]] const auto& config() const { return *m_config; }
 
   private:
    Player m_active_player = Player::chance;

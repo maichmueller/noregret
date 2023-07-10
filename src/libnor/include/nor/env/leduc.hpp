@@ -48,14 +48,13 @@ class Environment {
    using action_type = Action;
    using chance_outcome_type = Card;
    using observation_type = Observation;
+   using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
    // nor fosg traits
-   static constexpr size_t max_player_count() { return 2; }
-   static constexpr size_t player_count() { return 2; }
+   static constexpr size_t max_player_count() { return 10; }
    static constexpr bool serialized() { return true; }
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::choice; }
 
-  private:
    using action_holder = ActionHolder< action_type >;
    using chance_outcome_holder = ChanceOutcomeHolder< chance_outcome_type >;
    using observation_holder = ObservationHolder< observation_type >;
@@ -63,7 +62,6 @@ class Environment {
    using public_state_holder = PublicstateHolder< public_state_type >;
    using world_state_holder = WorldstateHolder< world_state_type >;
 
-  public:
    Environment() = default;
 
    std::vector< ActionHolder< action_type > > actions(Player, const world_state_type& wstate) const
@@ -78,17 +76,15 @@ class Environment {
          wstate.chance_actions(), tag::chance_outcome{}
       );
    }
-   [[nodiscard]] std::vector<
-      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+   [[nodiscard]] std::vector< PlayerInformedType< std::optional< action_variant_type > > >
    private_history(Player player, const world_state_type& wstate) const;
 
-   [[nodiscard]] std::vector<
-      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+   [[nodiscard]] std::vector< PlayerInformedType< std::optional< action_variant_type > > >
    public_history(const world_state_type& wstate) const;
 
-   [[nodiscard]] std::vector<
-      PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
-   open_history(const world_state_type& wstate) const;
+   [[nodiscard]] std::vector< PlayerInformedType< action_variant_type > > open_history(
+      const world_state_type& wstate
+   ) const;
 
    inline double
    chance_probability(const world_state_type& wstate, const chance_outcome_type& outcome) const
@@ -101,7 +97,7 @@ class Environment {
       auto rem_players = wstate.remaining_players();
       std::vector< Player > vec_out;
       vec_out.reserve(rem_players.size());
-      std::ranges::copy(
+      ranges::copy(
          rem_players | ranges::views::transform([](auto p) { return Player(p); }),
          std::back_inserter(vec_out)
       );
@@ -119,27 +115,27 @@ class Environment {
       worldstate.apply_action(action);
    }
 
-   observation_type private_observation(
+   observation_holder private_observation(
       Player observer,
       const world_state_type& wstate,
       const action_type& action,
       const world_state_type& next_wstate
    ) const;
 
-   observation_type private_observation(
+   observation_holder private_observation(
       Player observer,
       const world_state_type& wstate,
       const chance_outcome_type& action,
       const world_state_type& next_wstate
    ) const;
 
-   observation_type public_observation(
+   observation_holder public_observation(
       const world_state_type& wstate,
       const action_type& action,
       const world_state_type& next_wstate
    ) const;
 
-   observation_type public_observation(
+   observation_holder public_observation(
       const world_state_type& wstate,
       const chance_outcome_type& action,
       const world_state_type& next_wstate

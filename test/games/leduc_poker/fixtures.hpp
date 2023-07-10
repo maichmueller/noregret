@@ -7,11 +7,11 @@
 #include "leduc_poker/leduc_poker.hpp"
 
 struct LeducPokerState: public ::testing::Test {
-   leduc::State state{std::make_shared< leduc::LeducConfig >()};
+   leduc::State state{leduc::LeducConfig::make()};
 };
 
 struct Leduc5PokerState: public ::testing::Test {
-   leduc::State state{std::make_shared< leduc::LeducConfig >(leduc::leduc5_config())};
+   leduc::State state{leduc::LeducConfig::make_leduc5()};
 };
 
 class TerminalParamsF:
@@ -22,7 +22,7 @@ class TerminalParamsF:
        bool  // whether the state is terminal
        > > {
   protected:
-   leduc::State state{std::make_shared< leduc::LeducConfig >()};
+   leduc::State state{leduc::LeducConfig::make()};
 };
 
 class PayoffParamsF:
@@ -33,7 +33,7 @@ class PayoffParamsF:
        std::array< double, 2 >  // expected payoffs
        > > {
   protected:
-   leduc::State state{std::make_shared< leduc::LeducConfig >()};
+   leduc::State state{leduc::LeducConfig::make()};
 };
 
 #endif  // NOR_LEDUC_POKER_FIXTURES_HPP
