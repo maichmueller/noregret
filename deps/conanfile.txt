@@ -1,5 +1,5 @@
 [requires]
-gtest/1.11.0
+gtest/1.13.0
 pybind11/2.10.4
 xtensor/0.23.10
 range-v3/0.12.0

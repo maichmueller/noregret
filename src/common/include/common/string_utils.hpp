@@ -9,7 +9,13 @@
 namespace common {
 
 template < typename T >
-std::string to_string(const T& value);
+inline std::string to_string(const T& value);
+
+template <>
+inline std::string to_string(const ::std::nullopt_t&)
+{
+   return "std::nullopt";
+}
 
 template < typename To >
 To from_string(std::string_view str);
@@ -21,6 +27,9 @@ template < typename T >
 constexpr bool printable_v = printable< T >::value;
 
 }  // namespace common
+
+template <>
+struct common::printable< ::std::nullopt_t >: public ::std::true_type {};
 
 template < typename T >
    requires(::common::printable_v< T >)

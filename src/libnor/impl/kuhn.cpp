@@ -113,7 +113,7 @@ std::vector< PlayerInformedType< Environment::action_variant_type > > Environmen
    auto action_history = wstate.history();
    out.reserve(action_history.size() + 2);
    for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
-      out.emplace_back(ActionHolder< action_type >{action}, to_nor_player(kuhn::Player(i)));
+      out.emplace_back(action_holder{action}, to_nor_player(kuhn::Player(i)));
    }
    out.shrink_to_fit();
    return out;

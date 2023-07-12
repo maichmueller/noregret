@@ -5,19 +5,11 @@
 
 namespace leduc {
 
-inline Player State::_next_active_player()
+inline Player State::_cycle_active_player()
 {
-   // find the current iterator pointing at the active player, increment it by 1 to get an iterator
-   // to the next player in turn and return that player.
-   // We cannot simply iterate over the number of players since some players might have already
-   // folded, and thus the remaining players are not necessarily in order of P1,P2,P3,P4, but rather
-   // e.g. P2,P4
-   auto begin = m_remaining_players.begin();
-   auto end = m_remaining_players.end();
-   // we assume here that we always find the active player or the logic has gone wrong somewhere
-   // else already
-   auto next_player_iter = ++std::find(begin, end, m_active_player);
-   return *(next_player_iter != end ? next_player_iter : m_remaining_players.begin());
+   // left rotate all entries (pop front and append to the back)
+   ranges::rotate(m_remaining_players, m_remaining_players.begin() + 1);
+   return m_remaining_players.front();
 }
 
 void State::apply_action(Action action)
@@ -37,7 +29,7 @@ void State::apply_action(Action action)
       case ActionType::check: {
          if(m_active_bettor.has_value()) {
             // if there is a bettor then check is actually a call --> add to the player's stakes
-            m_stakes[as_int(m_active_player)] += m_history_since_last_bet[*m_active_bettor]->bet;
+            m_stakes[as_int(m_active_player)] = m_stakes[as_int(*m_active_bettor)];
          }
          break;
       }
@@ -48,17 +40,25 @@ void State::apply_action(Action action)
       }
    }
    // append the active player's action to the last action history
+   m_history.emplace_back(action);
    m_history_since_last_bet[m_active_player] = std::move(action);
-   if(ranges::all_of(m_history_since_last_bet.container(), [](const auto& opt) {
-         return opt.has_value();
-      })) [[unlikely]] {
-      // everyone acted in this round and the round is over
+
+   if(ranges::all_of(
+         ranges::views::enumerate(m_history_since_last_bet),
+         [&](const auto& player_opt) {
+            const auto& [player, opt] = player_opt;
+            return opt.has_value() or not ranges::contains(m_remaining_players, Player(player));
+         }
+      )) [[unlikely]] {
+      // everyone left in the game acted in this round and the round is over
       // --> on to the public card or the game is over anyway
       m_active_player = Player::chance;
+      m_history_since_last_bet.reset();
+      _cycle_active_player();
    } else [[likely]] {
-      m_active_player = _next_active_player();
+      m_active_player = _cycle_active_player();
    }
-
+   // since the state has changed we need to recompute whether the game has terminated
    m_terminal_checked = false;
 }
 
@@ -92,27 +92,15 @@ bool State::is_terminal()
 
 bool State::is_terminal() const
 {
-   if(m_remaining_players.size() <= 1) {
-      return true;
-   }
-
    if(not m_public_card.has_value()) {
       // if the public card has not yet been set then the game cannot be over with more than 1
       // player remaining
       return false;
    }
 
-   if(ranges::accumulate(
-         m_history_since_last_bet.container()
-            | ranges::views::transform([](const auto& opt_action) { return opt_action.has_value(); }
-            ),
-         size_t(0),
-         std::plus{}
-      )
-      == m_remaining_players.size()) {
-      // everyone has responded since the last bet, thus the round is over
-      // Note that this also implies that noone raised, as otherwise all previous responses would
-      // have been erased
+   if(m_active_player == Player::chance) {
+      // there is a public card and we are back to having the chance player be the next active
+      // player, then this means everyone has bet and the betting has concluded
       return true;
    }
    return false;
@@ -193,7 +181,12 @@ bool State::is_valid(Action action) const
       return false;
    }
    if(action.action_type == ActionType::bet) {
-      return m_bets_this_round < m_config->n_raises_allowed;
+      const auto& config = *m_config;
+      return (m_bets_this_round < config.n_raises_allowed)
+             and ranges::contains(
+                m_public_card.has_value() ? config.bet_sizes_round_two : config.bet_sizes_round_one,
+                action.bet
+             );
    }
    return true;
 }
@@ -253,7 +246,6 @@ State::State(sptr< const LeducConfig > config)
       m_config(std::move(config))
 {
    size_t nr_players = m_config->n_players;
-   m_remaining_players.reserve(nr_players);
    m_player_cards.reserve(nr_players);
    for(size_t p = 0; p < nr_players; p++) {
       m_remaining_players.emplace_back(Player(p));

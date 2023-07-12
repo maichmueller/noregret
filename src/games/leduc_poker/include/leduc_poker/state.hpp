@@ -3,6 +3,7 @@
 #define NOR_LEDUC_POKER_STATE_HPP
 
 #include <array>
+#include <deque>
 #include <optional>
 #include <range/v3/all.hpp>
 #include <sstream>
@@ -170,6 +171,11 @@ class HistorySinceBet {
       });
    }
 
+   auto begin() const { return m_container.begin(); }
+   auto begin() { return m_container.begin(); }
+   auto end() const { return m_container.end(); }
+   auto end() { return m_container.end(); }
+
    auto& container() { return m_container; }
    [[nodiscard]] auto& container() const { return m_container; }
 
@@ -242,7 +248,7 @@ class State {
 
   private:
    Player m_active_player = Player::chance;
-   std::vector< Player > m_remaining_players;
+   std::deque< Player > m_remaining_players;
    std::vector< Card > m_player_cards;
    std::vector< double > m_stakes;
    std::optional< Card > m_public_card = std::nullopt;
@@ -257,7 +263,7 @@ class State {
    static const std::vector< HistorySinceBet >& _all_terminal_histories();
    [[nodiscard]] bool _all_player_cards_assigned() const;
    [[nodiscard]] bool _has_higher_card(Player player) const;
-   Player _next_active_player();
+   Player _cycle_active_player();
    void _single_pot_winner(std::vector< double >& payoffs, Player player) const;
 
    template < ranges::sized_range Range >
