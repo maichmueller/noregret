@@ -7,11 +7,11 @@
 #include "leduc_poker/leduc_poker.hpp"
 
 struct LeducPokerState: public ::testing::Test {
-   leduc::State state{leduc::LeducConfig::make()};
+   leduc::State state{leduc::LeducConfig{}};
 };
 
 struct Leduc5PokerState: public ::testing::Test {
-   leduc::State state{leduc::LeducConfig::make_leduc5()};
+   leduc::State state{leduc::LeducConfig::leduc5()};
 };
 
 class TerminalParamsF:

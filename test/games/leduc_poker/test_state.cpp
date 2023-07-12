@@ -63,8 +63,9 @@ TEST_F(LeducPokerState, apply_action)
 
 TEST(LeducPokerState_3_Players, apply_action_stakes_is_valid)
 {
-   leduc::State state = leduc::LeducConfig::make(
+   leduc::State state = leduc::LeducConfig(
       3,
+      Player::one,
       2,
       1.,
       {2., 4., 8.},
@@ -254,7 +255,7 @@ TEST_F(LeducPokerState, legal_actions)
 
 TEST(LeducPokerState_5_Players, actions_and_stakes)
 {
-   auto state = leduc::State{leduc::LeducConfig::make(5)};
+   auto state = leduc::State{leduc::LeducConfig(5)};
 }
 
 TEST_P(TerminalParamsF, terminal_situations)
@@ -284,13 +285,14 @@ INSTANTIATE_TEST_SUITE_P(
    TerminalParamsF,
    ::testing::Values(
       std::tuple{
-         leduc::LeducConfig::make(),
+         leduc::LeducConfig(),
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
          true},
       std::tuple{
-         leduc::LeducConfig::make(
+         leduc::LeducConfig(
             5,
+            Player::one,
             2,
             1.,
             {2},
@@ -311,8 +313,9 @@ INSTANTIATE_TEST_SUITE_P(
          std::vector< Action >{{ActionType::check}, {ActionType::check}, {ActionType::check}},
          false},
       std::tuple{
-         leduc::LeducConfig::make(
+         leduc::LeducConfig(
             3,
+            Player::one,
             2,
             1.,
             {2},
@@ -333,8 +336,9 @@ INSTANTIATE_TEST_SUITE_P(
          std::vector< Action >{},
          false},
       std::tuple{
-         leduc::LeducConfig::make(
+         leduc::LeducConfig(
             3,
+            Player::one,
             2,
             1.,
             {2},
@@ -355,8 +359,9 @@ INSTANTIATE_TEST_SUITE_P(
          std::vector< Action >{{ActionType::bet, 2.}, {ActionType::fold}},
          true},
       std::tuple{
-         leduc::LeducConfig::make(
+         leduc::LeducConfig(
             3,
+            Player::one,
             2,
             1.,
             {2},
@@ -373,8 +378,9 @@ INSTANTIATE_TEST_SUITE_P(
          std::vector< Action >{},
          false},
       std::tuple{
-         leduc::LeducConfig::make(
+         leduc::LeducConfig(
             3,
+            Player::one,
             2,
             1.,
             {2},
@@ -391,18 +397,19 @@ INSTANTIATE_TEST_SUITE_P(
          std::vector< Action >{{ActionType::check}},
          false},
       std::tuple{
-         leduc::LeducConfig::make(),
+         leduc::LeducConfig(),
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{},
          false},
       std::tuple{
-         leduc::LeducConfig::make(),
+         leduc::LeducConfig(),
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::bet, 4.}},
          false},
       std::tuple{
-         leduc::LeducConfig::make(
+         leduc::LeducConfig(
             4,
+            Player::one,
             2,
             1.,
             {2},
@@ -430,8 +437,9 @@ INSTANTIATE_TEST_SUITE_P(
          },
          true},
       std::tuple{
-         leduc::LeducConfig::make(
+         leduc::LeducConfig(
             4,
+            Player::one,
             2,
             1.,
             {2},

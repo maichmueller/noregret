@@ -83,13 +83,17 @@ inline bool operator==(const Action& action1, const Action& action2)
 
 class LeducConfig {
   public:
-   static LeducConfig make(
-      size_t n_players = 2,
-      size_t n_raises_allowed = 2,
-      double small_blind = 1.,
-      std::vector< double > bet_sizes_round_one = {2},
-      std::vector< double > bet_sizes_round_two = {4},
-      std::vector< Card > available_cards =
+   template <
+      ranges::sized_range Rng1 = std::initializer_list< double >,
+      ranges::sized_range Rng2 = std::initializer_list< double > >
+   LeducConfig(
+      size_t n_players_ = 2,
+      Player starting_player_ = Player::one,
+      size_t n_raises_allowed_ = 2,
+      double blind_ = 1.,
+      Rng1&& bet_sizes_round_one_ = {2.},
+      Rng2&& bet_sizes_round_two_ = {4.},
+      std::vector< Card > available_cards_ =
          {{Rank::jack, Suit::clubs},
           {Rank::jack, Suit::diamonds},
           {Rank::queen, Suit::clubs},
@@ -97,25 +101,28 @@ class LeducConfig {
           {Rank::king, Suit::clubs},
           {Rank::king, Suit::diamonds}}
    )
+       : n_players(n_players_),
+         starting_player(starting_player_),
+         n_raises_allowed(n_raises_allowed_),
+         blind(blind_),
+         bet_sizes(ranges::to< std::vector< double > >(
+            ranges::views::concat(bet_sizes_round_one_, bet_sizes_round_two_)
+         )),
+         bet_sizes_shapes({bet_sizes_round_one_.size(), bet_sizes_round_two_.size()}),
+         available_cards(std::move(available_cards_))
    {
-      LeducConfig config;
-      config.n_players = n_players;
-      config.n_raises_allowed = n_raises_allowed;
-      config.small_blind = small_blind;
-      config.bet_sizes_round_one = std::move(bet_sizes_round_one);
-      config.bet_sizes_round_two = std::move(bet_sizes_round_two);
-      config.available_cards = std::move(available_cards);
-      return config;
+      bet_sizes.shrink_to_fit();
    }
 
    /// returns a wider betting range confi --> increases the game tree enormously!
-   /// As per Noam Brown's thesis the nr of information sets are...
+   /// As per Noam Brown's thesis the nr of information sets are (rest defaulted)...
    /// Leduc:      288
    /// Leduc-5:    34224
-   static LeducConfig make_leduc5(
+   static LeducConfig leduc5(
       size_t n_players = 2,
+      Player starting_player = Player::one,
       size_t n_raises_allowed = 2,
-      double small_blind = 1.0,
+      double blind = 1.0,
       std::vector< Card > available_cards =
          {{Rank::jack, Suit::clubs},
           {Rank::jack, Suit::diamonds},
@@ -125,25 +132,24 @@ class LeducConfig {
           {Rank::king, Suit::diamonds}}
    )
    {
-      return make(
+      return LeducConfig(
          n_players,
+         starting_player,
          n_raises_allowed,
-         small_blind,
-         /*bet_sizes_round_one=*/std::vector{0.5, 1., 2., 4., 8.},
-         /*bet_sizes_round_two=*/std::vector{1., 2., 4., 8., 16.},
+         blind,
+         /*bet_sizes_round_one=*/{0.5, 1., 2., 4., 8.},
+         /*bet_sizes_round_two=*/{1., 2., 4., 8., 16.},
          std::move(available_cards)
       );
    }
 
-  private:
-   LeducConfig() = default;
-
   public:
    size_t n_players;
+   Player starting_player;
    size_t n_raises_allowed;
-   double small_blind;
-   std::vector< double > bet_sizes_round_one;
-   std::vector< double > bet_sizes_round_two;
+   double blind;
+   std::vector< double > bet_sizes;
+   std::array< size_t, 2 > bet_sizes_shapes;
    std::vector< Card > available_cards;
 };
 
@@ -200,7 +206,6 @@ inline bool operator==(const HistorySinceBet& left, const HistorySinceBet& right
 class State {
   public:
    State(LeducConfig config);
-   State(sptr< const LeducConfig > config);
 
    template < typename... Args >
    auto apply_action(Args... args)
@@ -227,13 +232,6 @@ class State {
 
    [[nodiscard]] auto active_player() const { return m_active_player; }
    [[nodiscard]] auto remaining_players() const { return m_remaining_players; }
-   [[nodiscard]] auto initial_players() const
-   {
-      return ranges::to_vector(
-         ranges::cpp20::views::iota(-1, int(m_config->n_players))
-         | ranges::views::transform([](int p) { return Player(p); })
-      );
-   }
    [[nodiscard]] auto card(Player player) const { return m_player_cards[as_int(player)]; }
    [[nodiscard]] auto public_card() const { return m_public_card; }
    [[nodiscard]] auto& history() const { return m_history; }
@@ -244,7 +242,18 @@ class State {
       return m_history_since_last_bet[Player(player)];
    }
    [[nodiscard]] auto& cards() const { return m_player_cards; }
-   [[nodiscard]] const auto& config() const { return *m_config; }
+   [[nodiscard]] const auto& config() const { return m_config; }
+   [[nodiscard]] auto initial_players() const
+   {
+      return ranges::to_vector(
+         ranges::cpp20::views::iota(-1, int(config().n_players))
+         | ranges::views::transform([](int p) { return Player(p); })
+      );
+   }
+   [[nodiscard]] std::span< const double > bet_sizes(bool round_two) const
+   {
+      return std::span{config().bet_sizes}.subspan(size_t(0), config().bet_sizes_shapes[round_two]);
+   }
 
   private:
    Player m_active_player = Player::chance;
@@ -258,12 +267,12 @@ class State {
    std::vector< Action > m_history{};
    bool m_is_terminal = false;
    bool m_terminal_checked = false;
-   sptr< const LeducConfig > m_config;
+   const LeducConfig m_config;
 
    static const std::vector< HistorySinceBet >& _all_terminal_histories();
    [[nodiscard]] bool _all_player_cards_assigned() const;
    [[nodiscard]] bool _has_higher_card(Player player) const;
-   Player _cycle_active_player();
+   Player _cycle_active_player(bool folded);
    void _single_pot_winner(std::vector< double >& payoffs, Player player) const;
 
    template < ranges::sized_range Range >

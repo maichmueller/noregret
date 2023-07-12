@@ -5,15 +5,21 @@
 
 namespace leduc {
 
-inline Player State::_cycle_active_player()
+inline Player State::_cycle_active_player(bool folded)
 {
-   // left rotate all entries (pop front and append to the back)
-   ranges::rotate(m_remaining_players, m_remaining_players.begin() + 1);
+   if(folded) {
+      // merely boot the front player from the game
+      m_remaining_players.pop_front();
+   } else {
+      // left rotate all entries (pop front and append to the back)
+      ranges::rotate(m_remaining_players, m_remaining_players.begin() + 1);
+   }
    return m_remaining_players.front();
 }
 
 void State::apply_action(Action action)
 {
+   bool folded = false;
    switch(action.action_type) {
       case ActionType::bet: {
          m_bets_this_round += 1;
@@ -35,7 +41,7 @@ void State::apply_action(Action action)
       }
       case ActionType::fold: {
          // take the folding player out of the competing player range
-         m_remaining_players.erase(ranges::remove(m_remaining_players, m_active_player));
+         folded = true;
          break;
       }
    }
@@ -54,9 +60,9 @@ void State::apply_action(Action action)
       // --> on to the public card or the game is over anyway
       m_active_player = Player::chance;
       m_history_since_last_bet.reset();
-      _cycle_active_player();
+      _cycle_active_player(folded);
    } else [[likely]] {
-      m_active_player = _cycle_active_player();
+      m_active_player = _cycle_active_player(folded);
    }
    // since the state has changed we need to recompute whether the game has terminated
    m_terminal_checked = false;
@@ -181,12 +187,8 @@ bool State::is_valid(Action action) const
       return false;
    }
    if(action.action_type == ActionType::bet) {
-      const auto& config = *m_config;
-      return (m_bets_this_round < config.n_raises_allowed)
-             and ranges::contains(
-                m_public_card.has_value() ? config.bet_sizes_round_two : config.bet_sizes_round_one,
-                action.bet
-             );
+      return (m_bets_this_round < m_config.n_raises_allowed)
+             and ranges::contains(bet_sizes(m_public_card.has_value()), action.bet);
    }
    return true;
 }
@@ -203,7 +205,7 @@ bool State::is_valid(Card outcome) const
 }
 bool State::_all_player_cards_assigned() const
 {
-   return m_player_cards.size() == m_config->n_players;
+   return m_player_cards.size() == m_config.n_players;
 }
 
 std::vector< Card > State::chance_actions() const
@@ -211,7 +213,7 @@ std::vector< Card > State::chance_actions() const
    if(_all_player_cards_assigned() and m_public_card.has_value()) {
       return {};
    }
-   return ranges::to_vector(ranges::views::filter(m_config->available_cards, [&](const auto& card) {
+   return ranges::to_vector(ranges::views::filter(m_config.available_cards, [&](const auto& card) {
       return not ranges::contains(m_player_cards, card);
    }));
 }
@@ -222,9 +224,8 @@ std::vector< Action > State::actions() const
       return {};
    }
    std::vector< Action > all_actions{{ActionType::check}, {ActionType::fold}};
-   if(m_config->n_raises_allowed > m_bets_this_round) {
-      const auto& all_bets = m_public_card.has_value() ? m_config->bet_sizes_round_two
-                                                       : m_config->bet_sizes_round_one;
+   if(m_config.n_raises_allowed > m_bets_this_round) {
+      auto all_bets = bet_sizes(m_public_card.has_value());
       all_actions.reserve(2 + all_bets.size());
       for(auto bet_amount : all_bets) {
          all_actions.emplace_back(Action{ActionType::bet, bet_amount});
@@ -238,21 +239,21 @@ double State::chance_probability(Card) const
    return 1. / double(chance_actions().size());
 }
 
-State::State(sptr< const LeducConfig > config)
+State::State(LeducConfig config)
     : m_remaining_players(),
       m_player_cards(),
-      m_stakes(config->n_players, config->small_blind),  // everyone places at least the small blind
-      m_history_since_last_bet(config->n_players),
+      m_stakes(config.n_players, config.blind),  // everyone places at least the small blind
+      m_history_since_last_bet(config.n_players),
       m_config(std::move(config))
 {
-   size_t nr_players = m_config->n_players;
+   size_t nr_players = m_config.n_players;
    m_player_cards.reserve(nr_players);
-   for(size_t p = 0; p < nr_players; p++) {
+   size_t start = static_cast< size_t >(m_config.starting_player);
+   for(size_t p : ranges::views::concat(
+          ranges::views::iota(start, nr_players), ranges::views::iota(size_t(0), start)
+       )) {
       m_remaining_players.emplace_back(Player(p));
    }
-}
-State::State(LeducConfig config) : State(std::make_shared< const LeducConfig >(std::move(config)))
-{
 }
 
 }  // namespace leduc
