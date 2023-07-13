@@ -111,6 +111,13 @@ class LeducConfig {
          bet_sizes_shapes({bet_sizes_round_one_.size(), bet_sizes_round_two_.size()}),
          available_cards(std::move(available_cards_))
    {
+      if(available_cards.size() <= n_players) {
+         throw std::invalid_argument(
+            "There are too few cards available (" + std::to_string(available_cards.size())
+            + ") for the number of players (" + std::to_string(n_players) + ").\n"
+            + "At least #players + 1 (flop) many are needed."
+         );
+      }
       bet_sizes.shrink_to_fit();
    }
 
@@ -229,6 +236,7 @@ class State {
    [[nodiscard]] std::vector< Action > actions() const;
    [[nodiscard]] std::vector< Card > chance_actions() const;
    [[nodiscard]] double chance_probability(Card action) const;
+   [[nodiscard]] double stake(Player player) const { return m_stakes[as_int(player)]; }
 
    [[nodiscard]] auto active_player() const { return m_active_player; }
    [[nodiscard]] auto remaining_players() const { return m_remaining_players; }
@@ -246,13 +254,18 @@ class State {
    [[nodiscard]] auto initial_players() const
    {
       return ranges::to_vector(
-         ranges::cpp20::views::iota(-1, int(config().n_players))
+         ranges::views::iota(-1, int(config().n_players))
          | ranges::views::transform([](int p) { return Player(p); })
       );
    }
    [[nodiscard]] std::span< const double > bet_sizes(bool round_two) const
    {
-      return std::span{config().bet_sizes}.subspan(size_t(0), config().bet_sizes_shapes[round_two]);
+      return std::span{config().bet_sizes}.subspan(
+         size_t(round_two)
+            * config().bet_sizes_shapes[0],  // start index offset is the length of
+                                             // round 1's bet size vec (2nd round) or 0 (1st round)
+         config().bet_sizes_shapes[round_two]  // end index is the size of round 1/2's bet size vec
+      );
    }
 
   private:
@@ -272,7 +285,7 @@ class State {
    static const std::vector< HistorySinceBet >& _all_terminal_histories();
    [[nodiscard]] bool _all_player_cards_assigned() const;
    [[nodiscard]] bool _has_higher_card(Player player) const;
-   Player _cycle_active_player(bool folded);
+   Player _cycle_active_player(bool folded, size_t cycle_by = 1);
    void _single_pot_winner(std::vector< double >& payoffs, Player player) const;
 
    template < ranges::sized_range Range >
@@ -288,6 +301,8 @@ class State {
          }
       );
    }
+   void _determine_highest_card_winner(std::vector< Player >& winners) const;
+   void _reset_order_of_play();
 };
 
 }  // namespace leduc

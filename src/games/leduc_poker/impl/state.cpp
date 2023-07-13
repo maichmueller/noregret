@@ -5,14 +5,14 @@
 
 namespace leduc {
 
-inline Player State::_cycle_active_player(bool folded)
+inline Player State::_cycle_active_player(bool folded, size_t cycle_by)
 {
    if(folded) {
       // merely boot the front player from the game
       m_remaining_players.pop_front();
    } else {
       // left rotate all entries (pop front and append to the back)
-      ranges::rotate(m_remaining_players, m_remaining_players.begin() + 1);
+      ranges::rotate(m_remaining_players, std::next(m_remaining_players.begin(), cycle_by));
    }
    return m_remaining_players.front();
 }
@@ -60,7 +60,15 @@ void State::apply_action(Action action)
       // --> on to the public card or the game is over anyway
       m_active_player = Player::chance;
       m_history_since_last_bet.reset();
-      _cycle_active_player(folded);
+      if(not m_public_card.has_value()) {
+         // we have just concluded round 1 (no public card yet) --> reset counters and table
+         m_bets_this_round = 0;
+         // remove the folded player (current active player) from the roster
+         _cycle_active_player(folded);
+         // since we are moving on to the public card reveal (flop), we need to reset the order of
+         // play back to the initial one (if possible)
+         _reset_order_of_play();
+      }
    } else [[likely]] {
       m_active_player = _cycle_active_player(folded);
    }
@@ -68,19 +76,39 @@ void State::apply_action(Action action)
    m_terminal_checked = false;
 }
 
+void State::_reset_order_of_play()
+{
+   int starting_player = static_cast< int >(config().starting_player);
+
+   auto min_pos_pair = std::pair{
+      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}};
+   auto min_neg_pair = std::pair{
+      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}};
+   for(Player player : m_remaining_players) {
+      int dist = static_cast< int >(player) - starting_player;
+      auto& pair_to_update = (dist >= 0) ? min_pos_pair : min_neg_pair;
+      if(dist < pair_to_update.first) {
+         pair_to_update = std::pair{dist, player};
+      }
+   }
+   Player player_to_go_next =
+      ((min_pos_pair.second.has_value()) ? *min_pos_pair.second : *min_neg_pair.second);
+   size_t cycle_table_by = std::distance(
+      m_remaining_players.begin(), ranges::find(m_remaining_players, player_to_go_next)
+   );
+   _cycle_active_player(false, cycle_table_by);
+}
+
 void State::apply_action(Card action)
 {
    if(_all_player_cards_assigned()) [[unlikely]] {
       m_public_card = action;
-      m_active_player = m_remaining_players[0];
-      // reset the active bettor log. Noone is currently raising the stakes anymore
-      m_active_bettor.reset();
-      m_history_since_last_bet.reset();
+      m_active_player = m_remaining_players.front();
    } else [[likely]] {
       m_player_cards.emplace_back(action);
       // we have to recheck here since we added a card to the player cards
       if(_all_player_cards_assigned()) {
-         m_active_player = m_remaining_players[0];
+         m_active_player = m_remaining_players.front();
       }
    }
    m_terminal_checked = false;
@@ -114,10 +142,9 @@ bool State::is_terminal() const
 
 void State::_single_pot_winner(std::vector< double >& payoffs, Player player) const
 {
-   // the chosen player is the winnign player so all of the pot goes to him, the payoff is the
-   // surpluss with respect to his own bet
-   payoffs[as_int(player)] = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.)
-                             - static_cast< double >(m_stakes[as_int(player)]);
+   // the chosen player is the winnign player so all the pot goes to him, the payoff is everyone
+   // else's bet in the game
+   payoffs[as_int(player)] = ranges::accumulate(m_stakes, 0.) - m_stakes[as_int(player)];
 }
 
 std::vector< double > State::payoff()
@@ -149,36 +176,37 @@ std::vector< double > State::payoff()
             winners.emplace_back(p);
          }
       }
-      // now we check for pairs with the public card first, and then for highest card
+      if(winners.empty()) {
+         // no player has a pair --> next critera: who has the highest card?
+         _determine_highest_card_winner(winners);
+      }
+
       if(winners.size() == 1) {
+         // a single winnner takes home the whole pot
          _single_pot_winner(payoffs, winners[0]);
-      } else if(winners.size() > 1) {
+      } else {
          // more than one winner --> split pot
          _split_pot(payoffs, winners);
-      } else {
-         // no player has a pair --> next critera: who has the highest card?
-         auto rem_player_begin = m_remaining_players.begin();
-         winners.emplace_back(*rem_player_begin);
-         Rank highest_rank = m_player_cards[as_int(*rem_player_begin)].rank;
-         for(auto rem_player : ranges::subrange{rem_player_begin + 1, m_remaining_players.end()}) {
-            auto curr_rank = m_player_cards[as_int(rem_player)].rank;
-            if(curr_rank > highest_rank) {
-               winners.clear();
-               winners.emplace_back(rem_player);
-               highest_rank = curr_rank;
-            } else if(curr_rank == highest_rank) {
-               winners.emplace_back(rem_player);
-            }
-         }
-         if(winners.size() == 1) {
-            _single_pot_winner(payoffs, *winners.begin());
-         } else {
-            _split_pot(payoffs, winners);
-         }
       }
    }
    payoffs.shrink_to_fit();
    return payoffs;
+}
+void State::_determine_highest_card_winner(std::vector< Player >& winners) const
+{
+   auto rem_player_begin = m_remaining_players.begin();
+   winners.emplace_back(*rem_player_begin);
+   Rank highest_rank = m_player_cards[as_int(*rem_player_begin)].rank;
+   for(auto rem_player : ranges::subrange{rem_player_begin + 1, m_remaining_players.end()}) {
+      auto curr_rank = m_player_cards[as_int(rem_player)].rank;
+      if(curr_rank > highest_rank) {
+         winners.clear();
+         winners.emplace_back(rem_player);
+         highest_rank = curr_rank;
+      } else if(curr_rank == highest_rank) {
+         winners.emplace_back(rem_player);
+      }
+   }
 }
 
 bool State::is_valid(Action action) const
@@ -249,6 +277,8 @@ State::State(LeducConfig config)
    size_t nr_players = m_config.n_players;
    m_player_cards.reserve(nr_players);
    size_t start = static_cast< size_t >(m_config.starting_player);
+   // emplace the players into the order queue from the starting player onwards, i.e.
+   // (starter, starter + 1, starter + 2, ..., nr_players, 0, 1, ..., starter - 1)
    for(size_t p : ranges::views::concat(
           ranges::views::iota(start, nr_players), ranges::views::iota(size_t(0), start)
        )) {

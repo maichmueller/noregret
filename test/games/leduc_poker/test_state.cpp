@@ -255,7 +255,71 @@ TEST_F(LeducPokerState, legal_actions)
 
 TEST(LeducPokerState_5_Players, actions_and_stakes)
 {
-   auto state = leduc::State{leduc::LeducConfig(5)};
+   const size_t n_players = 5;
+   auto state = leduc::State(leduc::LeducConfig(
+      n_players,
+      Player::one,
+      2,
+      1.,
+      {2},
+      {4},
+      std::vector{
+         Card{Rank::ace, Suit::clubs},
+         Card{Rank::ace, Suit::hearts},
+         Card{Rank::king, Suit::clubs},
+         Card{Rank::king, Suit::hearts},
+         Card{Rank::queen, Suit::clubs},
+         Card{Rank::jack, Suit::diamonds},
+         Card{Rank::five, Suit::diamonds},
+         Card{Rank::four, Suit::diamonds},
+         Card{Rank::three, Suit::clubs},
+         Card{Rank::three, Suit::hearts},
+         Card{Rank::two, Suit::diamonds},
+      }
+   ));
+   std::vector< Action > first_round{
+      {ActionType::check},  // 1-passes
+      {ActionType::bet, 2.},  // 2-raises
+      {ActionType::check},  // 3-calls
+      {ActionType::bet, 2.},  //  4-re-raises
+      {ActionType::check},  //  5-calls on the re-raise
+      {ActionType::fold},  // 1-folds
+      {ActionType::check},  // 2-calls re-raise
+      {ActionType::check},  // 3-calls re-raise
+   };
+   std::vector< Action > second_round{
+      {ActionType::bet, 4.},  // 2-raises
+      {ActionType::fold},  // 3-folds
+      {ActionType::check},  // 4-calls
+      {ActionType::fold},  // 5-folds
+   };
+
+   state.apply_action(Rank::two, Suit::diamonds);  // P1 - no chance of winning
+   state.apply_action(Rank::king, Suit::clubs);  // P2 - good chance
+   state.apply_action(Rank::king, Suit::hearts);  // P3 - good chance
+   state.apply_action(Rank::ace, Suit::hearts);  // P4 - highest chance
+   state.apply_action(Rank::three, Suit::hearts);  // P5 - okay chance
+   // first betting round
+   for(auto player_action : ranges::views::enumerate(first_round)) {
+      auto [player, action] = player_action;
+      EXPECT_EQ(state.active_player(), Player(player % n_players));
+      EXPECT_TRUE(state.is_valid(action));
+      state.apply_action(action);
+   }
+   for(auto player : {Player::three, Player::four, Player::five}) {
+      EXPECT_EQ(state.stake(Player::two), state.stake(player));
+   }
+   // add the public card
+   state.apply_action(Rank::five, Suit::diamonds);
+   // second betting round
+   for(auto player_action : ranges::views::enumerate(second_round)) {
+      auto [player, action] = player_action;
+      // player 1 folded so enumerate needs to start at 1
+      EXPECT_EQ(state.active_player(), Player((player + 1)));
+      EXPECT_TRUE(state.is_valid(action));
+      state.apply_action(action);
+   }
+   EXPECT_EQ(state.stake(Player::two), state.stake(Player::four));
 }
 
 TEST_P(TerminalParamsF, terminal_situations)
@@ -464,7 +528,7 @@ INSTANTIATE_TEST_SUITE_P(
          false}
    )
 );
-
+//
 // TEST_P(PayoffParamsF, payoff_combinations)
 //{
 //    auto [config, cards, actions_r1, actions_r2, expected_payoffs] = GetParam();
