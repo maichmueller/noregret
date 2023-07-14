@@ -5,14 +5,14 @@
 
 namespace leduc {
 
-inline Player State::_cycle_active_player(bool folded, size_t cycle_by)
+inline Player State::_cycle_active_player(bool folded, size_t shift_amount)
 {
    if(folded) {
       // merely boot the front player from the game
       m_remaining_players.pop_front();
    } else {
       // left rotate all entries (pop front and append to the back)
-      ranges::rotate(m_remaining_players, std::next(m_remaining_players.begin(), cycle_by));
+      ranges::rotate(m_remaining_players, std::next(m_remaining_players.begin(), shift_amount));
    }
    return m_remaining_players.front();
 }
@@ -23,10 +23,10 @@ void State::apply_action(Action action)
    switch(action.action_type) {
       case ActionType::bet: {
          m_bets_this_round += 1;
-         m_stakes[as_int(m_active_player)] += (m_active_bettor.has_value()
-                                                  ? m_history_since_last_bet[*m_active_bettor]->bet
-                                                  : 0.)
-                                              + action.bet;
+         _stake(m_active_player) += action.bet  // increment by the current betting amount
+                                    + (m_active_bettor.has_value()
+                                          ? m_history_since_last_bet[*m_active_bettor]->bet
+                                          : 0.);  // + preceding bet amount (if re-raise!)
          m_active_bettor = m_active_player;
          // with a fresh bet we need to go around and ask every player anew for their response
          m_history_since_last_bet.reset();
@@ -35,7 +35,7 @@ void State::apply_action(Action action)
       case ActionType::check: {
          if(m_active_bettor.has_value()) {
             // if there is a bettor then check is actually a call --> add to the player's stakes
-            m_stakes[as_int(m_active_player)] = m_stakes[as_int(*m_active_bettor)];
+            _stake(m_active_player) = _stake(*m_active_bettor);
          }
          break;
       }
@@ -60,6 +60,7 @@ void State::apply_action(Action action)
       // --> on to the public card or the game is over anyway
       m_active_player = Player::chance;
       m_history_since_last_bet.reset();
+      m_active_bettor.reset();
       if(not m_public_card.has_value()) {
          // we have just concluded round 1 (no public card yet) --> reset counters and table
          m_bets_this_round = 0;
@@ -126,7 +127,10 @@ bool State::is_terminal()
 
 bool State::is_terminal() const
 {
-   if(not m_public_card.has_value()) {
+   if(m_remaining_players.size() == 1) {
+      return true;
+   }
+   if(not (round_nr() == 1)) {
       // if the public card has not yet been set then the game cannot be over with more than 1
       // player remaining
       return false;
@@ -143,14 +147,14 @@ bool State::is_terminal() const
 void State::_single_pot_winner(std::vector< double >& payoffs, Player player) const
 {
    // the chosen player is the winnign player so all the pot goes to him, the payoff is everyone
-   // else's bet in the game
-   payoffs[as_int(player)] = ranges::accumulate(m_stakes, 0.) - m_stakes[as_int(player)];
+   // else's bet in the game minus one's own contributions
+   payoffs[as_int(player)] = ranges::accumulate(m_stakes, 0.) - stake(player);
 }
 
 std::vector< double > State::payoff()
 {
    if(not is_terminal()) {
-      return std::vector(m_remaining_players.size(), 0.);
+      return std::vector(config().n_players, 0.);
    }
    // initiate payoffs first as negative stakes for each player
    std::vector< double > payoffs;
@@ -172,7 +176,7 @@ std::vector< double > State::payoff()
       // any, or otherwise who has the highest card
       std::vector< Player > winners;
       for(auto p : m_remaining_players) {
-         if(m_player_cards[as_int(p)].rank == pub_card.rank) {
+         if(card(p).rank == pub_card.rank) {
             winners.emplace_back(p);
          }
       }
@@ -189,16 +193,15 @@ std::vector< double > State::payoff()
          _split_pot(payoffs, winners);
       }
    }
-   payoffs.shrink_to_fit();
    return payoffs;
 }
 void State::_determine_highest_card_winner(std::vector< Player >& winners) const
 {
    auto rem_player_begin = m_remaining_players.begin();
    winners.emplace_back(*rem_player_begin);
-   Rank highest_rank = m_player_cards[as_int(*rem_player_begin)].rank;
+   Rank highest_rank = card(*rem_player_begin).rank;
    for(auto rem_player : ranges::subrange{rem_player_begin + 1, m_remaining_players.end()}) {
-      auto curr_rank = m_player_cards[as_int(rem_player)].rank;
+      auto curr_rank = card(rem_player).rank;
       if(curr_rank > highest_rank) {
          winners.clear();
          winners.emplace_back(rem_player);
@@ -216,13 +219,16 @@ bool State::is_valid(Action action) const
    }
    if(action.action_type == ActionType::bet) {
       return (m_bets_this_round < m_config.n_raises_allowed)
-             and ranges::contains(bet_sizes(m_public_card.has_value()), action.bet);
+             and ranges::contains(bet_sizes(round_nr()), action.bet);
    }
    return true;
 }
 
 bool State::is_valid(Card outcome) const
 {
+   if(m_active_player != Player::chance) {
+      return false;
+   }
    auto all_outcomes = chance_actions();
    return std::find_if(
              all_outcomes.begin(),
@@ -253,7 +259,7 @@ std::vector< Action > State::actions() const
    }
    std::vector< Action > all_actions{{ActionType::check}, {ActionType::fold}};
    if(m_config.n_raises_allowed > m_bets_this_round) {
-      auto all_bets = bet_sizes(m_public_card.has_value());
+      auto all_bets = bet_sizes(round_nr());
       all_actions.reserve(2 + all_bets.size());
       for(auto bet_amount : all_bets) {
          all_actions.emplace_back(Action{ActionType::bet, bet_amount});

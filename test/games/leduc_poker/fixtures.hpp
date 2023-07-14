@@ -25,9 +25,11 @@ class TerminalParamsF:
 class PayoffParamsF:
     public ::testing::TestWithParam< std::tuple<
        leduc::LeducConfig,  // the state config
+       std::vector< leduc::Card >,  // player cards
+       leduc::Card,  // public card
        std::vector< leduc::Action >,  // action sequence round 1
        std::vector< leduc::Action >,  // action sequence round 2
-       std::array< double, 2 >  // expected payoffs
+       std::vector< double >  // expected payoffs
        > > {};
 
 #endif  // NOR_LEDUC_POKER_FIXTURES_HPP

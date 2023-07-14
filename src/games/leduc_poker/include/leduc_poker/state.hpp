@@ -165,12 +165,16 @@ class LeducConfig {
  */
 class HistorySinceBet {
   public:
-   HistorySinceBet(size_t n_players) : m_container({n_players, std::nullopt}) {}
+   HistorySinceBet(size_t n_players) : m_container(n_players, std::nullopt) {}
    HistorySinceBet(std::vector< std::optional< Action > > cont) : m_container(std::move(cont)) {}
 
    auto& operator[](Player player) { return m_container[as_int(player)]; }
 
    auto& operator[](Player player) const { return m_container[as_int(player)]; }
+
+   auto& at(Player player) { return m_container.at(as_int(player)); }
+
+   auto& at(Player player) const { return m_container.at(as_int(player)); }
 
    void reset()
    {
@@ -249,14 +253,20 @@ class State {
    {
       return m_history_since_last_bet[Player(player)];
    }
+   [[nodiscard]] size_t round_nr() const { return m_public_card.has_value(); }
    [[nodiscard]] auto& cards() const { return m_player_cards; }
    [[nodiscard]] const auto& config() const { return m_config; }
    [[nodiscard]] auto initial_players() const
    {
-      return ranges::to_vector(
-         ranges::views::iota(-1, int(config().n_players))
-         | ranges::views::transform([](int p) { return Player(p); })
+      std::vector< Player > players;
+      players.reserve(config().n_players);
+      ranges::insert(
+         players,
+         players.begin(),
+         ranges::views::iota(0UL, config().n_players)
+            | ranges::views::transform([](int p) { return Player(p); })
       );
+      return players;
    }
    [[nodiscard]] std::span< const double > bet_sizes(bool round_two) const
    {
@@ -285,21 +295,20 @@ class State {
    static const std::vector< HistorySinceBet >& _all_terminal_histories();
    [[nodiscard]] bool _all_player_cards_assigned() const;
    [[nodiscard]] bool _has_higher_card(Player player) const;
-   Player _cycle_active_player(bool folded, size_t cycle_by = 1);
+   Player _cycle_active_player(bool folded, size_t shift_amount = 1);
    void _single_pot_winner(std::vector< double >& payoffs, Player player) const;
+
+   double& _stake(Player player) { return m_stakes[as_int(player)]; }
 
    template < ranges::sized_range Range >
       requires std::is_same_v< ranges::value_type_t< Range >, Player >
-   void _split_pot(std::vector< double >& payoffs, const Range& players_with_pairs) const
+   void _split_pot(std::vector< double >& payoffs, const Range& winners) const
    {
-      ranges::for_each(
-         players_with_pairs,
-         [&,
-          pot = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.),
-          n_winners = static_cast< double >(players_with_pairs.size())](Player p) {
-            payoffs[as_int(p)] = pot / n_winners;
-         }
-      );
+      double pot = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.);
+      double n_winners = static_cast< double >(winners.size());
+      for(Player p : winners) {
+         payoffs[as_int(p)] += pot / n_winners;
+      };
    }
    void _determine_highest_card_winner(std::vector< Player >& winners) const;
    void _reset_order_of_play();
