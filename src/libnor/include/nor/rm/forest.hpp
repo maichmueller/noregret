@@ -218,7 +218,7 @@ class GameTreeTraverser {
 //
 //    InfostateTree(
 //       Env& env,
-//       uptr< world_state_type > root_state,
+//       WorldstateHolder< world_state_type > root_state,
 //       std::unordered_map< Player, info_state_type > root_infostates = {}
 //    )
 //        : m_env(env),
@@ -264,7 +264,7 @@ class GameTreeTraverser {
 //
 //   private:
 //    Env& m_env;
-//    uptr< world_state_type > m_root_state;
+//    WorldstateHolder< world_state_type > m_root_state;
 //    InfoNode m_root_node;
 //    std::unordered_map< Player, info_state_type > m_root_infostates;
 //
@@ -320,7 +320,8 @@ class GameTreeTraverser {
 //
 //    // the visitation stack. Each node in this stack will be visited once according to the
 //    // traversal strategy selected.
-//    std::stack< std::tuple< uptr< world_state_type >, VisitationData, InfoNode* > > visit_stack;
+//    std::stack< std::tuple< WorldstateHolder< world_state_type >, VisitationData, InfoNode* > >
+//    visit_stack;
 //
 //    // emplace the root node into the visitation stack
 //    visit_stack.emplace(
@@ -377,7 +378,8 @@ class GameTreeTraverser {
 //                         "This should not occur."
 //                      );
 //                      // this return is needed to silence the non-matching return types
-//                      return std::tuple{uptr< world_state_type >{nullptr}, rm::Probability{1.}};
+//                      return std::tuple{WorldstateHolder< world_state_type >{nullptr},
+//                      rm::Probability{1.}};
 //                   } else {
 //                      return std::tuple{
 //                         child_state(m_env, *curr_state, outcome),
@@ -561,7 +563,7 @@ class GameTreeTraverser {
 //      // The stack uses raw pointers to nodes, since nodes are first emplaced in the tree(s) and
 //      // then put on the stack for later visitation. Their lifetime management is thus handled by
 //      // shared pointers stored in the trees.
-//      std::stack< std::tuple< uptr< world_state_type >, node_type* > > visit_stack;
+//      std::stack< std::tuple< WorldstateHolder< world_state_type >, node_type* > > visit_stack;
 //      // copy the root state into the visitation stack
 //      visit_stack.emplace(std::move(root_state), root_node());
 //

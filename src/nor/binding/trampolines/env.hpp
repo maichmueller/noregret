@@ -131,11 +131,12 @@ struct PyEnvironment: public nor::games::polymorph::Environment {
       );
    }
 
-   std::vector< ActionHolder< chance_outcome_type > > chance_actions(const world_state_type& wstate
+   std::vector< ChanceOutcomeHolder< chance_outcome_type > > chance_actions(
+      const world_state_type& wstate
    ) const override
    {
       PYBIND11_OVERRIDE_NAME(
-         std::vector< ActionHolder< chance_outcome_type > >, /* Return type */
+         std::vector< ChanceOutcomeHolder< chance_outcome_type > >, /* Return type */
          Environment, /* Parent class */
          "chance_actions", /* Name of function in Python */
          chance_actions, /* Name of function in C++ */

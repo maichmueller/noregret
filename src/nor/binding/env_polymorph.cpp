@@ -19,13 +19,13 @@ void init_env_polymorph(py::module_& m)
       .def("__hash__", &py_chance_outcome_type::hash)
       .def("__eq__", &py_chance_outcome_type::operator==, py::arg("other"));
 
-   py::class_<
-      py_observation_type,
-      ObservationHolder< py_observation_type >,
-      binding::PyObservation >(m, "Observation")
-      .def(py::init())
-      .def("__hash__", &py_observation_type::hash)
-      .def("__eq__", &py_observation_type::operator==, py::arg("other"));
+   //   py::class_<
+   //      py_observation_type,
+   //      ObservationHolder< py_observation_type >,
+   //      binding::PyObservation >(m, "Observation")
+   //      .def(py::init())
+   //      .def("__hash__", &py_observation_type::hash)
+   //      .def("__eq__", &py_observation_type::operator==, py::arg("other"));
 
    py::class_<
       py_info_state_type,  //

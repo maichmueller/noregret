@@ -44,7 +44,7 @@ struct PyPublicstate: public nor::games::polymorph::Publicstate {
       );
    }
 
-   const observation_type& operator[](size_t arg) const override
+   const ObservationHolder< observation_type >& operator[](size_t arg) const override
    {
       PYBIND11_OVERRIDE_NAME(
          const observation_type&, /* Return type */
@@ -55,10 +55,10 @@ struct PyPublicstate: public nor::games::polymorph::Publicstate {
       );
    }
 
-   Publicstate& update(const observation_type& obs) override
+   void update(const observation_type& obs) override
    {
       PYBIND11_OVERRIDE_NAME(
-         Publicstate&, /* Return type */
+         void, /* Return type */
          Publicstate, /* Parent class */
          "update", /* Name of function in Python */
          update, /* Name of function in C++ */

@@ -23,6 +23,9 @@ TEST(IteratingInformationStates, rps_correctness)
                 << "\n"
                 << infostate_map.at(active_players[0])->to_string() << "\n";
    }
+   // we expect 3 infostates, because the first player chooses first and will
+   EXPECT_EQ(istate_imap.size(), 3);
+   EXPECT_EQ(terminals.size(), 9);
 }
 
 TEST(IteratingInformationStates, kuhn_correctness)
@@ -44,4 +47,6 @@ TEST(IteratingInformationStates, kuhn_correctness)
                                            : infostate_map.at(active_players[0])->to_string())
                 << "\n";
    }
+   EXPECT_EQ(istate_imap.size(), 12);
+   EXPECT_EQ(terminals.size(), 56);
 }

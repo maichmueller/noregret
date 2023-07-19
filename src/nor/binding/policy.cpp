@@ -15,20 +15,25 @@ void init_policy(py::module_& m)
       .def(py::init())
       .def(py::init< std::function< double() > >(), py::arg("default_value"))
       .def(
-         py::init< std::vector< py_action_type >, double, std::function< double() > >(),
+         py::init<
+            std::vector< ActionHolder< py_action_type > >,
+            double,
+            std::function< double() > >(),
          py::arg("actions"),
          py::arg("value") = 0.,
          py::arg("default_value") = std::function< double() >(&_zero< double >)
       )
       .def(
-         py::init< std::unordered_map< py_action_type, double >, std::function< double() > >(),
+         py::init<
+            std::unordered_map< ActionHolder< py_action_type >, double >,
+            std::function< double() > >(),
          py::arg("policy_table"),
          py::arg("default_value") = std::function< double() >(&_zero< double >)
       )
       .def(
          "__getitem__",
          [](const hashmap_action_policy& policy, const py_action_type& action) {
-            return policy[action];
+            return policy.at(action);
          },
          py::arg("action")
       )
