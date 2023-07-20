@@ -48,5 +48,13 @@ void init_policy(py::module_& m)
       .def("__len__", &hashmap_action_policy ::size)
       .def("__eq__", &hashmap_action_policy ::operator==, py::arg("other"));
 
-   py::class_< tabular_policy >(m, "TabularPolicy");
+   py::class_< tabular_policy >(m, "TabularPolicy")
+      .def(py::init())
+      .def(py::init< py::dict >([](const auto& dict) {
+         tabular_policy policy;
+         for(const auto& [key, value] : dict) {
+            policy.emplace(key.cast< py_info_state_type >(), value.cast< hashmap_action_policy >());
+         }
+         return policy;
+      }));
 }

@@ -54,10 +54,10 @@ class DefaultPublicstate {
    auto to_string() const
       requires std::is_same_v< observation_type, std::string >
    {
-      return _build_string([this](std::string& s) {
+      return _build_string([this](std::string& str) {
          for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
-            s += std::get< 0 >(observation.get()) + "\n";
-            s += std::get< 1 >(observation.get()) + "\n";
+            str += std::get< 0 >(observation.get()) + "\n";
+            str += std::get< 1 >(observation.get()) + "\n";
          };
       });
    }
@@ -65,19 +65,19 @@ class DefaultPublicstate {
    auto to_pretty_string() const
       requires std::is_same_v< observation_type, std::string >
    {
-      return _build_string([this](std::string& s) {
+      return _build_string([this](std::string& str) {
          for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
             auto round_str = "obs_" + std::to_string(pos);
-            s += "pub_";
-            s += round_str;
-            s += ": ";
-            s += std::get< 0 >(observation).get();
-            s += "\n";
-            s += "prv_";
-            s += round_str;
-            s += ": ";
-            s += std::get< 1 >(observation).get();
-            s += "\n";
+            str += "pub_";
+            str += round_str;
+            str += ": ";
+            str += std::get< 0 >(observation).get();
+            str += "\n";
+            str += "prv_";
+            str += round_str;
+            str += ": ";
+            str += std::get< 1 >(observation).get();
+            str += "\n";
          }
       });
    }
@@ -113,13 +113,13 @@ class DefaultPublicstate {
    auto _build_string(BuildFunctor builder) const
    {
       constexpr size_t avg_string_size_expectation = 500;
-      std::string s{};
-      s.reserve(size() * avg_string_size_expectation);
+      std::string str{};
+      str.reserve(size() * avg_string_size_expectation);
       // let the builder do its job
-      builder(s);
+      builder(str);
       // reduce size to only eat as much memory as needed
-      s.shrink_to_fit();
-      return s;
+      str.shrink_to_fit();
+      return str;
    }
 };
 

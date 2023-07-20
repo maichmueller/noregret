@@ -215,6 +215,7 @@ TEST(Holder, copying)
                 ActionHolder< PolyActionBase, std::true_type > >) );
 
    auto holder_cast = dynamic_cast< PolyAction* >(holder.ptr());
+   ASSERT_TRUE(bool(holder_cast));
    auto nonpoly_holder = ActionHolder< Action >{holder_cast->value(), holder_cast->poly_value()};
    auto nonpoly_holder_copy = nonpoly_holder.copy();
    auto nonpoly_deviating_copy = nonpoly_holder.copy< ActionHolder< Action, std::true_type > >();

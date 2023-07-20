@@ -21,6 +21,9 @@ using namespace nor;
 
 PYBIND11_MODULE(_noregret, m)
 {
+   // define noregret.default as submodule
+   m.def_submodule("default");
+   // declare the initializers for the various types and functions
    init_enums(m);
    init_env_polymorph(m);
    init_policy(m);

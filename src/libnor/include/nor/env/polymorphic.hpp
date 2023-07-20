@@ -76,9 +76,7 @@ struct ChanceOutcome {
 struct Observation {
    Observation() = default;
    virtual ~Observation() = default;
-
    virtual uptr< Observation > clone() const { return std::make_unique< Observation >(); }
-
    NOR_VirtualBaseMethodConst(hash, size_t);
    NOR_VirtualBaseMethodConst(operator==, bool, const Observation&);
 };
@@ -305,6 +303,113 @@ class Environment {
       const chance_outcome_type& /*chance_outcome*/,
       const world_state_type& /*next_wstate*/
    );
+};
+
+namespace detail {
+
+template < typename T, typename Base, bool owning >
+struct ActionOutcomeObsView: public Base {
+   explicit ActionOutcomeObsView(std::conditional_t< owning, T, T& > arg)
+       : obj(std::invoke([&]() -> decltype(auto) {
+            if constexpr(owning) {
+               return std::move(arg);
+            } else {
+               return &arg;
+            }
+         }))
+   {
+   }
+
+   [[nodiscard]] uptr< Base > clone() const override { return common::deref(obj).clone(); }
+   [[nodiscard]] size_t hash() const override { return common::deref(obj).hash(); }
+   bool operator==(const Base& act) const override { return common::deref(obj).operator==(act); }
+
+  private:
+   std::conditional_t< owning, T, T* > obj;
+};
+
+template < typename T, typename Base, bool owning >
+struct WorldstateView: public Base {
+   explicit WorldstateView(std::conditional_t< owning, T, T& > arg)
+       : obj(std::invoke([&]() -> decltype(auto) {
+            if constexpr(owning) {
+               return std::move(arg);
+            } else {
+               return &arg;
+            }
+         }))
+   {
+   }
+
+   [[nodiscard]] uptr< Base > clone() const override { return common::deref(obj).clone(); }
+
+  private:
+   std::conditional_t< owning, T, T* > obj;
+};
+
+}  // namespace detail
+
+class TypeErasedAction: public Action {
+  public:
+   template < typename ActionType >
+      requires concepts::action< std::remove_cvref_t< ActionType > >
+   explicit TypeErasedAction(ActionType&& obj)
+       : action(std::invoke(
+          []< typename T >(T&& arg) {
+             using T_raw = std::remove_reference_t< T >;
+             using view_type = detail::
+                ActionOutcomeObsView< T_raw, Action, std::is_lvalue_reference_v< T > >;
+             return std::make_shared< view_type >(std::forward< T >(arg));
+          },
+          std::forward< ActionType >(obj)
+       ))
+   {
+   }
+
+  private:
+   sptr< Action > action;
+};
+
+class TypeErasedOutcome: public ChanceOutcome {
+  public:
+   template < typename OutcomeType >
+      requires concepts::chance_outcome< std::remove_cvref_t< OutcomeType > >
+   explicit TypeErasedOutcome(OutcomeType&& obj)
+       : outcome(std::invoke(
+          []< typename T >(T&& arg) {
+             using T_raw = std::remove_reference_t< T >;
+             using view_type = detail::
+                ActionOutcomeObsView< T_raw, ChanceOutcome, std::is_lvalue_reference_v< T > >;
+             return std::make_shared< view_type >(std::forward< T >(arg));
+          },
+          std::forward< OutcomeType >(obj)
+       ))
+   {
+   }
+
+  private:
+   sptr< ChanceOutcome > outcome;
+};
+
+class TypeErasedObservation: public Observation {
+  public:
+   template < typename ObservationType >
+      requires concepts::observation< std::remove_cvref_t< ObservationType > >
+   explicit TypeErasedObservation(ObservationType&& obj)
+       : observation(std::invoke(
+          []< typename T >(T&& arg) {
+             using T_raw = std::remove_reference_t< T >;
+             using view_type = detail::
+                ActionOutcomeObsView< T_raw, Observation, std::is_lvalue_reference_v< T > >;
+             return std::make_shared< view_type >(std::forward< T >(arg));
+          },
+          std::forward< ObservationType >(obj)
+       ))
+   {
+   }
+
+  private:
+   sptr< Observation > observation;
 };
 
 }  // namespace nor::games::polymorph
