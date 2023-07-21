@@ -51,6 +51,7 @@ class Environment {
    using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
    // nor fosg traits
    static constexpr size_t max_player_count() { return 10; }
+   static constexpr size_t player_count() { return std::dynamic_extent; }
    static constexpr bool serialized() { return true; }
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::choice; }
@@ -108,9 +109,12 @@ class Environment {
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
    static double reward(Player player, world_state_type& wstate);
 
-   template < typename ActionT >
-   void transition(world_state_type& worldstate, const ActionT& action) const
-      requires common::is_any_v< ActionT, action_type, chance_outcome_type >
+   void transition(world_state_type& worldstate, const chance_outcome_type& action) const
+   {
+      worldstate.apply_action(action);
+   }
+
+   void transition(world_state_type& worldstate, const action_type& action) const
    {
       worldstate.apply_action(action);
    }

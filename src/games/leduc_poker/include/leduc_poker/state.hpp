@@ -216,7 +216,7 @@ inline bool operator==(const HistorySinceBet& left, const HistorySinceBet& right
 
 class State {
   public:
-   State(LeducConfig config);
+   State(LeducConfig config = {});
 
    template < typename... Args >
    auto apply_action(Args... args)

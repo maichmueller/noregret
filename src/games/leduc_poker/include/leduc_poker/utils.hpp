@@ -143,6 +143,27 @@ inline auto &operator<<(std::ostream &os, Card e)
 namespace std {
 
 template <>
+struct hash< leduc::Action > {
+   size_t operator()(const leduc::Action &action) const
+   {
+      std::stringstream ss;
+      ss << action.action_type << "_" << action.bet;
+      return std::hash< std::string >{}(ss.str());
+   }
+};
+
+template <>
+struct hash< leduc::Card > {
+   size_t operator()(const leduc::Card &card) const
+   {
+      size_t seed{0};
+      common::hash_combine(seed, std::hash< leduc::Rank >{}(card.rank));
+      common::hash_combine(seed, std::hash< leduc::Suit >{}(card.suit));
+      return seed;
+   }
+};
+
+template <>
 struct hash< leduc::HistorySinceBet > {
    size_t operator()(const leduc::HistorySinceBet &history) const
    {

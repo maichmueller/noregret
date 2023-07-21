@@ -46,11 +46,11 @@ ObservationHolder< Environment::observation_type > Environment::
 
 ObservationHolder< Environment::observation_type > Environment::public_observation(
    const world_state_type& wstate,
-   const chance_outcome_type& action,
+   const chance_outcome_type& outcome,
    const world_state_type& next_wstate
 ) const
 {
-   return observation_holder{std::to_string(static_cast< int >(action.player)) + ":?"};
+   return observation_holder{common::to_string(nor::Player(outcome.player)) + ":?"};
 }
 
 Environment::observation_type Environment::tiny_repr(const world_state_type& wstate) const

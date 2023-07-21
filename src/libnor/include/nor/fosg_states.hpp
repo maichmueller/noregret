@@ -156,19 +156,30 @@ class DefaultInfostate {
    auto to_string(std::string_view delim = "\n", std::string_view sep = ",") const
       requires std::is_same_v< observation_type, std::string >
    {
+      constexpr auto opener = "{";
+      constexpr auto closer = "}";
       constexpr size_t avg_string_size_expectation = 500;
-      std::string s{};
-      s.reserve(size() * avg_string_size_expectation);
-      for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
-         s += "{";
-         s += std::get< 0 >(observation).get();
-         s += sep;
-         s += std::get< 1 >(observation).get();
-         s += "}";
-         s += delim;
+      std::string str{};
+      str.reserve(size() * avg_string_size_expectation);
+      for(const auto& observation : m_history | ranges::views::drop_last(1)) {
+         str += opener;
+         str += std::get< 0 >(observation).get();
+         str += sep;
+         str += std::get< 1 >(observation).get();
+         str += closer;
+         str += delim;
       }
-      s.shrink_to_fit();
-      return s;
+      // the very last observation only
+      for(const auto& observation : m_history | ranges::views::reverse | ranges::views::take(1)) {
+         str += opener;
+         str += std::get< 0 >(observation).get();
+         str += sep;
+         str += std::get< 1 >(observation).get();
+         str += closer;
+      }
+
+      str.shrink_to_fit();
+      return str;
    }
 
    bool operator==(const DefaultInfostate& other) const

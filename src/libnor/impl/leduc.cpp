@@ -28,10 +28,12 @@ Environment::observation_holder Environment::
    return observation_holder{"-"};
 }
 Environment::observation_holder Environment::
-   public_observation(const world_state_type&, const action_type& action, const world_state_type&)
+   public_observation(const world_state_type& wstate, const action_type& action, const world_state_type&)
       const
 {
-   return common::to_string(action);
+   std::stringstream ss;
+   ss << to_nor_player(wstate.active_player()) << ":" << common::to_string(action);
+   return ss.str();
 }
 
 Environment::observation_holder Environment::private_observation(
@@ -55,7 +57,7 @@ Environment::observation_holder Environment::public_observation(
    const world_state_type& next_wstate
 ) const
 {
-   return observation_holder{std::to_string(next_wstate.cards().size() - 1) + ":?"};
+   return observation_holder{common::to_string(nor::Player(next_wstate.cards().size() - 1)) + ":?"};
 }
 
 // Environment::observation_type Environment::tiny_repr(const world_state_type& wstate) const
