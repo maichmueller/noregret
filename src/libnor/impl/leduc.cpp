@@ -44,9 +44,16 @@ Environment::observation_holder Environment::private_observation(
 ) const
 {
    // `next_wstate` is the worldstate resulting from applying `outcome` onto `wstate`
+   if(next_wstate.public_card().has_value()) {
+      // if the next worldstate has a public card then this means that this chance outcome was the
+      // selection of the flop --> the outcome is fully public
+      return observation_holder{"-"};
+   }
    auto owner_of_card = Player(next_wstate.cards().size() - 1);
    if(owner_of_card == observer) {
-      return observation_holder{common::to_string(outcome)};
+      // we only use the rank as observation of a card! (otherwise the number of suits multiplies
+      // the number of infostates to no strategic benefit (in leduc))
+      return observation_holder{common::to_string(outcome.rank)};
    }
    return observation_holder{"-"};
 }
@@ -57,6 +64,11 @@ Environment::observation_holder Environment::public_observation(
    const world_state_type& next_wstate
 ) const
 {
+   if(next_wstate.public_card().has_value()) {
+      // if the next worldstate has a public card then this means that this chance outcome was the
+      // selection of the flop
+      return observation_holder{common::to_string(outcome.rank)};
+   }
    return observation_holder{common::to_string(nor::Player(next_wstate.cards().size() - 1)) + ":?"};
 }
 

@@ -128,7 +128,7 @@ class GameTreeTraverser {
          visit_stack.pop();
 
          auto curr_player = m_env.active_player(curr_wstate);
-         hooks.pre_child_hook(curr_wstate, visit_data);
+         hooks.pre_child_hook(visit_data, curr_wstate);
 
          for(const action_variant_type& action_variant : [&] {
                 auto to_variant_transform = ranges::views::transform([](const auto& any) {

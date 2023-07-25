@@ -121,7 +121,7 @@ class LeducConfig {
       bet_sizes.shrink_to_fit();
    }
 
-   /// returns a wider betting range confi --> increases the game tree enormously!
+   /// returns a wider betting range config --> increases the game tree enormously!
    /// As per Noam Brown's thesis the nr of information sets are (rest defaulted)...
    /// Leduc:      288
    /// Leduc-5:    34224

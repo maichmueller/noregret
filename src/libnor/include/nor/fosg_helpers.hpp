@@ -178,6 +178,112 @@ auto map_histories_to_infostates(
    return std::tuple{terminal_histories, std::move(hist_to_infostate_map)};
 }
 
+template < typename Env >
+   requires concepts::fosg< std::remove_cvref_t< Env > >
+auto decision_infostates(Env env, const WorldstateHolder< auto_world_state_type< Env > >& root)
+{
+   assert_serialized_and_unrolled(env);
+   using env_type = Env;
+   using world_state_type = auto_world_state_type< env_type >;
+   using info_state_type = auto_info_state_type< env_type >;
+
+   using action_variant_type = auto_action_variant_type< env_type >;
+
+   using infostate_set_type = std::unordered_set<
+      InfostateHolder< info_state_type >,
+      common::value_hasher< info_state_type >,
+      common::value_comparator< info_state_type > >;
+
+   infostate_set_type infostates;
+
+   struct VisitData {
+      infostate_set_type infostates_set;
+   };
+
+   auto child_hook = [&](
+                        const auto& visit_data,
+                        const action_variant_type* curr_action,
+                        const WorldstateHolder< world_state_type >* curr_state,
+                        const WorldstateHolder< world_state_type >* next_state
+                     ) {
+      // we have nothing to do if the child is already terminal
+      // (the next state is the one we are interested in, as the current state has already been
+      // processed)
+      if(env.is_terminal(*next_state)) {
+         return VisitData{};
+      }
+
+      infostate_set_type child_infostates;
+
+      auto child_active_player = env.active_player(*next_state);
+
+      // emplace private and public observation to each player's information states
+      for(const auto& infostate : visit_data.infostates_set) {
+         auto player = infostate.player();
+         if(not env.is_partaking(*next_state, player))
+            continue;
+         auto next_infostate = infostate.copy();
+         // the following call is equivalent to
+         //       `infostate.update(pub_obs, priv_obs)`
+         // when first storing the observations in a variable each.
+         std::apply(
+            &InfostateHolder< info_state_type >::update,
+            std::tuple_cat(
+               std::tie(next_infostate),  // the object on which to apply the member function
+               // compute the public and private observations for the given states
+               std::visit(
+                  common::Overload{
+                     [&](const auto& action_or_outcome) {
+                        return std::pair{
+                           env.public_observation(*curr_state, action_or_outcome, *next_state),
+                           env.private_observation(
+                              player, *curr_state, action_or_outcome, *next_state
+                           )};
+                     },
+                     [&](const std::monostate&) {
+                        throw std::invalid_argument(
+                           "A monostate branch was entered. Logic upstream must be faulty."
+                        );
+                        return std::pair{
+                           ObservationHolder< auto_observation_type< env_type > >{},
+                           ObservationHolder< auto_observation_type< env_type > >{}};
+                     }},
+                  *curr_action
+               )
+            )
+         );
+         // we add the infostate to the set of decision infostates if it is the child player's
+         if(player == child_active_player) {
+            infostates.emplace(next_infostate.copy());
+         }
+         // emplace in the child infostates map for further tree traversal
+         child_infostates.emplace(std::move(next_infostate));
+      }
+
+      return VisitData{.infostates_set = std::move(child_infostates)};
+   };
+
+   forest::GameTreeTraverser{env}.walk(
+      root.copy(),
+      VisitData{.infostates_set = std::invoke([&] {
+                   auto root_istates = infostate_set_type{};
+                   auto root_player = env.active_player(root);
+                   for(auto player : env.players(root)) {
+                      if(player != Player::chance) {
+                         root_istates.emplace(InfostateHolder< info_state_type >(player));
+                         if(root_player == player) {
+                            infostates.emplace(InfostateHolder< info_state_type >(player));
+                         }
+                      }
+                   }
+                   return root_istates;
+                })},
+      forest::TraversalHooks{.child_hook = std::move(child_hook)}
+   );
+
+   return infostates;
+}
+
 }  // namespace nor
 
 #endif  // NOR_FOSG_HELPERS_HPP
