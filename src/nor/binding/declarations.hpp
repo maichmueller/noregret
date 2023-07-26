@@ -11,7 +11,7 @@ namespace py = pybind11;
 // custom holder types
 PYBIND11_DECLARE_HOLDER_TYPE(T, nor::ActionHolder< T >);
 PYBIND11_DECLARE_HOLDER_TYPE(T, nor::ChanceOutcomeHolder< T >);
- PYBIND11_DECLARE_HOLDER_TYPE(T, nor::ObservationHolder< T >);
+PYBIND11_DECLARE_HOLDER_TYPE(T, nor::ObservationHolder< T >);
 PYBIND11_DECLARE_HOLDER_TYPE(T, nor::InfostateHolder< T >);
 PYBIND11_DECLARE_HOLDER_TYPE(T, nor::PublicstateHolder< T >);
 PYBIND11_DECLARE_HOLDER_TYPE(T, nor::WorldstateHolder< T >);
@@ -29,10 +29,10 @@ template < typename T >
 struct holder_helper< nor::ChanceOutcomeHolder< T > > {
    static const T *get(const nor::ChanceOutcomeHolder< T > &p) { return &(p.get()); }
 };
- template < typename T >
- struct holder_helper< nor::ObservationHolder< T > > {
-    static const T *get(const nor::ObservationHolder< T > &p) { return &(p.get()); }
- };
+template < typename T >
+struct holder_helper< nor::ObservationHolder< T > > {
+   static const T *get(const nor::ObservationHolder< T > &p) { return &(p.get()); }
+};
 template < typename T >
 struct holder_helper< nor::InfostateHolder< T > > {
    static const T *get(const nor::InfostateHolder< T > &p) { return &(p.get()); }

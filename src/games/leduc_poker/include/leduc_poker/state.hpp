@@ -118,6 +118,7 @@ class LeducConfig {
             + "At least #players + 1 (flop) many are needed."
          );
       }
+      available_cards_.shrink_to_fit();
       bet_sizes.shrink_to_fit();
    }
 
