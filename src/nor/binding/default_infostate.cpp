@@ -12,7 +12,7 @@ void init_default_infostate(py::module_& m)
    py::module def_module = py::module::import("default");
 
    py::class_< DefaultInfostate< py_info_state_type, py_observation_type > >(
-      def_module, "DefaultInfostate"
+      def_module, "Infostate"
    )
       .def(py::init< Player >());
 }

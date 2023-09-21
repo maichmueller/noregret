@@ -796,24 +796,33 @@ class deref_view: public ranges::view_base {
 };
 
 template < ranges::range Range >
-struct deref_view< Range >::iterator: ranges::iterator_t< Range > {
+struct deref_view< Range >::iterator {
    using base = ranges::iterator_t< Range >;
    using value_type = std::remove_cvref_t< decltype(deref(*(std::declval< Range >().begin()))) >;
    using difference_type = ranges::range_difference_t< Range >;
 
    iterator() = default;
+   iterator(const base& b) : m_base{b} {}
 
-   iterator(const base& b) : base{b} {}
-
-   iterator operator++(int) { return static_cast< base& >(*this)++; }
+   iterator operator++(int)
+   {
+      auto tmp = *this;
+      ++*this;
+      return tmp;
+   }
 
    iterator& operator++()
    {
-      ++static_cast< base& >(*this);
-      return (*this);
+      ++m_base;
+      return *this;
    }
 
-   decltype(auto) operator*() const { return deref(*static_cast< base >(*this)); }
+   decltype(auto) operator*() const { return deref(*m_base); }
+
+   bool operator==(iterator const& rhs) const { return m_base == rhs.m_base; }
+
+  private:
+   base m_base;
 };
 
 template < ranges::range Range >
