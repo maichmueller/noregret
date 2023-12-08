@@ -10,4 +10,4 @@ target_link_libraries(
               project_options
               project_warnings
               common_testing_utils
-              CONAN_PKG::gtest)
+              gtest::gtest)

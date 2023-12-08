@@ -17,6 +17,6 @@ target_link_libraries(
             ${nor_lib}_envs
             stratego
             project_warnings
-            CONAN_PKG::range-v3
-            CONAN_PKG::namedtype
-            CONAN_PKG::xtensor)
+            range-v3::range-v3
+            namedtype
+            xtensor)

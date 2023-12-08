@@ -29,4 +29,21 @@ macro(run_conan)
         PROFILE_AUTO
         ALL # ALL means that all the settings are taken from CMake's detection
     )
+
+    include(${PROJECT_BINARY_DIR}/conanbuildinfo.cmake)
+    include(${CMAKE_BINARY_DIR}/conan_paths.cmake)
 endmacro()
+
+if (DEFINED CONAN_PATH)
+    message("Explicit Conan path specified by user: ${CONAN_PATH}. Using `find_program` searching ony in this path.")
+    find_program(CONAN_CMD conan REQUIRED PATHS ${CONAN_PATH} NO_DEFAULT_PATH)
+else ()
+    message("NO explicit Conan path specified by user. Using `find_program` with default settings.")
+    find_program(CONAN_CMD conan REQUIRED)
+endif ()
+execute_process(COMMAND ${CONAN_CMD} "--version" OUTPUT_VARIABLE _CONAN_VERSION_OUTPUT)
+message(STATUS "Found conan: ${CONAN_CMD} - ${_CONAN_VERSION_OUTPUT}")
+string(REGEX MATCH ".*Conan version ([0-9]+\\.[0-9]+\\.[0-9]+)" FOO "${_CONAN_VERSION_OUTPUT}")
+if (${CMAKE_MATCH_1} VERSION_LESS "2.0.0")
+    run_conan()
+endif ()

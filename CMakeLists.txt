@@ -11,7 +11,7 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
 # options
-option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be installed on the system" ON)
+option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be installed on the system" OFF)
 option(ENABLE_BUILD_PYTHON_EXTENSION "Enable building the python extension." ON)
 option(ENABLE_BUILD_SANDBOX "Enable building of the sandbox testbed (Only for development purposes)." ON)
 option(ENABLE_BUILD_BENCHMARK "Enable building of the benchmarks." OFF)
@@ -139,10 +139,8 @@ set(CONAN_EXTRA_REQUIRES "")
 set(CONAN_EXTRA_OPTIONS "")
 
 include("${_cmake_DIR}/settings/Utilities.cmake")
+# define the conan settings and optional conan1 run if necessary
 include(${_cmake_DIR}/settings/Conan.cmake)
-run_conan()
-include(${PROJECT_BINARY_DIR}/conanbuildinfo.cmake)
-include(${CMAKE_BINARY_DIR}/conan_paths.cmake)
 
 # set the standard project settings
 include(cmake/settings/StandardProjectSettings.cmake)
@@ -189,6 +187,7 @@ else()
 endif()
 find_package(pybind11 REQUIRED)
 find_package(range-v3 REQUIRED)
+find_package(namedtype REQUIRED)
 
 include(${_cmake_DIR}/targets/shared_libs.cmake)
 include(${_cmake_DIR}/targets/nor.cmake)
@@ -216,3 +215,7 @@ if(ENABLE_BUILD_SANDBOX)
 endif()
 
 include(${_cmake_DIR}/settings/Installation.cmake)
+
+# This prints a summary of found dependencies
+include(FeatureSummary)
+feature_summary(WHAT ALL)
