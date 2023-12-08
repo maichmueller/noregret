@@ -206,12 +206,14 @@ constexpr CEBijection< Player, std::string_view, 28 > player_name_bij = {
    std::pair{Player::tristan, "tristan"},   std::pair{Player::ulysses, "ulysses"},
    std::pair{Player::victoria, "victoria"}, std::pair{Player::william, "william"},
    std::pair{Player::xavier, "xavier"},     std::pair{Player::yusuf, "yusuf"},
-   std::pair{Player::zoey, "zoey"},         std::pair{Player::unknown, "unknown"}};
+   std::pair{Player::zoey, "zoey"},         std::pair{Player::unknown, "unknown"}
+};
 
 constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_bij = {
    std::pair{Stochasticity::deterministic, "deterministic"},
    std::pair{Stochasticity::sample, "sample"},
-   std::pair{Stochasticity::choice, "choice"}};
+   std::pair{Stochasticity::choice, "choice"}
+};
 
 }  // namespace nor::utils
 
@@ -318,13 +320,13 @@ template <
       typename fosg_auto_traits< std::remove_cvref_t< Env > >::observation_type >
 // clang-format off
 requires concepts::fosg< std::remove_cvref_t< Env >>
-   and concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
+   and concepts::map_specced< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
    and (
-         concepts::map< InformationStateMap, Player, sptr< Infostate > >
-         or concepts::map< InformationStateMap, Player, uptr< Infostate > >
-         or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
-         or concepts::map< InformationStateMap, Player, Infostate* >
-         or concepts::map< InformationStateMap, Player, Infostate >
+         concepts::map_specced< InformationStateMap, Player, sptr< Infostate > >
+         or concepts::map_specced< InformationStateMap, Player, uptr< Infostate > >
+         or concepts::map_specced< InformationStateMap, Player, std::reference_wrapper< Infostate > >
+         or concepts::map_specced< InformationStateMap, Player, Infostate* >
+         or concepts::map_specced< InformationStateMap, Player, Infostate >
       )
 // clang-format on
 void next_infostate_and_obs_buffers_inplace(
@@ -386,13 +388,13 @@ template <
       typename fosg_auto_traits< std::remove_cvref_t< Env > >::observation_type >
 // clang-format off
 requires concepts::fosg< std::remove_cvref_t< Env >>
-   and concepts::map< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
+   and concepts::map_specced< ObsBufferMap, Player, std::vector< std::pair< Observation, Observation > > >
    and (
-         concepts::map< InformationStateMap, Player, sptr< Infostate > >
-         or concepts::map< InformationStateMap, Player, uptr< Infostate > >
-         or concepts::map< InformationStateMap, Player, std::reference_wrapper< Infostate > >
-         or concepts::map< InformationStateMap, Player, Infostate* >
-         or concepts::map< InformationStateMap, Player, Infostate >
+         concepts::map_specced< InformationStateMap, Player, sptr< Infostate > >
+         or concepts::map_specced< InformationStateMap, Player, uptr< Infostate > >
+         or concepts::map_specced< InformationStateMap, Player, std::reference_wrapper< Infostate > >
+         or concepts::map_specced< InformationStateMap, Player, Infostate* >
+         or concepts::map_specced< InformationStateMap, Player, Infostate >
       )
 // clang-format on
 auto next_infostate_and_obs_buffers(
