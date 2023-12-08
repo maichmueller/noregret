@@ -7,6 +7,8 @@
 #include <variant>
 #include <vector>
 
+#include "nor/fosg_traits.hpp"
+#include "nor/fwd.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/player_informed_type.hpp"
@@ -59,8 +61,8 @@ concept private_history = requires(T const t, Worldstate worldstate, Player play
    // to this point
    {
       t.private_history(player, worldstate)
-   } -> std::convertible_to<
-      std::vector< PlayerInformedType< std::optional< std::variant< ChanceOutcome, Action > > > > >;
+   } -> std::convertible_to< std::vector< PlayerInformedType<
+      std::optional< action_variant_type_generator_t< Action, ChanceOutcome > > > > >;
 };
 
 template <
@@ -72,8 +74,8 @@ concept public_history = requires(T const t, Worldstate worldstate) {
    // get the history of public actions played up to this state
    {
       t.public_history(worldstate)
-   } -> std::convertible_to<
-      std::vector< PlayerInformedType< std::optional< std::variant< ChanceOutcome, Action > > > > >;
+   } -> std::convertible_to< std::vector< PlayerInformedType<
+      std::optional< action_variant_type_generator_t< Action, ChanceOutcome > > > > >;
 };
 
 template <
@@ -86,8 +88,8 @@ concept open_history = requires(T const t, Worldstate worldstate) {
    // were hidden from other players
    {
       t.open_history(worldstate)
-   } -> std::convertible_to<
-      std::vector< PlayerInformedType< std::variant< ChanceOutcome, Action > > > >;
+   } -> std::convertible_to< std::vector<
+      PlayerInformedType< action_variant_type_generator_t< Action, ChanceOutcome > > > >;
 };
 
 template <
@@ -98,7 +100,7 @@ concept actions = requires(T const t, Worldstate worldstate, Player player) {
    // legal actions getter for the given player
    {
       t.actions(player, worldstate)
-   } -> std::convertible_to< std::vector< Action > >;
+   } -> std::convertible_to< std::vector<  Action > > ;
 };
 
 template <
@@ -109,7 +111,7 @@ concept chance_actions = requires(T const t, Worldstate worldstate) {
    // legal actions getter for the given player
    {
       t.chance_actions(worldstate)
-   } -> std::convertible_to< std::vector< Outcome > >;
+   } -> std::convertible_to< std::vector<  Outcome >  >;
 };
 
 template <
@@ -123,19 +125,11 @@ concept chance_probability = requires(T const t, Worldstate worldstate, Outcome 
    } -> std::convertible_to< double >;
 };
 
-template < typename T, typename ReturnType, typename Observation >
-concept update_infostate = requires(T t, Observation public_obs, Observation private_obs) {
+template < typename T, typename ReturnType, typename... InputT >
+concept update = requires(T t, InputT&&... args) {
    // append objects Us... to t
    {
-      t.update(public_obs, private_obs)
-   } -> std::same_as< ReturnType >;
-};
-
-template < typename T, typename ReturnType, typename Observation >
-concept update_publicstate = requires(T t, Observation public_obs) {
-   // append objects Us... to t
-   {
-      t.update(public_obs)
+      t.update(std::forward< InputT >(args)...)
    } -> std::same_as< ReturnType >;
 };
 
@@ -328,11 +322,24 @@ concept observation_multi = requires(
    } -> std::same_as< std::vector< Observation > >;
 };
 
-template < typename T, template < typename > class Ptr, typename ElemT >
-concept clone_other = std::is_pointer_v< Ptr< ElemT > > && requires(T&& t, Ptr< ElemT > ptr) {
+template < typename T, template < typename... > class Ptr, typename... Ts >
+concept clone_other = std::is_pointer_v< Ptr< Ts... > > && requires(T&& t, Ptr< Ts... > ptr) {
    {
       t->clone(ptr)
-   } -> std::convertible_to< Ptr< ElemT > >;
+   } -> std::convertible_to< Ptr< Ts... > >;
+};
+
+namespace detail {
+// code reproduction but easier than messing with includes of concepts
+template < typename T, template < class... > class Template >
+concept specialization = common::is_specialization_v< T, Template >;
+}  // namespace detail
+
+template < typename T, template < typename... > class PtrTemplate >
+concept clone_r = requires(T&& t) {
+   {
+      t.clone()
+   } -> detail::specialization< PtrTemplate >;
 };
 
 template < typename T >
@@ -387,6 +394,14 @@ concept at_r = requires(T t, InputTs&&... inp) {
    } -> std::convertible_to< OutputT >;
 };
 
+template < typename T, typename OutputT >
+concept latest = requires(T t) {
+   /// get the latest added element
+   {
+      t.latest()
+   } -> std::convertible_to< OutputT >;
+};
+
 template < typename T >
 concept begin = requires(T t) { t.begin(); };
 
@@ -436,34 +451,6 @@ concept stochasticity = requires(T t) {
 };
 
 }  // namespace method
-
-namespace trait {
-
-template < typename T >
-concept action_policy_type = requires(T t) { typename T::action_policy_type; };
-
-template < typename T >
-concept chance_outcome_type = requires(T t) { typename T::chance_outcome_type; };
-
-template < typename T >
-concept chance_distribution_type = requires(T t) { typename T::chance_distribution_type; };
-
-template < typename T >
-concept action_type = requires(T t) { typename T::action_type; };
-
-template < typename T >
-concept observation_type = requires(T t) { typename T::observation_type; };
-
-template < typename T >
-concept info_state_type = requires(T t) { typename T::info_state_type; };
-
-template < typename T >
-concept public_state_type = requires(T t) { typename T::public_state_type; };
-
-template < typename T >
-concept world_state_type = requires(T t) { typename T::world_state_type; };
-
-}  // namespace trait
 
 }  // namespace nor::concepts::has
 
