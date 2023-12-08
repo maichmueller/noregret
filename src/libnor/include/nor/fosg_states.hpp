@@ -2,6 +2,8 @@
 #ifndef NOR_FOSG_STATES_HPP
 #define NOR_FOSG_STATES_HPP
 
+#include <fmt/format.h>
+
 #include <range/v3/all.hpp>
 #include <string>
 #include <vector>
@@ -49,10 +51,16 @@ class DefaultPublicstate {
    auto to_string() const
       requires std::is_same_v< observation_type, std::string >
    {
+      using namespace fmt::literals;
       return _build_string([this](std::string& s) {
          for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
-            s += std::get< 0 >(observation) + "\n";
-            s += std::get< 1 >(observation) + "\n";
+            const auto& [pub_obs, priv_obs] = observation;
+            s += fmt::format(
+               "{pub_obs}\n"
+               "{priv_obs}\n",
+               "pub_obs"_a = pub_obs,
+               "priv_obs"_a = priv_obs
+            );
          };
       });
    }
@@ -61,18 +69,16 @@ class DefaultPublicstate {
       requires std::is_same_v< observation_type, std::string >
    {
       return _build_string([this](std::string& s) {
+         using namespace fmt::literals;
          for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
-            auto round_str = "obs_" + std::to_string(pos);
-            s += "pub_";
-            s += round_str;
-            s += ": ";
-            s += std::get< 0 >(observation);
-            s += "\n";
-            s += "prv_";
-            s += round_str;
-            s += ": ";
-            s += std::get< 1 >(observation);
-            s += "\n";
+            const auto& [pub_obs, priv_obs] = observation;
+            s += fmt::format(
+               "pub_{round}: {pub_obs}\n"
+               "prv_{round}: {priv_obs}\n",
+               "round"_a = fmt::format("obs[{}]", pos),
+               "pub_obs"_a = pub_obs,
+               "priv_obs"_a = priv_obs
+            );
          }
       });
    }
@@ -108,13 +114,13 @@ class DefaultPublicstate {
    auto _build_string(BuildFunctor builder) const
    {
       constexpr size_t avg_string_size_expectation = 500;
-      std::string s{};
-      s.reserve(size() * avg_string_size_expectation);
+      std::string str{};
+      str.reserve(size() * avg_string_size_expectation);
       // let the builder do its job
-      builder(s);
+      builder(str);
       // reduce size to only eat as much memory as needed
-      s.shrink_to_fit();
-      return s;
+      str.shrink_to_fit();
+      return str;
    }
 };
 
@@ -134,8 +140,9 @@ class DefaultInfostate {
 
    auto& update(observation_type public_obs, observation_type private_obs)
    {
-      auto& ret_val = m_history.emplace_back(std::pair{
-         std::move(public_obs), std::move(private_obs)});
+      auto& ret_val = m_history.emplace_back(
+         std::pair{std::move(public_obs), std::move(private_obs)}
+      );
       _hash();
       return ret_val;
    }
@@ -193,214 +200,7 @@ class DefaultInfostate {
       }
    }
 };
-template < template < typename > class DerivedWrapper, typename Type >
-struct BaseWrapper {
-   using derived_wrapper_type = DerivedWrapper< Type >;
-   using underlying_type = Type;
-   static constexpr bool is_polymorphic = std::is_polymorphic_v< underlying_type >;
-   using holder_type = std::
-      conditional_t< is_polymorphic, sptr< underlying_type >, underlying_type >;
-
-  protected:
-   /// internal constructor to actually allocate the member
-   template < typename... Ts >
-   BaseWrapper(tag::internal_construct, Ts&&... args)
-       : m_member(_init_member(std::forward< Ts >(args)...))
-   {
-   }
-
-  public:
-   template < typename T1, typename... Ts >
-      requires common::is_none_v<
-         std::decay_t< T1 >,  // decay_t to avoid checking each ref-case individually
-         tag::internal_construct,  // don't recurse back from internal constructors or self
-         BaseWrapper  // don't steal the copy/move constructor calls (std::remove_cvref ensures
-                      // both)
-         >
-   explicit BaseWrapper(T1&& t1, Ts&&... args)
-       : BaseWrapper(tag::internal_construct{}, std::forward< T1 >(t1), std::forward< Ts >(args)...)
-   {
-   }
-
-   BaseWrapper(sptr< underlying_type > ptr)
-      requires is_polymorphic
-       : m_member(std::move(ptr))
-   {
-   }
-
-   BaseWrapper()
-      requires std::is_default_constructible_v< underlying_type >
-       : BaseWrapper(tag::internal_construct{})
-   {
-   }
-   /// implicit converion operators so that the contained type will be passable to functions that
-   /// use the underlying type (similar to reference_wrapper's behaviour)
-   constexpr operator const underlying_type&() const noexcept { return get(); }
-   constexpr operator underlying_type&() noexcept { return get(); }
-   /// implicit converion operators so that the passable to functions that use a shared_ptr of the
-   /// underlying type
-   constexpr operator const sptr< holder_type >&() const noexcept
-      requires is_polymorphic
-   {
-      return m_member;
-   }
-   constexpr operator sptr< holder_type >&() noexcept
-      requires is_polymorphic
-   {
-      return m_member;
-   }
-
-   [[nodiscard]] const underlying_type& get() const
-   {
-      if constexpr(is_polymorphic) {
-         return *m_member;
-      } else {
-         return m_member;
-      }
-   }
-   [[nodiscard]] underlying_type& get()
-   {
-      // clang-tidy complains, but since the member function calling it is non-const, the object
-      // itself is non-const. Thus, casting away the const is fine.
-      return const_cast< underlying_type& >(std::as_const(*this).get());
-   }
-
-   /// equals always compares by value of the underlying type
-   bool equals(const BaseWrapper& other) const
-      requires(std::equality_comparable< underlying_type >)
-   {
-      return get() == other.get();
-   }
-   /// equality operator compares either by value or by pointer value depending on the holder type
-   bool operator==(const BaseWrapper& other) const { return m_member == other.m_member; }
-
-   [[nodiscard]] derived_wrapper_type copy() const
-   {
-      // copy_tag to avoid the implicit copy constructor
-      return derived_wrapper_type{tag::internal_construct{}, get()};
-   }
-
-   [[nodiscard]] std::string to_string() const
-      requires requires(underlying_type obj) { obj.to_string(); }
-   {
-      return get().to_string();
-   }
-
-   const BaseWrapper* operator->() const { return &get(); }
-   BaseWrapper* operator->() { return &get(); }
-
-  private:
-   holder_type m_member;
-
-   template < typename FirstArg, typename... Args >
-   [[nodiscard]] holder_type _init_member(FirstArg&& first_arg, Args&&... args) const
-   {
-      constexpr auto _init_member_impl = []< typename... Ts >(Ts&&... ts) {
-         if constexpr(is_polymorphic) {
-            if constexpr(std::same_as< std::remove_cvref_t< FirstArg >, underlying_type* > and sizeof...(Ts) == 1) {
-               // if we are only given a pointer to the underlying type then we assume the wrapper
-               // is supposed to take ownership of it and pass it to the smart pointer's constructor
-               return holder_type{std::forward< Ts >(ts)...};
-            } else {
-               // in all other cases we allocat a new smart pointer from the given arguments
-               return std::make_shared< underlying_type >(std::forward< Ts >(ts)...);
-            }
-         } else {
-            return underlying_type{std::forward< Ts >(ts)...};
-         }
-      };
-      if constexpr(std::same_as< std::decay_t< FirstArg >, tag::internal_construct >) {
-         return _init_member_impl(std::forward< Args >(args)...);
-      } else {
-         return _init_member_impl(
-            std::forward< FirstArg >(first_arg), std::forward< Args >(args)...
-         );
-      }
-   }
-};
-
-template < typename Action >
-struct ActionWrapper: public BaseWrapper< ActionWrapper, Action > {
-   using base = BaseWrapper< ActionWrapper, Action >;
-   using base::base;
-};
-
-template < typename ChanceOutcome >
-struct ChanceOutcomeWrapper: public BaseWrapper< ChanceOutcomeWrapper, ChanceOutcome > {
-   using base = BaseWrapper< ChanceOutcomeWrapper, ChanceOutcome >;
-   using base::base;
-};
-
-template < typename Observation >
-struct ObservationWrapper: public BaseWrapper< ObservationWrapper, Observation > {
-   using base = BaseWrapper< ObservationWrapper, Observation >;
-   using base::base;
-};
-
-template < typename Worldstate >
-struct WorldstateWrapper: public BaseWrapper< WorldstateWrapper, Worldstate > {
-   using base = BaseWrapper< WorldstateWrapper, Worldstate >;
-   using base::base;
-};
-
-template < typename Infostate >
-struct InfostateWrapper: public BaseWrapper< InfostateWrapper, Infostate > {
-   using base = BaseWrapper< InfostateWrapper, Infostate >;
-   using base::base;
-   using base::get;
-   using observation_type = typename fosg_auto_traits< Infostate >::observation_type;
-
-   [[nodiscard]] size_t size() const { return get().size(); }
-
-   const auto& update(const observation_type& public_obs, const observation_type& private_obs)
-   {
-      return get().update(public_obs, private_obs);
-   }
-
-   auto& operator[](auto index) { return get()[size_t(index)]; }
-
-   const auto& operator[](auto index) const { return get()[size_t(index)]; }
-
-   [[nodiscard]] Player player() const { return get().player(); }
-};
-
-template < typename Publicstate >
-struct PublicstateWrapper: public BaseWrapper< PublicstateWrapper, Publicstate > {
-   using base = BaseWrapper< PublicstateWrapper, Publicstate >;
-   using base::base;
-   using base::get;
-   using observation_type = typename fosg_auto_traits< Publicstate >::observation_type;
-
-   [[nodiscard]] size_t size() const { return get().size(); }
-
-   const auto& update(const observation_type& obs) { return get().update(obs); }
-
-   auto& operator[](auto index) { return get()[size_t(index)]; }
-
-   const auto& operator[](auto index) const { return get()[size_t(index)]; }
-};
 
 }  // namespace nor
-namespace std {
-
-template < typename T >
-   requires common::logical_or_v<
-      common::is_specialization< std::remove_cvref_t< T >, nor::ActionWrapper >,
-      common::is_specialization< std::remove_cvref_t< T >, nor::ObservationWrapper >,
-      common::is_specialization< std::remove_cvref_t< T >, nor::InfostateWrapper >,
-      common::is_specialization< std::remove_cvref_t< T >, nor::PublicstateWrapper > >
-struct hash< T > {
-   size_t operator()(const T& t) const
-   {
-      constexpr auto underlying_hasher = std::hash< std::conditional_t<
-         std::remove_cvref_t< T >::is_polymorphic,
-         typename std::remove_cvref_t< T >::underlying_type::element_type,
-         typename std::remove_cvref_t< T >::underlying_type > >{};
-
-      return underlying_hasher(t.get());
-   }
-};
-
-}  // namespace std
 
 #endif  // NOR_FOSG_STATES_HPP

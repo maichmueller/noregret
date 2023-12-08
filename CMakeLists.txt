@@ -188,6 +188,7 @@ endif()
 find_package(pybind11 REQUIRED)
 find_package(range-v3 REQUIRED)
 find_package(namedtype REQUIRED)
+find_package(fmt REQUIRED)
 
 include(${_cmake_DIR}/targets/shared_libs.cmake)
 include(${_cmake_DIR}/targets/nor.cmake)

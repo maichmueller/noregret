@@ -23,7 +23,9 @@ target_link_libraries(
         INTERFACE project_options
         common
         range-v3::range-v3
-        namedtype::namedtype)
+        namedtype::namedtype
+        fmt::fmt-header-only
+)
 
 set_target_properties(${nor_lib} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
