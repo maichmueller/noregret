@@ -7,33 +7,29 @@
 #include "leduc_poker/leduc_poker.hpp"
 
 struct LeducPokerState: public ::testing::Test {
-   leduc::State state{std::make_shared< leduc::LeducConfig >()};
+   leduc::State state{leduc::LeducConfig{}};
 };
 
 struct Leduc5PokerState: public ::testing::Test {
-   leduc::State state{std::make_shared< leduc::LeducConfig >(leduc::leduc5_config())};
+   leduc::State state{leduc::LeducConfig::leduc5()};
 };
 
 class TerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
-       std::array< std::optional< leduc::Card >, 3 >,  // chance cards
+       leduc::LeducConfig,  // the state config
        std::vector< leduc::Action >,  // action sequence round 1
        std::vector< leduc::Action >,  // action sequence round 2
        bool  // whether the state is terminal
-       > > {
-  protected:
-   leduc::State state{std::make_shared< leduc::LeducConfig >()};
-};
+       > > {};
 
 class PayoffParamsF:
     public ::testing::TestWithParam< std::tuple<
-       std::array< std::optional< leduc::Card >, 3 >,  // chance cards
+       leduc::LeducConfig,  // the state config
+       std::vector< leduc::Card >,  // player cards
+       leduc::Card,  // public card
        std::vector< leduc::Action >,  // action sequence round 1
        std::vector< leduc::Action >,  // action sequence round 2
-       std::array< double, 2 >  // expected payoffs
-       > > {
-  protected:
-   leduc::State state{std::make_shared< leduc::LeducConfig >()};
-};
+       std::vector< double >  // expected payoffs
+       > > {};
 
 #endif  // NOR_LEDUC_POKER_FIXTURES_HPP
