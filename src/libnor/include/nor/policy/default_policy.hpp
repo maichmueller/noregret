@@ -31,13 +31,13 @@ class UniformPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
+   using action_type = auto_action_type< action_policy_type >;
 
    UniformPolicy() = default;
 
    action_policy_type operator()(
       const info_state_type&,
-      const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >&
-         legal_actions
+      std::span< const action_type > legal_actions
    ) const
    {
       if constexpr(extent == std::dynamic_extent) {
@@ -67,13 +67,13 @@ class ZeroDefaultPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
+   using action_type = auto_action_type< action_policy_type >;
 
    ZeroDefaultPolicy() = default;
 
    action_policy_type operator()(
       const info_state_type&,
-      const std::vector< typename fosg_auto_traits< action_policy_type >::action_type >&
-         legal_actions
+      std::span< const action_type > legal_actions
    ) const
    {
       if constexpr(extent == std::dynamic_extent) {

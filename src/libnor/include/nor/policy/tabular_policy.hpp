@@ -48,13 +48,14 @@ class TabularPolicy {
    {
       return m_table.emplace(std::forward< Args >(args)...);
    }
+
    template < typename IstateType, typename... Args >
    auto emplace(IstateType&& infostate, Args&&... args)
    {
       return m_table.emplace(
          std::piecewise_construct,
          /*key*/ std::forward_as_tuple(std::forward< IstateType >(infostate)),
-         /*value*/ std::forward_as_tuple(std::initializer_list{std::forward< Args >(args)...})
+         /*value*/ std::forward_as_tuple(std::forward< Args >(args)...)
       );
    }
 

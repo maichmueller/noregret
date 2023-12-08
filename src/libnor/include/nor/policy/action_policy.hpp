@@ -85,14 +85,27 @@ inline T _zero(Args&&...)
  *
  * @tparam Action
  */
-template < concepts::action Action >
+template <
+   concepts::action Action,
+   concepts::map Table = std::unordered_map<
+      Action,
+      double,
+      common::value_hasher< Action >,
+      common::value_comparator< Action > > >
 class HashmapActionPolicy {
   public:
    using action_type = Action;
-   using map_type = std::unordered_map< Action, double >;
+   using table_type = Table;
+   using mapped_type = typename Table::mapped_type;
+   using key_type = typename Table::key_type;
+   using value_type = std::conditional_t<
+      requires() { typename table_type::value_type; },  //
+      typename table_type::value_type,  //
+      std::pair< key_type, mapped_type >  //
+      >;
 
-   using iterator = typename map_type::iterator;
-   using const_iterator = typename map_type::const_iterator;
+   using iterator = typename table_type::iterator;
+   using const_iterator = typename table_type::const_iterator;
 
    HashmapActionPolicy(std::function< double() > dvg = &_zero< double >)
        : m_def_value_gen(std::move(dvg))
@@ -108,22 +121,34 @@ class HashmapActionPolicy {
    }
 
    template < typename T >
-      requires concepts::maps< T, action_type > and concepts::mapping_of< T, double >
-   HashmapActionPolicy(T&& action_value_pairs, std::function< double() > dvg = &_zero< double >)
+      requires concepts::map_specced< std::remove_cvref_t< T >, action_type, double >
+                  and (not common::
+                          is_specialization_v< std::remove_cvref_t< T >, HashmapActionPolicy >)
+   HashmapActionPolicy(T&& mapping, std::function< double() > dvg = &_zero< double >)
        : m_map(), m_def_value_gen(std::move(dvg))
    {
-      for(auto&& [action, value] : action_value_pairs) {
+      for(auto&& [action, value] : mapping) {
          emplace(std::forward< decltype(action) >(action), std::forward< decltype(value) >(value));
       }
    }
 
-   HashmapActionPolicy(std::initializer_list< std::pair< action_type, double > > init_list)
-       : m_map(), m_def_value_gen(&_zero< double >)
+   template < typename ActionType, std::floating_point Float >
+   HashmapActionPolicy(std::initializer_list< std::pair< ActionType, Float > > init_list, std::function< double() > dvg = &_zero< double >)
+       : m_map(), m_def_value_gen(std::move(dvg))
    {
-      for(auto&& [action, value] : init_list) {
-         emplace(std::move(action), std::move(value));
+      for(auto& [action, value] : init_list) {
+         emplace(std::move(action), static_cast< double >(value));
       }
    }
+
+   HashmapActionPolicy(std::initializer_list< value_type > init_list)
+       : m_map(), m_def_value_gen(&_zero< double >)
+   {
+      for(auto& value : init_list) {
+         emplace(std::move(value));
+      }
+   }
+
    HashmapActionPolicy(size_t n_actions, std::function< double() > dvg = &_zero< double >)
       requires std::is_integral_v< action_type >
        : m_map(), m_def_value_gen(std::move(dvg))
@@ -132,10 +157,6 @@ class HashmapActionPolicy {
          emplace(a, m_def_value_gen());
       }
    }
-   //   HashmapActionPolicy(map_type map, std::function< double() > dvg = &_zero< double >)
-   //       : m_map(std::move(map)), m_def_value_gen(std::move(dvg))
-   //   {
-   //   }
 
    ~HashmapActionPolicy() = default;
    HashmapActionPolicy(const HashmapActionPolicy& other) = default;
@@ -194,7 +215,7 @@ class HashmapActionPolicy {
    }
 
   private:
-   map_type m_map;
+   table_type m_map;
    std::function< double() > m_def_value_gen;
 };
 
