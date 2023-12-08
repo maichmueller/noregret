@@ -30,14 +30,14 @@ struct join {
    static constexpr auto impl() noexcept
    {
       constexpr std::size_t len = (Strs.size() + ... + 0);
-      std::array< char, len + 1 > arr{};
-      auto append = [i = 0, &arr](auto const& s) mutable {
+      std::array< char, len + 1 > arr_{};
+      auto append = [i = 0, &arr_](auto const& s) mutable {
          for(auto c : s)
-            arr[i++] = c;
+            arr_[i++] = c;
       };
       (append(Strs), ...);
-      arr[len] = 0;
-      return arr;
+      arr_[len] = 0;
+      return arr_;
    }
    // Give the joined string static storage
    static constexpr auto arr = impl();
