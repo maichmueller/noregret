@@ -4,6 +4,7 @@
 
 #include "common/common.hpp"
 #include "nor/type_defs.hpp"
+#include "nor/game_defs.hpp"
 
 namespace nor {
 
@@ -13,7 +14,7 @@ namespace nor {
  */
 template < typename Contained >
 class PlayerInformedType {
-  public:
+public:
    PlayerInformedType(Contained value, Player p) : m_value(std::move(value)), m_player(p) {}
 
    /// implicit conversion operator to handle the contained value as if it had never been augmented
@@ -36,7 +37,7 @@ class PlayerInformedType {
       }
    };
 
-  private:
+private:
    Contained m_value;
    Player m_player;
 };
