@@ -7,6 +7,7 @@
 #include "nor/fosg_states.hpp"
 #include "nor/fosg_traits.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/utils/utils.hpp"
 #include "rock_paper_scissors/rock_paper_scissors.hpp"
 
 namespace nor::games::rps {

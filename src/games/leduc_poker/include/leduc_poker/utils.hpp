@@ -22,18 +22,21 @@ constexpr common::CEBijection< Rank, std::string_view, 13 > rank_name_bij = {
    std::pair{Rank::jack, "jack"},
    std::pair{Rank::queen, "queen"},
    std::pair{Rank::king, "king"},
-   std::pair{Rank::ace, "ace"}};
+   std::pair{Rank::ace, "ace"}
+};
 
 constexpr common::CEBijection< Suit, std::string_view, 4 > suit_name_bij = {
    std::pair{Suit::diamonds, "diamonds"},
    std::pair{Suit::clubs, "clubs"},
    std::pair{Suit::hearts, "hearts"},
-   std::pair{Suit::spades, "spades"}};
+   std::pair{Suit::spades, "spades"}
+};
 
 constexpr common::CEBijection< ActionType, std::string_view, 3 > actiontype_name_bij = {
    std::pair{ActionType::check, "check"},
    std::pair{ActionType::fold, "fold"},
-   std::pair{ActionType::bet, "bet"}};
+   std::pair{ActionType::bet, "bet"}
+};
 
 constexpr common::CEBijection< Player, std::string_view, 11 > player_name_bij = {
    std::pair{Player::chance, "chance"},
@@ -46,7 +49,8 @@ constexpr common::CEBijection< Player, std::string_view, 11 > player_name_bij = 
    std::pair{Player::seven, "seven"},
    std::pair{Player::eight, "eight"},
    std::pair{Player::nine, "nine"},
-   std::pair{Player::ten, "ten"}};
+   std::pair{Player::ten, "ten"}
+};
 
 }  // namespace leduc
 
@@ -85,54 +89,21 @@ inline std::string to_string(const leduc::Card &value)
 template <>
 inline std::string to_string(const leduc::Action &value)
 {
-   std::ostringstream ss;
-   ss << common::to_string(value.action_type);
-   if(value.action_type == leduc::ActionType::bet) {
-      ss.precision(2);
-      ss << std::fixed << "-->" << value.bet;
-   }
-   return ss.str();
+   return fmt::format(
+      "{}{}",
+      common::to_string(value.action_type),
+      value.action_type == leduc::ActionType::bet ? fmt::format("-->{:.2f}", value.bet) : ""
+   );
 }
-
-COMMON_ENABLE_PRINT(leduc::Rank);
-COMMON_ENABLE_PRINT(leduc::Suit);
-COMMON_ENABLE_PRINT(leduc::Action);
-COMMON_ENABLE_PRINT(leduc::ActionType);
-COMMON_ENABLE_PRINT(leduc::Player);
-COMMON_ENABLE_PRINT(leduc::Card);
 
 }  // namespace common
 
-// these operator<< definitions are specifically made for gtest which cannot handle the lookup in
-// global namespace without throwing multiple template matching errors.
-namespace leduc {
-
-inline auto &operator<<(std::ostream &os, Player e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, Rank e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, Suit e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, ActionType e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, Action e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, Card e)
-{
-   return os << common::to_string(e);
-}
-
-}  // namespace leduc
+COMMON_ENABLE_PRINT(leduc, Rank);
+COMMON_ENABLE_PRINT(leduc, Suit);
+COMMON_ENABLE_PRINT(leduc, Action);
+COMMON_ENABLE_PRINT(leduc, ActionType);
+COMMON_ENABLE_PRINT(leduc, Player);
+COMMON_ENABLE_PRINT(leduc, Card);
 
 namespace std {
 
@@ -148,7 +119,7 @@ struct hash< leduc::Action > {
 
 template <>
 struct hash< leduc::Card > {
-   size_t operator()(const leduc::Card &card) const
+   size_t operator()(const leduc::Card &card) const noexcept
    {
       size_t seed{0};
       common::hash_combine(seed, std::hash< leduc::Rank >{}(card.rank));
@@ -159,7 +130,7 @@ struct hash< leduc::Card > {
 
 template <>
 struct hash< leduc::HistorySinceBet > {
-   size_t operator()(const leduc::HistorySinceBet &history) const
+   size_t operator()(const leduc::HistorySinceBet &history) const noexcept
    {
       auto to_string = [](const auto &action) {
          return (action.has_value() ? common::to_string(action.value()) : std::string("?"));

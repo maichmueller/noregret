@@ -42,9 +42,9 @@ nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::
 }
 
 nor::games::kuhn::Environment::observation_type nor::games::kuhn::Environment::public_observation(
-   const world_state_type& wstate,
+   const world_state_type&  /*wstate*/,
    const chance_outcome_type& action,
-   const world_state_type& next_wstate
+   const world_state_type&  /*next_wstate*/
 ) const
 {
    return std::to_string(static_cast< int >(action.player)) + ":?";

@@ -2,34 +2,34 @@
 #include "nor/env/rps_env.hpp"
 
 nor::Player nor::games::rps::Environment::active_player(
-   const nor::games::rps::Environment::world_state_type& wstate
+   const world_state_type& wstate
 ) const
 {
    return to_player(wstate.active_team());
 }
 bool nor::games::rps::Environment::is_terminal(
-   nor::games::rps::Environment::world_state_type& wstate
+   world_state_type& wstate
 )
 {
    return wstate.terminal();
 }
 double nor::games::rps::Environment::reward(
    nor::Player player,
-   nor::games::rps::Environment::world_state_type& wstate
+   world_state_type& wstate
 )
 {
    return wstate.payoff(to_team(player));
 }
 void nor::games::rps::Environment::transition(
-   nor::games::rps::Environment::world_state_type& worldstate,
-   const nor::games::rps::Environment::action_type& action
+   world_state_type& worldstate,
+   const action_type& action
 ) const
 {
    worldstate.apply_action(action);
 }
 
 nor::games::rps::Environment::observation_type nor::games::rps::Environment::tiny_repr(
-   const nor::games::rps::Environment::world_state_type& wstate
+   const world_state_type& wstate
 ) const
 {
    std::stringstream ss;
@@ -45,7 +45,7 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::tin
 std::vector< nor::PlayerInformedType<
    std::optional< std::variant< std::monostate, nor::games::rps::Environment::action_type > > > >
 nor::games::rps::Environment::public_history(
-   const nor::games::rps::Environment::world_state_type& wstate
+   const world_state_type& wstate
 ) const
 {
    if(wstate.picks()[0].has_value()) {
@@ -60,7 +60,7 @@ nor::games::rps::Environment::public_history(
 std::vector< nor::PlayerInformedType<
    std::variant< std::monostate, nor::games::rps::Environment::action_type > > >
 nor::games::rps::Environment::open_history(
-   const nor::games::rps::Environment::world_state_type& wstate
+   const world_state_type& wstate
 ) const
 {
    std::vector< PlayerInformedType< std::variant< std::monostate, action_type > > > out;
@@ -76,7 +76,7 @@ std::vector< nor::PlayerInformedType<
    std::optional< std::variant< std::monostate, nor::games::rps::Environment::action_type > > > >
 nor::games::rps::Environment::private_history(
    nor::Player,
-   const nor::games::rps::Environment::world_state_type& wstate
+   const world_state_type& wstate
 ) const
 {
    std::vector< PlayerInformedType< std::optional< std::variant< std::monostate, action_type > > > >
@@ -94,7 +94,7 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::pri
    nor::Player observer,
    const world_state_type& wstate,
    const action_type& action,
-   const world_state_type& next_wstate
+   const world_state_type&  /*next_wstate*/
 ) const
 {
    if(active_player(wstate) == observer) {
@@ -105,8 +105,8 @@ nor::games::rps::Environment::observation_type nor::games::rps::Environment::pri
 
 nor::games::rps::Environment::observation_type nor::games::rps::Environment::public_observation(
    const world_state_type& wstate,
-   const action_type& action,
-   const world_state_type& next_wstate
+   const action_type&  /*action*/,
+   const world_state_type&  /*next_wstate*/
 ) const
 {
    return common::to_string(active_player(wstate)) + ":?";

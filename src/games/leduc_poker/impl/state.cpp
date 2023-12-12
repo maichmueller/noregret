@@ -12,7 +12,9 @@ inline Player State::_cycle_active_player(bool folded, size_t shift_amount)
       m_remaining_players.pop_front();
    } else {
       // left rotate all entries (pop front and append to the back)
-      ranges::rotate(m_remaining_players, std::next(m_remaining_players.begin(), shift_amount));
+      ranges::rotate(
+         m_remaining_players, std::next(m_remaining_players.begin(), long(shift_amount))
+      );
    }
    return m_remaining_players.front();
 }
@@ -82,9 +84,11 @@ void State::_reset_order_of_play()
    int starting_player = static_cast< int >(config().starting_player);
 
    auto min_pos_pair = std::pair{
-      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}};
+      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}
+   };
    auto min_neg_pair = std::pair{
-      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}};
+      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}
+   };
    for(Player player : m_remaining_players) {
       int dist = static_cast< int >(player) - starting_player;
       auto& pair_to_update = (dist >= 0) ? min_pos_pair : min_neg_pair;
@@ -94,10 +98,10 @@ void State::_reset_order_of_play()
    }
    Player player_to_go_next =
       ((min_pos_pair.second.has_value()) ? *min_pos_pair.second : *min_neg_pair.second);
-   size_t cycle_table_by = std::distance(
+   auto cycle_table_by = std::distance(
       m_remaining_players.begin(), ranges::find(m_remaining_players, player_to_go_next)
    );
-   _cycle_active_player(false, cycle_table_by);
+   _cycle_active_player(false, size_t(cycle_table_by));
 }
 
 void State::apply_action(Card action)
