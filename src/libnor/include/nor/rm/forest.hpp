@@ -390,21 +390,21 @@ class GameTreeTraverser {
 //          // infostate is going to have the same action probability (since player's can only
 //          // choose according to the knowledge they have in the information state and chance
 //          // states will simply assign the same value again.)
-//          LOGD2("Active player", curr_player);
+//          SPDLOG_DEBUG("Active player: {}", curr_player);
 //          LOGD2(
 //             "Action",
 //             std::visit([](const auto& av) { return common::to_string(av); }, action_variant)
 //          );
 //          action_prob = curr_action_prob;
-//          LOGD2("Action prob after", (action_prob.has_value() ? action_prob.value().get() :
+//          SPDLOG_DEBUG("Action prob after: {}", (action_prob.has_value() ? action_prob.value().get() :
 //          404.));
 //
 //          if(m_env.is_terminal(*next_state)) {
 //             // if the child is a terminal state then we take the payoff of this history and add
 //             // that to the overall payoff of the infostate (node)
-//             LOGD2("Terminal action value before update", action_value.value_or(404));
+//             SPDLOG_DEBUG("Terminal action value before update: {}", action_value.value_or(404));
 //             action_value = action_value.value_or(0.) + m_env.reward(owning_player, *next_state);
-//             LOGD2("Terminal action value after update", action_value.value_or(404));
+//             SPDLOG_DEBUG("Terminal action value after update: {}", action_value.value_or(404));
 //
 //          } else {
 //             // since it isn't a terminal state we emplace the child state to visit further

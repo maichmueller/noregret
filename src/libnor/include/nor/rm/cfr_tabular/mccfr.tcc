@@ -40,7 +40,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
    std::vector< std::unordered_map< Player, double > > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
    for([[maybe_unused]] auto _ : ranges::views::iota(size_t(0), n_iters)) {
-      LOGD2("Iteration number", _iteration());
+      SPDLOG_DEBUG("Iteration number: {}", _iteration());
       std::optional< Player > player_to_update = std::nullopt;
       if constexpr(config.update_mode == UpdateMode::alternating) {
          player_to_update = _cycle_player_to_update();
@@ -78,7 +78,7 @@ template < MCCFRConfig config, typename Env, typename Policy, typename AveragePo
 auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(std::optional< Player > player_to_update)
    requires(config.update_mode == UpdateMode::alternating)
 {
-   LOGD2("Iteration number: ", _iteration());
+   SPDLOG_DEBUG("Iteration number: {}", _iteration());
    // run the iteration
    auto updated_player = _cycle_player_to_update(player_to_update);
    auto value = std::vector{std::pair{updated_player, std::get< 0 >(_iterate()).get()}};

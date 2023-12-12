@@ -3,8 +3,9 @@
 #define NOR_PLAYER_INFORMED_TYPE_HPP
 
 #include "common/common.hpp"
-#include "nor/type_defs.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/type_defs.hpp"
+#include "nor/utils/utils.hpp"
 
 namespace nor {
 
@@ -14,7 +15,7 @@ namespace nor {
  */
 template < typename Contained >
 class PlayerInformedType {
-public:
+  public:
    PlayerInformedType(Contained value, Player p) : m_value(std::move(value)), m_player(p) {}
 
    /// implicit conversion operator to handle the contained value as if it had never been augmented
@@ -30,14 +31,10 @@ public:
    auto to_string() const
       requires(requires(Contained c) { c.to_string(); } or common::printable_v< Contained >)
    {
-      if constexpr(common::printable_v< Contained >) {
-         return common::to_string(m_player) + "\n" + common::to_string(m_value);
-      } else {
-         return common::to_string(m_player) + "\n" << m_value.to_string();
-      }
+      return fmt::format("{}\n{}", m_player, m_value);
    };
 
-private:
+  private:
    Contained m_value;
    Player m_player;
 };

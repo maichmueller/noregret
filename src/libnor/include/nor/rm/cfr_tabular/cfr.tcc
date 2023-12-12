@@ -10,7 +10,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
    std::vector< player_hash_map< double > > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
    for([[maybe_unused]] auto _ : ranges::views::iota(size_t(0), n_iters)) {
-      LOGD2("Iteration number: ", _iteration());
+      SPDLOG_DEBUG("Iteration number: {}", _iteration());
       StateValueMap value = std::invoke([&] {
          if constexpr(config.update_mode == UpdateMode::alternating) {
             auto player_to_update = _cycle_player_to_update();
@@ -39,7 +39,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(
 )
    requires(config.update_mode == UpdateMode::alternating)
 {
-   LOGD2("Iteration number: ", _iteration());
+   SPDLOG_DEBUG("Iteration number: {}", _iteration());
    // run the iteration
    StateValueMap values = [&] {
       if(_iteration() < _env().players(*_root_state_uptr()).size() - 1)
@@ -270,14 +270,14 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    for(auto& [action, cumul_regret] : regret_table) {
       auto action_ref = std::cref(action);
       auto& instant_regret = instant_regret_table[action_ref];
-      LOGD2("Action", action);
-      LOGD2("L1 weight", exp_l1_weights[action_ref]);
-      LOGD2("Instant regret", instant_regret);
-      LOGD2("All instant regret", ranges::views::values(instant_regret_table));
-      LOGD2("Cumul regret before", ranges::views::values(istate_data.regret()));
+      SPDLOG_DEBUG("Action: {}", action);
+      SPDLOG_DEBUG("L1 weight: {}", exp_l1_weights[action_ref]);
+      SPDLOG_DEBUG("Instant regret: {}", instant_regret);
+      SPDLOG_DEBUG("All instant regret: {}", ranges::views::values(instant_regret_table));
+      SPDLOG_DEBUG("Cumul regret before: {}", ranges::views::values(istate_data.regret()));
 
       if(instant_regret >= 0) {
-         LOGD2("Cumul regret update (>=0)", exp_l1_weights[action_ref] * instant_regret);
+         SPDLOG_DEBUG("Cumul regret update (>=0): {}", exp_l1_weights[action_ref] * instant_regret);
          cumul_regret += exp_l1_weights[action_ref] * instant_regret;
       } else {
          LOGD2(
@@ -289,27 +289,27 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       }
       // reset the instant regret, so that the next round's storage is starting fresh
       instant_regret = 0.;
-      LOGD2("Cumul regret after", ranges::views::values(istate_data.regret()));
+      SPDLOG_DEBUG("Cumul regret after: {}", ranges::views::values(istate_data.regret()));
    }
 
-   LOGD2("Cumul Policy before", ranges::views::values(istate_data.template storage_element< 3 >()));
+   SPDLOG_DEBUG("Cumul Policy before: {}", ranges::views::values(istate_data.template storage_element< 3 >()));
    // now we update the current accumulated policy numerator and denominator
    for(auto& [action, avg_policy_prob] :
        fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())) {
       double reach_prob = istate_data.template storage_element< 2 >();
       double l1_weight = exp_l1_weights[std::cref(action)];
       // this is the cumulative enumerator update
-      LOGD2("Cumul Policy Reach prob", reach_prob);
-      LOGD2("Cumul Policy L1 Weight prob", l1_weight);
-      LOGD2("Cumul Policy Current Policy", curr_policy[action]);
-      LOGD2("Cumul Policy numerator update", l1_weight * reach_prob * curr_policy[action]);
+      SPDLOG_DEBUG("Cumul Policy Reach prob: {}", reach_prob);
+      SPDLOG_DEBUG("Cumul Policy L1 Weight prob: {}", l1_weight);
+      SPDLOG_DEBUG("Cumul Policy Current Policy: {}", curr_policy[action]);
+      SPDLOG_DEBUG("Cumul Policy numerator update: {}", l1_weight * reach_prob * curr_policy[action]);
       avg_policy_prob += l1_weight * reach_prob * curr_policy[action];
       // this is the cumulative denominator update
-      LOGD2("Cumul Policy denominator update", l1_weight * reach_prob);
+      SPDLOG_DEBUG("Cumul Policy denominator update: {}", l1_weight * reach_prob);
       istate_data.template storage_element< 3 >(std::cref(action)) += l1_weight * reach_prob;
    }
 
-   LOGD2("Cumul Policy after", ranges::views::values(istate_data.template storage_element< 3 >()));
+   SPDLOG_DEBUG("Cumul Policy after: {}", ranges::views::values(istate_data.template storage_element< 3 >()));
    // here we now perform the actual regret minimizing update step as we update the current
    // policy through a regret matching algorithm. The specific algorihtm is determined by the
    // config we entered to the class

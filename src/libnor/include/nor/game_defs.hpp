@@ -2,6 +2,8 @@
 #ifndef NOR_GAME_DEFS_HPP
 #define NOR_GAME_DEFS_HPP
 
+#include <common/string_utils.hpp>
+
 namespace nor {
 
 enum class Player {
@@ -46,5 +48,6 @@ enum class Stochasticity {
 };
 
 }  // namespace nor
+
 
 #endif  // NOR_GAME_DEFS_HPP
