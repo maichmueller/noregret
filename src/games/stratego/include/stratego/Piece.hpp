@@ -5,12 +5,10 @@
 #include <array>
 #include <random>
 
-#include "aze/game/Defs.h"
-#include "aze/utils/utils.h"
+#include "StrategoDefs.hpp"
 
-namespace aze {
+namespace stratego {
 
-template < typename Position, typename Token >
 class Piece {
    /**
     * A typical Piece class holding the most relevant data to describe a piece.
@@ -20,24 +18,19 @@ class Piece {
     *
     **/
 
-  public:
-   using position_type = Position;
-   using token_type = Token;
-
-  protected:
+  private:
    Team m_team;
-   position_type m_position;
-   token_type m_token;
+   Position2D m_position;
+   Token m_token;
    bool m_hidden{};
 
   public:
-   Piece(Team team, position_type pos, token_type type, bool hidden)
+   Piece(Team team, Position2D pos, Token type, bool hidden)
        : m_team(team), m_position(pos), m_token(type), m_hidden(hidden)
    {
    }
 
-   Piece(Team team, position_type position, token_type type)
-       : Piece(team, position, type, /*hidden=*/true)
+   Piece(Team team, Position2D position, Token type) : Piece(team, position, type, /*hidden=*/true)
    {
    }
 
@@ -50,13 +43,13 @@ class Piece {
 
    void flag_hidden(bool h) { m_hidden = h; }
 
-   void position(position_type p) { m_position = std::move(p); }
+   void position(Position2D p) { m_position = std::move(p); }
 
-   [[nodiscard]] position_type position() const { return m_position; }
+   [[nodiscard]] Position2D position() const { return m_position; }
 
    [[nodiscard]] Team team() const { return m_team; }
 
-   [[nodiscard]] token_type token() const { return m_token; }
+   [[nodiscard]] Token token() const { return m_token; }
 
    [[nodiscard]] bool flag_hidden() const { return m_hidden; }
 
@@ -67,6 +60,6 @@ class Piece {
       return other.position() == m_position && m_token == other.token() && m_team == other.team()
              && m_hidden == other.flag_hidden();
    }
-   bool operator!=(const Piece& other) const { return *this != other; }
+   bool operator!=(const Piece& other) const { return not (*this == other); }
 };
-}  // namespace aze
+}  // namespace stratego

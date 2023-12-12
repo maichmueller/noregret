@@ -60,39 +60,35 @@ inline std::string to_string(const kuhn::ChanceOutcome &value)
    return std::string(kuhn::card_name_bij.at(value.card));
 }
 
-template <>
-struct printable< kuhn::Card >: std::true_type {};
-template <>
-struct printable< kuhn::Action >: std::true_type {};
-template <>
-struct printable< kuhn::Player >: std::true_type {};
-template <>
-struct printable< kuhn::ChanceOutcome >: std::true_type {};
-
 }  // namespace common
 
-// these operator<< definitions are specifically made for gtest which cannot handle the lookup in
-// global namespace without throwing multiple template matching errors.
-namespace kuhn {
+COMMON_ENABLE_PRINT(kuhn, Card);
+COMMON_ENABLE_PRINT(kuhn, Action);
+COMMON_ENABLE_PRINT(kuhn, Player);
+COMMON_ENABLE_PRINT(kuhn, ChanceOutcome);
 
-inline auto &operator<<(std::ostream &os, Player e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, Card e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, ChanceOutcome e)
-{
-   return os << common::to_string(e.card);
-}
-inline auto &operator<<(std::ostream &os, Action e)
-{
-   return os << common::to_string(e);
-}
-
-}  // namespace kuhn
+// // these operator<< definitions are specifically made for gtest which cannot handle the lookup in
+// // global namespace without throwing multiple template matching errors.
+// namespace kuhn {
+//
+// inline auto &operator<<(std::ostream &os, Player e)
+// {
+//    return os << common::to_string(e);
+// }
+// inline auto &operator<<(std::ostream &os, Card e)
+// {
+//    return os << common::to_string(e);
+// }
+// inline auto &operator<<(std::ostream &os, ChanceOutcome e)
+// {
+//    return os << common::to_string(e.card);
+// }
+// inline auto &operator<<(std::ostream &os, Action e)
+// {
+//    return os << common::to_string(e);
+// }
+//
+// }  // namespace kuhn
 
 namespace std {
 

@@ -1,7 +1,9 @@
 
 #include "nor/env/stratego_env.hpp"
+#include <optional>
 
 #include "common/common.hpp"
+#include "stratego/State.hpp"
 #include "stratego/stratego.hpp"
 
 namespace nor::games::stratego {
@@ -211,8 +213,8 @@ nor::games::stratego::Environment::observation_type
 nor::games::stratego::Environment::private_observation(
    nor::Player observer,
    const world_state_type& wstate,
-   const action_type& action,
-   const world_state_type& next_wstate
+   const action_type&  /*action*/,
+   const world_state_type&  /*next_wstate*/
 ) const
 {
    if(wstate.turn_count() == 0) {
@@ -225,7 +227,7 @@ nor::games::stratego::Environment::private_observation(
 
 nor::games::stratego::Environment::observation_type
 nor::games::stratego::Environment::public_observation(
-   const world_state_type& wstate,
+   const world_state_type&  /*wstate*/,
    const action_type& action,
    const world_state_type& next_wstate
 ) const

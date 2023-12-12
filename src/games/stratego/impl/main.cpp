@@ -3,7 +3,7 @@
 #include <memory>
 #include <xtensor/xtensor.hpp>
 
-#include "aze/aze.h"
+
 #include "stratego/Game.hpp"
 #include "stratego/State.hpp"
 
@@ -14,8 +14,8 @@ int main()
    //
    // build the agents to play.
    //
-   auto agent_0 = std::make_shared< aze::RandomAgent< State > >(Team::BLUE);
-   auto agent_1 = std::make_shared< aze::RandomAgent< State > >(Team::RED);
+   auto agent_0 = std::make_shared< RandomAgent< State > >(Team::BLUE);
+   auto agent_1 = std::make_shared< RandomAgent< State > >(Team::RED);
 
    //
    // setup the game

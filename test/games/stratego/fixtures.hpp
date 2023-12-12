@@ -10,7 +10,7 @@ class TinyConfig: public ::testing::Test {
   public:
    using Token = stratego::Token;
    using Team = stratego::Team;
-   using Position = stratego::Position;
+   using Position = stratego::Position2D;
    using Config = stratego::Config;
    using State = stratego::State;
 
@@ -66,7 +66,7 @@ class SmallConfig: public ::testing::Test {
   public:
    using Token = stratego::Token;
    using Team = stratego::Team;
-   using Position = stratego::Position;
+   using Position = stratego::Position2D;
    using Config = stratego::Config;
    using State = stratego::State;
 
@@ -137,7 +137,7 @@ class CheckTerminalParamsF:
        std::array< size_t, 2 >,
        std::map< stratego::Team, std::optional< stratego::Config::setup_t > >,
        std::map< stratego::Team, std::optional< stratego::Config::token_variant_t > >,
-       std::map< stratego::Team, std::optional< std::vector< stratego::Position > > >,
+       std::map< stratego::Team, std::optional< std::vector< stratego::Position2D > > >,
        stratego::Status > > {
   protected:
    stratego::Team starting_team = stratego::Team::BLUE;
@@ -149,7 +149,7 @@ class CheckTerminalParamsF:
 class StateConstructorParamsF:
     public ::testing::TestWithParam< std::tuple<
        std::array< size_t, 2 >,  // game dims
-       std::vector< stratego::Position >,  // holes
+       std::vector< stratego::Position2D >,  // holes
        std::map< stratego::Team, std::optional< stratego::Config::setup_t > >  // setups
        > > {
   protected:

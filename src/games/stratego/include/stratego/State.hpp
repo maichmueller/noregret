@@ -7,23 +7,21 @@
 
 #include "Action.hpp"
 #include "Config.hpp"
+#include "Piece.hpp"
 #include "StrategoDefs.hpp"
-#include "aze/aze.h"
 
 namespace stratego {
 
 class Logic;
 
 class History {
-   using Team = aze::Team;
-
   public:
    auto begin() { return m_history_element.begin(); }
    auto begin() const { return m_history_element.begin(); }
    auto end() { return m_history_element.end(); }
    auto end() const { return m_history_element.end(); }
 
-   [[nodiscard]] inline auto &operator[](size_t turn) const { return m_history_element.at(turn); }
+   [[nodiscard]] auto &operator[](size_t turn) const { return m_history_element.at(turn); }
 
    void commit_action(
       size_t turn,
@@ -86,75 +84,117 @@ class History {
    [[nodiscard]] auto &elements_map() const { return m_history_element; }
 
   private:
-   std::vector< size_t > m_turns;
+   std::vector< size_t > m_turns{};
    std::unordered_map<
       size_t,
       std::tuple< Team, Action, std::pair< Piece, std::optional< Piece > > > >
-      m_history_element;
+      m_history_element{};
 };
 
-class State: public aze::State< Board, History, Piece, Action > {
+class State {
   public:
-   using base_type = aze::State< Board, History, Piece, Action >;
    using graveyard_type = std::map< Team, std::map< Token, unsigned int > >;
 
-   template < typename... Params >
-   State(Config config, graveyard_type graveyard, uptr< Logic > logic, Params &&...params)
-       : base_type(std::forward< Params >(params)...),
-         m_config(std::move(config)),
-         m_graveyard(std::move(graveyard)),
-         m_logic(std::move(logic))
-   {
-   }
+  private:
+   /// the specific configuration of the stratego game belonging to this state
+   Config m_config;
+   /// the board of pieces to play on
+   Board m_board;
+   /// the graveyard of dead pieces
+   graveyard_type m_graveyard;
+   /// the currently used game logic on this state
+   uptr< Logic > m_logic;
 
-   explicit State(
+   Status m_status;
+   bool m_status_checked;
+   size_t m_turn_count;
+
+   History m_move_history;
+
+   common::RNG m_rng;
+
+   bool &status_checked() { return m_status_checked; }
+   void incr_turn_count(size_t amount = 1) { m_turn_count += amount; }
+
+   [[nodiscard]] State *clone_impl() const;
+
+   void _fill_dead_pieces();
+
+  public:
+   State(
       Config config,
-      std::optional< std::variant< size_t, aze::utils::random::RNG > > seed = std::nullopt
+      graveyard_type graveyard,
+      uptr< Logic > logic,
+      Board board,
+      size_t turn_count = 0,
+      const History &history = {},
+      std::optional< std::variant< size_t, common::RNG > > seed = std::nullopt
    );
+
+   explicit
+   State(Config config, std::optional< std::variant< size_t, common::RNG > > seed = std::nullopt);
 
    // definitions for these needs to be in .cpp due to Logic being an incomplete type here and
    // uniq_ptr accessing it in its destructor
    State(const State &);
-   State &operator=(const State &);
-   State(State &&) noexcept;
-   State &operator=(State &&) noexcept;
-   ~State() override;
+   State &operator=(const State &state);
+   State(State &&) noexcept = default;
+   State &operator=(State &&) noexcept = default;
+   ~State() = default;
 
-   void to_graveyard(const std::optional< piece_type > &piece_opt)
+   void transition(const Action &action);
+   Status check_terminal();
+   void restore_to_round(size_t round);
+
+   void undo_last_rounds(size_t n = 1);
+
+   inline auto &rng() { return m_rng; }
+   inline auto &board() { return m_board; }
+
+   [[nodiscard]] auto rng() const { return m_rng; }
+   [[nodiscard]] auto turn_count() const { return m_turn_count; }
+   Status status()
+   {
+      if(m_status_checked) {
+         return m_status;
+      }
+      SPDLOG_DEBUG("Checking terminality.");
+      m_status_checked = true;
+      m_status = check_terminal();
+      return m_status;
+   }
+   [[nodiscard]] auto history() const { return m_move_history; }
+   [[nodiscard]] auto &history() { return m_move_history; }
+   [[nodiscard]] auto board() const { return m_board; }
+
+   void board(Board &&board) { m_board = std::move(board); }
+   Status status(Status status)
+   {
+      m_status = status;
+      m_status_checked = true;
+      return status;
+   }
+   [[nodiscard]] std::string to_string() const;
+   [[nodiscard]] std::string to_string(std::optional< Team > team, bool hide_unknowns)
+      const;
+
+   void to_graveyard(const std::optional< Piece > &piece_opt)
    {
       if(piece_opt.has_value()) {
          m_graveyard[piece_opt.value().team()][piece_opt.value().token()]++;
       }
    }
 
-   void transition(const action_type &action) override;
    void transition(Move move);
-   aze::Status check_terminal() override;
-   [[nodiscard]] Team active_team() const override
+   [[nodiscard]] Team active_team() const
    {
       return Team((turn_count() + static_cast< size_t >(m_config.starting_team)) % 2);
    }
 
-   [[nodiscard]] std::string to_string() const override;
-   [[nodiscard]] std::string to_string(std::optional< Team > team, bool hide_unknowns)
-      const override;
-
-   [[nodiscard]] inline auto &config() const { return m_config; }
-   [[nodiscard]] inline auto *logic() const { return &*m_logic; }
-   [[nodiscard]] inline auto &graveyard() const { return m_graveyard; }
-   [[nodiscard]] inline auto &graveyard(Team team) const { return m_graveyard.at(team); }
-
-  private:
-   /// the specific configuration of the stratego game belonging to this state
-   Config m_config;
-   /// the graveyard of dead pieces
-   graveyard_type m_graveyard;
-   /// the currently used game logic on this state
-   uptr< Logic > m_logic;
-
-   [[nodiscard]] State *clone_impl() const override;
-
-   void _fill_dead_pieces();
+   [[nodiscard]] auto &config() const { return m_config; }
+   [[nodiscard]] auto *logic() const { return &*m_logic; }
+   [[nodiscard]] auto &graveyard() const { return m_graveyard; }
+   [[nodiscard]] auto &graveyard(Team team) const { return m_graveyard.at(team); }
 };
 
 }  // namespace stratego

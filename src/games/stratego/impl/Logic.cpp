@@ -3,14 +3,14 @@
 
 namespace stratego {
 
-aze::Status Logic::check_terminal(State &state)
+Status Logic::check_terminal(State &state)
 {
    if(state.graveyard(Team::BLUE).at(Token::flag) != 0) {
       // flag of team 0 has been captured (killed), therefore team 0 lost
-      return state.status(aze::Status::WIN_RED);
+      return state.status(Status::WIN_RED);
    } else if(state.graveyard(Team::RED).at(Token::flag) != 0) {
       // flag of team 1 has been captured (killed), therefore team 1 lost
-      return state.status(aze::Status::WIN_BLUE);
+      return state.status(Status::WIN_BLUE);
    }
 
    // committing draw rules here
@@ -26,8 +26,8 @@ aze::Status Logic::check_terminal(State &state)
 
    // Rule 2: The maximum turn count has been reached
    if(std::cmp_greater_equal(state.turn_count(), state.config().max_turn_count)) {
-      LOGD2("Turn count on finish: ", state.turn_count());
-      return state.status(aze::Status::TIE);
+      SPDLOG_DEBUG("Turn count on finish: {}", state.turn_count());
+      return state.status(Status::TIE);
    }
    return state.status(Status::ONGOING);
 }
@@ -139,7 +139,7 @@ bool Logic::is_valid(const State &state, const Action &action, std::optional< Te
          int dist = pos_after[1] - pos_before[1];
          int sign = (dist >= 0) ? 1 : -1;
          for(int i = 1; i < std::abs(dist); ++i) {
-            Position pos{pos_before[0], pos_before[1] + sign * i};
+            Position2D pos{pos_before[0], pos_before[1] + sign * i};
             if(board[pos].has_value())
                return false;
          }
@@ -147,7 +147,7 @@ bool Logic::is_valid(const State &state, const Action &action, std::optional< Te
          int dist = pos_after[0] - pos_before[0];
          int sign = (dist >= 0) ? 1 : -1;
          for(int i = 1; i < sign * dist; ++i) {
-            Position pos = {pos_before[0] + sign * i, pos_before[1]};
+            Position2D pos = {pos_before[0] + sign * i, pos_before[1]};
             if(board[pos].has_value())
                return false;
          }
@@ -158,7 +158,7 @@ bool Logic::is_valid(const State &state, const Action &action, std::optional< Te
 }
 std::vector< Action > Logic::valid_actions(const State &state, Team team)
 {
-   LOGD("Checking for valid actions.");
+   SPDLOG_DEBUG("Checking for valid actions.");
    const auto &board = state.board();
    std::vector< Action > actions_possible;
    for(const auto &elem : board) {
@@ -178,7 +178,7 @@ std::vector< Action > Logic::valid_actions(const State &state, Team team)
             }
             ranges::for_each(
                _valid_vectors(pos, board.shape(), token_move_range),
-               [&](const Position &pos_to) {
+               [&](const Position2D &pos_to) {
                   Action action{team, {pos, pos + pos_to}};
                   if(is_valid(state, action, team)) {
                      actions_possible.emplace_back(action);
@@ -202,7 +202,7 @@ bool Logic::has_valid_actions(const State &state, Team team)
             // the position we are dealing with
             auto pos = piece.position();
 
-            //               LOGD2("check for piece", utils::to_string(piece.token()) + " " +
+            //               SPDLOG_DEBUG("check for piece", utils::to_string(piece.token()) + " : {}" +
             //               utils::to_string(piece.team()));
             int token_move_range = 0;
             auto mr_tester = state.config().move_ranges.at(piece.token());
@@ -219,10 +219,10 @@ bool Logic::has_valid_actions(const State &state, Team team)
             //                  [&](const Position &value) -> bool {
             //                     return is_valid(state, Action{pos, pos + value});
             //                  });
-            //               LOGD("We're here again");
+            //               SPDLOG_DEBUG("We're here again");
             if(ranges::any_of(
                   _valid_vectors(pos, board.shape(), token_move_range),
-                  [&](const Position &vector) -> bool {
+                  [&](const Position2D &vector) -> bool {
                      return is_valid(state, Action{team, {pos, pos + vector}}, team);
                   }
                )) {
@@ -234,14 +234,14 @@ bool Logic::has_valid_actions(const State &state, Team team)
    return false;
 }
 
-std::map< Position, Token > stratego::Logic::draw_setup_uniform(
+std::map< Position2D, Token > stratego::Logic::draw_setup_uniform(
    const stratego::Config &config,
    stratego::Board &curr_board,
    stratego::Team team,
-   aze::utils::random::RNG &rng
+   common::RNG &rng
 )
 {
-   std::map< Position, Token > setup_out;
+   std::map< Position2D, Token > setup_out;
 
    auto start_fields = config.start_fields.at(team);
    auto token_counter = config.token_counters.at(team);
@@ -292,9 +292,9 @@ Board Logic::create_empty_board(const Config &config)
    return b;
 }
 
-std::map< Team, std::map< Position, Token > > Logic::extract_setup(const Board &board)
+std::map< Team, std::map< Position2D, Token > > Logic::extract_setup(const Board &board)
 {
-   std::map< Team, std::map< Position, Token > > setup;
+   std::map< Team, std::map< Position2D, Token > > setup;
    for(size_t i = 0; i < board.shape(0); i++) {
       for(size_t j = 0; j < board.shape(1); j++) {
          const auto &piece_opt = board[{i, j}];
@@ -313,7 +313,7 @@ void Logic::place_holes(const Config &cfg, Board &board)
       board[pos] = Piece(Team::NEUTRAL, pos, Token::hole);
    }
 }
-void Logic::place_setup(const std::map< Position, Token > &setup, Board &board, aze::Team team)
+void Logic::place_setup(const std::map< Position2D, Token > &setup, Board &board, Team team)
 {
    for(const auto &[pos, token] : setup) {
       throw_if_out_of_bounds(board, pos);
@@ -329,7 +329,7 @@ void Logic::reset(State &state)
 {
    if(not state.config().fixed_starting_team) {
       Config cfg_copy = state.config();
-      cfg_copy.starting_team = aze::utils::random::choose(
+      cfg_copy.starting_team = common::choose(
          std::array{Team::BLUE, Team::RED}, state.rng()
       );
    }
@@ -343,7 +343,7 @@ bool Logic::is_valid(const State &state, Move move, Team team)
 void Logic::draw_board(
    const Config &config,
    Board &curr_board,
-   const std::map< Team, std::map< Position, Token > > &setups
+   const std::map< Team, std::map< Position2D, Token > > &setups
 )
 {
    for(size_t i = 0; i < 2; i++) {

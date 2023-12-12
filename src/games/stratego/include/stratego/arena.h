@@ -6,7 +6,7 @@
 
 #include "aze/utils/utils.h"
 
-namespace aze::arena {
+namespace arena {
 
 struct StatTrack {
    int wins{0};
@@ -76,7 +76,7 @@ std::tuple< StatTrack, StatTrack > inline pit(
 
    for(int sim = 1; sim < num_sims; ++sim) {
       game.reset();
-      LOGD2("After Reset", game.state()->to_string(false, false));
+      SPDLOG_DEBUG("After Reset: {}", game.state()->to_string(false, false));
       int game_outcome = game.run(show_game);
       if(game_outcome == 1)
          stats0.add_win("flag", game.state()->get_turn_count());
@@ -90,7 +90,7 @@ std::tuple< StatTrack, StatTrack > inline pit(
          stats0.add_draw();
          stats1.add_draw();
       }
-      LOGD2("After game played", game.state()->to_string(false, false));
+      SPDLOG_DEBUG("After game played: {}", game.state()->to_string(false, false));
       if(sim % print_every_n_sim == 0) {
          print_round_results(
             sim, num_sims, *game.get_agent_0(), *game.get_agent_1(), stats0, stats1
@@ -101,4 +101,4 @@ std::tuple< StatTrack, StatTrack > inline pit(
    return std::make_tuple(stats0, stats1);
 }
 
-}  // namespace aze::arena
+}  // namespace arena

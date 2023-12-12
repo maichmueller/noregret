@@ -1,8 +1,8 @@
 #pragma once
 
-namespace aze {
+namespace stratego {
 
 enum class Team;
 enum class Status;
 
-}  // namespace aze
+}  // namespace stratego

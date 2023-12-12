@@ -34,12 +34,10 @@ inline std::string to_string(const rps::Team& value)
    return std::string(rps::team_name_bij.at(value));
 }
 
-template <>
-struct printable< rps::Action >: std::true_type {};
-template <>
-struct printable< rps::Team >: std::true_type {};
-
 }  // namespace common
+
+COMMON_ENABLE_PRINT(rps, Action);
+COMMON_ENABLE_PRINT(rps, Team);
 
 namespace std {
 

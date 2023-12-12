@@ -2,12 +2,13 @@
 
 #include "common/common.hpp"
 #include "stratego/Action.hpp"
+#include "stratego/Piece.hpp"
 
 namespace stratego::utils {
 
-std::string print_board(const Board& board, std::optional< aze::Team > team, bool hide_unknowns)
+std::string print_board(const Board& board, std::optional< Team > team, bool hide_unknowns)
 {
-   using Team = aze::Team;
+   using Team = Team;
 #if defined(_MSC_VER)
    static const std::string VERT_BAR{"|"};
    static const std::string RESET;
@@ -26,9 +27,9 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
    // bar "|"
    int row_ind_space = 4;
    int mid = V_SIZE_PER_PIECE / 2;
-   auto [dim_x, dim_y] = board.shape();
-   const size_t vert_limit = dim_x;
-   const size_t horiz_limit = dim_y;
+   const auto& [dim_x, dim_y] = board.shape();
+   const auto vert_limit = static_cast< int >(dim_x);
+   const auto horiz_limit = static_cast< int >(dim_y);
 
    // piece string lambda function that returns a str of the token
    // "-1 \n
@@ -45,10 +46,10 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
       if(piece.token() == Token::hole) {
 #if defined(_MSC_VER)
          // print hole over field
-         return aze::utils::center("HOLE", H_SIZE_PER_PIECE, " ");
+         return utils::center("HOLE", H_SIZE_PER_PIECE, " ");
 #else
          // piece is a hole -> return a gray colored field
-         return "\x1B[30;47m" + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
+         return "\x1B[30;47m" + common::center("", H_SIZE_PER_PIECE, " ") + RESET;
 #endif
       } else if(piece.team() == Team::RED) {
          color = RED;  // background red, text "white"
@@ -57,7 +58,7 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
       }
       if(line == mid - 1) {
          // hidden info line
-         return color + aze::utils::center(piece.flag_hidden() ? "?" : " ", H_SIZE_PER_PIECE, " ")
+         return color + common::center(piece.flag_hidden() ? "?" : " ", H_SIZE_PER_PIECE, " ")
                 + RESET;
       }
       if(line == mid) {
@@ -68,7 +69,7 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
          }
          const auto& token = piece.token();
          return color
-                + aze::utils::center(
+                + common::center(
                    std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " "
                 )
                 + RESET;
@@ -76,12 +77,12 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
       if(line == mid + 1) {
 #if defined(_MSC_VER)
          // team info line
-         return aze::utils::center(
-            piece.team() == aze::Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " "
+         return common::center(
+            piece.team() == Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " "
          );
 #else
          // for non msvc we have a colored box to work for us
-         return color + aze::utils::center("", H_SIZE_PER_PIECE, " ") + RESET;
+         return color + common::center("", H_SIZE_PER_PIECE, " ") + RESET;
 #endif
       } else {
          // empty line
@@ -93,8 +94,8 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
    board_print << "\n";
 
    std::string init_space = std::string(static_cast< unsigned long >(row_ind_space), ' ');
-   std::string h_border = aze::utils::repeat(
-      VERT_BAR, static_cast< unsigned long >(horiz_limit * (H_SIZE_PER_PIECE + 1) - 1)
+   std::string h_border = common::repeat(
+      VERT_BAR, static_cast< size_t >(horiz_limit * (H_SIZE_PER_PIECE + 1) - 1)
    );
 
    board_print << init_space << VERT_BAR << h_border << VERT_BAR << "\n";
@@ -104,17 +105,17 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
    // row means row of the board. not actual rows of console output.
    // iterate backwards through the rows for correct display
    //   for(int row = static_cast< int >(dim_y - 1); row > -1; --row) {
-   for(int row = static_cast< int >(vert_limit - 1); row > -1; --row) {
+   for(int row = vert_limit - 1; row > -1; --row) {
       // per piece we have V_SIZE_PER_PIECE many lines to fill consecutively.
       // Iterate over every column and append the new segment to the right line.
       std::vector< std::stringstream > line_streams(static_cast< unsigned int >(V_SIZE_PER_PIECE));
 
       for(int col = 0; col < horiz_limit; ++col) {
-         if(team == aze::Team::RED) {
-            //            curr_piece = board(dim_x - 1 - col, dim_y - 1 - row);
-            curr_piece = board(dim_x - 1 - row, dim_y - 1 - col);
+         if(team == Team::RED) {
+            curr_piece = board(
+               static_cast< int >(dim_x) - 1 - row, static_cast< int >(dim_y) - 1 - col
+            );
          } else {
-            //            curr_piece = board(col, row);
             curr_piece = board(row, col);
          }
 
@@ -142,7 +143,7 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
                }
             }
             // extend the current line i by the new information
-            line_streams[i] << curr_stream.str();
+            line_streams[size_t(i)] << curr_stream.str();
          }
       }
       for(auto& stream : line_streams) {
@@ -154,7 +155,7 @@ std::string print_board(const Board& board, std::optional< aze::Team > team, boo
    board_print << std::string(static_cast< unsigned long >(row_ind_space), ' ');
    // print the column index rows
    for(int i = 0; i < horiz_limit; ++i) {
-      board_print << aze::utils::center(std::to_string(i), H_SIZE_PER_PIECE + 1, " ");
+      board_print << common::center(std::to_string(i), H_SIZE_PER_PIECE + 1, " ");
    }
    board_print << "\n";
    return board_print.str();

@@ -8,8 +8,8 @@ using namespace stratego;
 
 TEST(Config, constructor_with_setup)
 {
-   std::map< Position, Token > setup0;
-   std::map< Position, Token > setup1;
+   std::map< Position2D, Token > setup0;
+   std::map< Position2D, Token > setup1;
 
    setup0[{0, 0}] = Token::flag;
    setup0[{0, 1}] = Token::spy;
@@ -68,12 +68,12 @@ TEST(Config, constructor_with_setup)
 
    EXPECT_EQ(
       config.start_fields[Team::BLUE],
-      (std::vector< Position >{
+      (std::vector< Position2D >{
          {0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4}})
    );
    EXPECT_EQ(
       config.start_fields[Team::RED],
-      (std::vector< Position >{
+      (std::vector< Position2D >{
          {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}})
    );
 }
@@ -132,15 +132,15 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST(Config, constructor_custom_dims_with_setup_small)
 {
-   std::map< Position, Token > setup0;
-   std::map< Position, Token > setup1;
+   std::map< Position2D, Token > setup0;
+   std::map< Position2D, Token > setup1;
 
    setup0[{0, 0}] = Token::flag;
    setup0[{1, 1}] = Token::scout;
 
    setup1[{0, 1}] = Token::miner;
    setup1[{1, 0}] = Token::spy;
-   std::vector< Position > hole_pos{{1, 1}};
+   std::vector< Position2D > hole_pos{{1, 1}};
 
    Config config{
       Team::BLUE,
@@ -164,7 +164,7 @@ TEST(Config, constructor_custom_dims_with_setup_small)
       (std::map< Token, unsigned int >{{Token::miner, 1}, {Token::spy, 1}})
    );
 
-   auto pos_comparator = [](const Position& pos1, const Position& pos2) {
+   auto pos_comparator = [](const Position2D& pos1, const Position2D& pos2) {
       if(pos1[0] == pos2[0]) {
          return pos1[1] <= pos2[1];
       } else {
@@ -173,13 +173,13 @@ TEST(Config, constructor_custom_dims_with_setup_small)
    };
    EXPECT_TRUE(cmp_equal_rngs(
       config.start_fields[Team::BLUE],
-      std::vector< Position >{{0, 0}, {1, 1}},
+      std::vector< Position2D >{{0, 0}, {1, 1}},
       pos_comparator,
       pos_comparator
    ));
    EXPECT_TRUE(cmp_equal_rngs(
       config.start_fields[Team::RED],
-      std::vector< Position >{{1, 0}, {0, 1}},
+      std::vector< Position2D >{{1, 0}, {0, 1}},
       pos_comparator,
       pos_comparator
    ));
@@ -187,8 +187,8 @@ TEST(Config, constructor_custom_dims_with_setup_small)
 
 TEST(Config, constructor_custom_dims_with_setup_medium)
 {
-   std::map< Position, Token > setup0;
-   std::map< Position, Token > setup1;
+   std::map< Position2D, Token > setup0;
+   std::map< Position2D, Token > setup1;
 
    setup0[{0, 0}] = Token::flag;
    setup0[{0, 1}] = Token::spy;
@@ -202,7 +202,7 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
    setup1[{3, 3}] = Token::spy;
    setup1[{3, 4}] = Token::marshall;
 
-   std::vector< Position > hole_pos{{1, 1}};
+   std::vector< Position2D > hole_pos{{1, 1}};
 
    Config config{
       Team::BLUE,
@@ -228,7 +228,7 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
       (std::map< Token, unsigned int >{{Token::flag, 1}, {Token::spy, 3}, {Token::marshall, 1}})
    );
 
-   auto pos_comparator = [](const Position& pos1, const Position& pos2) {
+   auto pos_comparator = [](const Position2D& pos1, const Position2D& pos2) {
       if(pos1[0] == pos2[0]) {
          return pos1[1] <= pos2[1];
       } else {
@@ -237,13 +237,13 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
    };
    EXPECT_TRUE(cmp_equal_rngs(
       config.start_fields[Team::BLUE],
-      std::vector< Position >{{0, 0}, {0, 1}, {0, 2}, {1, 3}, {2, 4}},
+      std::vector< Position2D >{{0, 0}, {0, 1}, {0, 2}, {1, 3}, {2, 4}},
       pos_comparator,
       pos_comparator
    ));
    EXPECT_TRUE(cmp_equal_rngs(
       config.start_fields[Team::RED],
-      std::vector< Position >{{3, 0}, {2, 1}, {1, 2}, {3, 3}, {3, 4}},
+      std::vector< Position2D >{{3, 0}, {2, 1}, {1, 2}, {3, 3}, {3, 4}},
       pos_comparator,
       pos_comparator
    ));
@@ -251,17 +251,17 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
 
 TEST(Config, constructor_custom_dims_no_setup)
 {
-   std::vector< Position > pos_blue;
-   pos_blue.emplace_back(Position{0, 0});
-   pos_blue.emplace_back(Position{3, 3});
-   pos_blue.emplace_back(Position{1, 3});
+   std::vector< Position2D > pos_blue;
+   pos_blue.emplace_back(Position2D{0, 0});
+   pos_blue.emplace_back(Position2D{3, 3});
+   pos_blue.emplace_back(Position2D{1, 3});
 
-   std::vector< Position > pos_red;
-   pos_red.emplace_back(Position{1, 2});
-   pos_red.emplace_back(Position{3, 4});
-   pos_red.emplace_back(Position{1, 4});
-   pos_red.emplace_back(Position{3, 1});
-   pos_red.emplace_back(Position{2, 4});
+   std::vector< Position2D > pos_red;
+   pos_red.emplace_back(Position2D{1, 2});
+   pos_red.emplace_back(Position2D{3, 4});
+   pos_red.emplace_back(Position2D{1, 4});
+   pos_red.emplace_back(Position2D{3, 1});
+   pos_red.emplace_back(Position2D{2, 4});
 
    auto start_pos = std::map{
       std::pair{Team::BLUE, std::optional{pos_blue}}, std::pair{Team::RED, std::optional{pos_red}}};
@@ -282,7 +282,7 @@ TEST(Config, constructor_custom_dims_no_setup)
       std::pair{Team::BLUE, std::optional< Config::token_variant_t >{tokens_blue}},
       std::pair{Team::RED, std::optional< Config::token_variant_t >{tokens_red}}};
 
-   std::vector< Position > hole_pos{{1, 1}};
+   std::vector< Position2D > hole_pos{{1, 1}};
 
    Config config{
       Team::BLUE,
@@ -302,7 +302,7 @@ TEST(Config, constructor_custom_dims_no_setup)
       (std::map< Token, unsigned int >{{Token::major, 1}, {Token::lieutenant, 4}})
    );
 
-   auto pos_comparator = [](const Position& pos1, const Position& pos2) {
+   auto pos_comparator = [](const Position2D& pos1, const Position2D& pos2) {
       if(pos1[0] == pos2[0]) {
          return pos1[1] <= pos2[1];
       } else {

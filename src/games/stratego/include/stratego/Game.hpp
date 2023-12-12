@@ -1,17 +1,20 @@
-
 #pragma once
 
+#include <utility>
+#include <memory>
+#include <cstddef>
 #include "Action.hpp"
 #include "Config.hpp"
 #include "State.hpp"
 #include "StrategoDefs.hpp"
-#include "aze/aze.h"
+#include "Agent.h"
+
 
 namespace stratego {
 
 class Game {
   public:
-   using agent_type = aze::Agent< State >;
+   using agent_type = Agent< State >;
    constexpr static size_t n_teams = 2;
 
    Game(State &&state, const sptr< agent_type > &ag0, const sptr< agent_type > &ag1)
@@ -27,7 +30,7 @@ class Game {
    Game &operator=(Game &&) noexcept = default;
    ~Game() = default;
 
-   aze::Status run(const sptr< utils::Plotter< State > > &plotter);
+   Status run(const sptr< utils::Plotter< State > > &plotter);
    void reset();
 
    [[nodiscard]] static constexpr auto nr_players() { return n_teams; }

@@ -7,13 +7,13 @@
 #include "Action.hpp"
 #include "Config.hpp"
 #include "State.hpp"
-#include "aze/aze.h"
+
 
 namespace stratego {
 
 class Logic {
   private:
-   using Team = aze::Team;
+   using Team = Team;
 
    [[nodiscard]] virtual Logic *clone_impl() const;
 
@@ -26,7 +26,7 @@ class Logic {
 
    void apply_action(State &state, const Action &action);
 
-   aze::Status check_terminal(State &state);
+   Status check_terminal(State &state);
 
    bool is_valid(
       const State &state,
@@ -37,7 +37,7 @@ class Logic {
    bool is_valid(const State &state, Move move, Team team_opt);
 
    template < ranges::contiguous_range Range >
-   auto _valid_vectors(Position pos, Range shape, int distance = 1);
+   auto _valid_vectors(Position2D pos, Range shape, int distance = 1);
 
    std::vector< Action > valid_actions(const State &state, Team team);
 
@@ -45,28 +45,28 @@ class Logic {
 
    void reset(State &state);
 
-   static std::map< Position, Token > draw_setup_uniform(
+   static std::map< Position2D, Token > draw_setup_uniform(
       const Config &config,
       Board &curr_board,
       Team team,
-      aze::utils::random::RNG &rng
+      common::RNG &rng
    );
 
    static Board create_empty_board(const Config &config);
 
-   template < std::invocable< const Config &, Board &, Team, aze::utils::random::RNG & >
+   template < std::invocable< const Config &, Board &, Team, common::RNG & >
                  SampleStrategyType >
    void draw_board(
       const Config &config,
       Board &curr_board,
-      aze::utils::random::RNG &rng,
+      common::RNG &rng,
       SampleStrategyType setup_sampler = [](...) { return; }
    );
 
    void draw_board(
       const Config &config,
       Board &curr_board,
-      const std::map< Team, std::map< Position, Token > > &setups
+      const std::map< Team, std::map< Position2D, Token > > &setups
    );
 
    static inline FightOutcome
@@ -80,12 +80,12 @@ class Logic {
       return config.battle_matrix.at(att_def);
    }
 
-   static inline void update_board(Board &board, const Position &new_pos, Piece &piece)
+   static inline void update_board(Board &board, const Position2D &new_pos, Piece &piece)
    {
       piece.position(new_pos);
       board[new_pos] = piece;
    }
-   static inline void update_board(Board &board, const Position &new_pos)
+   static inline void update_board(Board &board, const Position2D &new_pos)
    {
       board[new_pos] = std::nullopt;
    }
@@ -140,14 +140,14 @@ class Logic {
       }
    }
 
-   static void place_setup(const std::map< Position, Token > &setup, Board &board, aze::Team team);
+   static void place_setup(const std::map< Position2D, Token > &setup, Board &board, Team team);
    static void place_holes(const Config &cfg, Board &board);
 
-   static std::map< Team, std::map< Position, Token > > extract_setup(const Board &board);
+   static std::map< Team, std::map< Position2D, Token > > extract_setup(const Board &board);
 };
 
 template < ranges::contiguous_range Range >
-auto Logic::_valid_vectors(Position pos, Range shape, int distance)
+auto Logic::_valid_vectors(Position2D pos, Range shape, int distance)
 {
    int right_end = static_cast< int >(shape[0]) - pos[0];
    int top_end = static_cast< int >(shape[1]) - pos[1];
@@ -170,18 +170,18 @@ auto Logic::_valid_vectors(Position pos, Range shape, int distance)
              )
           )
           | ranges::views::transform([](auto x_y) {
-               //                  LOGD2("In _valid_vectors: ", Position(std::get< 0 >(x_y),
+               //                  SPDLOG_DEBUG("In _valid_vectors: {}", Position(std::get< 0 >(x_y),
                //                  std::get< 1 >(x_y)));
-               return Position(std::get< 0 >(x_y), std::get< 1 >(x_y));
+               return Position2D(std::get< 0 >(x_y), std::get< 1 >(x_y));
             });
 }
 
 template <
-   std::invocable< const Config &, Board &, Team, aze::utils::random::RNG & > SampleStrategyType >
+   std::invocable< const Config &, Board &, Team, common::RNG & > SampleStrategyType >
 void Logic::draw_board(
    const Config &config,
    Board &curr_board,
-   aze::utils::random::RNG &rng,
+   common::RNG &rng,
    SampleStrategyType setup_sampler
 )
 {

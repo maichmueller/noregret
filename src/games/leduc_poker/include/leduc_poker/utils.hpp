@@ -94,18 +94,12 @@ inline std::string to_string(const leduc::Action &value)
    return ss.str();
 }
 
-template <>
-struct printable< leduc::Rank >: std::true_type {};
-template <>
-struct printable< leduc::Suit >: std::true_type {};
-template <>
-struct printable< leduc::Action >: std::true_type {};
-template <>
-struct printable< leduc::ActionType >: std::true_type {};
-template <>
-struct printable< leduc::Player >: std::true_type {};
-template <>
-struct printable< leduc::Card >: std::true_type {};
+COMMON_ENABLE_PRINT(leduc::Rank);
+COMMON_ENABLE_PRINT(leduc::Suit);
+COMMON_ENABLE_PRINT(leduc::Action);
+COMMON_ENABLE_PRINT(leduc::ActionType);
+COMMON_ENABLE_PRINT(leduc::Player);
+COMMON_ENABLE_PRINT(leduc::Card);
 
 }  // namespace common
 

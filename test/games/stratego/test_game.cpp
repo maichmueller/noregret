@@ -18,10 +18,10 @@ TEST_F(StrategoState3x3, run_game_fixed_actions)
    // with a red win.
    Game game{
       std::move(state),
-      std::make_shared< aze::FixedAgent< State > >(
+      std::make_shared< FixedAgent< State > >(
          Team::BLUE, std::vector{Move{{0, 1}, {0, 2}}, Move{{0, 2}, {1, 2}}, Move{{1, 2}, {1, 1}}}
       ),
-      std::make_shared< aze::FixedAgent< State > >(
+      std::make_shared< FixedAgent< State > >(
          Team::RED, std::vector{Move{{2, 1}, {2, 0}}, Move{{2, 0}, {1, 0}}, Move{{1, 0}, {0, 0}}}
       )};
 
@@ -39,7 +39,7 @@ TEST_F(StrategoState5x5, run_game_fixed_actions)
    // win.
    Game game{
       std::move(state),
-      std::make_shared< aze::FixedAgent< State > >(
+      std::make_shared< FixedAgent< State > >(
          Team::BLUE,
          std::vector{
             Move{{1, 1}, {2, 1}}, Move{{1, 4}, {2, 4}}, Move{{2, 1}, {3, 1}}, Move{{3, 1}, {2, 1}},
@@ -55,7 +55,7 @@ TEST_F(StrategoState5x5, run_game_fixed_actions)
             Move{{4, 0}, {4, 1}}, Move{{1, 2}, {0, 2}}, Move{{2, 1}, {1, 1}}, Move{{1, 1}, {1, 2}},
             Move{{0, 2}, {0, 3}}, Move{{0, 3}, {0, 4}}, Move{{0, 4}, {4, 4}}}
       ),
-      std::make_shared< aze::FixedAgent< State > >(
+      std::make_shared< FixedAgent< State > >(
          Team::RED,
          std::vector{
             Move{{3, 0}, {1, 0}}, Move{{3, 1}, {2, 1}}, Move{{3, 4}, {2, 4}}, Move{{4, 0}, {3, 0}},

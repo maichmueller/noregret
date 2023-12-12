@@ -55,7 +55,7 @@ TEST_F(StrategoState5x5, apply_action)
    EXPECT_EQ(piece.token(), Token::marshall);
 
    // move marshall onto enemy bomb -> fight and die
-   auto state_copy = state.clone();
+   auto state_copy = state;
    state.transition({{3, 1}, {3, 2}});
 
    EXPECT_THROW((state.board()[{3, 1}].value()), std::bad_optional_access);
@@ -67,10 +67,10 @@ TEST_F(StrategoState5x5, apply_action)
    // move spy onto enemy marshall -> fight and win
    // since the copy is a pointer to the base class, we now have to provide an action_type and not a
    // stratego move_type.
-   state_copy->transition({Team::RED, {{4, 1}, {3, 1}}});
+   state_copy.transition({Team::RED, {{4, 1}, {3, 1}}});
 
-   EXPECT_THROW((state_copy->board()[{4, 1}].value()), std::bad_optional_access);
-   piece = state_copy->board()[{3, 1}].value();
+   EXPECT_THROW((state_copy.board()[{4, 1}].value()), std::bad_optional_access);
+   piece = state_copy.board()[{3, 1}].value();
    EXPECT_EQ(piece.position(), Position(3, 1));
    EXPECT_EQ(piece.token(), Token::spy);
    EXPECT_EQ(piece.team(), Team::RED);
@@ -102,10 +102,10 @@ TEST_F(StrategoState5x5, valid_action_list)
    for(int i = 0; i < 2; ++i) {
       //      LOGD2(
       //         "Valid actions Team: " + utils::to_string(Team(i)),
-      //         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
+      //         utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
       //      LOGD2(
       //         "Valid actions expected Team: " + utils::to_string(Team(i)),
-      //         aze::utils::VectorPrinter(expected[Team(i)]));
+      //         utils::VectorPrinter(expected[Team(i)]));
 
       EXPECT_EQ(
          eq_rng(to_moves(state.logic()->valid_actions(state, Team(i)))), eq_rng(expected[Team(i)])
@@ -135,10 +135,10 @@ TEST_F(StrategoState5x5, valid_action_list)
    for(int i = 0; i < 2; ++i) {
       //      LOGD2(
       //         "Valid actions Team: " + utils::to_string(Team(i)),
-      //         aze::utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
+      //         utils::VectorPrinter{state.logic()->valid_actions(state, Team(i))});
       //      LOGD2(
       //         "Valid actions expected Team: " + utils::to_string(Team(i)),
-      //         aze::utils::VectorPrinter(expected[Team(i)]));
+      //         utils::VectorPrinter(expected[Team(i)]));
 
       EXPECT_EQ(
          eq_rng(to_moves(state.logic()->valid_actions(state, Team(i)))), eq_rng(expected[Team(i)])
@@ -148,7 +148,7 @@ TEST_F(StrategoState5x5, valid_action_list)
 
 TEST_P(CheckTerminalParamsF, check_terminal)
 {
-   auto hole_pos = std::vector< Position >{Position{2, 2}};
+   auto hole_pos = std::vector< Position2D >{Position2D{2, 2}};
    auto [turn_counter, beginning_team, game_dims, setups, tokens, fields, status] = GetParam();
 
    // proxy state to get the defaults easily instantiated
@@ -188,13 +188,13 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::BLUE,
                        std::optional(Config::setup_t{
-                          std::pair{Position{0, 0}, Token::flag},
-                          std::pair{Position{1, 1}, Token::bomb}})},
+                          std::pair{Position2D{0, 0}, Token::flag},
+                          std::pair{Position2D{1, 1}, Token::bomb}})},
                     std::pair{
                        Team::RED,
                        std::optional(Config::setup_t{
-                          std::pair{Position{3, 3}, Token::flag},
-                          std::pair{Position{3, 4}, Token::spy}})}},
+                          std::pair{Position2D{3, 3}, Token::flag},
+                          std::pair{Position2D{3, 4}, Token::spy}})}},
                  Config::nullarg< "tokens" >(),
                  Config::nullarg< "fields" >(),
                  Status::WIN_RED},
@@ -206,13 +206,13 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::BLUE,
                        std::optional(Config::setup_t{
-                          std::pair{Position{0, 0}, Token::flag},
-                          std::pair{Position{1, 1}, Token::major}})},
+                          std::pair{Position2D{0, 0}, Token::flag},
+                          std::pair{Position2D{1, 1}, Token::major}})},
                     std::pair{
                        Team::RED,
                        std::optional(Config::setup_t{
-                          std::pair{Position{3, 3}, Token::flag},
-                          std::pair{Position{3, 4}, Token::bomb}})}},
+                          std::pair{Position2D{3, 3}, Token::flag},
+                          std::pair{Position2D{3, 4}, Token::bomb}})}},
                  Config::nullarg< "tokens" >(),
                  Config::nullarg< "fields" >(),
                  Status::ONGOING},
@@ -224,13 +224,13 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::BLUE,
                        std::optional(Config::setup_t{
-                          std::pair{Position{0, 0}, Token::flag},
-                          std::pair{Position{1, 1}, Token::major}})},
+                          std::pair{Position2D{0, 0}, Token::flag},
+                          std::pair{Position2D{1, 1}, Token::major}})},
                     std::pair{
                        Team::RED,
                        std::optional(Config::setup_t{
-                          std::pair{Position{3, 3}, Token::flag},
-                          std::pair{Position{3, 4}, Token::bomb}})}},
+                          std::pair{Position2D{3, 3}, Token::flag},
+                          std::pair{Position2D{3, 4}, Token::bomb}})}},
                  Config::nullarg< "tokens" >(),
                  Config::nullarg< "fields" >(),
                  Status::WIN_BLUE},
@@ -242,13 +242,13 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::BLUE,
                        std::optional(Config::setup_t{
-                          std::pair{Position{2, 1}, Token::bomb},
-                          std::pair{Position{0, 2}, Token::flag}})},
+                          std::pair{Position2D{2, 1}, Token::bomb},
+                          std::pair{Position2D{0, 2}, Token::flag}})},
                     std::pair{
                        Team::RED,
                        std::optional(Config::setup_t{
-                          std::pair{Position{3, 3}, Token::flag},
-                          std::pair{Position{3, 2}, Token::bomb}})}},
+                          std::pair{Position2D{3, 3}, Token::flag},
+                          std::pair{Position2D{3, 2}, Token::bomb}})}},
                  Config::nullarg< "tokens" >(),
                  Config::nullarg< "fields" >(),
                  Status::WIN_RED},
@@ -260,13 +260,13 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::BLUE,
                        std::optional(Config::setup_t{
-                          std::pair{Position{2, 1}, Token::bomb},
-                          std::pair{Position{0, 2}, Token::flag}})},
+                          std::pair{Position2D{2, 1}, Token::bomb},
+                          std::pair{Position2D{0, 2}, Token::flag}})},
                     std::pair{
                        Team::RED,
                        std::optional(Config::setup_t{
-                          std::pair{Position{3, 3}, Token::flag},
-                          std::pair{Position{3, 2}, Token::bomb}})}},
+                          std::pair{Position2D{3, 3}, Token::flag},
+                          std::pair{Position2D{3, 2}, Token::bomb}})}},
                  Config::nullarg< "tokens" >(),
                  Config::nullarg< "fields" >(),
                  Status::WIN_BLUE},
@@ -278,13 +278,13 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::BLUE,
                        std::optional(Config::setup_t{
-                          std::pair{Position{2, 1}, Token::spy},
-                          std::pair{Position{0, 4}, Token::flag}})},
+                          std::pair{Position2D{2, 1}, Token::spy},
+                          std::pair{Position2D{0, 4}, Token::flag}})},
                     std::pair{
                        Team::RED,
                        std::optional(Config::setup_t{
-                          std::pair{Position{3, 3}, Token::flag},
-                          std::pair{Position{3, 4}, Token::spy}})}},
+                          std::pair{Position2D{3, 3}, Token::flag},
+                          std::pair{Position2D{3, 4}, Token::spy}})}},
                  Config::nullarg< "tokens" >(),
                  Config::nullarg< "fields" >(),
                  Status::TIE},
@@ -296,20 +296,20 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::BLUE,
                        std::optional(Config::setup_t{
-                          std::pair{Position{2, 1}, Token::scout},
-                          std::pair{Position{0, 4}, Token::bomb}})},
+                          std::pair{Position2D{2, 1}, Token::scout},
+                          std::pair{Position2D{0, 4}, Token::bomb}})},
                     std::pair{
                        Team::RED,
                        std::optional(Config::setup_t{
-                          std::pair{Position{3, 3}, Token::flag},
-                          std::pair{Position{3, 4}, Token::spy}})}},
+                          std::pair{Position2D{3, 3}, Token::flag},
+                          std::pair{Position2D{3, 4}, Token::spy}})}},
                  std::map< Team, std::optional< Config::token_variant_t > >{
                     std::pair{Team::BLUE, std::optional(std::vector{Token::flag})},
                     std::pair{Team::RED, std::nullopt}},
-                 std::map< Team, std::optional< std::vector< Position > > >{
+                 std::map< Team, std::optional< std::vector< Position2D > > >{
                     std::pair{
                        Team::BLUE,
-                       std::optional(std::vector{Position{0, 0}, Position{2, 1}, Position{0, 4}})},
+                       std::optional(std::vector{Position2D{0, 0}, Position2D{2, 1}, Position2D{0, 4}})},
                     std::pair{Team::RED, std::nullopt}},
                  Status::WIN_RED},
       std::tuple{// flag red captured -> win blue
@@ -320,21 +320,21 @@ INSTANTIATE_TEST_SUITE_P(
                     std::pair{
                        Team::BLUE,
                        std::optional(Config::setup_t{
-                          std::pair{Position{2, 1}, Token::scout},
-                          std::pair{Position{0, 4}, Token::flag}})},
+                          std::pair{Position2D{2, 1}, Token::scout},
+                          std::pair{Position2D{0, 4}, Token::flag}})},
                     std::pair{
                        Team::RED,
                        std::optional(Config::setup_t{
-                          std::pair{Position{3, 3}, Token::marshall},
-                          std::pair{Position{3, 4}, Token::spy}})}},
+                          std::pair{Position2D{3, 3}, Token::marshall},
+                          std::pair{Position2D{3, 4}, Token::spy}})}},
                  std::map< Team, std::optional< Config::token_variant_t > >{
                     std::pair{Team::BLUE, std::nullopt},
                     std::pair{Team::RED, std::optional(std::vector{Token::flag})}},
-                 std::map< Team, std::optional< std::vector< Position > > >{
+                 std::map< Team, std::optional< std::vector< Position2D > > >{
                     std::pair{Team::BLUE, std::nullopt},
                     std::pair{
                        Team::RED,
-                       std::optional(std::vector{Position{0, 0}, Position{3, 3}, Position{3, 4}})}},
+                       std::optional(std::vector{Position2D{0, 0}, Position2D{3, 3}, Position2D{3, 4}})}},
                  Status::WIN_BLUE}
    )
 );

@@ -1,26 +1,23 @@
 #pragma once
 
+#include <optional>
 #include <string_view>
 #include <xtensor/xtensor.hpp>
 
-#include "aze/aze.h"
+#include "Position.h"
 
-namespace aze {
+namespace stratego {
 
 // specify exactly what statuses and teams are present in this game
-enum class Status {
+enum class Status : int16_t {
    ONGOING = 404,
    TIE = 0,
    WIN_BLUE = 1,
    WIN_RED = -1,
 };
-enum class Team { BLUE = 0, RED = 1, NEUTRAL = 2 };
+enum class Team : int8_t { BLUE = 0, RED = 1, NEUTRAL = 2 };
 
-}  // namespace aze
-
-namespace stratego {
-
-enum class Token {
+enum class Token : int8_t {
    flag = 0,
    spy = 1,
    scout = 2,
@@ -36,14 +33,13 @@ enum class Token {
    hole = 99
 };
 
-enum DefinedBoardSizes { small = 5, medium = 7, large = 10 };
+enum DefinedBoardSizes : int8_t { small = 5, medium = 7, large = 10 };
 
-using Position = aze::Position< int, 2 >;
-using Piece = aze::Piece< Position, Token >;
+class Piece;
+
+using Position2D = Position< int, 2 >;
 using Board = xt::xtensor< std::optional< Piece >, 2 >;
-using Team = aze::Team;
-using Status = aze::Status;
 
-enum class FightOutcome { death = -1, kill = 1, tie = 0 };
+enum class FightOutcome : int8_t { death = -1, kill = 1, tie = 0 };
 
 }  // namespace stratego

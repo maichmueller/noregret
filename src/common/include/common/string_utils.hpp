@@ -2,14 +2,28 @@
 #ifndef NOR_COMMON_STRING_UTILS_HPP
 #define NOR_COMMON_STRING_UTILS_HPP
 
+#include <fmt/core.h>
+#include <fmt/ostream.h>
+
 #include <array>
+#include <optional>
+#include <ostream>
+#include <sstream>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace common {
 
 template < typename T >
 std::string to_string(const T& value);
+
+template <>
+inline std::string to_string(const ::std::nullopt_t&)
+{
+   return "std::nullopt";
+}
 
 template < typename To >
 To from_string(std::string_view str);
@@ -22,19 +36,46 @@ constexpr bool printable_v = printable< T >::value;
 
 }  // namespace common
 
-template < typename T >
-   requires(::common::printable_v< T >)
-inline auto& operator<<(std::ostream& os, const T& value)
-{
-   return os << common::to_string(value);
-}
+template <>
+struct common::printable< std::nullopt_t >: std::true_type {};
 
-template < typename T >
-   requires(::common::printable_v< T >)
-inline auto& operator<<(std::stringstream& os, const T& value)
-{
-   return os << common::to_string(value);
-}
+// template < typename T >
+//    requires(common::printable_v< T >)
+// auto& operator<<(std::ostream& os, const T& value)
+// {
+//    return os << common::to_string(value);
+// }
+//
+// template < typename T >
+//    requires(common::printable_v< T >)
+// auto& operator<<(std::stringstream& os, const T& value)
+// {
+//    return os << common::to_string(value);
+// }
+
+template < class T >
+   requires(common::printable_v< T >)
+struct fmt::formatter< T >: public fmt::ostream_formatter {};
+
+#ifndef COMMON_ENABLE_PRINT
+   #define COMMON_ENABLE_PRINT(nmspace, type)                        \
+      namespace nmspace {                                            \
+      inline auto& operator<<(std::ostream& ostr, const type& value) \
+      {                                                              \
+         return ostr << ::common::to_string(value);                  \
+      }                                                              \
+      }                                                              \
+      template <>                                                    \
+      struct ::common::printable< nmspace::type >: std::true_type {}
+#endif
+
+/// note that if you get an error here, you might need to include <fmt/ranges.h>
+#ifndef COMMON_NO_RANGE_FORMATTER
+   #define COMMON_NO_RANGE_FORMATTER(type)            \
+      template <>                                     \
+      struct fmt::detail::range_format_kind_< type >: \
+          std::integral_constant< fmt::range_format, fmt::range_format::disabled > {};
+#endif
 
 namespace common {
 

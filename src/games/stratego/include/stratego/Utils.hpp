@@ -1,11 +1,17 @@
 #pragma once
 
+#include <fmt/ranges.h>
+
+#include <concepts>
+#include <optional>
+#include <ostream>
+#include <ranges>
 #include <string>
-#include <xtensor/xtensor.hpp>
+#include <string_view>
+#include <vector>
 
 #include "StrategoDefs.hpp"
-#include "aze/aze.h"
-#include "common/common.hpp"
+#include "common/string_utils.hpp"
 
 namespace stratego::utils {
 
@@ -32,16 +38,18 @@ template < typename T, std::integral IntType >
 std::vector< T > flatten_counter(const std::map< T, IntType > &counter)
 {
    std::vector< T > flattened_vec;
+   flattened_vec.reserve(counter.size());
    for(const auto &[val, count] : counter) {
-      auto to_emplace = std::vector< T >(count, val);
-      std::copy(to_emplace.begin(), to_emplace.end(), std::back_inserter(flattened_vec));
+      for([[maybe_unused]] auto ___ : std::views::iota(static_cast< IntType >(0), count)) {
+         flattened_vec.emplace_back(val);
+      }
    }
    return flattened_vec;
 }
 
 std::string print_board(
    const Board &board,
-   std::optional< aze::Team > team = std::nullopt,
+   std::optional< stratego::Team > team = std::nullopt,
    bool hide_unknowns = false
 );
 
@@ -78,20 +86,15 @@ auto from_string(std::string_view str) -> stratego::Token;
 template <>
 auto from_string(std::string_view str) -> stratego::DefinedBoardSizes;
 
-template <>
-struct printable< stratego::Status >: std::true_type {};
-template <>
-struct printable< stratego::Team >: std::true_type {};
-template <>
-struct printable< stratego::FightOutcome >: std::true_type {};
-template <>
-struct printable< stratego::Token >: std::true_type {};
-template <>
-struct printable< stratego::DefinedBoardSizes >: std::true_type {};
-template <>
-struct printable< stratego::Action >: std::true_type {};
-
 }  // namespace common
+
+COMMON_ENABLE_PRINT(stratego, Status);
+COMMON_ENABLE_PRINT(stratego, Team);
+COMMON_ENABLE_PRINT(stratego, FightOutcome);
+COMMON_ENABLE_PRINT(stratego, Token);
+COMMON_ENABLE_PRINT(stratego, DefinedBoardSizes);
+COMMON_ENABLE_PRINT(stratego, Action);
+COMMON_NO_RANGE_FORMATTER(stratego::Action);
 
 // these operator<< definitions are specifically made for gtest which cannot handle the lookup in
 // global namespace without throwing multiple template matching errors. As such, the printing
@@ -99,29 +102,14 @@ struct printable< stratego::Action >: std::true_type {};
 // this case for Token and FightOutcome and 'aze' for Team and Status). Why isn't clear. The compile
 // error does not occur under the latest GCC trunk, but will occur under gcc 11.1 and 11.2. However,
 // even without compilation error, the output still fails
-namespace stratego {
-
-inline auto &operator<<(std::ostream &os, Token e)
-{
-   os << common::to_string(e);
-   return os;
-}
-inline auto &operator<<(std::ostream &os, FightOutcome e)
-{
-   os << common::to_string(e);
-   return os;
-}
-}  // namespace stratego
-
-namespace aze {
-inline auto &operator<<(std::ostream &os, Status e)
-{
-   os << common::to_string(e);
-   return os;
-}
-inline auto &operator<<(std::ostream &os, Team e)
-{
-   os << common::to_string(e);
-   return os;
-}
-}  // namespace aze
+// namespace stratego {
+//
+// inline auto &operator<<(std::ostream &os, Token e)
+// {
+//    return os << common::to_string(e);
+// }
+// inline auto &operator<<(std::ostream &os, FightOutcome e)
+// {
+//    return os << common::to_string(e);
+// }
+// }  // namespace stratego

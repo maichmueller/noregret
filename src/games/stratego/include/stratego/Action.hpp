@@ -2,12 +2,13 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
+#include <tuple>
 #include <utility>
-#include <vector>
 
 #include "StrategoDefs.hpp"
 #include "Utils.hpp"
-#include "common/common.hpp"
+#include "common/string_utils.hpp"
 
 namespace stratego {
 
@@ -18,7 +19,7 @@ Move operator/(const Number& n, const Move& m);
 
 class Move {
   public:
-   using action_container = std::array< Position, 2 >;
+   using action_container = std::array< Position2D, 2 >;
    using iterator = typename action_container::iterator;
    using const_iterator = typename action_container::const_iterator;
 
@@ -26,10 +27,10 @@ class Move {
    action_container from_to;
 
   public:
-   Move(Position pos_from, Position pos_to) : from_to{std::move(pos_from), std::move(pos_to)} {}
+   Move(Position2D pos_from, Position2D pos_to) : from_to{pos_from, pos_to} {}
 
-   const Position& operator[](unsigned int index) const { return from_to[index]; }
-   Position& operator[](unsigned int index) { return from_to[index]; }
+   const Position2D& operator[](unsigned int index) const { return from_to[index]; }
+   Position2D& operator[](unsigned int index) { return from_to[index]; }
 
    [[nodiscard]] auto inline from() const { return (*this)[0]; }
    [[nodiscard]] auto inline to() const { return (*this)[1]; }
@@ -87,10 +88,12 @@ class Move {
    template < std::size_t Index >
    std::tuple_element_t< Index, ::stratego::Move > get() const
    {
-      if constexpr(Index == 0)
+      if constexpr(Index == 0) {
          return from();
-      if constexpr(Index == 1)
+      }
+      if constexpr(Index == 1) {
          return to();
+      }
    }
 };
 
@@ -103,17 +106,17 @@ Move operator/(const Number& n, const Move& m)
 class Action {
   public:
    using move_type = Move;
-   using iterator = typename Move::iterator;
-   using const_iterator = typename Move::const_iterator;
+   using iterator = Move::iterator;
+   using const_iterator = Move::const_iterator;
 
-   Action(Team team, Move move) : m_team(team), m_move(std::move(move)) {}
+   Action(Team team, Move move) : m_team(team), m_move(move) {}
 
-   const Position& operator[](unsigned int index) const { return m_move[index]; }
-   Position& operator[](unsigned int index) { return m_move[index]; }
+   const Position2D& operator[](unsigned int index) const { return m_move[index]; }
+   Position2D& operator[](unsigned int index) { return m_move[index]; }
 
-   [[nodiscard]] inline auto team() const { return m_team; }
-   [[nodiscard]] inline auto& move() const { return m_move; }
-   inline auto& move() { return m_move; }
+   [[nodiscard]] auto team() const { return m_team; }
+   [[nodiscard]] auto& move() const { return m_move; }
+   auto& move() { return m_move; }
 
    iterator begin() { return m_move.begin(); }
    [[nodiscard]] const_iterator begin() const { return m_move.begin(); }
@@ -124,35 +127,26 @@ class Action {
    {
       return m_team == other.team() and m_move == other.move();
    }
-   bool operator!=(const Action& other) const { return not ((*this) == other); }
 
    [[nodiscard]] auto to_string() const
    {
       return common::to_string(m_team) + ":" + move().to_string();
    }
 
-   friend auto& operator<<(std::ostream& os, const Action& action)
-   {
-      os << action.to_string();
-      return os;
-   }
-   friend auto& operator<<(std::stringstream& os, const Action& action)
-   {
-      os << common::to_string(action.team()) << ":" << action.move().to_string();
-      return os;
-   }
-
    template < std::size_t Index >
-   std::tuple_element_t< Index, ::stratego::Action > get() const
+   std::tuple_element_t< Index, Action > get() const
    {
       static_assert(Index <= 2, "An Action object decomposes into 3 parts.");
 
-      if constexpr(Index == 0)
+      if constexpr(Index == 0UL) {
          return m_team;
-      if constexpr(Index == 1)
+      }
+      if constexpr(Index == 1UL) {
          return m_move.from();
-      if constexpr(Index == 2)
+      }
+      if constexpr(Index == 2UL) {
          return m_move.to();
+      }
    }
 
   private:
@@ -169,12 +163,12 @@ struct tuple_size< ::stratego::Move >: integral_constant< size_t, 2 > {};
 
 template <>
 struct tuple_element< 0, ::stratego::Move > {
-   using type = ::stratego::Position;
+   using type = ::stratego::Position2D;
 };
 
 template <>
 struct tuple_element< 1, ::stratego::Move > {
-   using type = ::stratego::Position;
+   using type = ::stratego::Position2D;
 };
 
 template <>
@@ -187,17 +181,17 @@ struct tuple_element< 0, ::stratego::Action > {
 
 template <>
 struct tuple_element< 1, ::stratego::Action > {
-   using type = ::stratego::Position;
+   using type = ::stratego::Position2D;
 };
 
 template <>
 struct tuple_element< 2, ::stratego::Action > {
-   using type = ::stratego::Position;
+   using type = ::stratego::Position2D;
 };
 
 template <>
 struct hash< stratego::Move > {
-   size_t operator()(const stratego::Move& move) const
+   size_t operator()(const stratego::Move& move) const noexcept
    {
       std::stringstream ss;
       for(const auto& pos : move) {
@@ -211,7 +205,7 @@ struct hash< stratego::Move > {
 
 template <>
 struct hash< stratego::Action > {
-   size_t operator()(const stratego::Action& action) const
+   size_t operator()(const stratego::Action& action) const noexcept
    {
       std::stringstream ss;
       ss << action.team() << "\n";
