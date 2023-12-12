@@ -1,22 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
+# required dependencies for the games:
+find_package(xtensor REQUIRED)
+
+
 # ######################################################################################################################
 # Stratego
 # ######################################################################################################################
-find_package(xtensor REQUIRED)
-
-add_library(stratego_core INTERFACE)
-
-set(STRATEGO_CORE_INCLUDE_DIR ${PROJECT_GAMES_DIR}/stratego/include/stratego/core/include)
-
-target_include_directories(stratego_core INTERFACE ${STRATEGO_CORE_INCLUDE_DIR})
-
-target_link_libraries(
-        stratego_core
-        INTERFACE
-        project_options
-        xtensor
-)
 
 set(STRATEGO_SOURCES
         Game.cpp
@@ -29,14 +19,19 @@ list(TRANSFORM STRATEGO_SOURCES PREPEND "${PROJECT_GAMES_DIR}/stratego/impl/")
 
 add_library(stratego SHARED ${STRATEGO_SOURCES})
 
-target_include_directories(stratego PUBLIC ${PROJECT_GAMES_DIR}/stratego/include)
+target_include_directories(
+        stratego
+        PUBLIC
+        ${PROJECT_GAMES_DIR}/stratego/include
+        ${PROJECT_GAMES_DIR}/stratego/include/stratego/core/include
+)
 
 target_link_libraries(
         stratego
         PUBLIC
-        project_options
+        required_min_libs
         common
-        stratego_core
+        xtensor
         range-v3::range-v3
         namedtype::namedtype
 )
@@ -53,7 +48,13 @@ add_library(leduc_poker SHARED ${KUHNPOKER_SOURCES})
 
 target_include_directories(leduc_poker PUBLIC ${PROJECT_GAMES_DIR}/leduc_poker/include)
 
-target_link_libraries(leduc_poker PUBLIC project_options common range-v3::range-v3)
+target_link_libraries(
+        leduc_poker
+        PUBLIC
+        required_min_libs
+        common
+        range-v3::range-v3
+)
 
 # ######################################################################################################################
 # Kuhn Poker
@@ -67,7 +68,13 @@ add_library(kuhn_poker SHARED ${KUHNPOKER_SOURCES})
 
 target_include_directories(kuhn_poker PUBLIC ${PROJECT_GAMES_DIR}/kuhn_poker/include)
 
-target_link_libraries(kuhn_poker PUBLIC project_options common range-v3::range-v3)
+target_link_libraries(
+        kuhn_poker
+        PUBLIC
+        required_min_libs
+        common
+        range-v3::range-v3
+)
 
 # ######################################################################################################################
 # Rock Paper Scissors
@@ -81,4 +88,9 @@ add_library(rock_paper_scissors SHARED ${ROCKPAPERSCISSORS_SOURCES})
 
 target_include_directories(rock_paper_scissors PUBLIC ${PROJECT_GAMES_DIR}/rock_paper_scissors/include)
 
-target_link_libraries(rock_paper_scissors PUBLIC project_options common)
+target_link_libraries(
+        rock_paper_scissors
+        PUBLIC
+        required_min_libs
+        common
+)

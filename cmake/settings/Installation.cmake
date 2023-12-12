@@ -56,7 +56,7 @@ else()
     install(TARGETS project_options EXPORT ${PROJECT_NAME_LOWERCASE}Options)
     install(TARGETS project_warnings EXPORT ${PROJECT_NAME_LOWERCASE}Warnings)
     install(
-        TARGETS ${nor_lib} common
+        TARGETS ${nor_lib} common required_min_libs
         EXPORT ${PROJECT_NAME_LOWERCASE}Targets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime
         BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime

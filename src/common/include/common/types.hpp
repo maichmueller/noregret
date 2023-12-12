@@ -12,10 +12,20 @@
 namespace common {
 
 /// is_specialization checks whether T is a specialized template class of 'Template'
-/// This has the limitation of not working with non-type parameters, i.e. templates such as
-/// std::array will not be compatible with this type trait
+/// This has the limitation of
 /// usage:
 ///     constexpr bool is_vector = is_specialization< std::vector< int >, std::vector>;
+///
+/// Note that this trait has 2 limitations:
+///  1) Does not work with non-type parameters.
+///     (i.e. templates such as std::array will not be compatible with this type trait)
+///  2) Generally, templated typedefs do not get captured as the underlying template but as the
+///     typedef template. As such the following scenarios will return:
+///          specialization<uptr<int>, uptr> << std::endl;            -> false
+///          specialization<std::unique_ptr<int>, uptr>;              -> false
+///          specialization<std::unique_ptr<int>, std::unique_ptr>;   -> true
+///          specialization<uptr<int>, std::unique_ptr>;              -> true
+///     for a typedef template template <typename T> using uptr = std::unique_ptr< T >;
 template < class T, template < class... > class Template >
 struct is_specialization: std::false_type {};
 
@@ -334,17 +344,17 @@ struct ref_wrapper_comparator {
 namespace detail {
 
 template < typename T, typename U >
-concept pointer_like = requires(T t) {
+concept pointer_like_to = requires(T t) {
    *t;
    requires std::same_as< U, std::remove_cvref_t< decltype(*t) > >;
 };
 
-}
+}  // namespace detail
 
 template < size_t N >
 struct nth_proj {
    template < typename T >
-   constexpr decltype(auto) operator()(const T& t) const noexcept
+   constexpr decltype(auto) operator()(const T & t) const noexcept
    {
       return std::get< N >(t);
    }
@@ -353,7 +363,7 @@ struct nth_proj {
 template < size_t N >
 struct nth_proj_hash {
    template < typename T >
-   constexpr decltype(auto) operator()(const T& t) const noexcept
+   constexpr decltype(auto) operator()(const T & t) const noexcept
    {
       return std::hash< std::tuple_element_t< N, T > >{}(std::get< N >(t));
    }
@@ -376,7 +386,7 @@ struct nth_proj_comparator {
                and convertible_to< FixedType, std::tuple_element_t< N, U > >,
             std::true_type,
             std::false_type > >::value
-   constexpr decltype(auto) operator()(const T& t, const U& u) const noexcept
+   constexpr decltype(auto) operator()(const T & t, const U & u) const noexcept
    {
       if constexpr(std::is_void_v< FixedType >) {
          return std::equal_to<  //clang-format off
@@ -398,7 +408,7 @@ struct nth_proj_comparator {
             convertible_to< FixedType, std::tuple_element_t< N, T > >,
             std::true_type,
             std::false_type > >::value
-   constexpr decltype(auto) operator()(const T& t, const std::tuple_element_t< N, T >& u)
+   constexpr decltype(auto) operator()(const T & t, const std::tuple_element_t< N, T >& u)
       const noexcept
    {
       if constexpr(std::is_void_v< FixedType >) {
@@ -408,22 +418,23 @@ struct nth_proj_comparator {
       }
    }
    template < typename T >
-   constexpr decltype(auto) operator()(const std::tuple_element_t< N, T >& u, const T& t)
+   constexpr decltype(auto) operator()(const std::tuple_element_t< N, T >& u, const T & t)
       const noexcept
    {
       return operator()(t, u);
    }
 };
 
-template < typename T, typename Hasher = std::hash< std::remove_cvref_t< T > > >
+template < typename T, typename Hasher = std::hash< T > >
 struct value_hasher {
    // allow for heterogenous lookup
    using is_transparent = std::true_type;
 
-   auto operator()(std::reference_wrapper< T > ref) const noexcept { return Hasher{}(ref.get()); }
-   auto operator()(const detail::pointer_like< T > auto& ptr) const noexcept
+   auto operator()(std::reference_wrapper< T > ref) const noexcept { return Hasher{}(ref); }
+   auto operator()(std::reference_wrapper< const T > ref) const noexcept { return Hasher{}(ref); }
+   auto operator()(const detail::pointer_like_to< T > auto& ptr_like) const noexcept
    {
-      return Hasher{}(*ptr);
+      return Hasher{}(*ptr_like);
    }
    template < typename U >
    auto operator()(const U& u) const noexcept
@@ -440,8 +451,9 @@ struct std_hasher: public std_hasher< Ts... >, public std_hasher< T > {
 };
 
 template < typename T >
-struct std_hasher< T > {
-   size_t operator()(const T& t) const { return std::hash< T >{}(t); }
+struct std_hasher< T >: std::hash< T > {
+   using std::hash< T >::operator();
+   //   size_t operator()(const T& t) const noexcept { return std::hash< T >{}(t); }
 };
 
 template < typename T >
@@ -451,9 +463,10 @@ struct variant_hasher;
 ///
 /// Each individual type T is hashable by their own std::hash< T > class without prior conversion to
 /// the variant type. However, this does necessiate a disambiguation for types that are implicitly
-/// convertible to a T of the variant type. E.g. the call variant_hasher< std::variant< int,
-/// std::string >>{}("Char String") would be ambiguous now and would have to be disambiguated by
-/// wrapping the character stiring in std::string("Char String") or variant_type("Char String")
+/// convertible to a T of the variant type. E.g. the call
+///     variant_hasher< std::variant< int, std::string >>{}("Char String")
+/// would be ambiguous now and would have to be disambiguated by wrapping the character string in
+/// std::string("Char String") or variant_type("Char String")
 ///
 /// \tparam Ts, the variant types
 template < typename... Ts >
@@ -463,10 +476,10 @@ struct variant_hasher< std::variant< Ts... > >: public std_hasher< Ts... > {
    using is_transparent = std::true_type;
 
    // hashing of the actual variant type
-   auto operator()(const std::variant< Ts... >& variant) const
+   auto operator()(const std::variant< Ts... >& variant) const noexcept
    {
       return std::visit(
-         []< typename VarType >(const VarType& var_element) {
+         []< typename VarType >(const VarType& var_element) noexcept {
             return std::hash< VarType >{}(var_element);
          },
          variant
@@ -474,6 +487,7 @@ struct variant_hasher< std::variant< Ts... > >: public std_hasher< Ts... > {
    }
    // hashing of the individual variant types by their own std hash functions
    using std_hasher< Ts... >::operator();
+   //   using std::hash< Ts >::operator()...;
 };
 
 template < typename T, typename comparator = std::equal_to< T > >
@@ -483,8 +497,8 @@ struct value_comparator {
    using is_transparent = std::true_type;
 
    auto operator()(
-      const detail::pointer_like< T > auto& ptr1,
-      const detail::pointer_like< T > auto& ptr2
+      const detail::pointer_like_to< T > auto& ptr1,
+      const detail::pointer_like_to< T > auto& ptr2
    ) const noexcept
    {
       return comparator{}(*ptr1, *ptr2);
@@ -496,22 +510,22 @@ struct value_comparator {
    }
    auto operator()(const T& t1, const T& t2) const { return t1 == t2; }
 
-   auto operator()(const detail::pointer_like< T > auto& ptr1, std::reference_wrapper< T > ref2)
+   auto operator()(const detail::pointer_like_to< T > auto& ptr1, std::reference_wrapper< T > ref2)
       const noexcept
    {
       return comparator{}(*ptr1, ref2);
    }
-   auto operator()(std::reference_wrapper< T > t1, const detail::pointer_like< T > auto& ptr2)
+   auto operator()(std::reference_wrapper< T > t1, const detail::pointer_like_to< T > auto& ptr2)
       const noexcept
    {
       return comparator{}(t1.get(), *ptr2);
    }
 
-   auto operator()(const detail::pointer_like< T > auto& ptr1, const T& t2) const noexcept
+   auto operator()(const detail::pointer_like_to< T > auto& ptr1, const T& t2) const noexcept
    {
       return comparator{}(*ptr1, t2);
    }
-   auto operator()(const T& t1, const detail::pointer_like< T > auto& ptr2) const noexcept
+   auto operator()(const T& t1, const detail::pointer_like_to< T > auto& ptr2) const noexcept
    {
       return comparator{}(t1, *ptr2);
    }
@@ -543,50 +557,6 @@ struct StringLiteral {
    char value[N];
 };
 
-template < typename T >
-   requires requires(T t) { std::cout << t; }
-struct VectorPrinter {
-   const std::vector< T >& value;
-   std::string_view delimiter;
-
-   VectorPrinter(const std::vector< T >& vec, const std::string& delim = std::string(", "))
-       : value(vec), delimiter(delim)
-   {
-   }
-
-   friend auto& operator<<(std::ostream& os, const VectorPrinter& printer)
-   {
-      os << "[";
-      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
-         os << printer.value[i] << printer.delimiter;
-      }
-      os << printer.value.back() << "]";
-      return os;
-   }
-};
-
-template < typename T >
-   requires requires(T t) { std::cout << t; }
-struct SpanPrinter {
-   ranges::span< T > value;
-   std::string_view delimiter;
-
-   SpanPrinter(ranges::span< T > vec, const std::string& delim = std::string(", "))
-       : value(vec), delimiter(delim)
-   {
-   }
-
-   friend auto& operator<<(std::ostream& os, const SpanPrinter& printer)
-   {
-      os << "[";
-      for(unsigned int i = 0; i < printer.value.size() - 1; ++i) {
-         os << printer.value[i] << printer.delimiter;
-      }
-      os << printer.value.back() << "]";
-      return os;
-   }
-};
-
 template < typename... Ts >
 struct Overload: Ts... {
    using Ts::operator()...;
@@ -611,7 +581,7 @@ struct monostate_error_visitor {
       if constexpr(std::is_void_v< ReturnType >) {
          return;
       } else {
-         return {};
+         return ReturnType{};
       }
    }
 };
@@ -624,7 +594,8 @@ auto make_overload_with_monostate(Ts... ts)
          decltype([] { return std::visit< Overload< Ts... >, TargetVariant >; }),
          Overload< Ts... >,
          TargetVariant > >{},
-      ts...};
+      ts...
+   };
 }
 
 /// logical XOR of the conditions (using fold expressions and bitwise xor)
@@ -675,6 +646,32 @@ template < class T, class... Ts >
 struct all_same: ::std::conjunction< ::std::is_same< T, Ts >... > {};
 template < class T, class... Ts >
 inline constexpr bool all_same_v = all_same< T, Ts... >::value;
+
+// Define a case for the switch trait
+// Cond is the condition for the case to take effect, type is the effect (the type this case uses)
+template < bool Cond, typename T >
+struct case_ {
+   static constexpr bool condition = Cond;
+   using type = T;
+};
+
+// Switch type trait
+template < typename... Cases >
+struct switch_;
+
+template < typename... Cases >
+using switch_t = typename switch_< Cases... >::type;
+
+template <>
+struct switch_<> {
+   using type = void;
+};
+
+template < typename Case, typename... Cases >
+struct switch_< Case, Cases... > {
+   using type = std::
+      conditional_t< Case::condition, typename Case::type, typename switch_< Cases... >::type >;
+};
 
 template < typename Key, typename Value, std::size_t Size >
 struct CEMap {
@@ -732,6 +729,33 @@ class not_pred {
 };
 
 template < typename T >
+struct inferred_iter_value_type {
+   using type = std::remove_cvref_t< decltype(*(ranges::begin(std::declval< T& >()))) >;
+};
+
+template < typename T >
+using inferred_iter_value_type_t = typename inferred_iter_value_type< T >::type;
+
+template < typename T >
+struct inferred_iter_first_value_type {
+   using type = std::remove_cvref_t< decltype(ranges::begin(std::declval< T& >())->first) >;
+};
+
+template < typename T >
+using inferred_iter_first_value_type_t = typename inferred_iter_first_value_type< T >::type;
+
+template < typename T >
+struct inferred_iter_second_value_type {
+   using type = std::remove_cvref_t< decltype(ranges::begin(std::declval< T& >())->second) >;
+};
+
+template < typename T >
+using inferred_iter_second_value_type_t = typename inferred_iter_second_value_type< T >::type;
+
+template < class... >
+inline constexpr bool always_false_v = false;
+
+template < typename T >
 decltype(auto) deref(T&& t)
 {
    return std::forward< T >(t);
@@ -778,10 +802,12 @@ class deref_view: public ranges::view_base {
 template < ranges::range Range >
 struct deref_view< Range >::iterator: ranges::iterator_t< Range > {
    using base = ranges::iterator_t< Range >;
+   using value_type = std::remove_cvref_t< decltype(deref(*(std::declval< Range >().begin()))) >;
+   using difference_type = ranges::range_difference_t< Range >;
 
    iterator() = default;
 
-   iterator(base const& b) : base{b} {}
+   iterator(const base& b) : base{b} {}
 
    iterator operator++(int) { return static_cast< base& >(*this)++; }
 
@@ -818,4 +844,5 @@ namespace ranges::views {
 constexpr ::common::deref_fn deref{};
 
 }  // namespace ranges::views
+
 #endif  // NOR_COMMON_TYPES_HPP

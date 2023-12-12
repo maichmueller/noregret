@@ -37,9 +37,6 @@ struct hash< nor::utils::hashable_empty > {
 
 namespace nor::utils {
 
-template < class >
-inline constexpr bool always_false_v = false;
-
 template < bool condition, typename T >
 inline std::conditional_t< condition, T&&, T& > move_if(T& obj)
 {
@@ -70,7 +67,7 @@ auto clone_any_way(const T& obj)
    } else if constexpr(std::is_copy_constructible_v< T >) {
       return std::make_unique< T >(obj);
    } else {
-      static_assert(always_false_v< T >, "No cloning/copying method available in given type.");
+      static_assert(common::always_false_v< T >, "No cloning/copying method available in given type.");
    }
 }
 
@@ -230,17 +227,16 @@ inline std::string to_string(const nor::Stochasticity& e)
 }
 
 template <>
-struct printable< nor::Player >: std::true_type {};
-template <>
-struct printable< nor::Stochasticity >: std::true_type {};
-
-template <>
 inline nor::Player from_string< nor::Player >(std::string_view str)
 {
    return nor::utils::player_name_bij.at(str);
 }
 
 }  // namespace common
+
+
+COMMON_ENABLE_PRINT(nor, Player);
+COMMON_ENABLE_PRINT(nor, Stochasticity);
 
 template < nor::concepts::is::enum_ Enum, typename T >
    requires nor::concepts::is::any_of< Enum, nor::Player, nor::Stochasticity >
@@ -254,21 +250,21 @@ inline std::string operator+(Enum e, const T& other)
 {
    return common::to_string(e) + std::string_view(other);
 }
-
+//
 namespace nor {
 
-// Thse are the GTest fixes to suppress their printer errors which cannot lookup the defintions
-// inside nor for some reason
-inline auto& operator<<(std::ostream& os, nor::Player e)
-{
-   os << common::to_string(e);
-   return os;
-}
-inline auto& operator<<(std::ostream& os, nor::Stochasticity e)
-{
-   os << common::to_string(e);
-   return os;
-}
+// // Thse are the GTest fixes to suppress their printer errors which cannot lookup the defintions
+// // inside nor for some reason
+// inline auto& operator<<(std::ostream& os, nor::Player e)
+// {
+//    os << common::to_string(e);
+//    return os;
+// }
+// inline auto& operator<<(std::ostream& os, nor::Stochasticity e)
+// {
+//    os << common::to_string(e);
+//    return os;
+// }
 
 #ifndef NEW_EMPTY_TYPE
    #define NEW_EMPTY_TYPE decltype([]() {})

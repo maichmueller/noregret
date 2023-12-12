@@ -73,7 +73,7 @@ function(
 
     target_link_libraries(${target_name} PRIVATE shared_test_libs ${lib_name})
 
-    add_dependencies(game_test_targets_all ${target_name})
+    add_dependencies(game_test_all ${target_name})
 
     add_test(NAME Test_${target_name} COMMAND ${target_name})
 endfunction()

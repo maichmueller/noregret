@@ -1,4 +1,4 @@
-Checks: '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-llvm-*,-llvmlibc-*,-modernize-use-trailing-return-type,-altera-struct-pack-align,-altera-unroll-loops'
+Checks: '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-llvm-*,-llvmlibc-*,-modernize-use-trailing-return-type,-altera-struct-pack-align,-altera-unroll-loops,-altera-id-dependent-backward-branch,-misc-include-cleaner'
 WarningsAsErrors: '*'
 HeaderFilterRegex: ''
 FormatStyle: none

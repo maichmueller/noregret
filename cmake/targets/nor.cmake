@@ -4,10 +4,14 @@
 
 add_library(common INTERFACE)
 
-target_include_directories(common INTERFACE $<BUILD_INTERFACE:${PROJECT_COMMON_INCLUDE_DIR}>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_include_directories(
+        common
+        INTERFACE
+        $<BUILD_INTERFACE:${PROJECT_COMMON_INCLUDE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 
-target_link_libraries(common INTERFACE project_options range-v3::range-v3)
+target_link_libraries(common INTERFACE ${required_min_libs} range-v3::range-v3)
 
 # ######################################################################################################################
 # NOR                 ###
@@ -20,7 +24,8 @@ target_include_directories(${nor_lib} INTERFACE $<BUILD_INTERFACE:${PROJECT_NOR_
 
 target_link_libraries(
         ${nor_lib}
-        INTERFACE project_options
+        INTERFACE
+        required_min_libs
         common
         range-v3::range-v3
         namedtype::namedtype
@@ -43,7 +48,8 @@ if (ENABLE_GAMES)
 
     target_link_libraries(
             ${nor_lib}_envs
-            PUBLIC ${nor_lib}
+            PUBLIC
+            ${nor_lib}
             project_options
             stratego
             kuhn_poker

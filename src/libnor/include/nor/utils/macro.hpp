@@ -102,7 +102,7 @@
    #define override
    #define final
    #warning \
-      "Keyword override and final are not defined by your compiler. This may lead to wrong result when using PER_API. Please change your compiler to a supported compiler!"
+      "Keyword override and final are not defined by your compiler. This may lead to wrong result when using NOR_API. Please change your compiler to a supported compiler!"
 #endif
 
 #if defined(__gnu_linux__) || defined(__linux__)
@@ -122,31 +122,31 @@
 
 #if(OS == LINUX || OS == MAC) && COMPILER_VERSION >= 4000 \
    && (COMPILER == ICC_COMPILER || COMPILER == GCC_COMPILER)
-   #ifndef PER_EXPORT
-      #define PER_EXPORT __attribute__((visibility("default")))
+   #ifndef NOR_EXPORT
+      #define NOR_EXPORT __attribute__((visibility("default")))
    #endif
-   #ifndef PER_IMPORT
-      #define PER_IMPORT __attribute__((visibility("default")))
+   #ifndef NOR_IMPORT
+      #define NOR_IMPORT __attribute__((visibility("default")))
    #endif
-   #ifndef PER_LOCAL
-      #define PER_LOCAL __attribute__((visibility("hidden")))
+   #ifndef NOR_LOCAL
+      #define NOR_LOCAL __attribute__((visibility("hidden")))
    #endif
 #elif(OS == WINDOWS)
-   #define PER_EXPORT __declspec(dllexport)
-   #define PER_IMPORT __declspec(dllimport)
-   #define PER_LOCAL
+   #define NOR_EXPORT __declspec(dllexport)
+   #define NOR_IMPORT __declspec(dllimport)
+   #define NOR_LOCAL
 #else
-   #define PER_EXPORT
-   #define PER_IMPORT
-   #define PER_LOCAL
+   #define NOR_EXPORT
+   #define NOR_IMPORT
+   #define NOR_LOCALR
 #endif
 
-#if ! defined(PER_BUILD_STATIC) && ! defined(PER_IMPORT_LIBRARY)
-   #define PER_API PER_EXPORT
-#elif defined(PER_IMPORT_LIBRARY)
-   #define PER_API PER_IMPORT
+#if ! defined(NOR_BUILD_STATIC) && ! defined(NOR_IMPORT_LIBRARY)
+   #define NOR_API NOR_EXPORT
+#elif defined(NOR_IMPORT_LIBRARY)
+   #define NOR_API NOR_IMPORT
 #else
-   #define PER_API
+   #define NOR_API
 #endif
 
 #if defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || defined(_M_AMD64) \
