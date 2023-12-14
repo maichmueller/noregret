@@ -7,7 +7,6 @@
 #include "nor/fosg_states.hpp"
 #include "nor/fosg_traits.hpp"
 #include "nor/game_defs.hpp"
-#include "nor/utils/utils.hpp"
 #include "rock_paper_scissors/rock_paper_scissors.hpp"
 
 namespace nor::games::rps {
@@ -46,6 +45,7 @@ class Environment {
    using action_type = Action;
    using observation_type = Observation;
    using chance_outcome_type = std::monostate;
+   using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
    // nor fosg traits
    static constexpr size_t max_player_count() { return 2; }
    static constexpr size_t player_count() { return 2; }
@@ -53,11 +53,20 @@ class Environment {
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
+  private:
+   using action_holder = ActionHolder< action_type >;
+   using chance_outcome_holder = ChanceOutcomeHolder< chance_outcome_type >;
+   using observation_holder = ObservationHolder< observation_type >;
+   using info_state_holder = InfostateHolder< info_state_type >;
+   using public_state_holder = PublicstateHolder< public_state_type >;
+   using world_state_holder = WorldstateHolder< world_state_type >;
+
+  public:
    Environment() = default;
 
-   std::vector< action_type > actions(Player, const world_state_type&) const
+   std::vector< ActionHolder< action_type > > actions(Player, const world_state_type&) const
    {
-      std::vector< action_type > valid_actions;
+      std::vector< ActionHolder< action_type > > valid_actions;
       valid_actions.reserve(3);
       for(auto hand : {Action::paper, Action::rock, Action::scissors}) {
          valid_actions.emplace_back(hand);
@@ -65,35 +74,35 @@ class Environment {
       return valid_actions;
    }
 
-   std::vector<
-      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
+   std::vector< PlayerInformedType< std::optional< action_variant_type > > >
    private_history(Player player, const world_state_type& wstate) const;
 
-   std::vector<
-      PlayerInformedType< std::optional< std::variant< chance_outcome_type, action_type > > > >
-   public_history(const world_state_type& wstate) const;
+   std::vector< PlayerInformedType< std::optional< action_variant_type > > > public_history(
+      const world_state_type& wstate
+   ) const;
 
-   std::vector< PlayerInformedType< std::variant< chance_outcome_type, action_type > > >
-   open_history(const world_state_type& wstate) const;
+   std::vector< PlayerInformedType< action_variant_type > > open_history(
+      const world_state_type& wstate
+   ) const;
 
    static inline std::vector< Player > players(const world_state_type&)
    {
       return {Player::alex, Player::bob};
    }
    Player active_player(const world_state_type& wstate) const;
-   static bool is_terminal(world_state_type& wstate);
+   static bool is_terminal(const world_state_type& wstate);
    static constexpr bool is_partaking(const world_state_type&, Player) { return true; }
-   static double reward(Player player, world_state_type& wstate);
+   static double reward(Player player, const world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
 
-   observation_type private_observation(
+   observation_holder private_observation(
       Player observer,
       const world_state_type& wstate,
       const action_type& action,
       const world_state_type& next_wstate
    ) const;
 
-   observation_type public_observation(
+   observation_holder public_observation(
       const world_state_type& wstate,
       const action_type& action,
       const world_state_type& next_wstate

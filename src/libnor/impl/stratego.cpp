@@ -1,9 +1,7 @@
 
-#include "nor/env/stratego_env.hpp"
-#include <optional>
+#include "nor/env/stratego.hpp"
 
 #include "common/common.hpp"
-#include "stratego/State.hpp"
 #include "stratego/stratego.hpp"
 
 namespace nor::games::stratego {
@@ -11,16 +9,10 @@ namespace nor::games::stratego {
 double Environment::_status_to_reward(::stratego::Status status, Player player)
 {
    switch(status) {
-      case Status::ONGOING:
-      case Status::TIE: {
-         return 0.;
-      }
-      case Status::WIN_BLUE: {
-         return player == Player::alex ? 1. : -1.;
-      }
-      case Status::WIN_RED: {
-         return player == Player::bob ? 1. : -1.;
-      }
+      case Status::ONGOING: return 0.;
+      case Status::TIE: return 0.;
+      case Status::WIN_BLUE: return 1. - 2. * (player == Player::alex);
+      case Status::WIN_RED: return 1. - 2. * (player == Player::bob);
       default: {
          throw std::logic_error("Unknown Status enum returned.");
       }
@@ -30,14 +22,16 @@ double Environment::reward(Player player, world_state_type& wstate)
 {
    return _status_to_reward(wstate.logic()->check_terminal(wstate), player);
 }
-bool Environment::is_terminal(world_state_type& wstate)
+bool Environment::is_terminal(const world_state_type& wstate)
 {
    return wstate.status() != Status::ONGOING;
 }
-std::vector< Environment::action_type >
+std::vector< ActionHolder< Environment::action_type > >
 Environment::actions(Player player, const world_state_type& wstate) const
 {
-   return wstate.logic()->valid_actions(wstate, to_team(player));
+   return to_holder_vector< action_type >(
+      wstate.logic()->valid_actions(wstate, to_team(player)), tag::action{}
+   );
 }
 
 void Environment::transition(world_state_type& worldstate, const action_type& action) const
@@ -54,48 +48,42 @@ Player Environment::active_player(const Environment::world_state_type& wstate) c
    return to_player(wstate.active_team());
 }
 
-std::vector< PlayerInformedType< std::variant< std::monostate, Environment::action_type > > >
-Environment::open_history(const Environment::world_state_type& wstate) const
+std::vector< PlayerInformedType< Environment::action_variant_type > > Environment::open_history(
+   const Environment::world_state_type& wstate
+) const
 {
-   std::vector< PlayerInformedType< std::variant< std::monostate, Environment::action_type > > >
-      out;
+   std::vector< PlayerInformedType< action_variant_type > > out;
    const auto& history = wstate.history();
    out.reserve(history.size());
    for(auto turn : history.turns()) {
       auto [team, action, _] = history[turn];
-      out.emplace_back(action, to_player(team));
+      out.emplace_back(action_holder{action}, to_player(team));
    }
    return out;
 }
 
-std::vector<
-   PlayerInformedType< std::optional< std::variant< std::monostate, Environment::action_type > > > >
+std::vector< PlayerInformedType< std::optional< Environment::action_variant_type > > >
 Environment::private_history(Player, const Environment::world_state_type& wstate) const
 {
-   std::vector< PlayerInformedType<
-      std::optional< std::variant< std::monostate, Environment::action_type > > > >
-      out;
+   std::vector< PlayerInformedType< std::optional< action_variant_type > > > out;
    const auto& history = wstate.history();
    out.reserve(history.size());
    for(auto turn : history.turns()) {
       auto [team, action, _] = history[turn];
-      out.emplace_back(action, to_player(team));
+      out.emplace_back(action_holder{action}, to_player(team));
    }
    return out;
 }
 
-std::vector<
-   PlayerInformedType< std::optional< std::variant< std::monostate, Environment::action_type > > > >
+std::vector< PlayerInformedType< std::optional< Environment::action_variant_type > > >
 Environment::public_history(const world_state_type& wstate) const
 {
-   std::vector< PlayerInformedType<
-      std::optional< std::variant< std::monostate, Environment::action_type > > > >
-      out;
+   std::vector< PlayerInformedType< std::optional< action_variant_type > > > out;
    const auto& history = wstate.history();
    out.reserve(history.size());
    for(auto turn : history.turns()) {
       auto [team, action, _] = history[turn];
-      out.emplace_back(action, to_player(team));
+      out.emplace_back(action_holder{action}, to_player(team));
    }
    return out;
 }
@@ -110,7 +98,7 @@ Environment::public_history(const world_state_type& wstate) const
 //    auto position_parser = [](const std::string_view pos_str) {
 //       size_t left_paren = pos_str.find("(");
 //       size_t right_paren = pos_str.find(")");
-//       std::vector< std::string_view > pos_entries = nor::utils::split(
+//       std::vector< std::string_view > pos_entries = nor::split(
 //          pos_str.substr(left_paren + 1, right_paren - left_paren - 1), ",");
 //       return Position{
 //          std::stoi(std::string(pos_entries[0])), std::stoi(std::string(pos_entries[1]))};
@@ -137,18 +125,18 @@ Environment::public_history(const world_state_type& wstate) const
 //          // opponent units is unused for legal action finding anyway
 //          return Token::spy;
 //       } else {
-//          return stratego::utils::from_string< Token >(str);
+//          return stratego::from_string< Token >(str);
 //       }
 //    };
 //    Board board;
 //    std::array< Config::setup_t, 2 > setups;
 //    std::vector< Position > hole_pos;
-//    auto lines = nor::utils::split(latest_state_obs, line_delimiter);
-//    auto active_team = stratego::utils::from_string< Team >(lines.front());
+//    auto lines = nor::split(latest_state_obs, line_delimiter);
+//    auto active_team = stratego::from_string< Team >(lines.front());
 //    for(auto line : ranges::span(lines).subspan(2)) {
-//       auto piece_infos = nor::utils::split(line, segment_delimiter);
+//       auto piece_infos = nor::split(line, segment_delimiter);
 //       Position pos = position_parser(piece_infos[0]);
-//       Team team = stratego::utils::from_string< Team >(piece_infos[1]);
+//       Team team = stratego::from_string< Team >(piece_infos[1]);
 //       bool is_hidden = visibility_parser(piece_infos[2]);
 //       Token token = token_parser(piece_infos[3]);
 //       board[pos] = Piece(team, pos, token, is_hidden);
@@ -213,8 +201,8 @@ nor::games::stratego::Environment::observation_type
 nor::games::stratego::Environment::private_observation(
    nor::Player observer,
    const world_state_type& wstate,
-   const action_type&  /*action*/,
-   const world_state_type&  /*next_wstate*/
+   const action_type& action,
+   const world_state_type& next_wstate
 ) const
 {
    if(wstate.turn_count() == 0) {
@@ -227,7 +215,7 @@ nor::games::stratego::Environment::private_observation(
 
 nor::games::stratego::Environment::observation_type
 nor::games::stratego::Environment::public_observation(
-   const world_state_type&  /*wstate*/,
+   const world_state_type& wstate,
    const action_type& action,
    const world_state_type& next_wstate
 ) const
