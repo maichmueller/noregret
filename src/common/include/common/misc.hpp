@@ -144,8 +144,8 @@ inline auto counter(
 {
    using mapped_type = std::remove_cvref_t< decltype(*(vals.begin())) >;
    constexpr bool hashable_mapped_type = requires(Container t) {
-      std::hash< mapped_type >{}(t);
-      std::equality_comparable< mapped_type >;
+      requires std::hash< mapped_type >{}(t);
+      requires std::equality_comparable< mapped_type >;
    };
    std::conditional_t<
       hashable_mapped_type,
@@ -154,7 +154,7 @@ inline auto counter(
       rv;
 
    for(auto val_iter = vals.begin(); val_iter != vals.end(); ++val_iter) {
-      rv[acc(val_iter)]++;
+      ++rv[acc(val_iter)];
    }
 
    return rv;

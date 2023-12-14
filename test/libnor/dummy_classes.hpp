@@ -17,9 +17,11 @@ class Publicstate {
    size_t size() const;
    bool operator==(const Publicstate&) const;
 
-   observation_type& update(observation_type);
+   void update(observation_type);
 
    observation_type& operator[](size_t);
+
+   observation_type& latest();
 };
 
 class Infostate {
@@ -32,9 +34,11 @@ class Infostate {
    size_t size() const;
    bool operator==(const Infostate&) const;
 
-   std::pair< observation_type, observation_type >& update(observation_type, observation_type);
+   void update(observation_type, observation_type);
 
    std::pair< observation_type, observation_type >& operator[](size_t);
+
+   std::pair< observation_type, observation_type >& latest();
 };
 }  // namespace dummy
 namespace std {

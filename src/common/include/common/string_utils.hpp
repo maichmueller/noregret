@@ -66,14 +66,14 @@ struct fmt::formatter< T >: public fmt::ostream_formatter {};
       }                                                              \
       }                                                              \
       template <>                                                    \
-      struct ::common::printable< nmspace::type >: std::true_type {}
+      struct common::printable< nmspace::type >: std::true_type {}
 #endif
 
 /// note that if you get an error here, you might need to include <fmt/ranges.h>
 #ifndef COMMON_NO_RANGE_FORMATTER
    #define COMMON_NO_RANGE_FORMATTER(type)            \
-      template <>                                     \
-      struct fmt::detail::range_format_kind_< type >: \
+      template < typename Char >                      \
+      struct fmt::range_format_kind< type, Char >: \
           std::integral_constant< fmt::range_format, fmt::range_format::disabled > {};
 #endif
 

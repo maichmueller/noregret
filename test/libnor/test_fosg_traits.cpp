@@ -4,7 +4,7 @@
 #include <type_traits>
 
 #include "dummy_classes.hpp"
-#include "nor/env/rps_env.hpp"
+#include "nor/env/rps.hpp"
 #include "nor/factory.hpp"
 #include "nor/fosg_traits.hpp"
 

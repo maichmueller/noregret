@@ -3,7 +3,7 @@
 
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
-#include "nor/env/kuhn_env.hpp"
+#include "nor/env/kuhn.hpp"
 #include "nor/factory.hpp"
 #include "nor/policy/action_policy.hpp"
 #include "nor/utils/utils.hpp"
@@ -198,10 +198,9 @@ TEST(Normalizing, state_policy)
       env.public_observation(state, action, next_state),
       env.private_observation(nor::Player::bob, state, action, next_state)
    );
-   state = next_state;
 
    auto policy = factory::make_tabular_policy(
-      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< int > >{}
+      std::unordered_map< Infostate, HashmapActionPolicy< int > >{}
    );
    policy.emplace(istate1, std::pair{0, 5.}, std::pair{1, 2.}, std::pair{2, 3.});
    policy.emplace(istate2, std::pair{0, 8.}, std::pair{1, 2.}, std::pair{2, 1.}, std::pair{3, 9.});
