@@ -75,10 +75,10 @@ class TabularCFRBase {
    using infostate_data_type = InfostateNodeData< action_type >;
    /// strong-types for argument passing
    using InfostateSptrMap = fluent::
-      NamedType< player_hash_map< sptr< info_state_type > >, struct reach_prob_tag >;
+      NamedType< player_hashmap< sptr< info_state_type > >, struct reach_prob_tag >;
 
    using ObservationbufferMap = fluent::NamedType<
-      player_hash_map< std::vector< std::pair< observation_type, observation_type > > >,
+      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >,
       struct observation_buffer_tag >;
 
    ////////////////////
@@ -287,11 +287,11 @@ class TabularCFRBase {
    /// the root game state.
    uptr< world_state_type > m_root_state;
    /// a map of the current policy $\pi^t$ that each player is following in this iteration (t).
-   player_hash_map< Policy > m_curr_policy;
+   player_hashmap< Policy > m_curr_policy;
    /// the average policy table. The values stored in this table are the UNNORMALIZED average state
    /// policy cumulative values. This means that the state policy p(s, . ) for a given info state s
    /// needs to normalize its probabilities p(s, . ) by \sum_a p(s,a) when used for evaluation.
-   player_hash_map< AveragePolicy > m_avg_policy;
+   player_hashmap< AveragePolicy > m_avg_policy;
    /// the next player to update when doing alternative updates. Otherwise this member will be
    /// unused.
    std::deque< Player > m_player_update_schedule{};

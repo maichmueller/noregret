@@ -66,7 +66,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
             )  // clang-format on
          ) {
             return std::unordered_map< Player, double >{
-               {*player_to_update, _iterate(*player_to_update).get()}};
+               {*player_to_update, _iterate(*player_to_update).get()}
+            };
          }
       }));
       _iteration()++;
@@ -237,7 +238,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 )
 {
    m_regret_minimizer(
-      fetch_policy< PolicyLabel::current >(infostate, data.actions()),
+      this->template fetch_policy< PolicyLabel::current >(infostate, data.actions()),
       data.regret(),
       // we provide the accessor to get the underlying referenced action, as the infodata
       // stores only reference wrappers to the actions
@@ -316,7 +317,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    }
 
    const auto& actions = infonode_data.actions();
-   auto& action_policy = fetch_policy< PolicyLabel::current >(*infostate, actions);
+   auto& action_policy = this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
 
    // apply one round of regret matching on the current policy before using it. MCCFR only
    // updates the policy once you revisit it, as it is a lazy update schedule. As such, one would
@@ -370,10 +371,11 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    );
 
    auto active_weight_param = [&] {
-      if constexpr(config.weighting == MCCFRWeightingMode::lazy)
+      if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
          return Weight{weights.get()[active_player]};
-      else
+      } else {
          return utils::empty{};
+      }
    };
 
    if constexpr(config.update_mode == UpdateMode::simultaneous) {
@@ -444,8 +446,10 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_terminal_value(
       return std::pair{
          StateValueMap{std::unordered_map< Player, double >{
             {player_to_update.value(),
-             _env().reward(player_to_update.value(), state) / sample_probability.get()}}},
-         Probability{1.}};
+             _env().reward(player_to_update.value(), state) / sample_probability.get()}
+         }},
+         Probability{1.}
+      };
    } else if constexpr(config.update_mode == UpdateMode::simultaneous) {
       return std::pair{
          StateValueMap{[&] {
@@ -455,10 +459,11 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_terminal_value(
             }
             return rewards_map;
          }()},
-         Probability{1.}};
+         Probability{1.}
+      };
    } else {
       static_assert(
-         utils::always_false_v< Env >, "Update Mode not one of alternating or simultaneous"
+         common::always_false_v< Env >, "Update Mode not one of alternating or simultaneous"
       );
    }
 }
@@ -509,7 +514,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
 )
    requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
 {
-   auto& avg_policy = fetch_policy< false >(infostate, infonode_data.actions());
+   auto& avg_policy = this->template fetch_policy< false >(infostate, infonode_data.actions());
 
    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
       for(const action_type& action : infonode_data.actions()) {
@@ -553,9 +558,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action_on_policy(
    auto& action_policy
 )
 {
-   return common::choose(
-      actions, [&](const auto& act) { return action_policy[act]; }, m_rng
-   );
+   return common::choose(actions, [&](const auto& act) { return action_policy[act]; }, m_rng);
 }
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -596,7 +599,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
          return std::tuple{
             chosen_action,
             m_epsilon * uniform_prob + (1 - m_epsilon) * action_policy[chosen_action],
-            action_policy[chosen_action]};
+            action_policy[chosen_action]
+         };
       } else {
          // if we don't explore, then we simply sample according to the policy.
          // BUT: Since in theory we have done epsilon-on-policy exploration, yet merely in two
@@ -606,7 +610,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
          return std::tuple{
             std::move(chosen_action),
             m_epsilon * uniform_prob + (1 - m_epsilon) * action_prob,
-            action_prob};
+            action_prob
+         };
       }
    };
 
@@ -724,7 +729,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       _invoke_regret_minimizer(common::deref(infostate), infonode_data);
    }
    const auto& actions = infonode_data.actions();
-   auto& action_policy = fetch_policy< PolicyLabel::current >(*infostate, actions);
+   auto& action_policy = this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
 
    auto traverse_for_action_value = [&](const auto& action, bool inplace = false) {
       auto next_state = child_state(_env(), *state, action);
@@ -807,7 +812,9 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          // this update scheme represents the 'simple' update plan mentioned in open_spiel. We
          // are updating the policy if the active player is the next player to be updated in the
          // update cycle. Updates the average policy with the current policy
-         auto& average_action_policy = fetch_policy< PolicyLabel::average >(*infostate, actions);
+         auto& average_action_policy = this->template fetch_policy< PolicyLabel::average >(
+            *infostate, actions
+         );
          if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
             // we do not need to update the other actions since we sampled first a pure strategy
             // and then sampled from said strategy (other action sampling prob is thus 0)
@@ -912,8 +919,8 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       infonode_data.emplace(_env().actions(active_player, *curr_worldstate));
    }
    const auto& actions = infonode_data.actions();
-   auto& curr_action_policy = fetch_policy< PolicyLabel::current >(*infostate, actions);
-   auto& avg_action_policy = fetch_policy< PolicyLabel::average >(*infostate, actions);
+   auto& curr_action_policy = this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
+   auto& avg_action_policy = this->template fetch_policy< PolicyLabel::average >(*infostate, actions);
 
    for(const action_type& action : actions) {
       auto action_prob = curr_action_policy[action];

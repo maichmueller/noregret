@@ -244,6 +244,7 @@ class MCCFR:
    using base::average_policy;
    using base::iteration;
    using base::root_state;
+   using base::fetch_policy;
 
   public:
    /**
@@ -327,7 +328,7 @@ class MCCFR:
          return rm::regret_matching(std::forward< Args >(args)...);
       }
       if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
-         static_assert(utils::always_false_v< env_type >, "MCCFR+ is not yet implemented.");
+         static_assert(common::always_false_v< env_type >, "MCCFR+ is not yet implemented.");
          // return rm::regret_matching_plus(std::forward< Args >(args)...);
       }
    };

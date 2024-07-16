@@ -7,7 +7,7 @@ namespace nor::rm {
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
 {
-   std::vector< player_hash_map< double > > root_values_per_iteration;
+   std::vector< player_hashmap< double > > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
    for([[maybe_unused]] auto _ : ranges::views::iota(size_t(0), n_iters)) {
       SPDLOG_DEBUG("Iteration number: {}", _iteration());
@@ -178,7 +178,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 )
 {
    // since we are reusing this variable a few times we alias it here
-   auto& current_policy = fetch_policy< PolicyLabel::current >(infostate, istate_data.actions());
+   auto& current_policy = this->template fetch_policy< PolicyLabel::current >(
+      infostate, istate_data.actions()
+   );
 
    // Discounted CFR only:
    // we first multiply the accumulated regret by the correct weight as per discount setting
@@ -219,8 +221,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
                    config.weighting_mode, {CFRWeightingMode::linear, CFRWeightingMode::discounted}
                 )) {
       // we are expecting to be given the right weight for the configuration here
-      for(auto& policy_prob : fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())
-                                 | ranges::views::values) {
+      for(auto& policy_prob :
+          this->template fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())
+             | ranges::views::values) {
          policy_prob *= policy_weight;
       }
    }
@@ -265,7 +268,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    // pair. Yet L1, which is actually L1(I, a), is only known after the entire tree has been
    // traversed and thus can't be done during the traversal. Hence, we need to update our
    // cumulative regret by the correct weight now here upon iteration over all infostates
-   auto& curr_policy = fetch_policy< PolicyLabel::current >(infostate, istate_data.actions());
+   auto& curr_policy = this->template fetch_policy< PolicyLabel::current >(
+      infostate, istate_data.actions()
+   );
    auto& regret_table = istate_data.regret();
    for(auto& [action, cumul_regret] : regret_table) {
       auto action_ref = std::cref(action);
@@ -280,10 +285,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          SPDLOG_DEBUG("Cumul regret update (>=0): {}", exp_l1_weights[action_ref] * instant_regret);
          cumul_regret += exp_l1_weights[action_ref] * instant_regret;
       } else {
-         LOGD2(
-            "Cumul regret update (<0)",
+         SPDLOG_DEBUG(fmt::format(
+            "Cumul regret update (<0): {}",
             exp_l1_weights[action_ref] * m_expcfr_params.beta(instant_regret, _iteration())
-         );
+         ));
          cumul_regret += exp_l1_weights[action_ref]
                          * m_expcfr_params.beta(instant_regret, _iteration());
       }
@@ -292,24 +297,30 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       SPDLOG_DEBUG("Cumul regret after: {}", ranges::views::values(istate_data.regret()));
    }
 
-   SPDLOG_DEBUG("Cumul Policy before: {}", ranges::views::values(istate_data.template storage_element< 3 >()));
+   SPDLOG_DEBUG(
+      "Cumul Policy before: {}", ranges::views::values(istate_data.template storage_element< 3 >())
+   );
    // now we update the current accumulated policy numerator and denominator
    for(auto& [action, avg_policy_prob] :
-       fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())) {
+       this->template fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())) {
       double reach_prob = istate_data.template storage_element< 2 >();
       double l1_weight = exp_l1_weights[std::cref(action)];
       // this is the cumulative enumerator update
       SPDLOG_DEBUG("Cumul Policy Reach prob: {}", reach_prob);
       SPDLOG_DEBUG("Cumul Policy L1 Weight prob: {}", l1_weight);
       SPDLOG_DEBUG("Cumul Policy Current Policy: {}", curr_policy[action]);
-      SPDLOG_DEBUG("Cumul Policy numerator update: {}", l1_weight * reach_prob * curr_policy[action]);
+      SPDLOG_DEBUG(
+         "Cumul Policy numerator update: {}", l1_weight * reach_prob * curr_policy[action]
+      );
       avg_policy_prob += l1_weight * reach_prob * curr_policy[action];
       // this is the cumulative denominator update
       SPDLOG_DEBUG("Cumul Policy denominator update: {}", l1_weight * reach_prob);
       istate_data.template storage_element< 3 >(std::cref(action)) += l1_weight * reach_prob;
    }
 
-   SPDLOG_DEBUG("Cumul Policy after: {}", ranges::views::values(istate_data.template storage_element< 3 >()));
+   SPDLOG_DEBUG(
+      "Cumul Policy after: {}", ranges::views::values(istate_data.template storage_element< 3 >())
+   );
    // here we now perform the actual regret minimizing update step as we update the current
    // policy through a regret matching algorithm. The specific algorihtm is determined by the
    // config we entered to the class
@@ -427,7 +438,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       );
    }
    const auto& actions = _infonode(this_infostate).actions();
-   auto& action_policy = fetch_policy< use_current_policy >(*this_infostate, actions);
+   auto& action_policy = this->template fetch_policy< use_current_policy >(
+      *this_infostate, actions
+   );
    double normalizing_factor = std::invoke([&] {
       if constexpr(not use_current_policy) {
          // we try to normalize only for the average policy, since iterations with the current
@@ -522,10 +535,12 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
 {
    auto& istate_data = _infonode(infostate);
    const auto& actions = istate_data.actions();
-   auto& curr_action_policy = fetch_policy< PolicyLabel::current >(infostate, actions);
+   auto& curr_action_policy = this->template fetch_policy< PolicyLabel::current >(
+      infostate, actions
+   );
    auto& avg_action_policy = [&]() -> auto& {
       if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
-         return fetch_policy< PolicyLabel::average >(infostate, actions);
+         return this->template fetch_policy< PolicyLabel::average >(infostate, actions);
       } else {
          // this value will be ignored, so we can simply return anything that is cheap to fetch
          // (it has to be an l-value so can't return an r-value like simply 0
