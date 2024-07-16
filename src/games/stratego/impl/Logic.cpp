@@ -3,14 +3,14 @@
 
 namespace stratego {
 
-Status Logic::check_terminal(State &state)
+Status Logic::check_terminal(const State &state)
 {
    if(state.graveyard(Team::BLUE).at(Token::flag) != 0) {
       // flag of team 0 has been captured (killed), therefore team 0 lost
-      return state.status(Status::WIN_RED);
+      return Status::WIN_RED;
    } else if(state.graveyard(Team::RED).at(Token::flag) != 0) {
       // flag of team 1 has been captured (killed), therefore team 1 lost
-      return state.status(Status::WIN_BLUE);
+      return Status::WIN_BLUE;
    }
 
    // committing draw rules here
@@ -18,18 +18,18 @@ Status Logic::check_terminal(State &state)
    // Rule 1: If the active team has no moves left -> loss
    if(not has_valid_actions(state, state.active_team())) {
       if(state.active_team() == Team::BLUE) {
-         return state.status(Status::WIN_RED);
+         return Status::WIN_RED;
       } else {
-         return state.status(Status::WIN_BLUE);
+         return Status::WIN_BLUE;
       }
    }
 
    // Rule 2: The maximum turn count has been reached
    if(std::cmp_greater_equal(state.turn_count(), state.config().max_turn_count)) {
       SPDLOG_DEBUG("Turn count on finish: {}", state.turn_count());
-      return state.status(Status::TIE);
+      return Status::TIE;
    }
-   return state.status(Status::ONGOING);
+   return Status::ONGOING;
 }
 
 void Logic::apply_action(State &state, const Action &action)
@@ -214,12 +214,6 @@ bool Logic::has_valid_actions(const State &state, Team team)
                }
             }
 
-            //               auto val = ranges::any_of(
-            //                  _valid_vectors(pos, board.shape(), token_move_range),
-            //                  [&](const Position &value) -> bool {
-            //                     return is_valid(state, Action{pos, pos + value});
-            //                  });
-            //               SPDLOG_DEBUG("We're here again");
             if(ranges::any_of(
                   _valid_vectors(pos, board.shape(), token_move_range),
                   [&](const Position2D &vector) -> bool {

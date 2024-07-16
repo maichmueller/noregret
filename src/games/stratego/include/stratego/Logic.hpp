@@ -12,9 +12,6 @@
 namespace stratego {
 
 class Logic {
-  private:
-   using Team = Team;
-
    [[nodiscard]] virtual Logic *clone_impl() const;
 
   public:
@@ -26,7 +23,7 @@ class Logic {
 
    void apply_action(State &state, const Action &action);
 
-   Status check_terminal(State &state);
+   Status check_terminal(const State &state);
 
    bool is_valid(
       const State &state,
@@ -69,29 +66,29 @@ class Logic {
       const std::map< Team, std::map< Position2D, Token > > &setups
    );
 
-   static inline FightOutcome
+   static FightOutcome
    fight(const Config &config, const Piece &attacker, const Piece &defender)
    {
       return fight(config, std::pair{attacker.token(), defender.token()});
    }
 
-   static inline FightOutcome fight(const Config &config, const std::pair< Token, Token > &att_def)
+   static FightOutcome fight(const Config &config, const std::pair< Token, Token > &att_def)
    {
       return config.battle_matrix.at(att_def);
    }
 
-   static inline void update_board(Board &board, const Position2D &new_pos, Piece &piece)
+   static void update_board(Board &board, const Position2D &new_pos, Piece &piece)
    {
       piece.position(new_pos);
       board[new_pos] = piece;
    }
-   static inline void update_board(Board &board, const Position2D &new_pos)
+   static void update_board(Board &board, const Position2D &new_pos)
    {
       board[new_pos] = std::nullopt;
    }
 
    template < std::integral IntType >
-   static inline bool check_bounds(const Board &board, IntType value)
+   static bool check_bounds(const Board &board, IntType value)
    {
       auto shape = board.shape();
       for(const auto &limit : shape) {
@@ -115,7 +112,7 @@ class Logic {
    template < typename Range >
       requires ranges::sized_range< Range > && ranges::bidirectional_range< Range >
                && std::integral< typename Range::value_type >
-   static inline bool check_bounds(const Board &board, Range values)
+   static bool check_bounds(const Board &board, Range values)
    {
       auto shape = board.shape();
       if(values.size() > shape.size()) {
@@ -130,7 +127,7 @@ class Logic {
    template < typename Range >
       requires ranges::sized_range< Range > && ranges::bidirectional_range< Range >
                && std::integral< typename Range::value_type >
-   static inline void throw_if_out_of_bounds(const Board &board, Range values)
+   static void throw_if_out_of_bounds(const Board &board, Range values)
    {
       if(not check_bounds(board, values)) {
          throw std::out_of_range(

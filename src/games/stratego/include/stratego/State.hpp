@@ -63,7 +63,7 @@ class History {
       return ret;
    }
 
-   auto view_last()
+   auto view_last() const
    {
       /**
        * @brief Remove the latest entries from the private_history. Return the
@@ -143,7 +143,6 @@ class State {
    ~State() = default;
 
    void transition(const Action &action);
-   Status check_terminal();
    void restore_to_round(size_t round);
 
    void undo_last_rounds(size_t n = 1);
@@ -153,17 +152,9 @@ class State {
 
    [[nodiscard]] auto rng() const { return m_rng; }
    [[nodiscard]] auto turn_count() const { return m_turn_count; }
-   Status status()
-   {
-      if(m_status_checked) {
-         return m_status;
-      }
-      SPDLOG_DEBUG("Checking terminality.");
-      m_status_checked = true;
-      m_status = check_terminal();
-      return m_status;
-   }
-   [[nodiscard]] auto history() const { return m_move_history; }
+   Status status();
+   Status status() const;
+   [[nodiscard]] auto &history() const { return m_move_history; }
    [[nodiscard]] auto &history() { return m_move_history; }
    [[nodiscard]] auto board() const { return m_board; }
 
@@ -175,8 +166,7 @@ class State {
       return status;
    }
    [[nodiscard]] std::string to_string() const;
-   [[nodiscard]] std::string to_string(std::optional< Team > team, bool hide_unknowns)
-      const;
+   [[nodiscard]] std::string to_string(std::optional< Team > team, bool hide_unknowns) const;
 
    void to_graveyard(const std::optional< Piece > &piece_opt)
    {

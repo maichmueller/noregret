@@ -73,7 +73,7 @@ class State {
    [[nodiscard]] std::vector< Action > actions() const;
    [[nodiscard]] std::vector< ChanceOutcome > chance_actions() const;
    [[nodiscard]] double chance_probability(ChanceOutcome action) const;
-   [[nodiscard]] int16_t payoff(Player player) const;
+   [[nodiscard]] int payoff(Player player) const;
 
    [[nodiscard]] auto active_player() const { return m_active_player; }
    [[nodiscard]] auto card(Player player) const

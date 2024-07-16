@@ -39,14 +39,5 @@ inline std::string to_string(const rps::Team& value)
 COMMON_ENABLE_PRINT(rps, Action);
 COMMON_ENABLE_PRINT(rps, Team);
 
-namespace std {
-
-inline auto& operator<<(std::ostream& os, const rps::Action& action)
-{
-   os << common::to_string(action);
-   return os;
-}
-
-}  // namespace std
 
 #endif  // NOR_RPS_UTILS_HPP

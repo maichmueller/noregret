@@ -5,7 +5,7 @@
 
 namespace kuhn {
 
-inline int8_t sign(bool x)
+inline int sign(bool x)
 {
    return 2 * x - 1;
 }
@@ -37,7 +37,7 @@ bool State::is_terminal() const
    return std::find(terminal_seqs.begin(), terminal_seqs.end(), m_history) != terminal_seqs.end();
 }
 
-int16_t State::payoff(Player player) const
+int State::payoff(Player player) const
 {
    if(player == Player::chance) {
       throw std::invalid_argument("Can't provide payoff for chance player.");

@@ -8,6 +8,7 @@
 #include "State.hpp"
 #include "StrategoDefs.hpp"
 #include "Agent.h"
+#include "Logic.hpp"
 
 
 namespace stratego {
@@ -35,7 +36,7 @@ class Game {
 
    [[nodiscard]] static constexpr auto nr_players() { return n_teams; }
    auto agents() { return m_agents; }
-   auto agent(Team team) { return m_agents.at(static_cast< unsigned int >(team)); }
+   auto agent(Team team) { return m_agents.at(static_cast< size_t >(team)); }
    [[nodiscard]] auto &state() const { return *m_state; }
    auto &state() { return *m_state; }
 

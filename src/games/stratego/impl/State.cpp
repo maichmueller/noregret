@@ -114,10 +114,23 @@ std::string State::to_string(std::optional< Team > team, bool hide_unknowns) con
 {
    return utils::print_board(board(), team, hide_unknowns);
 }
-Status State::check_terminal()
+Status State::status() const
 {
+   if(m_status_checked)
+      return m_status;
    return m_logic->check_terminal(*this);
 }
+Status State::status()
+{
+   if(m_status_checked) {
+      return m_status;
+   }
+   SPDLOG_DEBUG("Checking terminality.");
+   m_status_checked = true;
+   m_status = m_logic->check_terminal(*this);
+   return m_status;
+}
+
 State::State(const State &state)
     : State(
          state.config(),

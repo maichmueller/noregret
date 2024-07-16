@@ -33,7 +33,7 @@ enum class Token : int8_t {
    hole = 99
 };
 
-enum DefinedBoardSizes : int8_t { small = 5, medium = 7, large = 10 };
+enum DefinedBoardSizes : uint8_t { small = 5, medium = 7, large = 10 };
 
 class Piece;
 
