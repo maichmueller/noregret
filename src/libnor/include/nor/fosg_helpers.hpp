@@ -23,25 +23,27 @@ auto map_histories_to_infostates(
    using info_state_type = typename fosg_auto_traits< env_type >::info_state_type;
 
    using action_variant_type = typename fosg_auto_traits< env_type >::action_variant_type;
+   using history_type = std::vector< action_variant_type >;
    // this hasher may be low quality given that boost's hash_combine paired with std::hash is not
    // necessarily a good hashing function (and long vectors may lead to many collisions)
-   using history_type = std::vector< action_variant_type >;
-
-   using history_hasher = decltype([](const history_type& hist_vec) {
-      size_t hash = 0;
-      ranges::for_each(hist_vec, [&](const action_variant_type& av) {
-         common::hash_combine(
-            hash,
-            std::visit(
-               [&]< typename U >(const U& action_or_outcome) {
-                  return std::hash< U >{}(action_or_outcome);
-               },
-               av
-            )
-         );
-      });
-      return hash;
-   });
+   struct history_hasher {
+      auto operator()(const history_type& hist_vec) const noexcept
+      {
+         size_t hash = 0;
+         ranges::for_each(hist_vec, [&](const action_variant_type& av) {
+            common::hash_combine(
+               hash,
+               std::visit(
+                  [&]< typename U >(const U& action_or_outcome) {
+                     return std::hash< U >{}(action_or_outcome);
+                  },
+                  av
+               )
+            );
+         });
+         return hash;
+      }
+   };
 
    using infostate_map_type = std::unordered_map< Player, sptr< info_state_type > >;
 
@@ -73,7 +75,7 @@ auto map_histories_to_infostates(
                         const action_variant_type* curr_action,
                         world_state_type* curr_state,
                         world_state_type* next_state
-                     ) {
+                     ) -> VisitData {
       auto child_action_sequence = visit_data.action_sequence;
       infostate_map_type child_istates_map;
       std::vector< info_state_type > copied_istates;
@@ -94,14 +96,15 @@ auto map_histories_to_infostates(
                   [&](const auto& action_or_outcome) {
                      return std::pair{
                         env.public_observation(*curr_state, action_or_outcome, *next_state),
-                        env.private_observation(
-                           player, *curr_state, action_or_outcome, *next_state
-                        )};
+                        env.private_observation(player, *curr_state, action_or_outcome, *next_state)
+                     };
                   },
                   [&](const std::monostate&) {
                      return std::pair{
-                        auto_observation_type< env_type >{}, auto_observation_type< env_type >{}};
-                  }},
+                        auto_observation_type< env_type >{}, auto_observation_type< env_type >{}
+                     };
+                  }
+               },
                *curr_action
             );
 
@@ -127,27 +130,27 @@ auto map_histories_to_infostates(
       }
       return VisitData{
          .istate_map = std::move(child_istates_map),
-         .action_sequence = std::move(child_action_sequence)};
-      ;
+         .action_sequence = std::move(child_action_sequence)
+      };
    };
 
    forest::GameTreeTraverser{env}.walk(
       utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(root)),
       VisitData{
-         .istate_map =
-            [&] {
-               auto root_istate_map = infostate_map_type{};
-               for(auto player : env.players(root)) {
-                  if(player != Player::chance) {
-                     auto [iter, _] = root_istate_map.emplace(
-                        player, std::make_shared< info_state_type >(player)
-                     );
-                     existing_infostates.emplace(iter->second);
-                  }
+         .istate_map = std::invoke([&] {
+            auto root_istate_map = infostate_map_type{};
+            for(auto player : env.players(root)) {
+               if(player != Player::chance) {
+                  auto [iter, _] = root_istate_map.emplace(
+                     player, std::make_shared< info_state_type >(player)
+                  );
+                  existing_infostates.emplace(iter->second);
                }
-               return root_istate_map;
-            }(),
-         .action_sequence = history_type{}},
+            }
+            return root_istate_map;
+         }),
+         .action_sequence = history_type{}
+      },
       forest::TraversalHooks{.child_hook = std::move(child_hook)}
    );
 
