@@ -70,7 +70,8 @@ TEST(TabularPolicy, kuhn_poker_states)
           ChanceOutcome{kuhn::Player::one, Card::queen},
           ChanceOutcome{kuhn::Player::two, Card::king},
           Action::check,
-          Action::bet}) {
+          Action::bet
+       }) {
       std::visit(
          [&](const auto& a) {
             state.apply_action(a);
@@ -275,55 +276,65 @@ INSTANTIATE_TEST_SUITE_P(all, BestResponse_RPS_ParamsF, testing::ValuesIn(std::i
                                    std::pair{Action::paper, 0.},
                                    std::pair{Action::scissors, 0.}},
                                   std::vector{Action::paper},
-                                  1.},
+                                  1.
+                               },
                                no_player_param_tuple{
                                   {std::pair{Action::rock, 0.},
                                    std::pair{Action::paper, 1.},
                                    std::pair{Action::scissors, 0.}},
                                   std::vector{Action::scissors},
-                                  1.},
+                                  1.
+                               },
                                no_player_param_tuple{
                                   {std::pair{Action::rock, 0.},
                                    std::pair{Action::paper, 0.},
                                    std::pair{Action::scissors, 1.}},
                                   std::vector{Action::rock},
-                                  1.},
+                                  1.
+                               },
                                no_player_param_tuple{
                                   {std::pair{Action::rock, .5},
                                    std::pair{Action::paper, .5},
                                    std::pair{Action::scissors, 0.}},
                                   std::vector{Action::paper},
-                                  .5},
+                                  .5
+                               },
                                no_player_param_tuple{
                                   {std::pair{Action::rock, .3},
                                    std::pair{Action::paper, .7},
                                    std::pair{Action::scissors, 0.}},
                                   std::vector{Action::scissors},
-                                  .4},
+                                  .4
+                               },
                                no_player_param_tuple{
                                   {std::pair{Action::rock, .2},
                                    std::pair{Action::paper, .2},
                                    std::pair{Action::scissors, 0.6}},
                                   std::vector{Action::rock},
-                                  .4},
+                                  .4
+                               },
                                no_player_param_tuple{
                                   {std::pair{Action::rock, .3},
                                    std::pair{Action::paper, .3},
                                    std::pair{Action::scissors, 0.4}},
                                   std::vector{Action::rock},
-                                  .1},
+                                  .1
+                               },
                                no_player_param_tuple{
                                   {std::pair{Action::rock, 1. / .3},
                                    std::pair{Action::paper, 1. / .3},
                                    std::pair{Action::scissors, 1. / .3}},
                                   std::vector{Action::rock, Action::paper, Action::scissors},
-                                  0.},
+                                  0.
+                               },
                                no_player_param_tuple{
                                   {std::pair{Action::rock, .5},
                                    std::pair{Action::paper, .25},
                                    std::pair{Action::scissors, 0.25}},
                                   std::vector{Action::paper},
-                                  .25}};
+                                  .25
+                               }
+                            };
 
                             std::vector< param_tuple_type > vec_out;
                             for(const auto& param_tuple : br_rps_values) {
@@ -359,7 +370,7 @@ TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
    auto [best_responder, _, opp_policy, br_root_value] = GetParam();
    using namespace nor::games::kuhn;
 
-   nor::Player opponent = nor::Player(1 - static_cast< int >(best_responder));
+   auto opponent = nor::Player(1 - static_cast< int >(best_responder));
 
    auto root_state = State{};
    auto [terminals, infostate_map] = nor::map_histories_to_infostates(env, root_state);
@@ -368,12 +379,15 @@ TEST_P(BestResponse_KuhnPoker_ParamsF, kuhn_poker)
    );
 
    best_response.allocate(env, State{}, std::unordered_map{std::pair{opponent, opp_policy}});
+   auto br_state_policy = nor::StatePolicyView{best_response};
+   auto opp_state_policy = nor::StatePolicyView{opp_policy};
    auto value_map = nor::rm::policy_value(
       env,
       State{},
-      std::unordered_map{
-         std::pair{best_responder, nor::StatePolicyView{best_response}},
-         std::pair{opponent, nor::StatePolicyView{opp_policy}}}
+      nor::player_hashmap< decltype(br_state_policy) >{
+         std::pair{best_responder, std::move(br_state_policy)},
+         std::pair{opponent, std::move(opp_policy)}
+      }
    );
 
    // check if the BR value of the computed policy is close to the expected value
@@ -398,63 +412,75 @@ auto uniform_br_expected(nor::Player br_player, const auto& istate_map, auto& po
       policy.emplace(
          fetch_infostate("j?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("j?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
       policy.emplace(
          fetch_infostate("q?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("q?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
       policy.emplace(
          fetch_infostate("k?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("k?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
    } else {
       policy.emplace(
          fetch_infostate("?jc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?jb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?qc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?qb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?kc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?kb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
    }
 }
@@ -472,63 +498,75 @@ auto always_check_br_expected(nor::Player br_player, const auto& istate_map, aut
       policy.emplace(
          fetch_infostate("j?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("j?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("q?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("q?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
       policy.emplace(
          fetch_infostate("k?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("k?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
    } else {
       policy.emplace(
          fetch_infostate("?jc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?jb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
       policy.emplace(
          fetch_infostate("?qc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?qb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
       policy.emplace(
          fetch_infostate("?kc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?kb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
    }
 }
@@ -547,63 +585,75 @@ auto always_bet_br_expected(nor::Player br_player, const auto& istate_map, auto&
       policy.emplace(
          fetch_infostate("j?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("j?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("q?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("q?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("k?", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("k?cb", nor::Player::alex),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
    } else {
       policy.emplace(
          fetch_infostate("?jc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
       policy.emplace(
          fetch_infostate("?jb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}}
+            std::pair{Action::check, ValueChecker{1.}}, std::pair{Action::bet, ValueChecker{0.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?qc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
       policy.emplace(
          fetch_infostate("?qb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
       policy.emplace(
          fetch_infostate("?kc", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}}
+            std::pair{Action::check, ValueChecker{}}, std::pair{Action::bet, ValueChecker{}}
+         }
       );
       policy.emplace(
          fetch_infostate("?kb", nor::Player::bob),
          std::unordered_map{
-            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}}
+            std::pair{Action::check, ValueChecker{0.}}, std::pair{Action::bet, ValueChecker{1.}}
+         }
       );
    }
 }

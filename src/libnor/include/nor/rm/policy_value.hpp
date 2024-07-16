@@ -11,7 +11,7 @@ namespace detail {
 
 template < typename Observation >
 using ObservationbufferMap = fluent::NamedType<
-   player_hash_map< std::vector< std::pair< Observation, Observation > > >,
+   player_hashmap< std::vector< std::pair< Observation, Observation > > >,
    struct observation_buffer_tag >;
 
 struct policy_value_impl {
@@ -19,12 +19,12 @@ struct policy_value_impl {
       requires concepts::fosg< std::remove_cvref_t< Env > >
    static StateValueMap traverse(
       Env&& env,
-      const player_hash_map< Policy >& policy_profile,
+      const player_hashmap< Policy >& policy_profile,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > state,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap< auto_observation_type< std::remove_cvref_t< Env > > >
          observation_buffer,
-      player_hash_map< auto_info_state_type< std::remove_cvref_t< Env > > > infostates
+      player_hashmap< auto_info_state_type< std::remove_cvref_t< Env > > > infostates
    )
    {
       using env_type = std::remove_cvref_t< Env >;
@@ -106,13 +106,13 @@ struct policy_value_impl {
    template < typename Env, typename Policy >
    static void traverse_player_actions(
       Env&& env,
-      const player_hash_map< Policy >& policy_profile,
+      const player_hashmap< Policy >& policy_profile,
       Player active_player,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > state,
       const ReachProbabilityMap& reach_probability,
       const ObservationbufferMap< auto_observation_type< std::remove_cvref_t< Env > > >&
          observation_buffer,
-      player_hash_map< auto_info_state_type< std::remove_cvref_t< Env > > > infostate_map,
+      player_hashmap< auto_info_state_type< std::remove_cvref_t< Env > > > infostate_map,
       StateValueMap& state_value,
       std::unordered_map< auto_action_variant_type< std::remove_cvref_t< Env > >, StateValueMap >&
          action_value
@@ -151,7 +151,7 @@ struct policy_value_impl {
             ReachProbabilityMap{std::move(child_reach_prob)},
             ObservationbufferMap< auto_observation_type< env_type > >{
                std::move(child_observation_buffer)},
-            player_hash_map< auto_info_state_type< env_type > >{std::move(child_infostate_map)}
+            player_hashmap< auto_info_state_type< env_type > >{std::move(child_infostate_map)}
          );
          // add the child state's value to the respective player's value table, multiplied by the
          // policies likelihood of playing this action
@@ -165,13 +165,13 @@ struct policy_value_impl {
    template < typename Env, typename Policy >
    static void traverse_chance_actions(
       Env&& env,
-      const player_hash_map< Policy >& policy_profile,
+      const player_hashmap< Policy >& policy_profile,
       Player active_player,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > state,
       const ReachProbabilityMap& reach_probability,
       const ObservationbufferMap< auto_observation_type< std::remove_cvref_t< Env > > >&
          observation_buffer,
-      player_hash_map< auto_info_state_type< std::remove_cvref_t< Env > > > infostate_map,
+      player_hashmap< auto_info_state_type< std::remove_cvref_t< Env > > > infostate_map,
       StateValueMap& state_value,
       std::unordered_map< auto_action_variant_type< std::remove_cvref_t< Env > >, StateValueMap >&
          action_value
@@ -198,7 +198,7 @@ struct policy_value_impl {
             ReachProbabilityMap{std::move(child_reach_prob)},
             ObservationbufferMap< auto_observation_type< env_type > >{
                std::move(child_observation_buffer)},
-            player_hash_map< auto_info_state_type< env_type > >{std::move(child_infostate_map)}
+            player_hashmap< auto_info_state_type< env_type > >{std::move(child_infostate_map)}
          );
          // add the child state's value to the respective player's value table, multiplied by the
          // policies likelihood of playing this action
@@ -228,7 +228,7 @@ template <
 StateValueMap policy_value(
    Env&& env,
    const auto_world_state_type< std::remove_cvref_t< Env > >& root_state,
-   const player_hash_map< Policy >& policy_profile
+   const player_hashmap< Policy >& policy_profile
 )
 {
    using env_type = std::remove_cvref_t< Env >;
@@ -254,7 +254,7 @@ StateValueMap policy_value(
          return obs_map;
       }),
       std::invoke([&] {
-         player_hash_map< auto_info_state_type< env_type > > infostates;
+         player_hashmap< auto_info_state_type< env_type > > infostates;
          for(auto player : root_players | utils::is_actual_player_filter) {
             infostates.emplace(player, auto_info_state_type< env_type >{player});
          }

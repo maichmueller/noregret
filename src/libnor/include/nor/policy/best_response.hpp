@@ -35,7 +35,7 @@ struct best_response_impl {
 
    struct WorldNode {
       /// the state value of this node.
-      std::optional< nor::player_hash_map< double > > state_value_map = std::nullopt;
+      std::optional< nor::player_hashmap< double > > state_value_map = std::nullopt;
       /// the likelihood that the opponents play to this world state.
       double opp_reach_prob;
       /// the child nodes reachable from this infostate the child node pointer that the action leads
@@ -78,31 +78,31 @@ struct best_response_impl {
    template < typename StatePolicy >
    void _run(
       Env& env,
-      player_hash_map< StatePolicy > player_policies,
+      player_hashmap< StatePolicy > player_policies,
       const world_state_type& root_state,
-      player_hash_map< std::unordered_map< info_state_type, mapped_type > >&
+      player_hashmap< std::unordered_map< info_state_type, mapped_type > >&
          best_response_map_to_fill,
-      std::unordered_map< Player, info_state_type > root_infostates = {}
+      player_hashmap< info_state_type > root_infostates = {}
    );
 
    void _compute_best_responses(
-      player_hash_map< std::unordered_map< info_state_type, mapped_type > >&
+      player_hashmap< std::unordered_map< info_state_type, mapped_type > >&
          best_response_map_to_fill
    );
 
    auto _best_response(const info_state_type& infostate);
 
-   const player_hash_map< double >& _value(WorldNode& node);
+   const player_hashmap< double >& _value(WorldNode& node);
 };
 
 template < BRConfig config, concepts::fosg Env >
 template < typename StatePolicy >
 void best_response_impl< config, Env >::_run(
    Env& env,
-   player_hash_map< StatePolicy > player_policies,
+   player_hashmap< StatePolicy > player_policies,
    const world_state_type& root_state,
-   player_hash_map< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill,
-   std::unordered_map< Player, info_state_type > root_infostates
+   player_hashmap< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill,
+   player_hashmap< info_state_type > root_infostates
 )
 {
    auto players = env.players(root_state);
@@ -161,8 +161,8 @@ void best_response_impl< config, Env >::_run(
                      );
                   } else {
                      return std::tuple{
-                        decltype(visit_data.observation_buffer){},
-                        decltype(visit_data.infostates){}};
+                        decltype(visit_data.observation_buffer){}, decltype(visit_data.infostates){}
+                     };
                   }
                });
                double prob = std::invoke([&] {
@@ -176,17 +176,33 @@ void best_response_impl< config, Env >::_run(
                      // this case for a deterministic environment! This is important since
                      // deterministic envs are not required to provide the chance_probability
                      // function and so this code would otherwise not compile for them
-                     return env.chance_probability(*curr_state, action_or_outcome);
+                     static_assert(
+                        concepts::stochastic_fosg< Env >,
+                        "Only stochastic environments should reach this point."
+                     );
+                     // workaround for clang not recognizing the constexpr check above correctly and
+                     // still throwing an error when a deterministic env does not have a
+                     // chance_probability function...
+                     if constexpr(concepts::stochastic_fosg< Env >) {
+                        return env.chance_probability(*curr_state, action_or_outcome);
+                     } else {
+                        // theoretically unreachable, but if so we throw an error
+                        throw std::logic_error(
+                           "This should never be reached for deterministic envs."
+                        );
+                     }
                   }
                });
                return std::tuple{
-                  std::move(prob), std::move(child_obs_buffer), std::move(child_istate_map)};
+                  std::move(prob), std::move(child_obs_buffer), std::move(child_istate_map)
+               };
             },
             [&](std::monostate) {
                // this should never be visited, but if so --> error
                throw std::logic_error("We entered a std::monostate visit branch.");
                return std::tuple{1., visit_data.observation_buffer, visit_data.infostates};
-            }},
+            }
+         },
          *curr_action
       );
 
@@ -200,12 +216,13 @@ void best_response_impl< config, Env >::_run(
                                std::make_unique< WorldNode >(WorldNode{
                                   .state_value_map = env.is_terminal(*next_state)
                                                         ? std::optional(rm::collect_rewards(
-                                                           env, *next_state, m_br_players
-                                                        ))
+                                                             env, *next_state, m_br_players
+                                                          ))
                                                         : std::nullopt,
                                   .opp_reach_prob = child_reach_prob,
                                   .is_br_node = common::isin(next_player, m_br_players),
-                                  .active_player = next_player})
+                                  .active_player = next_player
+                               })
                             )
                             .first->second.get();
 
@@ -243,7 +260,8 @@ void best_response_impl< config, Env >::_run(
          .opp_reach_prob = 1.,
          .is_br_node = root_is_br,
          .active_player = root_player,
-         .infostate_ptr = infostate_ptr};
+         .infostate_ptr = infostate_ptr
+      };
    });
    forest::GameTreeTraverser(env).walk(
       utils::dynamic_unique_ptr_cast< world_state_type >(utils::clone_any_way(root_state)),
@@ -251,7 +269,8 @@ void best_response_impl< config, Env >::_run(
          .opp_reach_prob = 1.,
          .infostates = std::move(root_infostates),
          .observation_buffer = {},
-         .parent = &root_node},
+         .parent = &root_node
+      },
       forest::TraversalHooks{.child_hook = std::move(child_hook)}
    );
 
@@ -260,14 +279,14 @@ void best_response_impl< config, Env >::_run(
 
 template < BRConfig config, concepts::fosg Env >
 void best_response_impl< config, Env >::_compute_best_responses(
-   player_hash_map< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill
+   player_hashmap< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill
 )
 {
    auto build_mapped_type_args = [&](auto& br) {
       if constexpr(config.store_infostate_values)
-         return std::forward_as_tuple(std::move(br.action), std::move(br.value));
+         return std::tuple{std::move(br.action), std::move(br.value)};
       else
-         return std::forward_as_tuple(std::move(br.action));
+         return std::tuple{std::move(br.action)};
    };
    auto& player_br_map = best_response_map_to_fill[m_br_players.front()];
    auto fetch_player_br_map = [&, n_br_players = m_br_players.size()](Player player) -> auto& {
@@ -326,7 +345,7 @@ auto best_response_impl< config, Env >::_best_response(const info_state_type& in
 }
 
 template < BRConfig config, concepts::fosg Env >
-const player_hash_map< double >& best_response_impl< config, Env >::_value(WorldNode& node)
+const player_hashmap< double >& best_response_impl< config, Env >::_value(WorldNode& node)
 {
    // first check if this node's value hasn't been already computed by another visit or is
    // already in the br map
@@ -346,7 +365,7 @@ const player_hash_map< double >& best_response_impl< config, Env >::_value(World
          // children values, since we are in a trajectory that won't be reached in play by the
          // opponents and therefore our best-response at associated infostates will be arbitrary
          // anyway. the exact comparison of doubles here should be fine since we are actually
-         player_hash_map< double > running_values;
+         player_hashmap< double > running_values;
          for(auto player : m_br_players) {
             running_values.emplace(player, 0.);  // fill the map with 0 for best responders as init
          }
@@ -422,8 +441,8 @@ class BestResponsePolicy {
    decltype(auto) allocate(
       Env&& env,
       const auto_world_state_type< std::remove_cvref_t< Env > >& root_state,
-      const std::unordered_map< Player, StatePolicy >& player_policies,
-      std::unordered_map< Player, info_state_type > root_infostates = {}
+      const player_hashmap< StatePolicy >& player_policies,
+      player_hashmap< info_state_type > root_infostates = {}
    )
    {
       detail::make_best_response_impl< config >(
@@ -439,8 +458,9 @@ class BestResponsePolicy {
 
    [[nodiscard]] auto operator()(const info_state_type& infostate, auto&&...) const
    {
-      return HashmapActionPolicy< action_type >{std::array{
-         std::pair{_get_action(m_best_response.at(infostate.player()).at(infostate)), 1.}}};
+      return HashmapActionPolicy< action_type >{
+         std::pair{_get_action(m_best_response.at(infostate.player()).at(infostate)), 1.}
+      };
    }
 
    [[nodiscard]] auto at(const info_state_type& infostate, auto&&...) const
@@ -464,7 +484,7 @@ class BestResponsePolicy {
 
   private:
    std::vector< Player > m_best_responders;
-   player_hash_map< std::unordered_map< info_state_type, mapped_type > > m_best_response;
+   player_hashmap< std::unordered_map< info_state_type, mapped_type > > m_best_response;
 
    [[nodiscard]] const auto& _get_action(const mapped_type& mapped_elem) const
    {

@@ -16,10 +16,10 @@
 namespace nor::forest {
 
 template <
-   typename PreChildVisitHook = common::noop,
-   typename ChildVisitHook = common::noop,
-   typename PostChildVisitHook = common::noop,
-   typename RootVisitHook = common::noop >
+   typename RootVisitHook = common::noop<>,
+   typename PreChildVisitHook = common::noop<>,
+   typename ChildVisitHook = common::noop<>,
+   typename PostChildVisitHook = common::noop<> >
 struct TraversalHooks {
    /// typedefs for access later down the line
    using pre_child_hook_type = PreChildVisitHook;
@@ -27,22 +27,60 @@ struct TraversalHooks {
    using post_child_hook_type = PostChildVisitHook;
    using root_hook_type = RootVisitHook;
    /// the stored functors for each hook
-   root_hook_type root_hook{};
-   pre_child_hook_type pre_child_hook{};
-   child_hook_type child_hook{};
-   post_child_hook_type post_child_hook{};
+   RootVisitHook root_hook{};
+   PreChildVisitHook pre_child_hook{};
+   ChildVisitHook child_hook{};
+   PostChildVisitHook post_child_hook{};
 };
+
+template <
+   typename Env,
+   typename VisitationData,
+   typename PreChildVisitHook ,
+   typename ChildVisitHook ,
+   typename PostChildVisitHook ,
+   typename RootVisitHook>
+concept walk_requirements = concepts::fosg<Env> and
+   ((std::is_invocable_r_v<
+      VisitationData,  // the expected return type
+      ChildVisitHook,  // the actual functor
+      VisitationData&,  // current node's visitation data access
+      auto_action_variant_type< Env >*,  // the action that lead to this child
+      auto_world_state_type< Env >*,  // current world state
+      auto_world_state_type< Env >*  // child world state
+   > or std::is_invocable_r_v<
+      void,
+      ChildVisitHook,
+      VisitationData&,
+      auto_action_variant_type< Env >*,
+      auto_world_state_type< Env >*,
+      auto_world_state_type< Env >*
+   >)
+   and std::invocable<
+      PreChildVisitHook,  // the actual functor
+      VisitationData&,  // current node's visitation data access
+      auto_world_state_type< Env >*  // current world state
+   >
+   and std::invocable<
+      PostChildVisitHook,  // the actual functor
+      auto_world_state_type< Env >*  // current world state
+   >
+   and std::invocable<
+      RootVisitHook  // the actual functor
+   >
+   and std::is_move_constructible_v< VisitationData >  // the visit data needs to be at least moveable
+);
 
 template < concepts::fosg Env >
 class GameTreeTraverser {
   public:
-   using action_type = typename fosg_auto_traits< Env >::action_type;
-   using chance_outcome_type = typename fosg_auto_traits< Env >::chance_outcome_type;
-   using observation_type = typename fosg_auto_traits< Env >::observation_type;
-   using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
-   using public_state_type = typename fosg_auto_traits< Env >::public_state_type;
-   using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
-   using action_variant_type = typename fosg_auto_traits< Env >::action_variant_type;
+   using action_type = auto_action_type< Env >;
+   using chance_outcome_type = auto_chance_outcome_type< Env >;
+   using observation_type = auto_observation_type< Env >;
+   using world_state_type = auto_world_state_type< Env >;
+   using public_state_type = auto_public_state_type< Env >;
+   using info_state_type = auto_info_state_type< Env >;
+   using action_variant_type = auto_action_variant_type< Env >;
 
    GameTreeTraverser(Env& env) : m_env(&env) {}
 
@@ -59,38 +97,26 @@ class GameTreeTraverser {
     */
    template <
       typename VisitationData = utils::empty,
-      typename PreChildVisitHook = common::noop,
-      typename ChildVisitHook = common::noop,
-      typename PostChildVisitHook = common::noop,
-      typename RootVisitHook = common::noop >
+      typename PreChildVisitHook = common::noop< VisitationData >,
+      typename ChildVisitHook = common::noop< VisitationData >,
+      typename PostChildVisitHook = common::noop< VisitationData >,
+      typename RootVisitHook = common::noop< VisitationData > >
    // clang-format off
-   requires
-      std::is_invocable_r_v<
-         VisitationData,  // the expected return type
-         ChildVisitHook,  // the actual functor
-         VisitationData&,  // current node's visitation data access
-         action_variant_type*,  // the action that lead to this child
-         world_state_type*,  // current world state
-         world_state_type*  // child world state
-      >
-      and std::invocable<
-         PreChildVisitHook,  // the actual functor
-         VisitationData&,  // current node's visitation data access
-         world_state_type*  // current world state
-      >
-      and std::invocable<
-         PostChildVisitHook,  // the actual functor
-         world_state_type*  // current world state
-      >
-      and std::is_move_constructible_v< VisitationData >
+   requires walk_requirements< Env, VisitationData, PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook >
    // clang-format on
-   inline void walk(
+   void walk(
       uptr< world_state_type > root_state,
       VisitationData vis_data = {},
-      TraversalHooks< PreChildVisitHook, ChildVisitHook, PostChildVisitHook, RootVisitHook > hooks =
+      TraversalHooks< RootVisitHook, PreChildVisitHook, ChildVisitHook, PostChildVisitHook > hooks =
          {}
    )
    {
+      constexpr bool child_visit_hook_returns_void = std::is_void_v< std::invoke_result_t<
+         ChildVisitHook,
+         VisitationData&,
+         auto_action_variant_type< Env >*,
+         auto_world_state_type< Env >*,
+         auto_world_state_type< Env >* > >;
       // we need to fill the root node's data (if desired) before entering the loop, since the
       // loop assumes all entered nodes to have their data node emplaced already.
       hooks.root_hook(root_state.get());
@@ -159,10 +185,15 @@ class GameTreeTraverser {
             // offer the caller to extract information for the currently visited node. We are
             // passing the worldstate ptrs even if we are traversing by states in order to maintain
             // consistency in our call signature
-
-            auto new_visitation_data = hooks.child_hook(
-               visit_data, &action_variant, curr_wstate_raw_ptr, next_wstate_uptr.get()
-            );
+            VisitationData new_visitation_data = std::invoke([&] {
+               if constexpr(not child_visit_hook_returns_void) {
+                  return hooks.child_hook(
+                     visit_data, &action_variant, curr_wstate_raw_ptr, next_wstate_uptr.get()
+                  );
+               } else {
+                  return VisitationData{};
+               }
+            });
 
             if(not m_env->is_terminal(*next_wstate_uptr)) {
                // if the newly reached world state is not a terminal state, then we merely append
@@ -396,8 +427,8 @@ class GameTreeTraverser {
 //             std::visit([](const auto& av) { return common::to_string(av); }, action_variant)
 //          );
 //          action_prob = curr_action_prob;
-//          SPDLOG_DEBUG("Action prob after: {}", (action_prob.has_value() ? action_prob.value().get() :
-//          404.));
+//          SPDLOG_DEBUG("Action prob after: {}", (action_prob.has_value() ?
+//          action_prob.value().get() : 404.));
 //
 //          if(m_env.is_terminal(*next_state)) {
 //             // if the child is a terminal state then we take the payoff of this history and add
