@@ -32,7 +32,7 @@ option(ENABLE_SANITIZER_UNDEFINED_BEHAVIOR "Enable undefined behavior sanitizer"
 option(ENABLE_TESTING "Enable Test Builds" ON)
 option(ENABLE_GAMES "Enable Game Builds" ON)
 option(ENABLE_WARNING_PADDING "Warn when structs are memory padded" OFF)
-option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" ON)
+option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" OFF)
 option(INSTALL_PYMODULE "Configure installation for python module." OFF)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
@@ -52,7 +52,7 @@ else ()
 endif ()
 
 set(nor-lib-type INTERFACE)
-set(nor_lib libnor)
+set(nor_lib nor++)
 set(nor_pymodule noregret)
 set(nor_test nor_tests)
 set(nor_benchmark nor_benchmark)
@@ -138,6 +138,11 @@ target_compile_options(project_options INTERFACE $<$<CXX_COMPILER_ID:Clang>:-std
 set(CONAN_EXTRA_REQUIRES "")
 set(CONAN_EXTRA_OPTIONS "")
 
+# the deps to be downloaded by cpm
+include(${_cmake_DIR}/settings/CPM.cmake)
+# let cpm try to find other deps locally first (find_package) to allow interplay with conan
+set(CPM_USE_LOCAL_PACKAGES TRUE)
+
 include("${_cmake_DIR}/settings/Utilities.cmake")
 # define the conan settings and optional conan1 run if necessary
 include(${_cmake_DIR}/settings/Conan.cmake)
@@ -178,6 +183,8 @@ find_package(range-v3 REQUIRED)
 find_package(namedtype REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(unordered_dense REQUIRED)
+include(${DEPENDENCY_DIR}/CPM_deps.cmake)
 
 add_library(required_min_libs INTERFACE)
 target_link_libraries(
@@ -187,6 +194,7 @@ target_link_libraries(
         project_warnings
         fmt::fmt-header-only
         spdlog::spdlog
+        unordered_dense::unordered_dense
 )
 target_compile_definitions(
         required_min_libs
@@ -198,7 +206,7 @@ target_compile_definitions(
 include(${_cmake_DIR}/targets/shared_libs.cmake)
 include(${_cmake_DIR}/targets/nor.cmake)
 if (ENABLE_TESTING)
-    find_package("GTest")
+    find_package(GTest REQUIRED)
     enable_testing()
     message("Configuring Tests.")
     include(${_cmake_DIR}/targets/tests.cmake)

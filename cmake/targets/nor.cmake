@@ -38,7 +38,13 @@ set_target_properties(${nor_lib} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 # NOR Environment Wrappers      ###
 # ######################################################################################################################
 
-set(WRAPPER_SOURCES stratego_env.cpp kuhn_env.cpp rps_env.cpp)
+set(
+        WRAPPER_SOURCES
+        stratego.cpp
+        kuhn.cpp
+        leduc.cpp
+        rps.cpp
+)
 list(TRANSFORM WRAPPER_SOURCES PREPEND "${PROJECT_NOR_DIR}/impl/")
 
 if (ENABLE_GAMES)
@@ -53,5 +59,6 @@ if (ENABLE_GAMES)
             project_options
             stratego
             kuhn_poker
+            leduc_poker
             rock_paper_scissors)
 endif ()
