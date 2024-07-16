@@ -56,27 +56,16 @@ class Environment {
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::choice; }
 
-  private:
-   using action_holder = ActionHolder< action_type >;
-   using observation_holder = ObservationHolder< observation_type >;
-   using info_state_holder = InfostateHolder< info_state_type >;
-   using public_state_holder = PublicstateHolder< public_state_type >;
-   using world_state_holder = WorldstateHolder< world_state_type >;
-
   public:
    Environment() = default;
 
-   std::vector< ActionHolder< action_type > > actions(Player, const world_state_type& wstate) const
+   std::vector< action_type > actions(Player, const world_state_type& wstate) const
    {
-      return to_holder_vector< action_type >(wstate.actions(), tag::action{});
+      return wstate.actions();
    }
-   inline std::vector< ChanceOutcomeHolder< chance_outcome_type > > chance_actions(
-      const world_state_type& wstate
-   ) const
+   inline std::vector< chance_outcome_type > chance_actions(const world_state_type& wstate) const
    {
-      return to_holder_vector< chance_outcome_type >(
-         wstate.chance_actions(), tag::chance_outcome{}
-      );
+      return wstate.chance_actions();
    }
 
    [[nodiscard]] std::vector< PlayerInformedType< std::optional< action_variant_type > > >
@@ -105,33 +94,33 @@ class Environment {
    static double reward(Player player, const world_state_type& wstate);
 
    template < typename ActionT >
+      requires common::is_any_v< ActionT, action_type, chance_outcome_type >
    void transition(world_state_type& worldstate, const ActionT& action) const
-   //      requires common::is_any_v< ActionT, action_type, chance_outcome_type >
    {
       worldstate.apply_action(action);
    }
 
-   ObservationHolder< observation_type > private_observation(
+   observation_type private_observation(
       Player observer,
       const world_state_type& wstate,
       const action_type& action,
       const world_state_type& next_wstate
    ) const;
 
-   ObservationHolder< observation_type > private_observation(
+   observation_type private_observation(
       Player observer,
       const world_state_type& wstate,
       const chance_outcome_type& action,
       const world_state_type& next_wstate
    ) const;
 
-   ObservationHolder< observation_type > public_observation(
+   observation_type public_observation(
       const world_state_type& wstate,
       const action_type& action,
       const world_state_type& next_wstate
    ) const;
 
-   ObservationHolder< observation_type > public_observation(
+   observation_type public_observation(
       const world_state_type& wstate,
       const chance_outcome_type& action,
       const world_state_type& next_wstate

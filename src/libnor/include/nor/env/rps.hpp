@@ -53,25 +53,12 @@ class Environment {
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
-  private:
-   using action_holder = ActionHolder< action_type >;
-   using chance_outcome_holder = ChanceOutcomeHolder< chance_outcome_type >;
-   using observation_holder = ObservationHolder< observation_type >;
-   using info_state_holder = InfostateHolder< info_state_type >;
-   using public_state_holder = PublicstateHolder< public_state_type >;
-   using world_state_holder = WorldstateHolder< world_state_type >;
-
   public:
    Environment() = default;
 
-   std::vector< ActionHolder< action_type > > actions(Player, const world_state_type&) const
+   std::vector< action_type > actions(Player, const world_state_type&) const
    {
-      std::vector< ActionHolder< action_type > > valid_actions;
-      valid_actions.reserve(3);
-      for(auto hand : {Action::paper, Action::rock, Action::scissors}) {
-         valid_actions.emplace_back(hand);
-      }
-      return valid_actions;
+      return std::vector{Action::paper, Action::rock, Action::scissors};
    }
 
    std::vector< PlayerInformedType< std::optional< action_variant_type > > >
@@ -95,14 +82,14 @@ class Environment {
    static double reward(Player player, const world_state_type& wstate);
    void transition(world_state_type& worldstate, const action_type& action) const;
 
-   observation_holder private_observation(
+   observation_type private_observation(
       Player observer,
       const world_state_type& wstate,
       const action_type& action,
       const world_state_type& next_wstate
    ) const;
 
-   observation_holder public_observation(
+   observation_type public_observation(
       const world_state_type& wstate,
       const action_type& action,
       const world_state_type& next_wstate

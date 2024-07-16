@@ -55,18 +55,9 @@ class Environment {
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
-  private:
-   using action_holder = ActionHolder< action_type >;
-   using chance_outcome_holder = ChanceOutcomeHolder< chance_outcome_type >;
-   using observation_holder = ObservationHolder< observation_type >;
-   using info_state_holder = InfostateHolder< info_state_type >;
-   using public_state_holder = PublicstateHolder< public_state_type >;
-   using world_state_holder = WorldstateHolder< world_state_type >;
-
-  public:
    Environment() = default;
 
-   std::vector< ActionHolder< action_type > > actions(Player player, const world_state_type& wstate)
+   std::vector<  action_type > actions(Player player, const world_state_type& wstate)
       const;
 
    std::vector< PlayerInformedType< std::optional< action_variant_type > > >

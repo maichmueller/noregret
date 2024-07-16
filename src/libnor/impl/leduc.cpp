@@ -3,6 +3,8 @@
 
 #include <unordered_set>
 
+#include "nor/utils/player_informed_type.hpp"
+
 using namespace nor;
 using namespace games::leduc;
 
@@ -21,24 +23,22 @@ double Environment::reward(Player player, world_state_type& wstate)
    return wstate.payoff(to_leduc_player(player));
 }
 
-Environment::observation_holder Environment::
+Environment::observation_type Environment::
    private_observation(nor::Player, const world_state_type&, const action_type&, const world_state_type&)
       const
 {
-   return observation_holder{"-"};
+   return "-";
 }
-Environment::observation_holder Environment::
+Environment::observation_type Environment::
    public_observation(const world_state_type& wstate, const action_type& action, const world_state_type&)
       const
 {
-   std::stringstream ss;
-   ss << to_nor_player(wstate.active_player()) << ":" << common::to_string(action);
-   return ss.str();
+   return fmt::format("{}:{}", to_nor_player(wstate.active_player()), common::to_string(action));
 }
 
-Environment::observation_holder Environment::private_observation(
+Environment::observation_type Environment::private_observation(
    Player observer,
-   const world_state_type& wstate,
+   const world_state_type& /*wstate*/,
    const chance_outcome_type& outcome,
    const world_state_type& next_wstate
 ) const
@@ -47,19 +47,19 @@ Environment::observation_holder Environment::private_observation(
    if(next_wstate.public_card().has_value()) {
       // if the next worldstate has a public card then this means that this chance outcome was the
       // selection of the flop --> the outcome is fully public
-      return observation_holder{"-"};
+      return "-";
    }
    auto owner_of_card = Player(next_wstate.cards().size() - 1);
    if(owner_of_card == observer) {
       // we only use the rank as observation of a card! (otherwise the number of suits multiplies
       // the number of infostates to no strategic benefit (in leduc))
-      return observation_holder{common::to_string(outcome.rank)};
+      return common::to_string(outcome.rank);
    }
-   return observation_holder{"-"};
+   return "-";
 }
 
-Environment::observation_holder Environment::public_observation(
-   const world_state_type& wstate,
+Environment::observation_type Environment::public_observation(
+   const world_state_type& /*wstate*/,
    const chance_outcome_type& outcome,
    const world_state_type& next_wstate
 ) const
@@ -67,9 +67,9 @@ Environment::observation_holder Environment::public_observation(
    if(next_wstate.public_card().has_value()) {
       // if the next worldstate has a public card then this means that this chance outcome was the
       // selection of the flop
-      return observation_holder{common::to_string(outcome.rank)};
+      return common::to_string(outcome.rank);
    }
-   return observation_holder{common::to_string(nor::Player(next_wstate.cards().size() - 1)) + ":?"};
+   return common::to_string(nor::Player(next_wstate.cards().size() - 1)) + ":?";
 }
 
 // Environment::observation_type Environment::tiny_repr(const world_state_type& wstate) const
@@ -137,7 +137,7 @@ Environment::public_history(const world_state_type& wstate) const
    auto action_history = wstate.history();
    const auto n_players_total = wstate.config().n_players;
    out.reserve(action_history.size() + n_players_total);
-   for(auto&& [i, card] : ranges::views::enumerate(wstate.cards())) {
+   for([[maybe_unused]] auto&& _ : ranges::views::enumerate(wstate.cards())) {
       out.emplace_back(std::nullopt, Player::chance);
    }
    for(auto&& [i, action] : ranges::views::enumerate(action_history)) {

@@ -1,5 +1,6 @@
 
 #include "nor/env/kuhn.hpp"
+#include "nor/utils/player_informed_type.hpp"
 
 #include <unordered_set>
 
@@ -21,36 +22,36 @@ double Environment::reward(Player player, const world_state_type& wstate)
    return wstate.payoff(to_kuhn_player(player));
 }
 
-ObservationHolder< Environment::observation_type > Environment::
+Environment::observation_type Environment::
    private_observation(Player, const world_state_type&, const action_type&, const world_state_type&)
       const
 {
-   return observation_holder{"-"};
+   return "-";
 }
-ObservationHolder< Environment::observation_type > Environment::
+Environment::observation_type Environment::
    public_observation(const world_state_type&, const action_type& action, const world_state_type&)
       const
 {
-   return observation_holder{common::to_string(action)};
+   return common::to_string(action);
 }
 
-ObservationHolder< Environment::observation_type > Environment::
+Environment::observation_type Environment::
    private_observation(Player observer, const world_state_type&, const chance_outcome_type& outcome, const world_state_type&)
       const
 {
    if(outcome.player == to_kuhn_player(observer)) {
-      return observation_holder{std::string(common::to_string(outcome))};
+      return common::to_string(outcome);
    }
-   return observation_holder{"-"};
+   return "-";
 }
 
-ObservationHolder< Environment::observation_type > Environment::public_observation(
-   const world_state_type& wstate,
+Environment::observation_type Environment::public_observation(
+   const world_state_type& /*wstate*/,
    const chance_outcome_type& outcome,
-   const world_state_type& next_wstate
+   const world_state_type& /*next_wstate*/
 ) const
 {
-   return observation_holder{common::to_string(nor::Player(outcome.player)) + ":?"};
+   return common::to_string(nor::Player(outcome.player)) + ":?";
 }
 
 Environment::observation_type Environment::tiny_repr(const world_state_type& wstate) const
@@ -86,17 +87,14 @@ Environment::private_history(Player player, const world_state_type& wstate) cons
       }
 
       if(i == static_cast< size_t >(player)) {
-         out.emplace_back(
-            ChanceOutcomeHolder< chance_outcome_type >{kuhn::Player(i), *outcome_opt},
-            Player::chance
-         );
+         out.emplace_back(chance_outcome_type{kuhn::Player(i), *outcome_opt}, Player::chance);
       } else {
          out.emplace_back(std::nullopt, Player::chance);
       }
    }
    for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
       if(i != static_cast< size_t >(player)) {
-         out.emplace_back(action_holder{action_or_outcome}, to_nor_player(kuhn::Player(i)));
+         out.emplace_back(action_or_outcome, to_nor_player(kuhn::Player(i)));
       } else {
          out.emplace_back(std::nullopt, to_nor_player(kuhn::Player(i)));
       }
@@ -113,7 +111,7 @@ std::vector< PlayerInformedType< Environment::action_variant_type > > Environmen
    auto action_history = wstate.history();
    out.reserve(action_history.size() + 2);
    for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
-      out.emplace_back(action_holder{action}, to_nor_player(kuhn::Player(i)));
+      out.emplace_back(action, to_nor_player(kuhn::Player(i)));
    }
    out.shrink_to_fit();
    return out;

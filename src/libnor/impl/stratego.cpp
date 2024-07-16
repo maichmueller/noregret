@@ -3,6 +3,7 @@
 
 #include "common/common.hpp"
 #include "stratego/stratego.hpp"
+#include "nor/utils/player_informed_type.hpp"
 
 namespace nor::games::stratego {
 
@@ -26,12 +27,10 @@ bool Environment::is_terminal(const world_state_type& wstate)
 {
    return wstate.status() != Status::ONGOING;
 }
-std::vector< ActionHolder< Environment::action_type > >
+std::vector< Environment::action_type >
 Environment::actions(Player player, const world_state_type& wstate) const
 {
-   return to_holder_vector< action_type >(
-      wstate.logic()->valid_actions(wstate, to_team(player)), tag::action{}
-   );
+   return wstate.logic()->valid_actions(wstate, to_team(player));
 }
 
 void Environment::transition(world_state_type& worldstate, const action_type& action) const
@@ -57,7 +56,7 @@ std::vector< PlayerInformedType< Environment::action_variant_type > > Environmen
    out.reserve(history.size());
    for(auto turn : history.turns()) {
       auto [team, action, _] = history[turn];
-      out.emplace_back(action_holder{action}, to_player(team));
+      out.emplace_back(action, to_player(team));
    }
    return out;
 }
@@ -70,7 +69,7 @@ Environment::private_history(Player, const Environment::world_state_type& wstate
    out.reserve(history.size());
    for(auto turn : history.turns()) {
       auto [team, action, _] = history[turn];
-      out.emplace_back(action_holder{action}, to_player(team));
+      out.emplace_back(action, to_player(team));
    }
    return out;
 }
@@ -83,7 +82,7 @@ Environment::public_history(const world_state_type& wstate) const
    out.reserve(history.size());
    for(auto turn : history.turns()) {
       auto [team, action, _] = history[turn];
-      out.emplace_back(action_holder{action}, to_player(team));
+      out.emplace_back(action, to_player(team));
    }
    return out;
 }
@@ -201,8 +200,8 @@ nor::games::stratego::Environment::observation_type
 nor::games::stratego::Environment::private_observation(
    nor::Player observer,
    const world_state_type& wstate,
-   const action_type& action,
-   const world_state_type& next_wstate
+   const action_type& /*action*/,
+   const world_state_type& /*next_wstate*/
 ) const
 {
    if(wstate.turn_count() == 0) {
@@ -215,7 +214,7 @@ nor::games::stratego::Environment::private_observation(
 
 nor::games::stratego::Environment::observation_type
 nor::games::stratego::Environment::public_observation(
-   const world_state_type& wstate,
+   const world_state_type& /*wstate*/,
    const action_type& action,
    const world_state_type& next_wstate
 ) const
