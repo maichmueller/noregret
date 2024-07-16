@@ -18,13 +18,7 @@ std::string print_action_policy(const ActionPolicy& action_policy)
 
    std::string result = "[";
    for(const auto& [key, value] : action_policy) {
-      fmt::format_to(
-         std::back_inserter(result),
-         "{:<{}}: {:<6.3f}",
-         key,
-         max_len_action,
-         value
-      );
+      fmt::format_to(std::back_inserter(result), "{:<{}}: {:<6.3f}", key, max_len_action, value);
    }
    result += "]";
    return result;
@@ -236,9 +230,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
             kuhn::ChanceOutcome{
                .player = kuhn::Player::two,
                .card = kuhn::Card::queen,  // which card here does not matter
-            }
-         }
-      },
+            }}},
       std::pair{
          "q?",
          std::vector< kuhn_action_variant_type >{
@@ -249,9 +241,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
             kuhn::ChanceOutcome{
                .player = kuhn::Player::two,
                .card = kuhn::Card::jack,  // which card here does not matter
-            }
-         }
-      },
+            }}},
       std::pair{
          "k?",
          std::vector< kuhn_action_variant_type >{
@@ -262,9 +252,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
             kuhn::ChanceOutcome{
                .player = kuhn::Player::two,
                .card = kuhn::Card::jack,  // which card here does not matter
-            }
-         }
-      },
+            }}},
       std::pair{
          "j?cb",
          std::vector< kuhn_action_variant_type >{
@@ -277,9 +265,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .card = kuhn::Card::queen,  // which card here does not matter
             },
             kuhn::Action::check,
-            kuhn::Action::bet
-         }
-      },
+            kuhn::Action::bet}},
       std::pair{
          "q?cb",
          std::vector< kuhn_action_variant_type >{
@@ -292,9 +278,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .card = kuhn::Card::jack,  // which card here does not matter
             },
             kuhn::Action::check,
-            kuhn::Action::bet
-         }
-      },
+            kuhn::Action::bet}},
       std::pair{
          "k?cb",
          std::vector< kuhn_action_variant_type >{
@@ -307,9 +291,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .card = kuhn::Card::jack,  // which card here does not matter
             },
             kuhn::Action::check,
-            kuhn::Action::bet
-         }
-      },
+            kuhn::Action::bet}},
       std::pair{
          "?jc",
          std::vector< kuhn_action_variant_type >{
@@ -321,9 +303,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .player = kuhn::Player::two,
                .card = kuhn::Card::jack,
             },
-            kuhn::Action::check
-         }
-      },
+            kuhn::Action::check}},
       std::pair{
          "?jb",
          std::vector< kuhn_action_variant_type >{
@@ -335,9 +315,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .player = kuhn::Player::two,
                .card = kuhn::Card::jack,
             },
-            kuhn::Action::bet
-         }
-      },
+            kuhn::Action::bet}},
       std::pair{
          "?qc",
          std::vector< kuhn_action_variant_type >{
@@ -349,9 +327,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .player = kuhn::Player::two,
                .card = kuhn::Card::queen,
             },
-            kuhn::Action::check
-         }
-      },
+            kuhn::Action::check}},
       std::pair{
          "?qb",
          std::vector< kuhn_action_variant_type >{
@@ -363,9 +339,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .player = kuhn::Player::two,
                .card = kuhn::Card::queen,
             },
-            kuhn::Action::bet
-         }
-      },
+            kuhn::Action::bet}},
       std::pair{
          "?kc",
          std::vector< kuhn_action_variant_type >{
@@ -377,9 +351,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .player = kuhn::Player::two,
                .card = kuhn::Card::king,
             },
-            kuhn::Action::check
-         }
-      },
+            kuhn::Action::check}},
       std::pair{
          "?kb",
          std::vector< kuhn_action_variant_type >{
@@ -391,10 +363,7 @@ inline const common::CEMap< std::string, std::vector< kuhn_action_variant_type >
                .player = kuhn::Player::two,
                .card = kuhn::Card::king,
             },
-            kuhn::Action::bet
-         }
-      }
-};
+            kuhn::Action::bet}}};
 
 inline auto kuhn_optimal(double alpha)
 {
@@ -427,14 +396,12 @@ inline auto kuhn_optimal(double alpha)
    alex_policy.emplace(
       fetch_infostate("q?cb", nor::Player::alex),
       HashmapActionPolicy{
-         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}
-      }
+         std::pair{Action::check, 2. / 3. - alpha}, std::pair{Action::bet, 1. / 3. + alpha}}
    );
    alex_policy.emplace(
       fetch_infostate("k?", nor::Player::alex),
       HashmapActionPolicy{
-         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}
-      }
+         std::pair{Action::check, 1. - 3. * alpha}, std::pair{Action::bet, 3. * alpha}}
    );
    alex_policy.emplace(
       fetch_infostate("k?cb", nor::Player::alex),
@@ -479,13 +446,11 @@ inline auto kuhn_policy_always_mix_like(double check_prob = 0.5, double bet_prob
 
    for(auto& [infostate, policy] : alex_policy) {
       policy = HashmapActionPolicy{
-         std::pair{Action::check, check_prob}, std::pair{Action::bet, bet_prob}
-      };
+         std::pair{Action::check, check_prob}, std::pair{Action::bet, bet_prob}};
    }
    for(auto& [infostate, policy] : bob_policy) {
       policy = HashmapActionPolicy{
-         std::pair{Action::check, check_prob}, std::pair{Action::bet, bet_prob}
-      };
+         std::pair{Action::check, check_prob}, std::pair{Action::bet, bet_prob}};
    }
 
    return std::tuple{std::move(alex_policy), std::move(bob_policy)};
@@ -542,8 +507,7 @@ void assert_optimal_policy_kuhn(const auto& solver, auto& env, double precision 
 
    auto policy_tables = std::vector{
       solver.average_policy().at(Player::alex).table(),
-      solver.average_policy().at(Player::bob).table()
-   };
+      solver.average_policy().at(Player::bob).table()};
    double alpha = normalize_action_policy(policy_tables[0].at(infostate_alex))[kuhn::Action::bet];
    auto [alex_optimal_table, bob_optimal_table] = kuhn_optimal(alpha);
    auto optimal_tables = std::vector{std::move(alex_optimal_table), std::move(bob_optimal_table)};
@@ -618,8 +582,7 @@ inline auto setup_rps_test()
       std::move(tabular_policy_bob),
       std::move(infostate_alex),
       std::move(infostate_bob),
-      std::move(next_state)
-   };
+      std::move(next_state)};
 }
 
 #endif  // NOR_RM_SPECIFIC_TESTING_UTILS_HPP

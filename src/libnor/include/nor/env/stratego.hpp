@@ -57,8 +57,7 @@ class Environment {
 
    Environment() = default;
 
-   std::vector<  action_type > actions(Player player, const world_state_type& wstate)
-      const;
+   std::vector< action_type > actions(Player player, const world_state_type& wstate) const;
 
    std::vector< PlayerInformedType< std::optional< action_variant_type > > >
    private_history(Player player, const world_state_type& wstate) const;

@@ -99,7 +99,7 @@ concept actions = requires(T const t, Worldstate worldstate, Player player) {
    // legal actions getter for the given player
    {
       t.actions(player, worldstate)
-   } -> std::convertible_to< std::vector<  Action > > ;
+   } -> std::convertible_to< std::vector< Action > >;
 };
 
 template <
@@ -110,7 +110,7 @@ concept chance_actions = requires(T const t, Worldstate worldstate) {
    // legal actions getter for the given player
    {
       t.chance_actions(worldstate)
-   } -> std::convertible_to< std::vector<  Outcome >  >;
+   } -> std::convertible_to< std::vector< Outcome > >;
 };
 
 template <

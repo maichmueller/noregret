@@ -77,8 +77,7 @@ TEST(LeducPokerState_3_Players, apply_action_stakes_is_valid)
          Card{Rank::two, Suit::diamonds},
          Card{Rank::ace, Suit::diamonds},
          Card{Rank::ten, Suit::diamonds},
-         Card{Rank::seven, Suit::diamonds}
-      }
+         Card{Rank::seven, Suit::diamonds}}
    );
    state.apply_action(Rank::king, Suit::clubs);
    state.apply_action(Rank::seven, Suit::diamonds);
@@ -206,8 +205,7 @@ TEST_F(LeducPokerState, valid_chance_actions)
          {Rank::queen, Suit::clubs},
          {Rank::queen, Suit::diamonds},
          {Rank::king, Suit::clubs},
-         {Rank::king, Suit::diamonds}
-      }
+         {Rank::king, Suit::diamonds}}
    ));
 
    state.apply_action(Rank::jack, Suit::clubs);
@@ -219,8 +217,7 @@ TEST_F(LeducPokerState, valid_chance_actions)
          {Rank::queen, Suit::clubs},
          {Rank::queen, Suit::diamonds},
          {Rank::king, Suit::clubs},
-         {Rank::king, Suit::diamonds}
-      }
+         {Rank::king, Suit::diamonds}}
    ));
 
    state.apply_action(Rank::queen, Suit::diamonds);
@@ -231,8 +228,7 @@ TEST_F(LeducPokerState, valid_chance_actions)
          {Rank::jack, Suit::diamonds},
          {Rank::queen, Suit::clubs},
          {Rank::king, Suit::clubs},
-         {Rank::king, Suit::diamonds}
-      }
+         {Rank::king, Suit::diamonds}}
    ));
 }
 
@@ -361,8 +357,7 @@ INSTANTIATE_TEST_SUITE_P(
          leduc::LeducConfig(),
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
-         true
-      },
+         true},
       std::tuple{
          leduc::LeducConfig(
             5,
@@ -377,8 +372,7 @@ INSTANTIATE_TEST_SUITE_P(
                Card{Rank::two, Suit::diamonds},
                Card{Rank::ace, Suit::diamonds},
                Card{Rank::ten, Suit::diamonds},
-               Card{Rank::seven, Suit::diamonds}
-            }
+               Card{Rank::seven, Suit::diamonds}}
          ),
          std::vector< Action >{
             {ActionType::check},
@@ -386,11 +380,9 @@ INSTANTIATE_TEST_SUITE_P(
             {ActionType::check},
             {ActionType::check},
             {ActionType::check},
-            {ActionType::check}
-         },
+            {ActionType::check}},
          std::vector< Action >{{ActionType::check}, {ActionType::check}, {ActionType::check}},
-         false
-      },
+         false},
       std::tuple{
          leduc::LeducConfig(
             3,
@@ -405,18 +397,15 @@ INSTANTIATE_TEST_SUITE_P(
                Card{Rank::two, Suit::diamonds},
                Card{Rank::ace, Suit::diamonds},
                Card{Rank::ten, Suit::diamonds},
-               Card{Rank::seven, Suit::diamonds}
-            }
+               Card{Rank::seven, Suit::diamonds}}
          ),
          std::vector< Action >{
             {ActionType::check},
             {ActionType::bet, 2.},
             {ActionType::fold},
-            {ActionType::check}
-         },
+            {ActionType::check}},
          std::vector< Action >{},
-         false
-      },
+         false},
       std::tuple{
          leduc::LeducConfig(
             3,
@@ -431,18 +420,15 @@ INSTANTIATE_TEST_SUITE_P(
                Card{Rank::two, Suit::diamonds},
                Card{Rank::ace, Suit::diamonds},
                Card{Rank::ten, Suit::diamonds},
-               Card{Rank::seven, Suit::diamonds}
-            }
+               Card{Rank::seven, Suit::diamonds}}
          ),
          std::vector< Action >{
             {ActionType::check},
             {ActionType::bet, 2.},
             {ActionType::fold},
-            {ActionType::check}
-         },
+            {ActionType::check}},
          std::vector< Action >{{ActionType::bet, 4.}, {ActionType::fold}},
-         true
-      },
+         true},
       std::tuple{
          leduc::LeducConfig(
             3,
@@ -457,13 +443,11 @@ INSTANTIATE_TEST_SUITE_P(
                Card{Rank::two, Suit::diamonds},
                Card{Rank::ace, Suit::diamonds},
                Card{Rank::ten, Suit::diamonds},
-               Card{Rank::seven, Suit::diamonds}
-            }
+               Card{Rank::seven, Suit::diamonds}}
          ),
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::fold}},
          std::vector< Action >{},
-         false
-      },
+         false},
       std::tuple{
          leduc::LeducConfig(
             3,
@@ -478,25 +462,21 @@ INSTANTIATE_TEST_SUITE_P(
                Card{Rank::two, Suit::diamonds},
                Card{Rank::ace, Suit::diamonds},
                Card{Rank::ten, Suit::diamonds},
-               Card{Rank::seven, Suit::diamonds}
-            }
+               Card{Rank::seven, Suit::diamonds}}
          ),
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
          std::vector< Action >{{ActionType::check}},
-         false
-      },
+         false},
       std::tuple{
          leduc::LeducConfig(),
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{},
-         false
-      },
+         false},
       std::tuple{
          leduc::LeducConfig(),
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::bet, 4.}},
-         false
-      },
+         false},
       std::tuple{
          leduc::LeducConfig(
             4,
@@ -511,8 +491,7 @@ INSTANTIATE_TEST_SUITE_P(
                Card{Rank::two, Suit::diamonds},
                Card{Rank::ace, Suit::diamonds},
                Card{Rank::jack, Suit::diamonds},
-               Card{Rank::three, Suit::hearts}
-            }
+               Card{Rank::three, Suit::hearts}}
          ),
          std::vector< Action >{
             {ActionType::check},  // 1-passes
@@ -527,8 +506,7 @@ INSTANTIATE_TEST_SUITE_P(
             {ActionType::fold},  // 3-folds
             {ActionType::fold},  // 4-folds
          },
-         true
-      },
+         true},
       std::tuple{
          leduc::LeducConfig(
             4,
@@ -543,8 +521,7 @@ INSTANTIATE_TEST_SUITE_P(
                Card{Rank::two, Suit::diamonds},
                Card{Rank::ace, Suit::diamonds},
                Card{Rank::ten, Suit::diamonds},
-               Card{Rank::jack, Suit::diamonds}
-            }
+               Card{Rank::jack, Suit::diamonds}}
          ),
          std::vector< Action >{
             {ActionType::check},  // 1-passes
@@ -555,8 +532,7 @@ INSTANTIATE_TEST_SUITE_P(
             {ActionType::check},  // 2-calls re-raise
          },
          std::vector< Action >{{ActionType::bet, 4.}},
-         false
-      }
+         false}
    )
 );
 
@@ -600,32 +576,28 @@ INSTANTIATE_TEST_SUITE_P(
          Card{Rank::queen, Suit::diamonds},
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
-         std::vector{0., 0.}
-      },
+         std::vector{0., 0.}},
       std::tuple{
          leduc::LeducConfig(),
          std::vector{Card{Rank::king, Suit::diamonds}, Card{Rank::queen, Suit::clubs}},
          Card{Rank::jack, Suit::diamonds},
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::check}, {ActionType::check}},
-         std::vector{3., -3.}
-      },
+         std::vector{3., -3.}},
       std::tuple{
          leduc::LeducConfig(),
          std::vector{Card{Rank::queen, Suit::diamonds}, Card{Rank::king, Suit::clubs}},
          Card{Rank::queen, Suit::clubs},
          std::vector< Action >{{ActionType::bet, 2.}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::bet, 4.}, {ActionType::check}},
-         std::vector{9., -9.}
-      },
+         std::vector{9., -9.}},
       std::tuple{
          leduc::LeducConfig(),
          std::vector{Card{Rank::jack, Suit::diamonds}, Card{Rank::queen, Suit::clubs}},
          Card{Rank::king, Suit::clubs},
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::fold}},
          std::vector< Action >{},
-         std::vector{-1., 1.}
-      },
+         std::vector{-1., 1.}},
       std::tuple{
          leduc::LeducConfig(),
          std::vector{Card{Rank::jack, Suit::diamonds}, Card{Rank::queen, Suit::clubs}},
@@ -635,10 +607,8 @@ INSTANTIATE_TEST_SUITE_P(
             {ActionType::check},
             {ActionType::bet, 4.},
             {ActionType::bet, 4.},
-            {ActionType::check}
-         },
-         std::vector{-9., 9.}
-      },
+            {ActionType::check}},
+         std::vector{-9., 9.}},
       std::tuple{
          leduc::LeducConfig(),
          std::vector{Card{Rank::jack, Suit::diamonds}, Card{Rank::queen, Suit::clubs}},
@@ -648,34 +618,29 @@ INSTANTIATE_TEST_SUITE_P(
             {ActionType::check},
             {ActionType::bet, 4.},
             {ActionType::bet, 4.},
-            {ActionType::check}
-         },
-         std::vector{9., -9.}
-      },
+            {ActionType::check}},
+         std::vector{9., -9.}},
       std::tuple{
          leduc::LeducConfig(),
          std::vector{Card{Rank::jack, Suit::diamonds}, Card{Rank::queen, Suit::clubs}},
          Card{Rank::jack, Suit::clubs},
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::bet, 4.}, {ActionType::fold}},
-         std::vector{3., -3.}
-      },
+         std::vector{3., -3.}},
       std::tuple{
          leduc::LeducConfig(),
          std::vector{Card{Rank::jack, Suit::diamonds}, Card{Rank::queen, Suit::clubs}},
          Card{Rank::jack, Suit::clubs},
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::bet, 4.}, {ActionType::fold}},
-         std::vector{3., -3.}
-      },
+         std::vector{3., -3.}},
       std::tuple{
          leduc::LeducConfig(),
          std::vector{Card{Rank::queen, Suit::diamonds}, Card{Rank::queen, Suit::clubs}},
          Card{Rank::jack, Suit::clubs},
          std::vector< Action >{{ActionType::check}, {ActionType::bet, 2.}, {ActionType::check}},
          std::vector< Action >{{ActionType::bet, 4.}, {ActionType::bet, 4.}, {ActionType::check}},
-         std::vector{-0., 0.}
-      },
+         std::vector{-0., 0.}},
       std::tuple{
          leduc::LeducConfig(
             4,
@@ -701,25 +666,21 @@ INSTANTIATE_TEST_SUITE_P(
             {Rank::ace, Suit::diamonds},
             {Rank::ace, Suit::clubs},
             {Rank::king, Suit::diamonds},
-            {Rank::king, Suit::clubs}
-         },
+            {Rank::king, Suit::clubs}},
          Card{Rank::three, Suit::diamonds},
          std::vector< Action >{
             {ActionType::check},
             {ActionType::bet, 2.},
             {ActionType::check},
             {ActionType::check},
-            {ActionType::check}
-         },
+            {ActionType::check}},
          std::vector< Action >{
             {ActionType::bet, 4.},
             {ActionType::bet, 4.},
             {ActionType::check},
             {ActionType::check},
-            {ActionType::check}
-         },
-         std::vector{11., 11., -11., -11.}
-      },
+            {ActionType::check}},
+         std::vector{11., 11., -11., -11.}},
       std::tuple{
          leduc::LeducConfig(
             4,
@@ -738,31 +699,26 @@ INSTANTIATE_TEST_SUITE_P(
                {Rank::jack, Suit::diamonds},
                {Rank::jack, Suit::clubs},
                {Rank::two, Suit::diamonds},
-               {Rank::three, Suit::diamonds}
-            }
+               {Rank::three, Suit::diamonds}}
          ),
          std::vector< Card >{
             {Rank::ace, Suit::diamonds},
             {Rank::queen, Suit::clubs},
             {Rank::king, Suit::diamonds},
-            {Rank::king, Suit::clubs}
-         },
+            {Rank::king, Suit::clubs}},
          Card{Rank::queen, Suit::diamonds},
          std::vector< Action >{
             {ActionType::check},
             {ActionType::bet, 2.},
             {ActionType::check},
             {ActionType::check},
-            {ActionType::check}
-         },
+            {ActionType::check}},
          std::vector< Action >{
             {ActionType::bet, 4.},
             {ActionType::bet, 4.},
             {ActionType::check},
             {ActionType::check},
-            {ActionType::check}
-         },
-         std::vector{-11., 33., -11., -11.}
-      }
+            {ActionType::check}},
+         std::vector{-11., 33., -11., -11.}}
    )
 );

@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.17)
 
 project(
-        NOR
-        VERSION 0.0.1
-        LANGUAGES CXX)
+    NOR
+    VERSION 0.0.1
+    LANGUAGES CXX)
 
 string(TOLOWER ${PROJECT_NAME} PROJECT_NAME_LOWERCASE)
 
@@ -41,15 +41,15 @@ option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 # Use C++20
 set(PROJ_CXX_STD_FEATURE cxx_std_20)
 set(PROJ_CXX_STANDARD C++20)
-if (MSVC
-        AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.29.30129
-        AND CMAKE_VERSION VERSION_GREATER 3.20.3)
+if(MSVC
+   AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.29.30129
+   AND CMAKE_VERSION VERSION_GREATER 3.20.3)
     # this change happened in CMake 3.20.4
     set(PROJ_CXX_STD_FEATURE cxx_std_23) # /std:c++latest - unlocks the non stable cpp20 features. For new 16.11
     # versions
-else ()
+else()
     set(PROJ_CXX_STD_FEATURE cxx_std_20) # /std:c++latest for msvc and -std=c++20 for everyone else.
-endif ()
+endif()
 
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)
@@ -108,31 +108,31 @@ add_library(project_options INTERFACE)
 add_library(project_warnings INTERFACE)
 
 target_compile_features(project_options INTERFACE ${PROJ_CXX_STD_FEATURE})
-if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang" AND ENABLE_BUILD_WITH_TIME_TRACE)
+if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang" AND ENABLE_BUILD_WITH_TIME_TRACE)
     add_compile_definitions(project_options INTERFACE -ftime-trace)
-endif ()
+endif()
 # string APPEND is needed for options in order to concatenate these strings AS IS, i.e. avoid the semicolon between
 # every code line
 
 string(
-        APPEND
-        _options
-        "$<$<CXX_COMPILER_ID:MSVC>:"
-        "/permissive-;"
-        "$<$<CONFIG:RELEASE>:/O2>"
-        ">"
-        "$<$<CXX_COMPILER_ID:Clang>:"
-        "$<$<CONFIG:RELEASE>:-O3>"
-        "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
-        "$<$<PLATFORM_ID:Darwin>:-stdlib=libc++>"
-        ">"
-        "$<$<CXX_COMPILER_ID:GNU>:"
-        "$<$<CONFIG:RELEASE>:-O3>"
-        "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
-        ">")
+    APPEND
+    _options
+    "$<$<CXX_COMPILER_ID:MSVC>:"
+    "/permissive-;"
+    "$<$<CONFIG:RELEASE>:/O2>"
+    ">"
+    "$<$<CXX_COMPILER_ID:Clang>:"
+    "$<$<CONFIG:RELEASE>:-O3>"
+    "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
+    "$<$<PLATFORM_ID:Darwin>:-stdlib=libc++>"
+    ">"
+    "$<$<CXX_COMPILER_ID:GNU>:"
+    "$<$<CONFIG:RELEASE>:-O3>"
+    "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
+    ">")
 set(_extra_options "-ftemplate-backtrace-limit=0" "$<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=5>")
 target_compile_options(project_options INTERFACE $<$<CXX_COMPILER_ID:Clang>:-stdlib=libstdc++> "${_options}"
-        "${_extra_options}")
+                                                 "${_extra_options}")
 
 # Set up some extra Conan dependencies based on our needs before loading Conan
 set(CONAN_EXTRA_REQUIRES "")
@@ -165,19 +165,19 @@ include(${_cmake_DIR}/settings/Sanitizers.cmake)
 enable_sanitizers(project_options)
 
 # enable doxygen
-if (ENABLE_BUILD_DOCS)
+if(ENABLE_BUILD_DOCS)
     include(${_cmake_DIR}/settings/Doxygen.cmake)
-endif ()
+endif()
 
 # allow for static analysis options
 include(${_cmake_DIR}/settings/StaticAnalyzers.cmake)
 
-if (USE_PYBIND11_FINDPYTHON)
+if(USE_PYBIND11_FINDPYTHON)
     set(PYBIND11_FINDPYTHON TRUE)
-else ()
+else()
     set(PYBIND11_FINDPYTHON FALSE)
     find_package(Python3 COMPONENTS Interpreter Development)
-endif ()
+endif()
 find_package(pybind11 REQUIRED)
 find_package(range-v3 REQUIRED)
 find_package(namedtype REQUIRED)
@@ -188,62 +188,58 @@ include(${DEPENDENCY_DIR}/CPM_deps.cmake)
 
 add_library(required_min_libs INTERFACE)
 target_link_libraries(
-        required_min_libs
-        INTERFACE
-        project_options
-        project_warnings
-        fmt::fmt-header-only
-        spdlog::spdlog
-        unordered_dense::unordered_dense
-)
+    required_min_libs
+    INTERFACE project_options
+              project_warnings
+              fmt::fmt-header-only
+              spdlog::spdlog
+              unordered_dense::unordered_dense)
 target_compile_definitions(
-        required_min_libs
-        INTERFACE
-        # turn off logging (except info level and above) in release build, allow debug-level logging in debug build
-        SPDLOG_ACTIVE_LEVEL=$<$<CONFIG:RELEASE>:SPDLOG_LEVEL_INFO>$<$<CONFIG:DEBUG>:SPDLOG_LEVEL_DEBUG>
-)
+    required_min_libs
+    INTERFACE # turn off logging (except info level and above) in release build, allow debug-level logging in debug
+              # build
+              SPDLOG_ACTIVE_LEVEL=$<$<CONFIG:RELEASE>:SPDLOG_LEVEL_INFO>$<$<CONFIG:DEBUG>:SPDLOG_LEVEL_DEBUG>)
 
 include(${_cmake_DIR}/targets/shared_libs.cmake)
 include(${_cmake_DIR}/targets/nor.cmake)
-if (ENABLE_TESTING)
+if(ENABLE_TESTING)
     find_package(GTest REQUIRED)
     enable_testing()
     message("Configuring Tests.")
     include(${_cmake_DIR}/targets/tests.cmake)
-endif ()
-if (ENABLE_BUILD_PYTHON_EXTENSION)
+endif()
+if(ENABLE_BUILD_PYTHON_EXTENSION)
     message("Configuring Python Extension ${nor_pymodule}.")
     include(${_cmake_DIR}/targets/pynor.cmake)
-endif ()
-if (ENABLE_GAMES)
+endif()
+if(ENABLE_GAMES)
     message("Configuring Game Builds.")
     include(${_cmake_DIR}/targets/games.cmake)
-endif ()
-if (ENABLE_BUILD_BENCHMARK)
+endif()
+if(ENABLE_BUILD_BENCHMARK)
     message("Configuring Benchmark Build.")
     include(${_cmake_DIR}/targets/benchmark.cmake)
-endif ()
-if (ENABLE_BUILD_SANDBOX)
+endif()
+if(ENABLE_BUILD_SANDBOX)
     message("Configuring Sandbox Build.")
     include(${_cmake_DIR}/targets/sandbox.cmake)
-endif ()
+endif()
 
 include(${_cmake_DIR}/settings/Installation.cmake)
 
-
-if (ENABLE_PCH)
+if(ENABLE_PCH)
     target_precompile_headers(
-            project_options
-            INTERFACE
-            <vector>
-            <string>
-            <map>
-            <utility>
-            <memory>
-            <array>
-            <iostream>
-            <spdlog/spdlog.h>)
-endif ()
+        project_options
+        INTERFACE
+        <vector>
+        <string>
+        <map>
+        <utility>
+        <memory>
+        <array>
+        <iostream>
+        <spdlog/spdlog.h>)
+endif()
 
 # This prints a summary of found dependencies
 include(FeatureSummary)

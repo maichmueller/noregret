@@ -6,7 +6,7 @@ namespace nor {
 template < typename T >
 struct fosg_auto_traits;
 
-template <typename T>
+template < typename T >
 class PlayerInformedType;
 
 }  // namespace nor

@@ -69,17 +69,13 @@ std::string print_board(const Board& board, std::optional< Team > team, bool hid
          }
          const auto& token = piece.token();
          return color
-                + common::center(
-                   std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " "
-                )
+                + common::center(std::to_string(static_cast< int >(token)), H_SIZE_PER_PIECE, " ")
                 + RESET;
       }
       if(line == mid + 1) {
 #if defined(_MSC_VER)
          // team info line
-         return common::center(
-            piece.team() == Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " "
-         );
+         return common::center(piece.team() == Team::BLUE ? "B" : "R", H_SIZE_PER_PIECE, " ");
 #else
          // for non msvc we have a colored box to work for us
          return color + common::center("", H_SIZE_PER_PIECE, " ") + RESET;

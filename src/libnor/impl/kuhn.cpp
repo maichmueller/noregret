@@ -1,8 +1,9 @@
 
 #include "nor/env/kuhn.hpp"
-#include "nor/utils/player_informed_type.hpp"
 
 #include <unordered_set>
+
+#include "nor/utils/player_informed_type.hpp"
 
 using namespace nor;
 using namespace nor::games::kuhn;

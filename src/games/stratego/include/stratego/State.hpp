@@ -131,8 +131,10 @@ class State {
       std::optional< std::variant< size_t, common::RNG > > seed = std::nullopt
    );
 
-   explicit
-   State(Config config, std::optional< std::variant< size_t, common::RNG > > seed = std::nullopt);
+   explicit State(
+      Config config,
+      std::optional< std::variant< size_t, common::RNG > > seed = std::nullopt
+   );
 
    // definitions for these needs to be in .cpp due to Logic being an incomplete type here and
    // uniq_ptr accessing it in its destructor

@@ -43,8 +43,8 @@ class RandomAgent: public Agent< StateType > {
    {
    }
 
-   Action
-   decide_action(const StateType & /*state*/, const std::vector< Action > &poss_moves) override
+   Action decide_action(const StateType & /*state*/, const std::vector< Action > &poss_moves)
+      override
    {
       std::vector< Action > selected_move;
       selected_move.reserve(1);
@@ -72,14 +72,9 @@ class FixedAgent: public Agent< StateType > {
        : base_type(team), m_actions()
    {
       m_actions.reserve(moves.size());
-      std::transform(
-         moves.rbegin(),
-         moves.rend(),
-         std::back_inserter(m_actions),
-         [&](Move &move) {
-            return Action{team, std::move(move)};
-         }
-      );
+      std::transform(moves.rbegin(), moves.rend(), std::back_inserter(m_actions), [&](Move &move) {
+         return Action{team, std::move(move)};
+      });
    }
 
    Action decide_action(
@@ -112,8 +107,10 @@ class InputAgent: public Agent< StateType > {
    using Action = typename base_type::Action;
 
   public:
-   explicit
-   InputAgent(Team team, std::function< std::string(const StateType &state) > repr = nullptr)
+   explicit InputAgent(
+      Team team,
+      std::function< std::string(const StateType &state) > repr = nullptr
+   )
        : base_type(team),
          m_repr(
             repr == nullptr ? [&](const auto &state) { return state.to_string(team, true); }
@@ -122,10 +119,8 @@ class InputAgent: public Agent< StateType > {
    {
    }
 
-   Action decide_action(
-      const StateType &state,
-      const std::vector< Action > &available_actions
-   ) override
+   Action decide_action(const StateType &state, const std::vector< Action > &available_actions)
+      override
    {
       std::cout << "Current game state:\n";
       std::cout << m_repr(state) << "\n";

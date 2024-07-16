@@ -23,18 +23,15 @@ constexpr common::CEBijection< Card, std::string_view, 13 > card_name_bij = {
    std::pair{Card::jack, "jack"},
    std::pair{Card::queen, "queen"},
    std::pair{Card::king, "king"},
-   std::pair{Card::ace, "ace"}
-};
+   std::pair{Card::ace, "ace"}};
 
 constexpr common::CEBijection< Action, std::string_view, 2 > action_name_bij = {
    std::pair{Action::check, "check"},
-   std::pair{Action::bet, "bet"}
-};
+   std::pair{Action::bet, "bet"}};
 
 constexpr common::CEBijection< Player, std::string_view, 2 > player_name_bij = {
    std::pair{Player::one, "one"},
-   std::pair{Player::two, "two"}
-};
+   std::pair{Player::two, "two"}};
 
 }  // namespace kuhn
 

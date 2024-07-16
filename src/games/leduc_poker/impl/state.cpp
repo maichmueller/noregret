@@ -84,11 +84,9 @@ void State::_reset_order_of_play()
    int starting_player = static_cast< int >(config().starting_player);
 
    auto min_pos_pair = std::pair{
-      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}
-   };
+      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}};
    auto min_neg_pair = std::pair{
-      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}
-   };
+      std::numeric_limits< int >::max(), std::optional< Player >{std::nullopt}};
    for(Player player : m_remaining_players) {
       int dist = static_cast< int >(player) - starting_player;
       auto& pair_to_update = (dist >= 0) ? min_pos_pair : min_neg_pair;

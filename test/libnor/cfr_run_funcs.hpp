@@ -42,17 +42,13 @@ void run_cfr_on_kuhn_poker(
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
-      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}
-   };
+      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}};
 
    auto initial_policy_profile = std::unordered_map{
       std::pair{
-         Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex).table())
-      },
+         Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex).table())},
       std::pair{
-         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())
-      }
-   };
+         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
    constexpr size_t n_infostates = 6;
    size_t n_iters = 0;
@@ -72,8 +68,7 @@ void run_cfr_on_kuhn_poker(
             games::kuhn::State{},
             player_hashmap< std::decay_t< decltype(avg_policies.at(Player::alex)) > >{
                std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
-               std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}
-            }
+               std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
          );
       }
 #ifndef NDEBUG
@@ -114,28 +109,22 @@ void run_cfr_on_rps(
       std::move(root_state),
       std::unordered_map{
          std::pair{Player::alex, curr_tabular_policy_alex},
-         std::pair{Player::bob, curr_tabular_policy_bob}
-      },
+         std::pair{Player::bob, curr_tabular_policy_bob}},
       std::unordered_map{
          std::pair{Player::alex, avg_tabular_policy_alex},
-         std::pair{Player::bob, avg_tabular_policy_bob}
-      },
+         std::pair{Player::bob, avg_tabular_policy_bob}},
       extra_args...
    );
 
    auto initial_curr_policy_profile = std::unordered_map{
       std::pair{Player::alex, normalize_state_policy(solver.policy().at(Player::alex).table())},
-      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}
-   };
+      std::pair{Player::bob, normalize_state_policy(solver.policy().at(Player::bob).table())}};
 
    auto initial_policy_profile = std::unordered_map{
       std::pair{
-         Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex).table())
-      },
+         Player::alex, normalize_state_policy(solver.average_policy().at(Player::alex).table())},
       std::pair{
-         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())
-      }
-   };
+         Player::bob, normalize_state_policy(solver.average_policy().at(Player::bob).table())}};
 
    constexpr size_t n_infostates = 1;
    size_t n_iters = 0;
@@ -155,8 +144,7 @@ void run_cfr_on_rps(
             games::rps::State{},
             std::unordered_map{
                std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
-               std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}
-            }
+               std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
          );
       }
 #ifndef NDEBUG

@@ -8,7 +8,6 @@
 #include "Config.hpp"
 #include "State.hpp"
 
-
 namespace stratego {
 
 class Logic {
@@ -42,17 +41,12 @@ class Logic {
 
    void reset(State &state);
 
-   static std::map< Position2D, Token > draw_setup_uniform(
-      const Config &config,
-      Board &curr_board,
-      Team team,
-      common::RNG &rng
-   );
+   static std::map< Position2D, Token >
+   draw_setup_uniform(const Config &config, Board &curr_board, Team team, common::RNG &rng);
 
    static Board create_empty_board(const Config &config);
 
-   template < std::invocable< const Config &, Board &, Team, common::RNG & >
-                 SampleStrategyType >
+   template < std::invocable< const Config &, Board &, Team, common::RNG & > SampleStrategyType >
    void draw_board(
       const Config &config,
       Board &curr_board,
@@ -66,8 +60,7 @@ class Logic {
       const std::map< Team, std::map< Position2D, Token > > &setups
    );
 
-   static FightOutcome
-   fight(const Config &config, const Piece &attacker, const Piece &defender)
+   static FightOutcome fight(const Config &config, const Piece &attacker, const Piece &defender)
    {
       return fight(config, std::pair{attacker.token(), defender.token()});
    }
@@ -167,14 +160,13 @@ auto Logic::_valid_vectors(Position2D pos, Range shape, int distance)
              )
           )
           | ranges::views::transform([](auto x_y) {
-               //                  SPDLOG_DEBUG("In _valid_vectors: {}", Position(std::get< 0 >(x_y),
-               //                  std::get< 1 >(x_y)));
+               //                  SPDLOG_DEBUG("In _valid_vectors: {}", Position(std::get< 0
+               //                  >(x_y), std::get< 1 >(x_y)));
                return Position2D(std::get< 0 >(x_y), std::get< 1 >(x_y));
             });
 }
 
-template <
-   std::invocable< const Config &, Board &, Team, common::RNG & > SampleStrategyType >
+template < std::invocable< const Config &, Board &, Team, common::RNG & > SampleStrategyType >
 void Logic::draw_board(
    const Config &config,
    Board &curr_board,

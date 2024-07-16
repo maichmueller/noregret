@@ -3,7 +3,6 @@
 #include <memory>
 #include <xtensor/xtensor.hpp>
 
-
 #include "stratego/Game.hpp"
 #include "stratego/State.hpp"
 

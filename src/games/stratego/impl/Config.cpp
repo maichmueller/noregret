@@ -79,8 +79,7 @@ std::map< Team, std::map< Position2D, Token > > default_setup(size_t game_dims)
 {
    return std::map{
       std::pair{Team::BLUE, default_setup(game_dims, Team::BLUE)},
-      std::pair{Team::RED, default_setup(game_dims, Team::RED)}
-   };
+      std::pair{Team::RED, default_setup(game_dims, Team::RED)}};
 }
 std::map< Team, std::optional< std::map< Position2D, Token > > > default_setup(
    ranges::span< size_t, 2 > game_dims
@@ -88,8 +87,7 @@ std::map< Team, std::optional< std::map< Position2D, Token > > > default_setup(
 {
    return std::map{
       std::pair{Team::BLUE, std::optional{default_setup(game_dims, Team::BLUE)}},
-      std::pair{Team::RED, std::optional{default_setup(game_dims, Team::RED)}}
-   };
+      std::pair{Team::RED, std::optional{default_setup(game_dims, Team::RED)}}};
 }
 
 std::vector< Position2D > default_holes(size_t game_dims)
@@ -132,16 +130,14 @@ std::map< Team, std::vector< Token > > token_vector(size_t game_dim)
          using seq = std::index_sequence< 0, 1, 2, 2, 2, 3, 3, 10, 11, 11 >;
          return {
             std::pair{Team::BLUE, common::make_enum_vec< Token >(seq())},
-            std::pair{Team::RED, common::make_enum_vec< Token >(seq())}
-         };
+            std::pair{Team::RED, common::make_enum_vec< Token >(seq())}};
       }
       case DefinedBoardSizes::medium: {
          using seq = std::
             index_sequence< 0, 1, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 10, 11, 11, 11, 11 >;
          return {
             std::pair{Team::BLUE, common::make_enum_vec< Token >(seq())},
-            std::pair{Team::RED, common::make_enum_vec< Token >(seq())}
-         };
+            std::pair{Team::RED, common::make_enum_vec< Token >(seq())}};
       }
       case DefinedBoardSizes::large: {
          using seq = std::index_sequence<
@@ -151,8 +147,7 @@ std::map< Team, std::vector< Token > > token_vector(size_t game_dim)
          // clang-format on
          return {
             std::pair{Team::BLUE, common::make_enum_vec< Token >(seq())},
-            std::pair{Team::RED, common::make_enum_vec< Token >(seq())}
-         };
+            std::pair{Team::RED, common::make_enum_vec< Token >(seq())}};
       }
       default:
          throw std::invalid_argument("Cannot provide tokenset for non-default game dimensions.");
@@ -163,8 +158,7 @@ std::map< Team, std::optional< std::vector< Position2D > > > default_start_field
 {
    return std::map{
       std::pair{Team::BLUE, std::optional{default_start_fields(game_dim, Team::BLUE)}},
-      std::pair{Team::RED, std::optional{default_start_fields(game_dim, Team::RED)}}
-   };
+      std::pair{Team::RED, std::optional{default_start_fields(game_dim, Team::RED)}}};
 }
 
 std::vector< Position2D > default_start_fields(size_t game_dim, Team team)
@@ -234,8 +228,7 @@ std::map< Team, Config::token_counter_t > Config::_init_tokencounters(
 {
    auto token_visitor = common::Overload{
       [](const std::vector< Token >& tv) { return common::counter(tv); },
-      [](const token_counter_t& tc) { return tc; }
-   };
+      [](const token_counter_t& tc) { return tc; }};
    std::map< Team, token_counter_t > counters;
    for(auto team : std::set{Team::BLUE, Team::RED}) {
       if(setups_.at(team).has_value()) {
@@ -308,13 +301,12 @@ std::vector< Position2D > Config::_init_hole_positions(
    return hole_pos.has_value()
              ? hole_pos.value()
              : std::visit(
-                  common::Overload{
-                     [](size_t d) { return default_holes(d); },
-                     [](DefinedBoardSizes d) { return default_holes(static_cast< size_t >(d)); },
-                     [](ranges::span< size_t, 2 > a) { return default_holes(a); }
-                  },
-                  game_dims_
-               );
+                common::Overload{
+                   [](size_t d) { return default_holes(d); },
+                   [](DefinedBoardSizes d) { return default_holes(static_cast< size_t >(d)); },
+                   [](ranges::span< size_t, 2 > a) { return default_holes(a); }},
+                game_dims_
+             );
 }
 
 Config::token_counter_t tokens_from_setup(const Config::setup_t& setup)
@@ -347,8 +339,7 @@ auto default_token_sets(size_t game_dim) -> Config::token_counter_t
             std::pair{Token::scout, 3},
             std::pair{Token::miner, 2},
             std::pair{Token::marshall, 1},
-            std::pair{Token::bomb, 2}
-         };
+            std::pair{Token::bomb, 2}};
       }
       case DefinedBoardSizes::medium: {
          return Config::token_counter_t{
@@ -360,8 +351,7 @@ auto default_token_sets(size_t game_dim) -> Config::token_counter_t
             std::pair{Token::lieutenant, 2},
             std::pair{Token::captain, 1},
             std::pair{Token::marshall, 1},
-            std::pair{Token::bomb, 4}
-         };
+            std::pair{Token::bomb, 4}};
       }
       case DefinedBoardSizes::large: {
          return Config::token_counter_t{
@@ -376,8 +366,7 @@ auto default_token_sets(size_t game_dim) -> Config::token_counter_t
             std::pair{Token::colonel, 2},
             std::pair{Token::general, 1},
             std::pair{Token::marshall, 1},
-            std::pair{Token::bomb, 6}
-         };
+            std::pair{Token::bomb, 6}};
       }
       default: {
          throw std::invalid_argument(
@@ -410,8 +399,7 @@ Config::Config(
             },
             [](ranges::span< size_t, 2 > d) {
                return std::array{d[0], d[1]};
-            }
-         },
+            }},
          game_dims_
       )),
       max_turn_count(max_turn_count_),
@@ -423,8 +411,7 @@ Config::Config(
             [](ranges::span< bool, 2 > d) {
                return std::array{d[0], d[1]};
                ;
-            }
-         },
+            }},
          fixed_setups_
       )),
       setups(_init_setups(setups_, token_set_, start_fields_, game_dims_)),
@@ -459,18 +446,18 @@ Config::Config(
    std::map< Token, std::function< bool(size_t) > > move_ranges_
 )
     : Config(
-         starting_team_,
-         game_dims_,
-         setups_,
-         hole_positions_,
-         nullarg< "tokens" >(),
-         nullarg< "fields" >(),
-         fixed_starting_team_,
-         fixed_setups_,
-         max_turn_count_,
-         std::move(battle_matrix_),
-         std::move(move_ranges_)
-      )
+       starting_team_,
+       game_dims_,
+       setups_,
+       hole_positions_,
+       nullarg< "tokens" >(),
+       nullarg< "fields" >(),
+       fixed_starting_team_,
+       fixed_setups_,
+       max_turn_count_,
+       std::move(battle_matrix_),
+       std::move(move_ranges_)
+    )
 {
 }
 Config::Config(
@@ -487,18 +474,18 @@ Config::Config(
    std::map< Token, std::function< bool(size_t) > > move_ranges_
 )
     : Config(
-         starting_team_,
-         game_dims_,
-         nullarg< "setups" >(),
-         hole_positions_,
-         token_set_,
-         start_fields_,
-         fixed_starting_team_,
-         fixed_setups_,
-         max_turn_count_,
-         std::move(battle_matrix_),
-         std::move(move_ranges_)
-      )
+       starting_team_,
+       game_dims_,
+       nullarg< "setups" >(),
+       hole_positions_,
+       token_set_,
+       start_fields_,
+       fixed_starting_team_,
+       fixed_setups_,
+       max_turn_count_,
+       std::move(battle_matrix_),
+       std::move(move_ranges_)
+    )
 {
 }
 
@@ -512,21 +499,20 @@ Config::Config(
    std::map< Token, std::function< bool(size_t) > > move_ranges_
 )
     : Config(
-         starting_team_,
-         game_dims_,
-         default_setup(game_dims),
-         default_holes(static_cast< size_t >(game_dims_)),
-         std::map{
-            std::pair{Team::BLUE, std::optional< token_variant_t >{default_token_sets(game_dims_)}},
-            std::pair{Team::BLUE, std::optional< token_variant_t >{default_token_sets(game_dims_)}}
-         },
-         default_start_fields(game_dims_),
-         fixed_starting_team_,
-         fixed_setups_,
-         max_turn_count_,
-         std::move(battle_matrix_),
-         std::move(move_ranges_)
-      )
+       starting_team_,
+       game_dims_,
+       default_setup(game_dims),
+       default_holes(static_cast< size_t >(game_dims_)),
+       std::map{
+          std::pair{Team::BLUE, std::optional< token_variant_t >{default_token_sets(game_dims_)}},
+          std::pair{Team::BLUE, std::optional< token_variant_t >{default_token_sets(game_dims_)}}},
+       default_start_fields(game_dims_),
+       fixed_starting_team_,
+       fixed_setups_,
+       max_turn_count_,
+       std::move(battle_matrix_),
+       std::move(move_ranges_)
+    )
 {
 }
 

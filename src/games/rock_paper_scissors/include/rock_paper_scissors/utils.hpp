@@ -39,5 +39,4 @@ inline std::string to_string(const rps::Team& value)
 COMMON_ENABLE_PRINT(rps, Action);
 COMMON_ENABLE_PRINT(rps, Team);
 
-
 #endif  // NOR_RPS_UTILS_HPP

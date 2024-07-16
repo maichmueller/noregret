@@ -2,7 +2,6 @@
 #ifndef NOR_COMMON_MACRO_HPP
 #define NOR_COMMON_MACRO_HPP
 
-
 #ifndef FWD
    #define FWD(x) std::forward< decltype(x) >(x)
 #endif  // FWD
@@ -30,21 +29,19 @@
 
 #ifndef NOR_DEBUG_ASSERT
    #ifndef NDEBUG
-      #define NOR_DEBUG_ASSERT(expression)                                             \
+      #define NOR_DEBUG_ASSERT(expression)                                               \
          if(not (expression)) {                                                          \
             throw force_library_error{"Expression " #expression " evaluated to false."}; \
          }
-      #define NOR_DEBUG_ASSERT_MSG(expression, msg)                                      \
-         if(not (expression)) {                                                            \
-            throw force_library_error{                                                     \
-               fmt::format("Expression " #expression " evaluated to false. Info: {}", msg) \
-            };                                                                             \
+      #define NOR_DEBUG_ASSERT_MSG(expression, msg)                                          \
+         if(not (expression)) {                                                              \
+            throw force_library_error{                                                       \
+               fmt::format("Expression " #expression " evaluated to false. Info: {}", msg)}; \
          }
    #else
       #define NOR_DEBUG_ASSERT(...)
       #define NOR_DEBUG_ASSERT_MSG(...)
    #endif
 #endif
-
 
 #endif  // NOR_COMMON_MACRO_HPP

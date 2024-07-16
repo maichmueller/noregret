@@ -161,8 +161,8 @@ void best_response_impl< config, Env >::_run(
                      );
                   } else {
                      return std::tuple{
-                        decltype(visit_data.observation_buffer){}, decltype(visit_data.infostates){}
-                     };
+                        decltype(visit_data.observation_buffer){},
+                        decltype(visit_data.infostates){}};
                   }
                });
                double prob = std::invoke([&] {
@@ -194,15 +194,13 @@ void best_response_impl< config, Env >::_run(
                   }
                });
                return std::tuple{
-                  std::move(prob), std::move(child_obs_buffer), std::move(child_istate_map)
-               };
+                  std::move(prob), std::move(child_obs_buffer), std::move(child_istate_map)};
             },
             [&](std::monostate) {
                // this should never be visited, but if so --> error
                throw std::logic_error("We entered a std::monostate visit branch.");
                return std::tuple{1., visit_data.observation_buffer, visit_data.infostates};
-            }
-         },
+            }},
          *curr_action
       );
 
@@ -216,13 +214,12 @@ void best_response_impl< config, Env >::_run(
                                std::make_unique< WorldNode >(WorldNode{
                                   .state_value_map = env.is_terminal(*next_state)
                                                         ? std::optional(rm::collect_rewards(
-                                                             env, *next_state, m_br_players
-                                                          ))
+                                                           env, *next_state, m_br_players
+                                                        ))
                                                         : std::nullopt,
                                   .opp_reach_prob = child_reach_prob,
                                   .is_br_node = common::isin(next_player, m_br_players),
-                                  .active_player = next_player
-                               })
+                                  .active_player = next_player})
                             )
                             .first->second.get();
 
@@ -260,8 +257,7 @@ void best_response_impl< config, Env >::_run(
          .opp_reach_prob = 1.,
          .is_br_node = root_is_br,
          .active_player = root_player,
-         .infostate_ptr = infostate_ptr
-      };
+         .infostate_ptr = infostate_ptr};
    });
    forest::GameTreeTraverser(env).walk(
       utils::dynamic_unique_ptr_cast< world_state_type >(utils::clone_any_way(root_state)),
@@ -269,8 +265,7 @@ void best_response_impl< config, Env >::_run(
          .opp_reach_prob = 1.,
          .infostates = std::move(root_infostates),
          .observation_buffer = {},
-         .parent = &root_node
-      },
+         .parent = &root_node},
       forest::TraversalHooks{.child_hook = std::move(child_hook)}
    );
 
@@ -459,8 +454,7 @@ class BestResponsePolicy {
    [[nodiscard]] auto operator()(const info_state_type& infostate, auto&&...) const
    {
       return HashmapActionPolicy< action_type >{
-         std::pair{_get_action(m_best_response.at(infostate.player()).at(infostate)), 1.}
-      };
+         std::pair{_get_action(m_best_response.at(infostate.player()).at(infostate)), 1.}};
    }
 
    [[nodiscard]] auto at(const info_state_type& infostate, auto&&...) const

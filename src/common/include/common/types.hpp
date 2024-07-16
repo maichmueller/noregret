@@ -354,7 +354,7 @@ concept pointer_like_to = requires(T t) {
 template < size_t N >
 struct nth_proj {
    template < typename T >
-   constexpr decltype(auto) operator()(const T & t) const noexcept
+   constexpr decltype(auto) operator()(const T& t) const noexcept
    {
       return std::get< N >(t);
    }
@@ -363,7 +363,7 @@ struct nth_proj {
 template < size_t N >
 struct nth_proj_hash {
    template < typename T >
-   constexpr decltype(auto) operator()(const T & t) const noexcept
+   constexpr decltype(auto) operator()(const T& t) const noexcept
    {
       return std::hash< std::tuple_element_t< N, T > >{}(std::get< N >(t));
    }
@@ -386,7 +386,7 @@ struct nth_proj_comparator {
                and convertible_to< FixedType, std::tuple_element_t< N, U > >,
             std::true_type,
             std::false_type > >::value
-   constexpr decltype(auto) operator()(const T & t, const U & u) const noexcept
+   constexpr decltype(auto) operator()(const T& t, const U& u) const noexcept
    {
       if constexpr(std::is_void_v< FixedType >) {
          return std::equal_to<  //clang-format off
@@ -408,7 +408,7 @@ struct nth_proj_comparator {
             convertible_to< FixedType, std::tuple_element_t< N, T > >,
             std::true_type,
             std::false_type > >::value
-   constexpr decltype(auto) operator()(const T & t, const std::tuple_element_t< N, T >& u)
+   constexpr decltype(auto) operator()(const T& t, const std::tuple_element_t< N, T >& u)
       const noexcept
    {
       if constexpr(std::is_void_v< FixedType >) {
@@ -418,7 +418,7 @@ struct nth_proj_comparator {
       }
    }
    template < typename T >
-   constexpr decltype(auto) operator()(const std::tuple_element_t< N, T >& u, const T & t)
+   constexpr decltype(auto) operator()(const std::tuple_element_t< N, T >& u, const T& t)
       const noexcept
    {
       return operator()(t, u);
@@ -594,8 +594,7 @@ auto make_overload_with_monostate(Ts... ts)
          decltype([] { return std::visit< Overload< Ts... >, TargetVariant >; }),
          Overload< Ts... >,
          TargetVariant > >{},
-      ts...
-   };
+      ts...};
 }
 
 /// logical XOR of the conditions (using fold expressions and bitwise xor)

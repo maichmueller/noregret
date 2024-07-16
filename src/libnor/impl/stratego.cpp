@@ -2,8 +2,8 @@
 #include "nor/env/stratego.hpp"
 
 #include "common/common.hpp"
-#include "stratego/stratego.hpp"
 #include "nor/utils/player_informed_type.hpp"
+#include "stratego/stratego.hpp"
 
 namespace nor::games::stratego {
 

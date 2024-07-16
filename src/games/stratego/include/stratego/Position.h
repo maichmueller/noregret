@@ -354,7 +354,7 @@ Position< ValueType, N >::invert(const container_start &starts, const container_
    return inverted;
 }
 
-}  // namespace
+}  // namespace stratego
 
 namespace std {
 template < typename ValueType, size_t N >

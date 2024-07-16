@@ -66,7 +66,9 @@ auto clone_any_way(const T& obj)
    } else if constexpr(std::is_copy_constructible_v< T >) {
       return std::make_unique< T >(obj);
    } else {
-      static_assert(common::always_false_v< T >, "No cloning/copying method available in given type.");
+      static_assert(
+         common::always_false_v< T >, "No cloning/copying method available in given type."
+      );
    }
 }
 
@@ -202,14 +204,12 @@ constexpr CEBijection< Player, std::string_view, 28 > player_name_bij = {
    std::pair{Player::tristan, "tristan"},   std::pair{Player::ulysses, "ulysses"},
    std::pair{Player::victoria, "victoria"}, std::pair{Player::william, "william"},
    std::pair{Player::xavier, "xavier"},     std::pair{Player::yusuf, "yusuf"},
-   std::pair{Player::zoey, "zoey"},         std::pair{Player::unknown, "unknown"}
-};
+   std::pair{Player::zoey, "zoey"},         std::pair{Player::unknown, "unknown"}};
 
 constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_bij = {
    std::pair{Stochasticity::deterministic, "deterministic"},
    std::pair{Stochasticity::sample, "sample"},
-   std::pair{Stochasticity::choice, "choice"}
-};
+   std::pair{Stochasticity::choice, "choice"}};
 
 }  // namespace nor::utils
 
@@ -232,7 +232,6 @@ inline nor::Player from_string< nor::Player >(std::string_view str)
 }
 
 }  // namespace common
-
 
 COMMON_ENABLE_PRINT(nor, Player);
 COMMON_ENABLE_PRINT(nor, Stochasticity);

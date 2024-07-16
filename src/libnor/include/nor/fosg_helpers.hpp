@@ -96,15 +96,14 @@ auto map_histories_to_infostates(
                   [&](const auto& action_or_outcome) {
                      return std::pair{
                         env.public_observation(*curr_state, action_or_outcome, *next_state),
-                        env.private_observation(player, *curr_state, action_or_outcome, *next_state)
-                     };
+                        env.private_observation(
+                           player, *curr_state, action_or_outcome, *next_state
+                        )};
                   },
                   [&](const std::monostate&) {
                      return std::pair{
-                        auto_observation_type< env_type >{}, auto_observation_type< env_type >{}
-                     };
-                  }
-               },
+                        auto_observation_type< env_type >{}, auto_observation_type< env_type >{}};
+                  }},
                *curr_action
             );
 
@@ -130,8 +129,7 @@ auto map_histories_to_infostates(
       }
       return VisitData{
          .istate_map = std::move(child_istates_map),
-         .action_sequence = std::move(child_action_sequence)
-      };
+         .action_sequence = std::move(child_action_sequence)};
    };
 
    forest::GameTreeTraverser{env}.walk(
@@ -149,8 +147,7 @@ auto map_histories_to_infostates(
             }
             return root_istate_map;
          }),
-         .action_sequence = history_type{}
-      },
+         .action_sequence = history_type{}},
       forest::TraversalHooks{.child_hook = std::move(child_hook)}
    );
 

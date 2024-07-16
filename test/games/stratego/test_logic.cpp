@@ -288,53 +288,55 @@ INSTANTIATE_TEST_SUITE_P(
                  Config::nullarg< "tokens" >(),
                  Config::nullarg< "fields" >(),
                  Status::TIE},
-      std::tuple{// flag blue captured -> win red
-                 50ul,
-                 Team::BLUE,
-                 std::array< size_t, 2 >{10, 10},
-                 std::map< Team, std::optional< Config::setup_t > >{
-                    std::pair{
-                       Team::BLUE,
-                       std::optional(Config::setup_t{
-                          std::pair{Position2D{2, 1}, Token::scout},
-                          std::pair{Position2D{0, 4}, Token::bomb}})},
-                    std::pair{
-                       Team::RED,
-                       std::optional(Config::setup_t{
-                          std::pair{Position2D{3, 3}, Token::flag},
-                          std::pair{Position2D{3, 4}, Token::spy}})}},
-                 std::map< Team, std::optional< Config::token_variant_t > >{
-                    std::pair{Team::BLUE, std::optional(std::vector{Token::flag})},
-                    std::pair{Team::RED, std::nullopt}},
-                 std::map< Team, std::optional< std::vector< Position2D > > >{
-                    std::pair{
-                       Team::BLUE,
-                       std::optional(std::vector{Position2D{0, 0}, Position2D{2, 1}, Position2D{0, 4}})},
-                    std::pair{Team::RED, std::nullopt}},
-                 Status::WIN_RED},
-      std::tuple{// flag red captured -> win blue
-                 50ul,
-                 Team::BLUE,
-                 std::array< size_t, 2 >{7, 7},
-                 std::map< Team, std::optional< Config::setup_t > >{
-                    std::pair{
-                       Team::BLUE,
-                       std::optional(Config::setup_t{
-                          std::pair{Position2D{2, 1}, Token::scout},
-                          std::pair{Position2D{0, 4}, Token::flag}})},
-                    std::pair{
-                       Team::RED,
-                       std::optional(Config::setup_t{
-                          std::pair{Position2D{3, 3}, Token::marshall},
-                          std::pair{Position2D{3, 4}, Token::spy}})}},
-                 std::map< Team, std::optional< Config::token_variant_t > >{
-                    std::pair{Team::BLUE, std::nullopt},
-                    std::pair{Team::RED, std::optional(std::vector{Token::flag})}},
-                 std::map< Team, std::optional< std::vector< Position2D > > >{
-                    std::pair{Team::BLUE, std::nullopt},
-                    std::pair{
-                       Team::RED,
-                       std::optional(std::vector{Position2D{0, 0}, Position2D{3, 3}, Position2D{3, 4}})}},
-                 Status::WIN_BLUE}
+      std::tuple{
+         // flag blue captured -> win red
+         50ul,
+         Team::BLUE,
+         std::array< size_t, 2 >{10, 10},
+         std::map< Team, std::optional< Config::setup_t > >{
+            std::pair{
+               Team::BLUE,
+               std::optional(Config::setup_t{
+                  std::pair{Position2D{2, 1}, Token::scout},
+                  std::pair{Position2D{0, 4}, Token::bomb}})},
+            std::pair{
+               Team::RED,
+               std::optional(Config::setup_t{
+                  std::pair{Position2D{3, 3}, Token::flag},
+                  std::pair{Position2D{3, 4}, Token::spy}})}},
+         std::map< Team, std::optional< Config::token_variant_t > >{
+            std::pair{Team::BLUE, std::optional(std::vector{Token::flag})},
+            std::pair{Team::RED, std::nullopt}},
+         std::map< Team, std::optional< std::vector< Position2D > > >{
+            std::pair{
+               Team::BLUE,
+               std::optional(std::vector{Position2D{0, 0}, Position2D{2, 1}, Position2D{0, 4}})},
+            std::pair{Team::RED, std::nullopt}},
+         Status::WIN_RED},
+      std::tuple{
+         // flag red captured -> win blue
+         50ul,
+         Team::BLUE,
+         std::array< size_t, 2 >{7, 7},
+         std::map< Team, std::optional< Config::setup_t > >{
+            std::pair{
+               Team::BLUE,
+               std::optional(Config::setup_t{
+                  std::pair{Position2D{2, 1}, Token::scout},
+                  std::pair{Position2D{0, 4}, Token::flag}})},
+            std::pair{
+               Team::RED,
+               std::optional(Config::setup_t{
+                  std::pair{Position2D{3, 3}, Token::marshall},
+                  std::pair{Position2D{3, 4}, Token::spy}})}},
+         std::map< Team, std::optional< Config::token_variant_t > >{
+            std::pair{Team::BLUE, std::nullopt},
+            std::pair{Team::RED, std::optional(std::vector{Token::flag})}},
+         std::map< Team, std::optional< std::vector< Position2D > > >{
+            std::pair{Team::BLUE, std::nullopt},
+            std::pair{
+               Team::RED,
+               std::optional(std::vector{Position2D{0, 0}, Position2D{3, 3}, Position2D{3, 4}})}},
+         Status::WIN_BLUE}
    )
 );

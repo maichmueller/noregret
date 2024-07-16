@@ -39,15 +39,15 @@ enum class Player {
    zoey = 25
 };
 
- template < typename Value >
- using player_hashmap = std::unordered_map< Player, Value >;
+template < typename Value >
+using player_hashmap = std::unordered_map< Player, Value >;
 
-//template <
-//   typename T,
-//   class Hash = ankerl::unordered_dense::hash< Player >,
-//   class KeyEqual = std::equal_to< Player >,
-//   class AllocatorOrContainer = std::allocator< std::pair< Player, T > > >
-//using player_hashmap = ankerl::unordered_dense::map< Player, T >;
+// template <
+//    typename T,
+//    class Hash = ankerl::unordered_dense::hash< Player >,
+//    class KeyEqual = std::equal_to< Player >,
+//    class AllocatorOrContainer = std::allocator< std::pair< Player, T > > >
+// using player_hashmap = ankerl::unordered_dense::map< Player, T >;
 
 template <
    class Key,

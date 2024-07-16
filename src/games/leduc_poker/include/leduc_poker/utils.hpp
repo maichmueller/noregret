@@ -22,21 +22,18 @@ constexpr common::CEBijection< Rank, std::string_view, 13 > rank_name_bij = {
    std::pair{Rank::jack, "jack"},
    std::pair{Rank::queen, "queen"},
    std::pair{Rank::king, "king"},
-   std::pair{Rank::ace, "ace"}
-};
+   std::pair{Rank::ace, "ace"}};
 
 constexpr common::CEBijection< Suit, std::string_view, 4 > suit_name_bij = {
    std::pair{Suit::diamonds, "diamonds"},
    std::pair{Suit::clubs, "clubs"},
    std::pair{Suit::hearts, "hearts"},
-   std::pair{Suit::spades, "spades"}
-};
+   std::pair{Suit::spades, "spades"}};
 
 constexpr common::CEBijection< ActionType, std::string_view, 3 > actiontype_name_bij = {
    std::pair{ActionType::check, "check"},
    std::pair{ActionType::fold, "fold"},
-   std::pair{ActionType::bet, "bet"}
-};
+   std::pair{ActionType::bet, "bet"}};
 
 constexpr common::CEBijection< Player, std::string_view, 11 > player_name_bij = {
    std::pair{Player::chance, "chance"},
@@ -49,8 +46,7 @@ constexpr common::CEBijection< Player, std::string_view, 11 > player_name_bij = 
    std::pair{Player::seven, "seven"},
    std::pair{Player::eight, "eight"},
    std::pair{Player::nine, "nine"},
-   std::pair{Player::ten, "ten"}
-};
+   std::pair{Player::ten, "ten"}};
 
 }  // namespace leduc
 

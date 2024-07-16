@@ -1,15 +1,15 @@
 #pragma once
 
-#include <utility>
-#include <memory>
 #include <cstddef>
+#include <memory>
+#include <utility>
+
 #include "Action.hpp"
+#include "Agent.h"
 #include "Config.hpp"
+#include "Logic.hpp"
 #include "State.hpp"
 #include "StrategoDefs.hpp"
-#include "Agent.h"
-#include "Logic.hpp"
-
 
 namespace stratego {
 

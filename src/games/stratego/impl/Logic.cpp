@@ -202,8 +202,8 @@ bool Logic::has_valid_actions(const State &state, Team team)
             // the position we are dealing with
             auto pos = piece.position();
 
-            //               SPDLOG_DEBUG("check for piece", utils::to_string(piece.token()) + " : {}" +
-            //               utils::to_string(piece.team()));
+            //               SPDLOG_DEBUG("check for piece", utils::to_string(piece.token()) + " :
+            //               {}" + utils::to_string(piece.team()));
             int token_move_range = 0;
             auto mr_tester = state.config().move_ranges.at(piece.token());
             for(int distance :
@@ -323,9 +323,7 @@ void Logic::reset(State &state)
 {
    if(not state.config().fixed_starting_team) {
       Config cfg_copy = state.config();
-      cfg_copy.starting_team = common::choose(
-         std::array{Team::BLUE, Team::RED}, state.rng()
-      );
+      cfg_copy.starting_team = common::choose(std::array{Team::BLUE, Team::RED}, state.rng());
    }
    state = State(state.config());
 }

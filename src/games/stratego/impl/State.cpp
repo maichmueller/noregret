@@ -54,14 +54,14 @@ State::State(
 
 State::State(Config cfg, std::optional< std::variant< size_t, common::RNG > > seed)
     : State(
-         std::move(cfg),
-         graveyard_type{},
-         std::make_unique< Logic >(),
-         Logic::create_empty_board(cfg),
-         0,
-         History{},
-         seed
-      )
+       std::move(cfg),
+       graveyard_type{},
+       std::make_unique< Logic >(),
+       Logic::create_empty_board(cfg),
+       0,
+       History{},
+       seed
+    )
 {
    Logic::place_holes(config(), board());
    std::map< Team, std::map< Position2D, Token > > setups;
@@ -133,14 +133,14 @@ Status State::status()
 
 State::State(const State &state)
     : State(
-         state.config(),
-         state.graveyard(),
-         state.logic()->clone(),
-         state.board(),
-         state.turn_count(),
-         state.history(),
-         state.rng()
-      )
+       state.config(),
+       state.graveyard(),
+       state.logic()->clone(),
+       state.board(),
+       state.turn_count(),
+       state.history(),
+       state.rng()
+    )
 {
 }
 

@@ -12,9 +12,6 @@
 #include <string>
 #include <utility>
 
-
-
-
 template < typename T >
 using uptr = std::unique_ptr< T >;
 template < typename T >
@@ -27,7 +24,7 @@ namespace common {
 template < typename... Args >
 struct debug;
 
-template < typename Return = void>
+template < typename Return = void >
 struct noop {
    template < typename... Args >
       requires std::same_as< Return, void >
@@ -35,7 +32,7 @@ struct noop {
    {
    }
    template < typename... Args >
-      requires (not std::same_as< Return, void >)
+      requires(not std::same_as< Return, void >)
    auto operator()(Args&&...) const noexcept
    {
       return Return{};
@@ -153,11 +150,15 @@ inline auto counter(
 }
 
 template < ranges::range Container, typename Accessor >
-inline auto counter(const Container& vals, Accessor acc = [](const auto& iter) { return *iter; })
+inline auto counter(
+   const Container& vals,
+   Accessor acc = [](const auto& iter) { return *iter; }
+)
 {
    using mapped_type = std::remove_cvref_t< decltype(*(vals.begin())) >;
    constexpr bool hashable_mapped_type = requires(Container t) {
-      requires std::hash< mapped_type > {}
+      requires std::hash< mapped_type > {
+      }
       (t);
       requires std::equality_comparable< mapped_type >;
    };

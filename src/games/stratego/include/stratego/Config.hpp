@@ -174,8 +174,7 @@ std::map< Team, std::optional< Config::setup_t > > Config::_init_setups(
             common::Overload{
                [&](size_t d) { return default_setup(d, team); },
                [&](DefinedBoardSizes d) { return default_setup(static_cast< size_t >(d), team); },
-               [&](ranges::span< size_t, 2 > a) { return default_setup(a, team); }
-            },
+               [&](ranges::span< size_t, 2 > a) { return default_setup(a, team); }},
             game_dims_
          );
       }
@@ -187,22 +186,19 @@ template <>
 inline auto Config::nullarg< common::StringLiteral{"setups"} >()
 {
    return std::map< Team, std::optional< setup_t > >{
-      std::pair{Team::BLUE, std::nullopt}, std::pair{Team::RED, std::nullopt}
-   };
+      std::pair{Team::BLUE, std::nullopt}, std::pair{Team::RED, std::nullopt}};
 }
 template <>
 inline auto Config::nullarg< common::StringLiteral{"tokens"} >()
 {
    return std::map< Team, std::optional< token_variant_t > >{
-      std::pair{Team::BLUE, std::nullopt}, std::pair{Team::RED, std::nullopt}
-   };
+      std::pair{Team::BLUE, std::nullopt}, std::pair{Team::RED, std::nullopt}};
 }
 template <>
 inline auto Config::nullarg< common::StringLiteral{"fields"} >()
 {
    return std::map< Team, std::optional< std::vector< Position2D > > >{
-      std::pair{Team::BLUE, std::nullopt}, std::pair{Team::RED, std::nullopt}
-   };
+      std::pair{Team::BLUE, std::nullopt}, std::pair{Team::RED, std::nullopt}};
 }
 template <>
 inline auto Config::nullarg< common::StringLiteral{"holes"} >()
