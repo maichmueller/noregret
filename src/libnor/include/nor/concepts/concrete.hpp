@@ -70,7 +70,7 @@ concept maps = mapping< MapLike > and requires(MapLike m) {
 
 template < typename MapLike, typename MappedType = double >
 concept mapping_of = requires(MapLike m) {
-   mapping< MapLike >;
+   requires mapping< MapLike >;
    // mapped type has to be convertible to the value type
    requires std::is_convertible_v<
       MappedType,
@@ -449,7 +449,7 @@ template <
 // clang-format off
 concept stochastic_fosg =
 /**/  fosg< Env, Action, Observation, Infostate, Publicstate, Worldstate >
-   && deterministic_env< Env >;
+   && stochastic_env< Env >;
 // clang-format on
 
 template <

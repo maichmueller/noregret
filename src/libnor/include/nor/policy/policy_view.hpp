@@ -120,7 +120,7 @@ struct StatePolicyInterface {
    virtual ~StatePolicyInterface() = default;
 
    virtual action_policy_view_type at(const info_state_type&) const = 0;
-   virtual size_t size() const = 0;
+   [[nodiscard]] virtual size_t size() const = 0;
 };
 
 template < typename Infostate, concepts::action Action >
@@ -169,7 +169,7 @@ class StatePolicyView {
       {
          return policy.at(infostate);
       }
-      size_t size() const override { return policy->size(); }
+      [[nodiscard]] size_t size() const override { return policy.size(); }
 
      private:
       T policy;

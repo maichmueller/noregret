@@ -11,7 +11,6 @@
 #include "nor/fwd.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/type_defs.hpp"
-#include "nor/utils/player_informed_type.hpp"
 
 namespace nor::concepts::has {
 namespace method {
@@ -61,7 +60,7 @@ concept private_history = requires(T const t, Worldstate worldstate, Player play
    // to this point
    {
       t.private_history(player, worldstate)
-   } -> std::convertible_to< std::vector< PlayerInformedType<
+   } -> std::convertible_to< std::vector< nor::PlayerInformedType<
       std::optional< action_variant_type_generator_t< Action, ChanceOutcome > > > > >;
 };
 
@@ -74,7 +73,7 @@ concept public_history = requires(T const t, Worldstate worldstate) {
    // get the history of public actions played up to this state
    {
       t.public_history(worldstate)
-   } -> std::convertible_to< std::vector< PlayerInformedType<
+   } -> std::convertible_to< std::vector< nor::PlayerInformedType<
       std::optional< action_variant_type_generator_t< Action, ChanceOutcome > > > > >;
 };
 
@@ -89,7 +88,7 @@ concept open_history = requires(T const t, Worldstate worldstate) {
    {
       t.open_history(worldstate)
    } -> std::convertible_to< std::vector<
-      PlayerInformedType< action_variant_type_generator_t< Action, ChanceOutcome > > > >;
+      nor::PlayerInformedType< action_variant_type_generator_t< Action, ChanceOutcome > > > >;
 };
 
 template <

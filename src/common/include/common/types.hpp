@@ -191,7 +191,7 @@ template < typename T, typename U >
 using reference_as_t = typename reference_as< T, U >::type;
 
 /**
- * @brief type_trait to check if functior F can be invoked with each arg
+ * @brief type_trait to check if functor F can be invoked with each arg
  * @tparam F
  * @tparam Ret
  * @tparam HeadArg
