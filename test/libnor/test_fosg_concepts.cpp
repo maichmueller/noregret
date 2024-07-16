@@ -39,7 +39,7 @@ template <
    typename T,
    typename Infostate,
    typename Action,
-   typename ActionPolicy = typename nor::fosg_auto_traits< T >::action_policy_type >
+   typename ActionPolicy = nor::auto_action_policy_type< T > >
    requires nor::concepts::default_state_policy< T, Infostate, Action, ActionPolicy >
 void concept_default_state_policy_check()
 {

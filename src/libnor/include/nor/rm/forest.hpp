@@ -214,11 +214,11 @@ class GameTreeTraverser {
 // template < concepts::fosg Env >
 // class InfostateTree {
 //   public:
-//    using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
-//    using info_state_type = typename fosg_auto_traits< Env >::info_state_type;
-//    using action_type = typename fosg_auto_traits< Env >::action_type;
-//    using chance_outcome_type = typename fosg_auto_traits< Env >::chance_outcome_type;
-//    using observation_type = typename fosg_auto_traits< Env >::observation_type;
+//    using world_state_type = auto_world_state_type< Env >;
+//    using info_state_type = auto_info_state_type< Env >;
+//    using action_type = auto_action_type< Env >;
+//    using chance_outcome_type = auto_chance_outcome_type< Env >;
+//    using observation_type = auto_observation_type< Env >;
 //
 //    using chance_outcome_conditional_type = std::conditional_t<
 //       std::is_same_v< chance_outcome_type, void >,
@@ -553,8 +553,8 @@ class GameTreeTraverser {
 // template < concepts::fosg Env, concepts::game_tree_node Node >
 // class GameTree {
 //  public:
-//   using world_state_type = typename fosg_auto_traits< Env >::world_state_type;
-//   using action_type = typename fosg_auto_traits< Env >::action_type;
+//   using world_state_type = auto_world_state_type< Env >;
+//   using action_type = auto_action_type< Env >;
 //   using node_type = Node;
 //
 //   /**

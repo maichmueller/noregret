@@ -109,7 +109,7 @@ class ActionPolicyView {
 // provided upon instantiation.
 template < typename ActionPolicy >
 ActionPolicyView(ActionPolicy&& policy)
-   -> ActionPolicyView< typename fosg_auto_traits< std::decay_t< ActionPolicy > >::action_type >;
+   -> ActionPolicyView< auto_action_type< std::decay_t< ActionPolicy > > >;
 
 template < typename Infostate, concepts::action Action >
 struct StatePolicyInterface {
@@ -193,8 +193,8 @@ class StatePolicyView {
 // provided upon instantiation.
 template < typename StatePolicy >
 StatePolicyView(StatePolicy&& policy) -> StatePolicyView<
-   typename fosg_auto_traits< std::decay_t< StatePolicy > >::info_state_type,
-   typename fosg_auto_traits< std::decay_t< StatePolicy > >::action_type >;
+   auto_info_state_type< std::decay_t< StatePolicy > >,
+   auto_action_type< std::decay_t< StatePolicy > > >;
 
 }  // namespace nor
 

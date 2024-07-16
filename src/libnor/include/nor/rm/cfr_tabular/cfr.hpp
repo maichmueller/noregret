@@ -23,7 +23,7 @@
 #include "nor/rm/forest.hpp"
 #include "nor/rm/node.hpp"
 #include "nor/rm/rm_utils.hpp"
-#include "nor/rm/tag.hpp"
+#include "nor/tag.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 
@@ -34,7 +34,7 @@ namespace detail {
 template < CFRConfig config, typename Env >
 struct VCFRNodeDataSelector {
   private:
-   using action_type = typename fosg_auto_traits< Env >::action_type;
+   using action_type = auto_action_type< Env >;
    /// for vanilla cfr we need no extra weight data stored
    using default_data_type = InfostateNodeData< action_type >;
    /// for exponential CFR we need to store:

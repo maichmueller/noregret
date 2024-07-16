@@ -6,7 +6,7 @@
 #include "best_response.hpp"
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
-#include "nor/rm/tag.hpp"
+#include "nor/tag.hpp"
 #include "nor/utils/utils.hpp"
 #include "policy_view.hpp"
 #include "tabular_policy.hpp"

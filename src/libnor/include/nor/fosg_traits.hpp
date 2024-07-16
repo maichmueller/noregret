@@ -380,9 +380,7 @@ struct fosg_traits_partial_match {
                             auto_action_type< SubsetType >,
                             auto_action_type< SupersetType > >) {
                common::debug< auto_action_type< SubsetType >, auto_action_type< SupersetType > >{};
-               static_assert(
-                  always_false< SubsetType, SupersetType >(), "Action types do not match"
-               );
+               static_assert(always_false< SubsetType, SupersetType >, "Action types do not match");
                return false;
             }
          }

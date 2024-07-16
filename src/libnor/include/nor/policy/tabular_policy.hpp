@@ -23,7 +23,7 @@ class TabularPolicy {
   public:
    using info_state_type = Infostate;
    using action_policy_type = ActionPolicy;
-   using action_type = typename fosg_auto_traits< action_policy_type >::action_type;
+   using action_type = auto_action_type< action_policy_type >;
    using table_type = Table;
 
    TabularPolicy()
