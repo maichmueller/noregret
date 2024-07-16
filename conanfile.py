@@ -4,7 +4,7 @@
 from conan import ConanFile
 from conan.tools.cmake import cmake_layout, CMakeToolchain
 
-class ConanApplication(ConanFile):
+class NoRegret(ConanFile):
     package_type = "application"
     settings = "os", "compiler", "build_type", "arch"
     generators = "CMakeDeps"
