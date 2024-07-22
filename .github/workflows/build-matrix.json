@@ -1,9 +1,30 @@
 [
   {
-    "os": "ubuntu-20.04",
+    "os": "ubuntu-22.04",
     "build_type": "Release",
     "cc": "gcc",
     "cxx": "g++",
     "compiler_version": 11
+  },
+  {
+    "os": "ubuntu-22.04",
+    "build_type": "Release",
+    "cc": "gcc",
+    "cxx": "g++",
+    "compiler_version": 12
+  },
+  {
+    "os": "ubuntu-22.04",
+    "build_type": "Release",
+    "cc": "gcc",
+    "cxx": "g++",
+    "compiler_version": 13
+  },
+  {
+    "os": "ubuntu-22.04",
+    "build_type": "Release",
+    "cc": "clang",
+    "cxx": "clang++",
+    "compiler_version": 17
   }
 ]

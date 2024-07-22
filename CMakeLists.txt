@@ -114,25 +114,22 @@ endif()
 # string APPEND is needed for options in order to concatenate these strings AS IS, i.e. avoid the semicolon between
 # every code line
 
-string(
-    APPEND
-    _options
+set(_options
     "$<$<CXX_COMPILER_ID:MSVC>:"
     "/permissive-;"
     "$<$<CONFIG:RELEASE>:/O2>"
     ">"
     "$<$<CXX_COMPILER_ID:Clang>:"
     "$<$<CONFIG:RELEASE>:-O3>"
-    "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
     "$<$<PLATFORM_ID:Darwin>:-stdlib=libc++>"
+    "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
     ">"
     "$<$<CXX_COMPILER_ID:GNU>:"
     "$<$<CONFIG:RELEASE>:-O3>"
     "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
     ">")
 set(_extra_options "-ftemplate-backtrace-limit=0" "$<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=5>")
-target_compile_options(project_options INTERFACE $<$<CXX_COMPILER_ID:Clang>:-stdlib=libstdc++> "${_options}"
-                                                 "${_extra_options}")
+target_compile_options(project_options INTERFACE "${_options}" "${_extra_options}")
 
 # Set up some extra Conan dependencies based on our needs before loading Conan
 set(CONAN_EXTRA_REQUIRES "")
@@ -184,7 +181,7 @@ find_package(namedtype REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(unordered_dense REQUIRED)
-include(${DEPENDENCY_DIR}/CPM_deps.cmake)
+include(${DEPENDENCY_DIR}/cpm_deps.cmake)
 
 add_library(required_min_libs INTERFACE)
 target_link_libraries(

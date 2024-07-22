@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.16)
-
 # required dependencies for the games:
 find_package(xtensor REQUIRED)
 

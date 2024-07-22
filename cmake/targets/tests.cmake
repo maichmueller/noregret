@@ -32,8 +32,11 @@ if(ENABLE_GAMES)
 
     register_game_target(
         stratego
+        INCLUDE_DIR
         stratego
+        LINK_LIBRARY
         stratego
+        SOURCE_FILES
         test_logic.cpp
         test_config.cpp
         test_game.cpp
@@ -41,12 +44,18 @@ if(ENABLE_GAMES)
         test_piece.cpp)
     register_game_target(
         kuhn_poker
+        INCLUDE_DIR
         kuhn_poker
+        LINK_LIBRARY
         kuhn_poker
+        SOURCE_FILES
         test_state.cpp)
     register_game_target(
         leduc_poker
+        INCLUDE_DIR
         leduc_poker
+        LINK_LIBRARY
         leduc_poker
+        SOURCE_FILES
         test_state.cpp)
 endif()

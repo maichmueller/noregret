@@ -25,27 +25,34 @@ function(register_nor_target target_name)
     message(STATUS "Target Source Contents (pathed): ${${target_name}_sources_list}")
 
     add_executable(${target_name} ${PROJECT_TEST_DIR}/main_tests.cpp ${${target_name}_sources_list}) # a list of source
-                                                                                                     # files to append
+    # files to append
 
     target_link_libraries(${target_name} PRIVATE shared_test_libs)
 
     add_test(NAME Test_${target_name} COMMAND ${target_name})
 endfunction()
 
-function(
-    register_game_target
-    target_name
-    lib_name
-    game_folder_name)
-    if(NOT ARGN)
-        message(FATAL_ERROR "You must pass at least one source file to define the target '${target_name}'")
+function(register_game_target target_name)
+    set(multiValueArgs SOURCE_FILES INCLUDE_DIR LINK_LIBRARY)
+    cmake_parse_arguments(
+        _
+        "${options}"
+        "${oneValueArgs}"
+        "${multiValueArgs}"
+        ${ARGN})
+
+    if(NOT __SOURCE_FILES)
+        message(
+            FATAL_ERROR
+                "You must pass at least one source file to define the target '${target_name}'. Received files list: ${__SOURCE_FILES}"
+        )
     endif()
     # append the prefix 'game' and suffix 'test' to each target name
     set(target_name "game_${target_name}_test")
-    set(${target_name}_sources_list ${ARGN})
+    set(${target_name}_sources_list ${__SOURCE_FILES})
     # this set needs to be set in the parent scope as well in order to remain present
     set(${target_name}_sources_list
-        ${ARGN}
+        ${__SOURCE_FILES}
         PARENT_SCOPE)
 
     list(APPEND REGISTERED_GAME_TARGET_NAMES_LIST ${target_name})
@@ -60,18 +67,16 @@ function(
 
     message(STATUS "Target: ${target_name}")
     message(STATUS "Target Source Contents: ${${target_name}_sources_list}")
-    list(TRANSFORM ${target_name}_sources_list PREPEND "${PROJECT_TEST_DIR}/games/${game_folder_name}/")
+    list(TRANSFORM ${target_name}_sources_list PREPEND "${PROJECT_TEST_DIR}/games/${__INCLUDE_DIR}/")
     message(STATUS "Target Source Contents (pathed): ${${target_name}_sources_list}")
 
-    add_executable(${target_name} ${PROJECT_TEST_DIR}/main_tests.cpp ${${target_name}_sources_list}) # a list of source
-                                                                                                     # files to append
+    add_executable(${target_name} ${PROJECT_TEST_DIR}/main_tests.cpp ${${target_name}_sources_list})
 
     set_target_properties(
-        ${target_name} PROPERTIES EXCLUDE_FROM_ALL True # don't build tests when ALL is asked to be built. Only on
-                                                        # demand.
+        ${target_name} PROPERTIES EXCLUDE_FROM_ALL True # don't build tests when ALL is to be built. Only on demand.
     )
 
-    target_link_libraries(${target_name} PRIVATE shared_test_libs ${lib_name})
+    target_link_libraries(${target_name} PRIVATE shared_test_libs ${__LINK_LIBRARY})
 
     add_dependencies(game_test_all ${target_name})
 

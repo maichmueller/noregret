@@ -8,9 +8,9 @@ jobs:
     name: Pre-Commit Checks
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.9
       - name: Update pip
@@ -28,7 +28,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - id: set-matrix
         run: |
           TASKS=$(echo $(cat .github/workflows/build-matrix.json) | sed 's/ //g' )
@@ -36,7 +36,7 @@ jobs:
 
   build-test-install:
     needs: matrix-strategy-setup
-    name: ${{ matrix.config.os }}_${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}
+    name: ${{ matrix.config.os }} • ${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
@@ -44,26 +44,67 @@ jobs:
         config: ${{ fromJson(needs.matrix-strategy-setup.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: 'true'
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
       - name: Set up GCC
-        if: ${{ runner.os }} == "Linux"
+        if: ${{ runner.os == 'Linux' && matrix.config.cc == 'gcc' }}
         uses: egor-tensin/setup-gcc@v1
         with:
           version: ${{ matrix.config.compiler_version }}
           platform: x64
 
+      - name: Cache LLVM Download
+        id: cache-llvm
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-llvm-files
+        with:
+          path: ./llvm-${{ matrix.config.compiler_version }}
+          key: ${{ runner.os }}-${{ env.cache-name }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-${{ hashFiles('**/workflows/cpp.yml') }}
+
+      - name: Install LLVM and Clang
+        if: ${{ steps.cache-llvm.outputs.cache-hit != 'true' && runner.os == 'Linux' && matrix.config.cc == 'clang' }}
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: ${{ matrix.config.compiler_version }}
+          directory: ./llvm-${{ matrix.config.compiler_version }}
+          env: 'true'
+
+      - name: Append LLVM To Path
+        if: ${{ runner.os == 'Linux' && matrix.config.cc == 'clang' }}
+        shell: bash
+        run: |
+          llvmdir=$(pwd)/llvm-${{ matrix.config.compiler_version }}
+          echo "$llvmdir"
+          echo "LLVM_DIR=$llvmdir" >> $GITHUB_OUTPUT
+          echo "$llvmdir/bin" >> $GITHUB_PATH
+
+
+      - name: Print Clang version
+        if: ${{ runner.os == 'Linux' && matrix.config.cc == 'clang' }}
+        shell: bash
+        run: |
+          echo $PATH
+          ls -l ./llvm-${{ matrix.config.compiler_version }}
+          ls -l ./llvm-${{ matrix.config.compiler_version }}/bin
+          echo "$PATH"
+          clang --version
+          llvm-config --version
+
       - name: Install conan
+        id: conan
         shell: bash
         run: |
           python3 -m pip install --upgrade pip setuptools
-          python3 -m pip install 'conan < 2'
+          python3 -m pip install conan
+          echo "CONAN_HOME=$HOME/.conan2-${{ runner.os }}-${{ matrix.config.build_type }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}" >> $GITHUB_OUTPUT
+
 
       - name: Install Doxygen
         if: ${{ runner.os }} == "Linux" || ${{ runner.os }} == "macOS"
@@ -89,9 +130,9 @@ jobs:
         run: source ~/.profile
 
       - name: Setup cmake
-        uses: jwlawson/actions-setup-cmake@v1.14
+        uses: jwlawson/actions-setup-cmake@v2
         with:
-          cmake-version: '3.22'
+          cmake-version: '3.28'
 
       - name: Configure Windows compile environment
         uses: ilammy/msvc-dev-cmd@v1
@@ -99,15 +140,27 @@ jobs:
         with:
           arch: amd64
 
+      - name: Cache Conan Dependencies Install
+        id: cache-conan-deps
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-conan-deps
+        with:
+          path: ${{ steps.conan.outputs.CONAN_HOME }}
+          key: ${{ runner.os }}-${{ env.cache-name }}-${{ matrix.config.build_type }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-${{ hashFiles('**/conandata.yml') }}-${{ hashFiles('**/conanfile.py') }}
+
+
       - name: Configure CMake
         shell: bash
         env:
           CC: ${{ matrix.config.cc }}
           CXX: ${{ matrix.config.cxx }}
         run: >
+          export CONAN_HOME=${{ steps.conan.outputs.CONAN_HOME }} &&
           cmake
           -S .
           -B ./build
+          -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES="conan_provider.cmake"
           -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
           -DWARNINGS_AS_ERRORS:BOOL=OFF
           -DUSE_PYBIND11_FINDPYTHON:BOOL=ON
@@ -115,7 +168,7 @@ jobs:
       - name: Build NOR Games
         shell: bash
         run: |
-          cmake --build ./build --config Release --target game_test_targets_all
+          cmake --build ./build --config Release --target game_test_all
 
       - name: Build NOR Library
         shell: bash
@@ -125,7 +178,7 @@ jobs:
       - name: Run Game Implementation Tests
         shell: bash
         run: >
-          GTEST_OUTPUT=xml:gtest-report-${{ github.jobs.build-test-install.name }}-games.xml
+          GTEST_OUTPUT=xml:gtest-report-${{ github.job }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-games.xml
           GTEST_COLOR=1
           ctest -R Test_game_.+_test
           --test-dir ./build
@@ -133,17 +186,17 @@ jobs:
           -C ${{ matrix.config.build_type }}
 
       - name: Upload game test result artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: gtest-results
-          path: ./build/**/gtest-report-${{ github.jobs.build-test-install.name }}-games.xml
+          name: gtest-results-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-games
+          path: ./build/**/gtest-report-${{ github.job }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-games.xml
           retention-days: 1
 
       - name: Run No-Regret Tests
         shell: bash
         run: >
-          GTEST_OUTPUT=xml:gtest-report-${{ github.jobs.build-test-install.name }}.xml
+          GTEST_OUTPUT=xml:gtest-report-${{ github.job }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-lib.xml
           GTEST_COLOR=1
           ctest -R Test_nor_tests_all
           --test-dir ./build
@@ -151,11 +204,11 @@ jobs:
           -C ${{ matrix.config.build_type }}
 
       - name: Upload lib test result artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: gtest-results
-          path: ./build/**/gtest-report-${{ github.jobs.build-test-install.name }}.xml
+          name: gtest-results-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-lib
+          path: ./build/**/gtest-report-${{ github.job }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-lib.xml
           retention-days: 1
 
   publish-gtest-results:
@@ -166,10 +219,11 @@ jobs:
 
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: gtest-results
           path: ./artifacts/gtest-results_downloaded
+          pattern: gtest-results*
+          merge-multiple: true
 
       - name: Display structure of downloaded files
         run: ls
