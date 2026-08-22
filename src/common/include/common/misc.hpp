@@ -40,6 +40,13 @@ struct noop {
 };
 
 using RNG = std::mt19937_64;
+
+/// the shared default seed used by all library entry points that accept an
+/// optional seed (e.g. factory::make_mccfr and the MCCFR constructors). Having
+/// ONE canonical default keeps solver runs reproducible no matter which entry
+/// point was taken.
+inline constexpr size_t default_seed = 0;
+
 /**
  * @brief Creates and returns a new random number generator from a potential seed.
  * @param seed the seed for the Mersenne Twister algorithm.
@@ -112,7 +119,11 @@ inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
 template < typename RAContainer >
 inline auto choose(const RAContainer& cont)
 {
-   auto rng = create_rng(std::random_device{}());
+   // note: this overload must NOT construct a std::random_device (or a fresh
+   // seeded RNG) per call: that is both slow and nondeterministic across calls.
+   // A thread-local generator seeded once from the shared default seed keeps
+   // repeated calls cheap and reproducible.
+   static thread_local RNG rng = create_rng(default_seed);
    return choose(cont, rng);
 }
 

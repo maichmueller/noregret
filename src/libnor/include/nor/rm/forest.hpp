@@ -2,6 +2,8 @@
 #ifndef NOR_FOREST_HPP
 #define NOR_FOREST_HPP
 
+#include <spdlog/spdlog.h>
+
 #include <execution>
 #include <range/v3/all.hpp>
 

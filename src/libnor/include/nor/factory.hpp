@@ -381,7 +381,7 @@ struct factory {
       Policy&& policy,
       AvgPolicy&& avg_policy,
       double epsilon,
-      size_t seed = 0
+      size_t seed = common::default_seed
    )
    {
       if constexpr(as_map) {
@@ -418,7 +418,7 @@ struct factory {
       std::unordered_map< Player, Policy > policy_map,
       std::unordered_map< Player, AveragePolicy > avg_policy_map,
       double epsilon,
-      size_t seed = 0
+      size_t seed = common::default_seed
    )
    {
       return {
@@ -436,7 +436,7 @@ struct factory {
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       const Policy& policy,
       double epsilon,
-      size_t seed = 0
+      size_t seed = common::default_seed
    )
    {
       return make_mccfr< cfg, as_map >(
