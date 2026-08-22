@@ -2,110 +2,141 @@
 #ifndef NOR_TEXAS_HOLDEM_POKER_UTILS_HPP
 #define NOR_TEXAS_HOLDEM_POKER_UTILS_HPP
 
+#include <functional>
 #include <string>
 
 #include "common/common.hpp"
 #include "state.hpp"
 
-namespace kuhn {
+namespace texholdem {
 
-constexpr common::CEBijection< Rank, std::string_view, 3 > card_name_bij = {
+constexpr common::CEBijection< Rank, std::string_view, 13 > rank_name_bij = {
+   std::pair{Rank::two, "two"},
+   std::pair{Rank::three, "three"},
+   std::pair{Rank::four, "four"},
+   std::pair{Rank::five, "five"},
+   std::pair{Rank::six, "six"},
+   std::pair{Rank::seven, "seven"},
+   std::pair{Rank::eight, "eight"},
+   std::pair{Rank::nine, "nine"},
+   std::pair{Rank::ten, "ten"},
    std::pair{Rank::jack, "jack"},
    std::pair{Rank::queen, "queen"},
-   std::pair{Rank::king, "king"}};
+   std::pair{Rank::king, "king"},
+   std::pair{Rank::ace, "ace"}};
 
-constexpr common::CEBijection< Action, std::string_view, 2 > action_name_bij = {
-   std::pair{Action::check, "check"},
-   std::pair{Action::bet, "bet"}};
+constexpr common::CEBijection< Suit, std::string_view, 4 > suit_name_bij = {
+   std::pair{Suit::clubs, "clubs"},
+   std::pair{Suit::diamonds, "diamonds"},
+   std::pair{Suit::hearts, "hearts"},
+   std::pair{Suit::spades, "spades"}};
 
-constexpr common::CEBijection< Player, std::string_view, 2 > player_name_bij = {
+constexpr common::CEBijection< ActionType, std::string_view, 6 > actiontype_name_bij = {
+   std::pair{ActionType::fold, "fold"},
+   std::pair{ActionType::check, "check"},
+   std::pair{ActionType::call, "call"},
+   std::pair{ActionType::bet, "bet"},
+   std::pair{ActionType::raise, "raise"},
+   std::pair{ActionType::all_in, "all-in"}};
+
+constexpr common::CEBijection< Street, std::string_view, 4 > street_name_bij = {
+   std::pair{Street::preflop, "preflop"},
+   std::pair{Street::flop, "flop"},
+   std::pair{Street::turn, "turn"},
+   std::pair{Street::river, "river"}};
+
+constexpr common::CEBijection< Player, std::string_view, 7 > player_name_bij = {
+   std::pair{Player::chance, "chance"},
    std::pair{Player::one, "one"},
-   std::pair{Player::two, "two"}};
+   std::pair{Player::two, "two"},
+   std::pair{Player::three, "three"},
+   std::pair{Player::four, "four"},
+   std::pair{Player::five, "five"},
+   std::pair{Player::six, "six"}};
 
-}  // namespace kuhn
+}  // namespace texholdem
 
 namespace common {
 
 template <>
-inline std::string to_string(const kuhn::Rank &value)
+inline std::string to_string(const texholdem::Rank& value)
 {
-   return std::string(kuhn::card_name_bij.at(value));
+   return std::string(texholdem::rank_name_bij.at(value));
 }
 
 template <>
-inline std::string to_string(const kuhn::Action &value)
+inline std::string to_string(const texholdem::Suit& value)
 {
-   return std::string(kuhn::action_name_bij.at(value));
+   return std::string(texholdem::suit_name_bij.at(value));
 }
 
 template <>
-inline std::string to_string(const kuhn::Player &value)
+inline std::string to_string(const texholdem::ActionType& value)
 {
-   return std::string(kuhn::player_name_bij.at(value));
+   return std::string(texholdem::actiontype_name_bij.at(value));
 }
 
 template <>
-inline std::string to_string(const kuhn::ChanceOutcome &value)
+inline std::string to_string(const texholdem::Street& value)
 {
-   return std::string(kuhn::card_name_bij.at(value.card));
+   return std::string(texholdem::street_name_bij.at(value));
+}
+
+template <>
+inline std::string to_string(const texholdem::Player& value)
+{
+   return std::string(texholdem::player_name_bij.at(value));
+}
+
+template <>
+inline std::string to_string(const texholdem::Card& value)
+{
+   return to_string(value.rank) + "-" + *to_string(value.suit).begin();
+}
+
+template <>
+inline std::string to_string(const texholdem::Action& value)
+{
+   switch(value.kind) {
+      case texholdem::ActionType::bet:
+      case texholdem::ActionType::raise: {
+         return fmt::format("{}-->{:.2f}", to_string(value.kind), value.amount);
+      }
+      default: return to_string(value.kind);
+   }
 }
 
 }  // namespace common
 
-// these operator<< definitions are specifically made for gtest which cannot handle the lookup in
-// global namespace without throwing multiple template matching errors.
-namespace kuhn {
-
-inline auto &operator<<(std::ostream &os, Player e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, Rank e)
-{
-   return os << common::to_string(e);
-}
-inline auto &operator<<(std::ostream &os, ChanceOutcome e)
-{
-   return os << common::to_string(e.card);
-}
-inline auto &operator<<(std::ostream &os, Action e)
-{
-   return os << common::to_string(e);
-}
-
-}  // namespace kuhn
+COMMON_ENABLE_PRINT(texholdem, Rank);
+COMMON_ENABLE_PRINT(texholdem, Suit);
+COMMON_ENABLE_PRINT(texholdem, Action);
+COMMON_ENABLE_PRINT(texholdem, ActionType);
+COMMON_ENABLE_PRINT(texholdem, Street);
+COMMON_ENABLE_PRINT(texholdem, Player);
+COMMON_ENABLE_PRINT(texholdem, Card);
 
 namespace std {
 
 template <>
-struct hash< kuhn::History > {
-   size_t operator()(const kuhn::History &history) const
-   {
-      std::stringstream ss;
-      for(auto action : history.sequence) {
-         ss << std::to_string(static_cast< int >(action));
-      }
-      return std::hash< std::string >{}(ss.str());
-   }
-};
-
-template <>
-struct hash< kuhn::ChanceOutcome > {
-   size_t operator()(const kuhn::ChanceOutcome &chance_outcome) const
-   {
-      std::stringstream ss;
-      ss << chance_outcome.player << chance_outcome.card;
-      return std::hash< std::string >{}(ss.str());
-   }
-};
-
-template <>
 struct hash< texholdem::Card > {
-   size_t operator()(const texholdem::Card &card) const
+   size_t operator()(const texholdem::Card& card) const noexcept
    {
-      size_t hash = std::hash< texholdem::Rank >{}(card.rank);
-      common::hash_combine(hash, std::hash< texholdem::Suit >{}(card.suit));
-      return hash;
+      size_t seed = 0;
+      common::hash_combine(seed, std::hash< unsigned >{}(unsigned(card.rank)));
+      common::hash_combine(seed, std::hash< unsigned >{}(unsigned(card.suit)));
+      return seed;
+   }
+};
+
+template <>
+struct hash< texholdem::Action > {
+   size_t operator()(const texholdem::Action& action) const noexcept
+   {
+      size_t seed = 0;
+      common::hash_combine(seed, std::hash< unsigned >{}(unsigned(action.kind)));
+      common::hash_combine(seed, std::hash< double >{}(action.amount));
+      return seed;
    }
 };
 
