@@ -92,18 +92,20 @@ class TabularCFRBase {
       const AveragePolicy& avg_policy = AveragePolicy()
    )
       // clang-format off
-      requires
-         common::all_predicate_v<
-            std::is_copy_constructible,
-            Policy,
-            AveragePolicy >
+       requires
+          common::all_predicate_v<
+             std::is_copy_constructible,
+             Policy,
+             AveragePolicy >
        // clang-format on
        : m_env(std::move(game)),
          m_root_state(std::move(root_state)),
          m_curr_policy(),
          m_avg_policy()
    {
-      for(auto player : game.players(*m_root_state) | utils::is_actual_player_filter) {
+      // note: query the players from the ALREADY MOVED INTO m_env instance.
+      // Reading the by-value parameter 'game' here would be a use-after-move.
+      for(auto player : m_env.players(*m_root_state) | utils::is_actual_player_filter) {
          m_curr_policy.emplace(player, policy);
          m_avg_policy.emplace(player, avg_policy);
       }
@@ -116,9 +118,13 @@ class TabularCFRBase {
       const AveragePolicy& avg_policy = AveragePolicy()
    )
       // clang-format off
-      requires
-         concepts::has::method::initial_world_state< Env >
+       requires
+          concepts::has::method::initial_world_state< Env >
        // clang-format on
+       // note: this delegation is well-defined: all arguments of the delegated
+       // constructor call are evaluated (incl. env.initial_world_state())
+       // before the target constructor's by-value parameters are initialized
+       // from them, so 'env' cannot be moved-from prematurely.
        : TabularCFRBase(
           std::move(env),
           std::make_unique< world_state_type >(env.initial_world_state()),

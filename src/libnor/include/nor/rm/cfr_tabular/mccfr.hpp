@@ -20,67 +20,13 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/rm/forest.hpp"
+#include "nor/rm/minimizers/minimizers.hpp"
 #include "nor/rm/node.hpp"
 #include "nor/rm/rm_utils.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 
 namespace nor::rm {
-
-namespace detail {
-
-template < MCCFRConfig config, typename Env >
-struct MCCFRNodeDataSelector {
-  private:
-   using action_type = auto_action_type< Env >;
-   /// for lazy weighting we need a weight for each individual action at each infostate
-   using lazy_node_type = InfostateNodeData<
-      action_type,
-      std::unordered_map<
-         std::reference_wrapper< const action_type >,
-         double,
-         common::ref_wrapper_hasher< const action_type >,
-         common::ref_wrapper_comparator< const action_type > > >;
-   /// for optimistic weghting we merely need a counter for each infostate
-   using optimistic_node_type = InfostateNodeData< action_type, size_t >;
-   /// for pure-cfr we need to store the sampled action at the infostate since each world state
-   /// consistent with the information state needs to use the same sampled action. This action is
-   /// sampled for the chance player or a participant alike so we need the variant type.
-   using pure_node_type = InfostateNodeData<
-      action_type,
-      // the extra storage is the sampled action at the infostate for the current iteration. It
-      // needs to be reset after every iteration!
-      std::optional< action_type > >;
-   /// for eg external sampling or stochastic weighetd outcome sampling we merely need the regret
-   /// storage
-   using basic_node_type = InfostateNodeData< action_type >;
-
-  public:
-   using type = std::conditional_t<
-      common::isin(
-         config.algorithm,
-         {MCCFRAlgorithmMode::external_sampling, MCCFRAlgorithmMode::chance_sampling}
-      ),
-      basic_node_type,
-      std::conditional_t<
-         config.algorithm == MCCFRAlgorithmMode::pure_cfr,
-         pure_node_type,
-         std::conditional_t<
-            config.algorithm == MCCFRAlgorithmMode::outcome_sampling,
-            std::conditional_t<
-               config.weighting == MCCFRWeightingMode::lazy,
-               lazy_node_type,
-               std::conditional_t<
-                  config.weighting == MCCFRWeightingMode::optimistic,
-                  optimistic_node_type,
-                  std::conditional_t<
-                     config.weighting == MCCFRWeightingMode::stochastic,
-                     basic_node_type,
-                     void > > >,
-            void > > >;
-};
-
-}  // namespace detail
 
 /**
  * The Monte-Carlo Counterfactual Regret Minimization algorithm class following the
@@ -117,8 +63,12 @@ class MCCFR:
    using typename base::InfostateSptrMap;
    using typename base::ObservationbufferMap;
    using action_variant_type = auto_action_variant_type< env_type >;
+   /// the regret minimizer selected by the configuration
+   using minimizer_type = mccfr_minimizer_for_t< config, action_type >;
    /// the data to store per infostate entry
-   using infostate_data_type = typename detail::MCCFRNodeDataSelector< config, env_type >::type;
+   using infostate_data_type = InfostateNodeData<
+      action_type,
+      typename minimizer_type::node_data_type >;
 
    /// assert that the node data type did not turn out to be void
    static_assert(
@@ -134,32 +84,24 @@ class MCCFR:
    using ConditionalWeight = std::
       conditional_t< config.weighting == MCCFRWeightingMode::lazy, Weight, utils::empty >;
 
-   /// a hash set to store which infostates and their associated data types need to be updated in
-   /// terms of regret minimization POST cfr iteration
-   using istate_and_data_tuple = std::
-      tuple< info_state_type*, std::reference_wrapper< infostate_data_type > >;
-   using delayed_update_set = std::unordered_set<
-      istate_and_data_tuple,
-      decltype(common::TransparentOverload{
-         [](const istate_and_data_tuple& tuple) {
-            return common::value_hasher< info_state_type >{}(std::get< 0 >(tuple));
-         },
-         [](const auto& any) { return common::value_hasher< info_state_type >{}(any); },
-      }),
-      decltype(common::TransparentOverload{
-         [](const istate_and_data_tuple& t1, const istate_and_data_tuple& t2) {
-            return common::value_comparator< info_state_type >{}(
-               std::get< 0 >(t1), std::get< 0 >(t2)
-            );
-         },
-         [](const istate_and_data_tuple& t1, const auto& any) {
-            return common::value_comparator< info_state_type >{}(std::get< 0 >(t1), any);
-         },
-         [](const auto& any, const istate_and_data_tuple& t1) {
-            return common::value_comparator< info_state_type >{}(std::get< 0 >(t1), any);
-         },
-         [](const auto& any) { return common::value_comparator< info_state_type >{}(any); },
-      }) >;
+   /// a hash set storing which infostates and their associated data need to be
+   /// updated in terms of regret minimization POST cfr iteration. Identity is
+   /// defined by the infostate pointer alone.
+   using istate_and_data_pair = std::pair< const info_state_type*, infostate_data_type* >;
+   struct istate_and_data_hash {
+      size_t operator()(const istate_and_data_pair& pair) const
+      {
+         return common::value_hasher< info_state_type >{}(*pair.first);
+      }
+   };
+   struct istate_and_data_equal {
+      bool operator()(const istate_and_data_pair& left, const istate_and_data_pair& right) const
+      {
+         return common::value_comparator< info_state_type >{}(*left.first, *right.first);
+      }
+   };
+   using delayed_update_set = std::
+      unordered_set< istate_and_data_pair, istate_and_data_hash, istate_and_data_equal >;
 
    ////////////////////
    /// Constructors ///
@@ -177,7 +119,7 @@ class MCCFR:
    MCCFR(T1&& t, Args&&... args)
        : MCCFR(tag::internal_construct{}, std::forward< T1 >(t), std::forward< Args >(args)...)
    {
-      _sanity_check_config();
+      this->_sanity_check_config();
       assert_serialized_and_unrolled(_env());
    }
 
@@ -189,7 +131,7 @@ class MCCFR:
       Policy policy_ = Policy(),
       AveragePolicy avg_policy_ = AveragePolicy(),
       double epsilon = 0.6,
-      size_t seed = std::random_device{}()
+      size_t seed = common::default_seed  // consistent with factory.hpp defaults
    )
        : base(std::move(env_), std::move(root_state_), std::move(policy_), std::move(avg_policy_)),
          m_epsilon(epsilon),
@@ -203,7 +145,7 @@ class MCCFR:
       Policy policy_ = Policy(),
       AveragePolicy avg_policy_ = AveragePolicy(),
       double epsilon = 0.6,
-      size_t seed = std::random_device{}()
+      size_t seed = common::default_seed  // consistent with factory.hpp defaults
    )
        : MCCFR(
           tag::internal_construct{},
@@ -224,7 +166,7 @@ class MCCFR:
       std::unordered_map< Player, Policy > policy_,
       std::unordered_map< Player, AveragePolicy > avg_policy_,
       double epsilon = 0.6,
-      size_t seed = std::random_device{}()
+      size_t seed = common::default_seed  // consistent with factory.hpp defaults
    )
        : base(std::move(env_), std::move(root_state_), std::move(policy_), std::move(avg_policy_)),
          m_epsilon(epsilon),
@@ -323,15 +265,7 @@ class MCCFR:
    /// the standard 0 to 1. floating point uniform distribution
    std::uniform_real_distribution< double > m_uniform_01_dist{0., 1.};
    /// the actual regret minimizing method we will apply on the infostates
-   static constexpr auto m_regret_minimizer = []< typename... Args >(Args&&... args) {
-      if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching) {
-         return rm::regret_matching(std::forward< Args >(args)...);
-      }
-      if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::regret_matching_plus) {
-         static_assert(common::always_false_v< env_type >, "MCCFR+ is not yet implemented.");
-         // return rm::regret_matching_plus(std::forward< Args >(args)...);
-      }
-   };
+   [[no_unique_address]] minimizer_type m_regret_minimizer{};
 
    /// define the implementation details of the
 

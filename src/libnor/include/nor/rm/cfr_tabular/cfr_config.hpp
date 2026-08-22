@@ -107,6 +107,30 @@ struct MCCFRConfig {
    CFRPruningMode pruning_mode = CFRPruningMode::none;
 };
 
+struct CFRDiscountedParameters {
+   /// the parameter to exponentiate the weight of positive cumulative regrets with
+   double alpha = 1.5;
+   /// the parameter to exponentiate the weight of negative cumulative regrets with
+   double beta = 0.;
+   /// the parameter to exponentiate the weight of the cumulative policy with
+   double gamma = 2.;
+};
+
+namespace detail {
+
+inline double _zero(double, size_t)
+{
+   return 0.;
+}
+
+}  // namespace detail
+
+struct CFRExponentialParameters {
+   /// the parameter function beta (can depend on the instantaneous regret of the action) to limit
+   /// negative regrets to
+   double (*beta)(double, size_t) = &detail::_zero;
+};
+
 }  // namespace nor::rm
 
 #endif  // NOR_CFR_CONFIG_HPP

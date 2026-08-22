@@ -1,5 +1,7 @@
 #pragma once
 
+#include <spdlog/spdlog.h>
+
 #include "mccfr.hpp"
 
 namespace nor::rm {
@@ -213,20 +215,24 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimization(
       execution_policy,
       node_view.begin(),
       node_view.end(),
-      [&](auto& infostate_ptr_data) {
-         auto& [infostate_ptr, data] = infostate_ptr_data;
+      [&](auto& entry) {
+         // the pure-cfr branch iterates the whole infonode table while every
+         // other algorithm iterates the delayed update set of pointer pairs
          if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
+            auto& [infostate_sptr, data] = entry;
             // reset the sampled plan per information state
-            data.template storage_element< 1 >().reset();
-         }
-         if(not (  // for all algos but alternating pure-cfr we always update the given range
-               config.algorithm == MCCFRAlgorithmMode::pure_cfr
-               and config.update_mode == UpdateMode::alternating
-            )
-            or update_set.contains(infostate_ptr)  // for alternating pure-cfr we have to check if
-                                                   // this infostate was meant to be updated as well
-         ) {
-            _invoke_regret_minimizer(common::deref(infostate_ptr), data);
+            data.data().extras.sampled_action.reset();
+            if(not (  // for alternating pure-cfr we have to check if this
+                      // infostate was meant to be updated as well
+                     config.update_mode == UpdateMode::alternating
+                  )
+               or update_set.find({infostate_sptr.get(), &data}) != update_set.end()
+            ) {
+               _invoke_regret_minimizer(common::deref(infostate_sptr), data);
+            }
+         } else {
+            const auto& [infostate_ptr, data_ptr] = entry;
+            _invoke_regret_minimizer(common::deref(infostate_ptr), *data_ptr);
          }
       }
    );
@@ -237,13 +243,9 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    infostate_data_type& data
 )
 {
-   m_regret_minimizer(
-      this->template fetch_policy< PolicyLabel::current >(infostate, data.actions()),
-      data.regret(),
-      // we provide the accessor to get the underlying referenced action, as the infodata
-      // stores only reference wrappers to the actions
-      [](const action_type& action) { return std::cref(action); }
-   );
+   auto& current_policy =
+      this->template fetch_policy< PolicyLabel::current >(infostate, data.actions());
+   m_regret_minimizer.recommend(data.data(), current_policy, _iteration());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -324,13 +326,9 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    // need to update all infostates after the last iteration to ensure that the policy is fully
    // up-to-date
 
-   m_regret_minimizer(
-      action_policy,
-      infonode_data.regret(),
-      // we provide the accessor to get the underlying referenced action, as the infodata
-      // stores only reference wrappers to the actions
-      [](const action_type& action) { return std::cref(action); }
-   );
+   // apply one round of regret matching on the current policy before using it via the
+   // minimizer's recommendation step
+   m_regret_minimizer.recommend(infonode_data.data(), action_policy, _iteration());
 
    auto [sampled_action, action_sampling_prob, action_policy_prob] = _sample_action(
       active_player, player_to_update, actions, action_policy
@@ -343,7 +341,7 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
       auto& active_weight = next_weights.get()[active_player];
       active_weight = active_weight * action_policy_prob
-                      + infonode_data.template storage_element< 1 >(std::cref(sampled_action));
+                      + infonode_data.data().extras.pending_avg_accumulator.at(std::cref(sampled_action));
    }
    auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
       utils::clone_any_way(state)
@@ -521,15 +519,15 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
          auto policy_incr = (weight.get() + reach_prob.get()) * current_policy[action];
          avg_policy[action] += policy_incr;
          if(action == sampled_action) [[unlikely]] {
-            infonode_data.template storage_element< 1 >(std::cref(action)) = 0.;
+            infonode_data.data().extras.pending_avg_accumulator[std::cref(action)] = 0.;
          } else [[likely]] {
-            infonode_data.template storage_element< 1 >(std::cref(action)) += policy_incr;
+            infonode_data.data().extras.pending_avg_accumulator[std::cref(action)] += policy_incr;
          }
       }
    }
 
    if constexpr(config.weighting == MCCFRWeightingMode::optimistic) {
-      auto& infostate_last_visit = infonode_data.template storage_element< 1 >();
+      auto& infostate_last_visit = infonode_data.data().extras.last_visit_iteration;
       auto current_iter = _iteration();
       // we add + 1 to the current iter counter, since the iterations start counting at 0
       auto last_visit_difference = static_cast< double >(1 + current_iter - infostate_last_visit);
@@ -723,7 +721,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       infonode_data.emplace(_env().actions(active_player, *state));
    }
    if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
-      infostates_to_update.emplace(std::tuple{infostate.get(), std::ref(infonode_data)});
+      infostates_to_update.emplace(infostate.get(), &infonode_data);
    } else {
       // for external sampling we can simply minimize upon traversal
       _invoke_regret_minimizer(common::deref(infostate), infonode_data);
@@ -759,7 +757,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
    auto sample_or_fetch_action = [&]() -> decltype(auto) {
       if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
-         auto& sampled_action_opt = infonode_data.template storage_element< 1 >();
+         auto& sampled_action_opt = infonode_data.data().extras.sampled_action;
          return sampled_action_opt.has_value()
                    ? *sampled_action_opt
                    : sampled_action_opt.emplace(_sample_action_on_policy(actions, action_policy));
@@ -911,7 +909,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    );
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
-   infostates_to_update.emplace(std::tuple{infostate.get(), std::ref(infonode_data)});
+   infostates_to_update.emplace(infostate.get(), &infonode_data);
    if(success) {
       // success means we have indeed emplaced a new data node, instead of simply fetching an
       // existing one.
@@ -958,7 +956,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    }
    if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
       // in the pure-cfr case we only need to emplace the value of the sampled action
-      auto& sampled_action_opt = infonode_data.template storage_element< 1 >();
+      auto& sampled_action_opt = infonode_data.data().extras.sampled_action;
       if(not sampled_action_opt.has_value()) {
          // emplace sampled action for the pure strategy at this infostate if not already done
          sampled_action_opt = _sample_action_on_policy(actions, curr_action_policy);
@@ -1045,7 +1043,7 @@ void MCCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       }
    }
    if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
-      const auto& sampled_action = *(istate_data.template storage_element< 1 >());
+      const auto& sampled_action = *(istate_data.data().extras.sampled_action);
       // For Pure CFR we really increment only the sampled action's a' average policy, because
       // the remaining increments are all 0 avg_sigma^{t+1}(I) = 1 if a == a' else 0
       avg_action_policy[sampled_action] += 1;
