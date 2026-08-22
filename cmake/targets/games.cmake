@@ -56,6 +56,20 @@ target_include_directories(kuhn_poker PUBLIC ${PROJECT_GAMES_DIR}/kuhn_poker/inc
 target_link_libraries(kuhn_poker PUBLIC required_min_libs common range-v3::range-v3)
 
 # ######################################################################################################################
+# Texas Hold'em Poker
+# ######################################################################################################################
+
+set(TEXHOLDEM_SOURCES state.cpp)
+
+list(TRANSFORM TEXHOLDEM_SOURCES PREPEND "${PROJECT_GAMES_DIR}/texas_holdem_poker/impl/")
+
+add_library(texas_holdem_poker SHARED ${TEXHOLDEM_SOURCES})
+
+target_include_directories(texas_holdem_poker PUBLIC ${PROJECT_GAMES_DIR}/texas_holdem_poker/include)
+
+target_link_libraries(texas_holdem_poker PUBLIC required_min_libs common range-v3::range-v3)
+
+# ######################################################################################################################
 # Rock Paper Scissors
 # ######################################################################################################################
 

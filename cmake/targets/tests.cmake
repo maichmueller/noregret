@@ -58,4 +58,12 @@ if(ENABLE_GAMES)
         leduc_poker
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        texas_holdem_poker
+        INCLUDE_DIR
+        texas_holdem_poker
+        LINK_LIBRARY
+        texas_holdem_poker
+        SOURCE_FILES
+        test_state.cpp)
 endif()
