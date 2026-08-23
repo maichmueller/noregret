@@ -89,4 +89,12 @@ if(ENABLE_GAMES)
         battleship
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        dark_hex
+        INCLUDE_DIR
+        dark_hex
+        LINK_LIBRARY
+        dark_hex
+        SOURCE_FILES
+        test_state.cpp)
 endif()

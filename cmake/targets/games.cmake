@@ -112,3 +112,13 @@ add_library(battleship INTERFACE)
 target_include_directories(battleship INTERFACE ${PROJECT_GAMES_DIR}/battleship/include)
 
 target_link_libraries(battleship INTERFACE required_min_libs common range-v3::range-v3)
+
+# ######################################################################################################################
+# Dark Hex (header-only)
+# ######################################################################################################################
+
+add_library(dark_hex INTERFACE)
+
+target_include_directories(dark_hex INTERFACE ${PROJECT_GAMES_DIR}/dark_hex/include)
+
+target_link_libraries(dark_hex INTERFACE required_min_libs common range-v3::range-v3)
