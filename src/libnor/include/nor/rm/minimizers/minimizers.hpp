@@ -4,6 +4,7 @@
 
 #include <concepts>
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <type_traits>
 #include <unordered_map>
@@ -40,7 +41,8 @@ using per_action_map = std::unordered_map<
 //                                       increment into the tables
 //    static void recommend(node_data_type&, PolicyOut&, size_t iteration)
 //                                    -- derive the current policy from the stored regret. May
-//                                       mutate the tables (e.g. CFR+ clamping).
+//                                       mutate the tables (e.g. CFR+ clamping or predictive
+//                                       minimizers refreshing their strategy snapshot).
 //    static double policy_weight(size_t iteration)
 //                                    -- multiplier the solver applies to the accumulated average
 //                                       policy after this iteration's traversal
@@ -52,7 +54,6 @@ concept regret_minimizer_for = concepts::action< Action > and std::is_default_co
                                and requires(
                                   M minimizer,
                                   typename M::node_data_type& node_data,
-                                  const typename M::node_data_type& const_node_data,
                                   const Action& action,
                                   PolicyOut& policy_out,
                                   size_t iteration
@@ -60,7 +61,7 @@ concept regret_minimizer_for = concepts::action< Action > and std::is_default_co
                                       typename M::node_data_type;
                                       M::register_action(node_data, action);
                                       M::observe(node_data, action, 1.);
-                                      minimizer.recommend(const_node_data, policy_out, iteration);
+                                      minimizer.recommend(node_data, policy_out, iteration);
                                       {
                                          minimizer.policy_weight(iteration)
                                       } -> std::convertible_to< double >;
@@ -318,8 +319,14 @@ struct ExponentialCFR {
  * (non-positive regrets); after each iteration the accumulated average policy
  * is scaled by (t / (t + 1))^gamma, where t is the logical (1-based) iteration
  * number. Linear CFR is the special case alpha = beta = gamma = 1.
+ *
+ * The 'discount_regrets' flag allows using the decorator purely for its
+ * average-policy side: when set to false the alpha/beta regret scaling is
+ * compiled out and only the gamma-side policy weight remains active. This is
+ * how PCFR+ composes its required quadratic averaging (gamma = 2) without
+ * perturbing the predictive regret updates.
  */
-template < typename Inner >
+template < typename Inner, bool discount_regrets = true >
 class DiscountedCFR {
   public:
    constexpr DiscountedCFR() = default;
@@ -343,11 +350,13 @@ class DiscountedCFR {
       // note: the regret scaling uses the raw iteration counter (no +1 offset)
       // while the policy weight below uses the logical iteration number. This
       // mirrors the historical behavior which empirically converged faster.
-      double t_alpha = std::pow(double(iteration), m_params.alpha);
-      double t_beta = std::pow(double(iteration), m_params.beta);
-      for(auto& [action_ref, cumul_regret] : data.regret) {
-         (void) action_ref;
-         cumul_regret *= cumul_regret > 0. ? t_alpha / (t_alpha + 1.) : t_beta / (t_beta + 1.);
+      if constexpr(discount_regrets) {
+         double t_alpha = std::pow(double(iteration), m_params.alpha);
+         double t_beta = std::pow(double(iteration), m_params.beta);
+         for(auto& [action_ref, cumul_regret] : data.regret) {
+            (void) action_ref;
+            cumul_regret *= cumul_regret > 0. ? t_alpha / (t_alpha + 1.) : t_beta / (t_beta + 1.);
+         }
       }
       Inner::recommend(data, policy_out, iteration);
    }
@@ -365,9 +374,25 @@ class DiscountedCFR {
    CFRDiscountedParameters m_params;
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////// predictive minimizers //////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////// predictive minimizers //////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+// the predictive minimizer lives in its own header which opens 'nor::rm'
+// itself, hence the temporary namespace closure here
+}  // namespace nor::rm
+
+#include "predictive.hpp"
+
+namespace nor::rm {
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////// minimizer selection ////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace detail {
 
@@ -378,7 +403,17 @@ template <
    RegretMinimizingMode rm_mode >
 consteval auto select_vanilla_minimizer()
 {
-   if constexpr(weighting == CFRWeightingMode::exponential) {
+   if constexpr(rm_mode == RegretMinimizingMode::predictive_regret_matching_plus) {
+      // PCFR+ needs the quadratic average-policy accumulation of the discounted
+      // weighting machinery (gamma = 2) but NOT the alpha/beta regret discounts
+      return std::type_identity< DiscountedCFR<
+         PredictiveRegretMatchingPlus< Action >,
+         /*discount_regrets=*/false > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::sap_predictive_regret_matching_plus) {
+      return std::type_identity< DiscountedCFR<
+         PredictiveRegretMatchingPlus< Action, true >,
+         /*discount_regrets=*/false > >{};
+   } else if constexpr(weighting == CFRWeightingMode::exponential) {
       return std::type_identity< ExponentialCFR< Action > >{};
    } else if constexpr(weighting == CFRWeightingMode::discounted) {
       if constexpr(rm_mode == RegretMinimizingMode::regret_matching_plus) {

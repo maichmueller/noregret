@@ -4,7 +4,19 @@
 
 namespace nor::rm {
 
-enum class RegretMinimizingMode { regret_matching = 0, regret_matching_plus = 1 };
+enum class RegretMinimizingMode {
+   regret_matching = 0,
+   regret_matching_plus = 1,
+   // PCFR+ (Farina, Kroer, Sandholm, AAAI 2021): CFR+ whose recommendation step
+   // is conditioned on a persistence prediction of the next instantaneous
+   // counterfactual regret. Requires alternating updates, no pruning and the
+   // discounted weighting mode (used solely for its quadratic average-policy
+   // accumulation with gamma = 2)
+   predictive_regret_matching_plus = 2,
+   // SAPCFR+ (arXiv:2503.12770): PCFR+ with the prediction shift term damped by
+   // 1/(1 + alpha), alpha = 2. Same configuration constraints as PCFR+
+   sap_predictive_regret_matching_plus = 3
+};
 
 enum class UpdateMode { simultaneous = 0, alternating = 1 };
 
