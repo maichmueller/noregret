@@ -20,6 +20,7 @@ struct policy_value_impl {
    static StateValueMap traverse(
       Env&& env,
       const player_hashmap< Policy >& policy_profile,
+      const std::vector< Player >& root_players,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > state,
       ReachProbabilityMap reach_probability,
       ObservationbufferMap< auto_observation_type< std::remove_cvref_t< Env > > >
@@ -29,7 +30,12 @@ struct policy_value_impl {
    {
       using env_type = std::remove_cvref_t< Env >;
       if(env.is_terminal(*state)) {
-         return StateValueMap{collect_rewards(env, *state)};
+         // NOTE: pass the ROOT participant set explicitly. The default of collect_rewards
+         // derives the player set from env.players(terminal state), which excludes players
+         // that have folded out of poker-like games. Downstream accumulation would then
+         // silently treat those players' sunk stakes as value 0 and corrupt the profile
+         // value. Environments must support reward() for all initial participants.
+         return StateValueMap{collect_rewards(env, *state, root_players)};
       }
 
       if(ranges::all_of(reach_probability.get(), [&](const auto& player_rp_pair) {
@@ -65,6 +71,7 @@ struct policy_value_impl {
          traverse_player_actions(
             env,
             policy_profile,
+            root_players,
             active_player,
             std::move(state),
             reach_probability,
@@ -82,6 +89,7 @@ struct policy_value_impl {
             traverse_chance_actions(
                env,
                policy_profile,
+               root_players,
                active_player,
                std::move(state),
                reach_probability,
@@ -107,6 +115,7 @@ struct policy_value_impl {
    static void traverse_player_actions(
       Env&& env,
       const player_hashmap< Policy >& policy_profile,
+      const std::vector< Player >& root_players,
       Player active_player,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > state,
       const ReachProbabilityMap& reach_probability,
@@ -147,6 +156,7 @@ struct policy_value_impl {
          StateValueMap child_rewards_map = traverse(
             env,
             policy_profile,
+            root_players,
             std::move(next_wstate_uptr),
             ReachProbabilityMap{std::move(child_reach_prob)},
             ObservationbufferMap< auto_observation_type< env_type > >{
@@ -166,6 +176,7 @@ struct policy_value_impl {
    static void traverse_chance_actions(
       Env&& env,
       const player_hashmap< Policy >& policy_profile,
+      const std::vector< Player >& root_players,
       Player active_player,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > state,
       const ReachProbabilityMap& reach_probability,
@@ -194,6 +205,7 @@ struct policy_value_impl {
          StateValueMap child_rewards_map = traverse(
             env,
             policy_profile,
+            root_players,
             std::move(next_wstate_uptr),
             ReachProbabilityMap{std::move(child_reach_prob)},
             ObservationbufferMap< auto_observation_type< env_type > >{
@@ -236,6 +248,7 @@ StateValueMap policy_value(
    return detail::policy_value_impl::traverse(
       env,
       policy_profile,
+      root_players,
       utils::static_unique_ptr_downcast< auto_world_state_type< env_type > >(
          utils::clone_any_way(root_state)
       ),
