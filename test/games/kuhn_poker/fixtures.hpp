@@ -10,7 +10,7 @@ struct KuhnPokerState: public ::testing::Test {
    kuhn::State state{};
 };
 
-class TerminalParamsF:
+class KuhnTerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
        std::array< kuhn::Card, 2 >,  // chance cards
        kuhn::History,  // action sequence
@@ -19,7 +19,7 @@ class TerminalParamsF:
    kuhn::State state;
 };
 
-class PayoffParamsF:
+class KuhnPayoffParamsF:
     public ::testing::TestWithParam< std::tuple<
        std::array< kuhn::Card, 2 >,  // chance cards
        kuhn::History,  // action sequence

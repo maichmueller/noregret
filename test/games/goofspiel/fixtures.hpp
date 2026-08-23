@@ -88,14 +88,14 @@ bool random_playout(
    return true;
 }
 
-class TerminalParamsF:
+class GoofspielTerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
        goofspiel::GoofspielConfig,  // the state config
        std::vector< GoofspielStep >,  // the full scripted outcome/action sequence
        bool  // whether the state is terminal afterwards
        > > {};
 
-class PayoffParamsF:
+class GoofspielPayoffParamsF:
     public ::testing::TestWithParam< std::tuple<
        goofspiel::GoofspielConfig,  // the state config
        std::vector< std::tuple< uint8_t, uint8_t, uint8_t > >,  // rounds of (prize, bid1, bid2)

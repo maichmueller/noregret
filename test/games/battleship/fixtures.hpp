@@ -61,6 +61,7 @@ inline battleship::State play_script(const GameScript& script)
    return state;
 }
 
-class PayoffParamsF: public ::testing::TestWithParam< std::tuple< GameScript, double, double > > {};
+class BattleshipPayoffParamsF:
+    public ::testing::TestWithParam< std::tuple< GameScript, double, double > > {};
 
 #endif  // NOR_BATTLESHIP_FIXTURES_HPP

@@ -28,14 +28,14 @@ inline void apply_steps(texholdem::State& state, const std::vector< HoldemStep >
    }
 }
 
-class TerminalParamsF:
+class TexHoldemTerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
        texholdem::PokerConfig,  // the state config
        std::vector< HoldemStep >,  // the full scripted action/outcome sequence
        bool  // whether the state is terminal afterwards
        > > {};
 
-class PayoffParamsF:
+class TexHoldemPayoffParamsF:
     public ::testing::TestWithParam< std::tuple<
        texholdem::PokerConfig,  // the state config
        std::vector< HoldemStep >,  // the full scripted action/outcome sequence

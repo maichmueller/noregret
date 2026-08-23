@@ -14,7 +14,7 @@ struct Leduc5PokerState: public ::testing::Test {
    leduc::State state{leduc::LeducConfig::leduc5()};
 };
 
-class TerminalParamsF:
+class LeducTerminalParamsF:
     public ::testing::TestWithParam< std::tuple<
        leduc::LeducConfig,  // the state config
        std::vector< leduc::Action >,  // action sequence round 1
@@ -22,7 +22,7 @@ class TerminalParamsF:
        bool  // whether the state is terminal
        > > {};
 
-class PayoffParamsF:
+class LeducPayoffParamsF:
     public ::testing::TestWithParam< std::tuple<
        leduc::LeducConfig,  // the state config
        std::vector< leduc::Card >,  // player cards
