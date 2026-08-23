@@ -105,7 +105,7 @@ TEST_F(KuhnPokerState, actions)
    EXPECT_TRUE(cmp_equal_rngs(state.actions(), std::vector{Action::check, Action::bet}));
 }
 
-TEST_P(TerminalParamsF, terminal_situations)
+TEST_P(KuhnTerminalParamsF, terminal_situations)
 {
    auto [cards, actions, expected_terminal] = GetParam();
 
@@ -120,7 +120,7 @@ TEST_P(TerminalParamsF, terminal_situations)
 
 INSTANTIATE_TEST_SUITE_P(
    terminal_situations_tests,
-   TerminalParamsF,
+   KuhnTerminalParamsF,
    ::testing::Values(
       std::tuple{
          std::array{Card::jack, Card::queen},
@@ -148,7 +148,7 @@ INSTANTIATE_TEST_SUITE_P(
    )
 );
 
-TEST_P(PayoffParamsF, payoff_combinations)
+TEST_P(KuhnPayoffParamsF, payoff_combinations)
 {
    auto [cards, actions, expected_payoffs] = GetParam();
    state.apply_action({Player::one, cards[0]});
@@ -163,7 +163,7 @@ TEST_P(PayoffParamsF, payoff_combinations)
 
 INSTANTIATE_TEST_SUITE_P(
    payoff_combinations_tests,
-   PayoffParamsF,
+   KuhnPayoffParamsF,
    ::testing::Values(
       std::tuple{
          std::array{Card::jack, Card::queen},

@@ -702,7 +702,7 @@ TEST(TexholdemEnvironment, observations_of_transitions)
 // Parametrized terminality / payoff scenarios
 // ##################################################################################################################
 
-TEST_P(TerminalParamsF, scripted_terminality)
+TEST_P(TexHoldemTerminalParamsF, scripted_terminality)
 {
    const auto& [cfg, steps, expected_terminal] = GetParam();
    State scripted{cfg};
@@ -712,7 +712,7 @@ TEST_P(TerminalParamsF, scripted_terminality)
 
 INSTANTIATE_TEST_SUITE_P(
    texas_holdem_terminality,
-   TerminalParamsF,
+   TexHoldemTerminalParamsF,
    ::testing::Values(
       // everyone folds preflop
       std::tuple{
@@ -832,7 +832,7 @@ INSTANTIATE_TEST_SUITE_P(
    )
 );
 
-TEST_P(PayoffParamsF, scripted_payoffs)
+TEST_P(TexHoldemPayoffParamsF, scripted_payoffs)
 {
    const auto& [cfg, steps, expected_payoffs] = GetParam();
    State scripted{cfg};
@@ -846,7 +846,7 @@ TEST_P(PayoffParamsF, scripted_payoffs)
 
 INSTANTIATE_TEST_SUITE_P(
    texas_holdem_payoffs,
-   PayoffParamsF,
+   TexHoldemPayoffParamsF,
    ::testing::Values(
       // pair of aces wins the checked-down pot
       std::tuple{

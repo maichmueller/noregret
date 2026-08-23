@@ -323,7 +323,7 @@ TEST(LeducPokerState_5_Players, actions_and_stakes)
    EXPECT_EQ(state.stake(Player::two), state.stake(Player::four));
 }
 
-TEST_P(TerminalParamsF, terminal_situations)
+TEST_P(LeducTerminalParamsF, terminal_situations)
 {
    auto [config, actions_r1, actions_r2, expected_terminal] = GetParam();
    auto state = leduc::State{config};
@@ -351,7 +351,7 @@ TEST_P(TerminalParamsF, terminal_situations)
 
 INSTANTIATE_TEST_SUITE_P(
    terminal_situations_tests,
-   TerminalParamsF,
+   LeducTerminalParamsF,
    ::testing::Values(
       std::tuple{
          leduc::LeducConfig(),
@@ -536,7 +536,7 @@ INSTANTIATE_TEST_SUITE_P(
    )
 );
 
-TEST_P(PayoffParamsF, payoff_combinations)
+TEST_P(LeducPayoffParamsF, payoff_combinations)
 {
    auto [config, player_cards, public_card, actions_r1, actions_r2, expected_payoffs] = GetParam();
    auto state = leduc::State{config};
@@ -568,7 +568,7 @@ TEST_P(PayoffParamsF, payoff_combinations)
 
 INSTANTIATE_TEST_SUITE_P(
    payoff_combinations_tests,
-   PayoffParamsF,
+   LeducPayoffParamsF,
    ::testing::Values(
       std::tuple{
          leduc::LeducConfig(),

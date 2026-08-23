@@ -122,7 +122,7 @@ TEST_F(GoofspielState, single_card_deck_always_ties)
    EXPECT_DOUBLE_EQ(tiny.payoff(Player::two), 0.);
 }
 
-TEST_P(PayoffParamsF, scripted_payoffs_are_zero_sum)
+TEST_P(GoofspielPayoffParamsF, scripted_payoffs_are_zero_sum)
 {
    const auto& [cfg, rounds, expected_one, expected_two] = GetParam();
    State scripted{cfg};
@@ -139,7 +139,7 @@ TEST_P(PayoffParamsF, scripted_payoffs_are_zero_sum)
 
 INSTANTIATE_TEST_SUITE_P(
    goofspiel_payoffs,
-   PayoffParamsF,
+   GoofspielPayoffParamsF,
    ::testing::Values(
       // mirrored play: every round tied, every prize discarded
       std::tuple{
