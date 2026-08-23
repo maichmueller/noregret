@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <map>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <set>
 #include <utility>
 #include <variant>
@@ -21,7 +21,7 @@ struct Config {
    using token_counter_t = std::map< Token, unsigned int >;
    using token_vector_t = std::vector< Token >;
    using position_vector_t = std::vector< Position2D >;
-   using game_dim_variant_t = std::variant< size_t, DefinedBoardSizes, ranges::span< size_t, 2 > >;
+   using game_dim_variant_t = std::variant< size_t, DefinedBoardSizes, std::span< size_t, 2 > >;
    using token_variant_t = std::variant< std::vector< Token >, token_counter_t >;
 
    /// the team that starts the game with the first turn
@@ -80,7 +80,7 @@ struct Config {
       Team starting_team_,
       DefinedBoardSizes game_dims = DefinedBoardSizes::small,
       bool fixed_starting_team_ = true,
-      std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
+      std::variant< bool, std::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
       std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges()
@@ -92,7 +92,7 @@ struct Config {
       const std::map< Team, std::optional< setup_t > >& setups_,
       const std::optional< std::vector< Position2D > >& hole_positions_ = std::nullopt,
       bool fixed_starting_team_ = true,
-      std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
+      std::variant< bool, std::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 500,
       std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges()
@@ -105,7 +105,7 @@ struct Config {
       const std::map< Team, std::optional< token_variant_t > >& token_set_,
       const std::map< Team, std::optional< std::vector< Position2D > > >& start_fields_,
       bool fixed_starting_team_ = true,
-      std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
+      std::variant< bool, std::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
       std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges()
@@ -119,7 +119,7 @@ struct Config {
       const std::map< Team, std::optional< token_variant_t > >& token_set_,
       const std::map< Team, std::optional< std::vector< Position2D > > >& start_fields_,
       bool fixed_starting_team_ = true,
-      std::variant< bool, ranges::span< bool, 2 > > fixed_setups_ = false,
+      std::variant< bool, std::span< bool, 2 > > fixed_setups_ = false,
       size_t max_turn_count_ = 5000,
       std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_ = default_battlematrix(),
       std::map< Token, std::function< bool(size_t) > > move_ranges_ = default_move_ranges()
@@ -127,15 +127,15 @@ struct Config {
 };
 
 auto default_setup(size_t game_dims, Team team) -> std::map< Position2D, Token >;
-auto default_setup(ranges::span< size_t, 2 > game_dims, Team team) -> std::map< Position2D, Token >;
+auto default_setup(std::span< size_t, 2 > game_dims, Team team) -> std::map< Position2D, Token >;
 
 auto default_setup(size_t game_dims) -> std::map< Team, std::map< Position2D, Token > >;
-auto default_setup(ranges::span< size_t, 2 > game_dims)
+auto default_setup(std::span< size_t, 2 > game_dims)
    -> std::map< Team, std::optional< std::map< Position2D, Token > > >;
 
 auto default_holes(size_t game_dims) -> std::vector< Position2D >;
 
-auto default_holes(ranges::span< size_t, 2 > game_dims) -> std::vector< Position2D >;
+auto default_holes(std::span< size_t, 2 > game_dims) -> std::vector< Position2D >;
 
 auto token_vector(size_t game_dim) -> std::map< Team, std::vector< Token > >;
 
@@ -174,7 +174,7 @@ std::map< Team, std::optional< Config::setup_t > > Config::_init_setups(
             common::Overload{
                [&](size_t d) { return default_setup(d, team); },
                [&](DefinedBoardSizes d) { return default_setup(static_cast< size_t >(d), team); },
-               [&](ranges::span< size_t, 2 > a) { return default_setup(a, team); }},
+               [&](std::span< size_t, 2 > a) { return default_setup(a, team); }},
             game_dims_
          );
       }

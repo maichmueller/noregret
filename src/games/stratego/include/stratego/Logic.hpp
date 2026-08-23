@@ -2,7 +2,7 @@
 #pragma once
 
 #include <functional>
-#include <range/v3/all.hpp>
+#include <ranges>
 
 #include "Action.hpp"
 #include "Config.hpp"
@@ -32,7 +32,7 @@ class Logic {
 
    bool is_valid(const State &state, Move move, Team team_opt);
 
-   template < ranges::contiguous_range Range >
+   template < std::ranges::contiguous_range Range >
    auto _valid_vectors(Position2D pos, Range shape, int distance = 1);
 
    std::vector< Action > valid_actions(const State &state, Team team);
@@ -103,7 +103,7 @@ class Logic {
     * @return
     */
    template < typename Range >
-      requires ranges::sized_range< Range > && ranges::bidirectional_range< Range >
+      requires std::ranges::sized_range< Range > && std::ranges::bidirectional_range< Range >
                && std::integral< typename Range::value_type >
    static bool check_bounds(const Board &board, Range values)
    {
@@ -111,14 +111,14 @@ class Logic {
       if(values.size() > shape.size()) {
          return false;
       }
-      return ranges::all_of(ranges::views::zip(values, shape), [&](auto v_s) {
+      return std::ranges::all_of(std::views::zip(values, shape), [&](auto v_s) {
          auto [v, s] = v_s;
          return std::cmp_greater_equal(v, 0) and std::cmp_less(v, s);
       });
    }
 
    template < typename Range >
-      requires ranges::sized_range< Range > && ranges::bidirectional_range< Range >
+      requires std::ranges::sized_range< Range > && std::ranges::bidirectional_range< Range >
                && std::integral< typename Range::value_type >
    static void throw_if_out_of_bounds(const Board &board, Range values)
    {
@@ -136,30 +136,30 @@ class Logic {
    static std::map< Team, std::map< Position2D, Token > > extract_setup(const Board &board);
 };
 
-template < ranges::contiguous_range Range >
+template < std::ranges::contiguous_range Range >
 auto Logic::_valid_vectors(Position2D pos, Range shape, int distance)
 {
    int right_end = static_cast< int >(shape[0]) - pos[0];
    int top_end = static_cast< int >(shape[1]) - pos[1];
-   return ranges::views::concat(
+   return std::views::concat(
              // all possible positions to the left until board ends
-             ranges::views::zip(
-                ranges::views::iota(std::max(-distance, -pos[0]), 0), ranges::views::repeat(0)
+             std::views::zip(
+                std::views::iota(std::max(-distance, -pos[0]), 0), std::views::repeat(0)
              ),
              // all possible positions to the right until board ends
-             ranges::views::zip(
-                ranges::views::iota(1, std::min(right_end, distance + 1)), ranges::views::repeat(0)
+             std::views::zip(
+                std::views::iota(1, std::min(right_end, distance + 1)), std::views::repeat(0)
              ),
              // all possible positions to the bottom until board ends
-             ranges::views::zip(
-                ranges::views::repeat(0), ranges::views::iota(std::max(-distance, -pos[1]), 0)
+             std::views::zip(
+                std::views::repeat(0), std::views::iota(std::max(-distance, -pos[1]), 0)
              ),
              // all possible positions to the top until board ends
-             ranges::views::zip(
-                ranges::views::repeat(0), ranges::views::iota(1, std::min(top_end, distance + 1))
+             std::views::zip(
+                std::views::repeat(0), std::views::iota(1, std::min(top_end, distance + 1))
              )
           )
-          | ranges::views::transform([](auto x_y) {
+          | std::views::transform([](auto x_y) {
                //                  SPDLOG_DEBUG("In _valid_vectors: {}", Position(std::get< 0
                //                  >(x_y), std::get< 1 >(x_y)));
                return Position2D(std::get< 0 >(x_y), std::get< 1 >(x_y));

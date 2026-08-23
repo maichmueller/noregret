@@ -2,6 +2,7 @@
 #pragma once
 
 #include <named_type.hpp>
+#include <ranges>
 #include <unordered_set>
 #include <utility>
 
@@ -41,7 +42,7 @@ class History {
 
    auto view_team_history(Team team)
    {
-      return ranges::views::filter(m_history_element, [&, team = team](const auto &elem_pair_view) {
+      return std::views::filter(m_history_element, [&, team = team](const auto &elem_pair_view) {
          const auto &[team_, action, pieces] = std::get< 1 >(elem_pair_view);
          return team_ == team;
       });

@@ -4,7 +4,7 @@
 #include <fmt/ranges.h>
 
 #include <random>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <stdexcept>
 #include <vector>
 
@@ -85,7 +85,7 @@ class FixedAgent: public Agent< StateType > {
       auto action = m_actions.back();
       m_actions.pop_back();
 
-      if(not ranges::contains(available_actions, action)) {
+      if(not std::ranges::contains(available_actions, action)) {
          throw std::logic_error(fmt::format(
             "Latest action of scripted actor not in agreement with currently available actions to "
             "choose from.\nAction: {}\nPossible actions: {}",
@@ -125,7 +125,7 @@ class InputAgent: public Agent< StateType > {
       std::cout << "Current game state:\n";
       std::cout << m_repr(state) << "\n";
       std::cout << "Please choose action integer from possible actions:\n";
-      for(const auto &[n, action] : ranges::views::enumerate(available_actions)) {
+      for(const auto &[n, action] : std::views::enumerate(available_actions)) {
          std::cout << n << ": " << action << "\n";
       }
       int choice{};

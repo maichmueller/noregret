@@ -170,13 +170,13 @@ std::vector< Action > Logic::valid_actions(const State &state, Team team)
             int token_move_range = 0;
             auto mr_tester = state.config().move_ranges.at(piece.token());
             for(int distance :
-                ranges::views::iota(1, int(ranges::max(board.shape()))) | ranges::views::reverse) {
+                std::views::iota(1, int(std::ranges::max(board.shape()))) | std::views::reverse) {
                if(mr_tester(static_cast< size_t >(distance))) {
                   token_move_range = distance;
                   break;
                }
             }
-            ranges::for_each(
+            std::ranges::for_each(
                _valid_vectors(pos, board.shape(), token_move_range),
                [&](const Position2D &pos_to) {
                   Action action{team, {pos, pos + pos_to}};
@@ -207,14 +207,14 @@ bool Logic::has_valid_actions(const State &state, Team team)
             int token_move_range = 0;
             auto mr_tester = state.config().move_ranges.at(piece.token());
             for(int distance :
-                ranges::views::iota(1, int(ranges::max(board.shape()))) | ranges::views::reverse) {
+                std::views::iota(1, int(std::ranges::max(board.shape()))) | std::views::reverse) {
                if(mr_tester(static_cast< size_t >(distance))) {
                   token_move_range = distance;
                   break;
                }
             }
 
-            if(ranges::any_of(
+            if(std::ranges::any_of(
                   _valid_vectors(pos, board.shape(), token_move_range),
                   [&](const Position2D &vector) -> bool {
                      return is_valid(state, Action{team, {pos, pos + vector}}, team);
@@ -239,10 +239,10 @@ std::map< Position2D, Token > stratego::Logic::draw_setup_uniform(
 
    auto start_fields = config.start_fields.at(team);
    auto token_counter = config.token_counters.at(team);
-   auto uniq_token_view = token_counter | ranges::views::keys;
+   auto uniq_token_view = token_counter | std::views::keys;
    std::vector< Token > tokenvec = {uniq_token_view.begin(), uniq_token_view.end()};
 
-   ranges::shuffle(start_fields, rng);
+   std::ranges::shuffle(start_fields, rng);
    auto int_dist = std::uniform_int_distribution< size_t >(0, tokenvec.size() - 1);
 
    while(not start_fields.empty()) {
@@ -278,8 +278,8 @@ std::map< Position2D, Token > stratego::Logic::draw_setup_uniform(
 Board Logic::create_empty_board(const Config &config)
 {
    Board b(config.game_dims);
-   for(auto x : ranges::views::iota(size_t(0), config.game_dims[0])) {
-      for(auto y : ranges::views::iota(size_t(0), config.game_dims[1])) {
+   for(auto x : std::views::iota(size_t(0), config.game_dims[0])) {
+      for(auto y : std::views::iota(size_t(0), config.game_dims[1])) {
          b[{x, y}] = std::nullopt;
       }
    }
