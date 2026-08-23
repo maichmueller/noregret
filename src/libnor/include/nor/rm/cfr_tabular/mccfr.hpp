@@ -343,6 +343,25 @@ class MCCFR:
    ) const
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
+   /**
+    * @brief VR-MCCFR regret accumulation at one infoset (paper steps (d)+(e)).
+    *
+    * Accumulates R(I,a) += v̂ᵇ(I,a) − v̂ᵇ(I) for every legal action, with
+    * v̂ᵇ(I,a) = π₋ᵢ(h)/q(h) · ûᵇ(h,a) (eq 11): the sampled action carries the
+    * baseline-corrected continuation value, every off-trajectory action is
+    * valued by its state-action baseline. Afterwards the sampled action's
+    * baseline regresses onto its corrected estimate.
+    */
+   void _update_regrets_variance_reduced(
+      infostate_data_type& infostate_data,
+      const std::vector< action_type >& actions,
+      const auto& action_policy,
+      const action_type& sampled_action,
+      double cf_weight,
+      double sampled_value
+   ) const
+      requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
+
    void _update_average_policy(
       const info_state_type& infostate,
       infostate_data_type& infonode_data,

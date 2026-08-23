@@ -374,58 +374,53 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       std::move(next_weights)
    );
 
+   // ---- VR-MCCFR quantities (Schmid et al., AAAI 2019, eqs (7)-(11)) ----
+   // Only materialized where the active player's own value stream exists: at
+   // every actual player's infoset under simultaneous updates, and at the
+   // updating player's infosets under alternating updates (opponent streams
+   // are not carried by this implementation's alternating traversal).
+   [[maybe_unused]] double vr_sampled_value = 0.;  // eq (9) sampled branch
+   [[maybe_unused]] double vr_cf_weight = 0.;      // eq (11) factor pi_-i(h)/q(h)
+   [[maybe_unused]] bool vr_active = false;
    if constexpr(config.variance_reduced_baselines) {
-      // ---- VR-MCCFR baseline correction (Schmid, Burch, Lanctot, Moravcik,
-      // Kadlec, Bowling; "Variance Reduction in Monte Carlo Counterfactual
-      // Regret Minimization (VR-MCCFR) for Extensive Form Games Using
-      // Baselines", AAAI 2019) ------------------------------------------
-      //
-      // The value arriving from below, ṽ = u(z)/σ(z) (raw terminal reward
-      // importance-scaled by the full trajectory sampling probability), is an
-      // unbiased but high-variance estimate of q(I, a*). It is replaced by the
-      // control-variate estimate
-      //     v̂(I) = ṽ − b̂(I,a*) + b̄(I),    b̄(I) = Σ_a s(I,a)·b̂(I,a),
-      // where a* is the sampled action and s(I,·) is the ACTUAL sampling
-      // distribution of the trajectory. Since E_{a*~s}[b̂(I,a*)] = b̄(I) by
-      // construction, the correction has zero expectation at every visited
-      // infoset and v̂ stays unbiased -- this is why the scheme survives the
-      // repo's ε-on-policy exploration: taking b̄ under the ε-mixture s =
-      // ε·unif + (1−ε)·σ_t (rather than the raw policy σ_t) makes the
-      // paper's Lemma 2 recursion go through verbatim even for degenerate
-      // exploration draws. The corrected v̂(I) -- not the raw terminal reward
-      // -- is what the PARENT infoset's update consumes further up the single
-      // sampled trajectory (bootstrapped propagation); chance nodes and the
-      // terminal seed propagate values unchanged. Finally, the sampled
-      // action's baseline regresses onto the corrected estimate:
-      //     b̂(I,a*) ← b̂(I,a*) + β·(v̂(I) − b̂(I,a*)).
-      //
-      // Corrections are applied only where the active player's own value
-      // stream actually exists: at every actual player's infoset under
-      // simultaneous updates, and at the updating player's infosets under
-      // alternating updates (opponent streams are not materialized there).
-      if(_epsilon_mixed_sampling_active(player_to_update, active_player)) {
+      vr_active = _epsilon_mixed_sampling_active(player_to_update, active_player);
+   }
+   if constexpr(config.variance_reduced_baselines) {
+      if(vr_active) {
          auto& baseline_table = infonode_data.data().vr_extras.baseline;
-         const double uniform_prob = 1. / static_cast< double >(actions.size());
-         const double avg_baseline = std::ranges::fold_left(
-            actions | std::views::transform([&](const auto& action) {
-               // the guard above is exactly _sample_action's condition for
-               // drawing a* from the ε-mixture s(I,·) = ε·unif + (1−ε)·σ_t,
-               // hence b̄ integrates over s and cancels b̂(I,a*) in expectation
-               const double sample_prob =
-                  m_epsilon * uniform_prob + (1. - m_epsilon) * action_policy[action];
-               return sample_prob * baseline_table.at(std::cref(action));
-            }),
-            0.,
-            std::plus{}
-         );
-         double& sampled_baseline = baseline_table.at(std::cref(sampled_action));
-         double& player_value = action_value_map.get().at(active_player);
-         const double corrected_value = player_value - sampled_baseline + avg_baseline;
-         sampled_baseline +=
-            config.baseline_update_rate * (corrected_value - sampled_baseline);
-         // propagate the corrected value upward: the parent infoset's regret
-         // update bootstraps from it instead of the raw terminal reward
-         player_value = corrected_value;
+         // incoming bootstrapped value u(h a*|z): the raw terminal reward at
+         // the deepest of this player's infosets, else the eq-(10) mixture
+         // propagated from the child infoset
+         double& stream = action_value_map.get().at(active_player);
+         const double sampled_baseline = baseline_table.at(std::cref(sampled_action));
+         // eq (9), sampled branch: b̂(I,a*) + (u(h a*|z) - b̂(I,a*))/ξ(h,a*).
+         // Dividing the deviation by the ACTUAL sampling probability of a*
+         // (the ε-on-policy mixture where exploration applies) is what keeps
+         // the estimator exact for ANY positive sampling rule: in expectation
+         // the b̂(I,a*) term cancels between the sampled branch and the
+         // off-trajectory branch (both enter with weight ξ·(1/ξ) resp.
+         // (1-ξ) against the same baseline).
+         vr_sampled_value =
+            sampled_baseline + (stream - sampled_baseline) / action_sampling_prob;
+         // eq (10): propagate the σ_t-weighted mixture of the sampled-branch
+         // value and the off-trajectory baselines up to the parent infoset
+         // (bootstrapped propagation; chance nodes pass values unchanged)
+         double off_trajectory_mass = 0.;
+         for(const auto& action : actions) {
+            if(!(action == sampled_action)) {
+               off_trajectory_mass +=
+                  action_policy[action] * baseline_table.at(std::cref(action));
+            }
+         }
+         stream = action_policy[sampled_action] * vr_sampled_value + off_trajectory_mass;
+         // eq (11) prefactor: counterfactual reach over prefix sampling
+         // probability q(h) (everything sampled above this infoset)
+         vr_cf_weight = cf_reach_probability(active_player, reach_probability.get())
+                        / sample_probability.get();
+         // NOTE: the baseline table is intentionally not mutated yet -- the
+         // regret update below must read the same baseline snapshot that
+         // produced vr_sampled_value (paper order: values -> regrets ->
+         // baseline regression).
       }
    }
 
@@ -438,15 +433,23 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    };
 
    if constexpr(config.update_mode == UpdateMode::simultaneous) {
-      _update_regrets(
-         reach_probability,
-         active_player,
-         infonode_data,
-         sampled_action,
-         Probability{action_policy_prob},
-         StateValue{action_value_map.get()[active_player]},
-         tail_prob
-      );
+      if constexpr(config.variance_reduced_baselines) {
+         // under simultaneous updates every actual player's infoset is a
+         // VR update site (vr_active is always true here)
+         _update_regrets_variance_reduced(
+            infonode_data, actions, action_policy, sampled_action, vr_cf_weight, vr_sampled_value
+         );
+      } else {
+         _update_regrets(
+            reach_probability,
+            active_player,
+            infonode_data,
+            sampled_action,
+            Probability{action_policy_prob},
+            StateValue{action_value_map.get()[active_player]},
+            tail_prob
+         );
+      }
 
       _update_average_policy(
          *infostate,
@@ -467,15 +470,26 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       // strategy only if the current player is the next one in line to traverse the tree and
       // update
       if(active_player == *player_to_update) {
-         _update_regrets(
-            reach_probability,
-            active_player,
-            infonode_data,
-            sampled_action,
-            Probability{action_policy_prob},
-            StateValue{action_value_map.get()[active_player]},
-            tail_prob
-         );
+         if constexpr(config.variance_reduced_baselines) {
+            _update_regrets_variance_reduced(
+               infonode_data,
+               actions,
+               action_policy,
+               sampled_action,
+               vr_cf_weight,
+               vr_sampled_value
+            );
+         } else {
+            _update_regrets(
+               reach_probability,
+               active_player,
+               infonode_data,
+               sampled_action,
+               Probability{action_policy_prob},
+               StateValue{action_value_map.get()[active_player]},
+               tail_prob
+            );
+         }
       } else if(active_player == _preview_next_player_to_update()) {
          // the check in this if statement collapses to a simple true in the 2-player case
          _update_average_policy(
@@ -501,7 +515,27 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_terminal_value(
 )
    requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
 {
-   if constexpr(config.update_mode == UpdateMode::alternating) {
+   if constexpr(config.variance_reduced_baselines) {
+      // VR-MCCFR seeds the trajectory with the RAW terminal reward: the
+      // importance weights are applied later, once per sampled action
+      // (eq 9's 1/ξ(h,a*)) and once per updated infoset (eq 11's 1/q(h)),
+      // so dividing by the full-path sampling probability here would double-
+      // count them.
+      if constexpr(config.update_mode == UpdateMode::alternating) {
+         return std::pair{
+            StateValueMap{std::unordered_map< Player, double >{
+               {player_to_update.value(), _env().reward(player_to_update.value(), state)}
+            }},
+            Probability{1.}
+         };
+      } else if constexpr(config.update_mode == UpdateMode::simultaneous) {
+         return std::pair{StateValueMap{collect_rewards(_env(), state)}, Probability{1.}};
+      } else {
+         static_assert(
+            common::always_false_v< Env >, "Update Mode not one of alternating or simultaneous"
+         );
+      }
+   } else if constexpr(config.update_mode == UpdateMode::alternating) {
       return std::pair{
          StateValueMap{std::unordered_map< Player, double >{
             {player_to_update.value(),
@@ -525,6 +559,42 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_terminal_value(
          common::always_false_v< Env >, "Update Mode not one of alternating or simultaneous"
       );
    }
+}
+
+template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets_variance_reduced(
+   infostate_data_type& infostate_data,
+   const std::vector< action_type >& actions,
+   const auto& action_policy,
+   const action_type& sampled_action,
+   double cf_weight,
+   double sampled_value
+) const
+   requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
+{
+   // Paper step (d): accumulate R(I,a) += v̂ᵇ(I,a) - v̂ᵇ(I) for EVERY action,
+   // where (eq 11) v̂ᵇ(I,a) = pi_-i(h)/q(h) * ûᵇ(h,a), the sampled action's
+   // value coming from eq (9)'s sampled branch and every off-trajectory
+   // action valued by its baseline. The baseline snapshot read here is the
+   // same one that produced 'sampled_value' (no mutation has happened yet).
+   auto& baseline_table = infostate_data.data().vr_extras.baseline;
+   auto action_value_of = [&](const action_type& action) {
+      return action == sampled_action ?
+             sampled_value :
+             baseline_table.at(std::cref(action));
+   };
+   double node_value = 0.;
+   for(const auto& action : actions) {
+      node_value += action_policy[action] * action_value_of(action);
+   }
+   node_value *= cf_weight;
+   for(const auto& action : actions) {
+      infostate_data.regret(action) += cf_weight * action_value_of(action) - node_value;
+   }
+   // paper step (e): regress the sampled action's baseline onto its
+   // baseline-corrected estimate b̂(I,a*) <- b̂(I,a*) + β(v̂ - b̂(I,a*))
+   auto& sampled_baseline = baseline_table.at(std::cref(sampled_action));
+   sampled_baseline += config.baseline_update_rate * (sampled_value - sampled_baseline);
 }
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >

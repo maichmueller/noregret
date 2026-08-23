@@ -525,8 +525,10 @@ struct MCCFRMinimizer {
    );
 
    using extras_type = detail::mccfr_extras_t< algorithm, weighting, Action >;
-   using vr_extras_type = std::
-      conditional_t< variance_reduced, vr_baseline_extras< Action >, detail::no_mccfr_extras >;
+   using vr_extras_type = std::conditional_t<
+      variance_reduced,
+      detail::vr_baseline_extras< Action >,
+      detail::no_mccfr_extras >;
 
    struct node_data_type {
       per_action_map< Action > regret;

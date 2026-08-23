@@ -118,17 +118,23 @@ struct MCCFRConfig {
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
    CFRPruningMode pruning_mode = CFRPruningMode::none;
    /// Variance-reduced outcome sampling through state-action baselines
-   /// (VR-MCCFR; Schmid et al., AAAI 2019). When enabled, the sampled
-   /// counterfactual value entering a player infoset's regret increment is
-   /// replaced by the control-variate estimate v̂ = ṽ − b̂(I,a*) + b̄(I), and
-   /// this corrected value is what propagates to the parent infoset's update
-   /// along the single sampled trajectory (bootstrapped propagation).
+   /// (VR-MCCFR; Schmid et al., AAAI 2019, eqs (7)-(11)). At every updated
+   /// infoset the sampled action's value is baseline-corrected
+   /// b̂(I,a*) + (u(ha*|z) − b̂(I,a*))/ξ(h,a*), off-trajectory actions are
+   /// valued by their baselines, regrets accumulate v̂ᵇ(I,a) − v̂ᵇ(I) per
+   /// action, and the σ-weighted mixture propagates bootstrapped up the
+   /// single sampled trajectory. Unbiased for any positive sampling rule,
+   /// including ε-on-policy exploration.
    /// Orthogonal to all other config axes; when false the generated code is
    /// identical to the plain outcome-sampling scheme.
    bool variance_reduced_baselines = false;
    /// baseline learning rate β of the update b̂(I,a) ← b̂(I,a) + β·(v̂ − b̂(I,a))
-   /// (only meaningful together with 'variance_reduced_baselines')
-   double baseline_update_rate = 1.;
+   /// (only meaningful together with 'variance_reduced_baselines').
+   /// NOTE: the regression target carries the eq-(9) importance factor 1/ξ,
+   /// so a full step β = 1 chases heavy-tailed spikes and destabilizes the
+   /// off-trajectory baseline values; the paper likewise prescribes an
+   /// exponentially-decaying average rather than a cumulative one.
+   double baseline_update_rate = 0.1;
 };
 
 struct CFRDiscountedParameters {
