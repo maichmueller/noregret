@@ -2,6 +2,7 @@
 #ifndef NOR_ENV_LEDUC_HPP
 #define NOR_ENV_LEDUC_HPP
 
+#include <algorithm>
 #include <ranges>
 #include <string>
 #include <vector>

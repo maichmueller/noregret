@@ -1,6 +1,9 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <ranges>
+
 #include "nor/env.hpp"
 #include "nor/fosg_helpers.hpp"
 

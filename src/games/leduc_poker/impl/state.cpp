@@ -1,7 +1,10 @@
 
 #include "leduc_poker/state.hpp"
 
+#include <algorithm>
+#include <cassert>
 #include <numeric>
+#include <ranges>
 #include <unordered_set>
 
 namespace leduc {

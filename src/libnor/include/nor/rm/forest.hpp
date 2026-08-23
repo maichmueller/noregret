@@ -4,8 +4,11 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <execution>
 #include <ranges>
+#include <stack>
+#include <vector>
 
 #include "common/common.hpp"
 #include "nor/concepts.hpp"

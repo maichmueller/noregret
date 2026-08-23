@@ -2,6 +2,7 @@
 #ifndef NOR_FOSG_HELPERS_HPP
 #define NOR_FOSG_HELPERS_HPP
 
+#include <algorithm>
 #include <unordered_set>
 
 #include "nor/concepts.hpp"

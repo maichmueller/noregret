@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <random>
+#include <ranges>
 
 #include "fixtures.hpp"
 #include "kuhn_poker/kuhn_poker.hpp"

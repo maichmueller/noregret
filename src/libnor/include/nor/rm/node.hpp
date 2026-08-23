@@ -2,6 +2,7 @@
 #ifndef NOR_NODE_HPP
 #define NOR_NODE_HPP
 
+#include <ranges>
 #include <vector>
 
 #include "common/common.hpp"

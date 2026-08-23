@@ -1,7 +1,9 @@
 
 #include "kuhn_poker/state.hpp"
 
+#include <algorithm>
 #include <iostream>
+#include <ranges>
 #include <stdexcept>
 
 namespace kuhn {

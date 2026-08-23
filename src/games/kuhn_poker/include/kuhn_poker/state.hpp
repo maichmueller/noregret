@@ -2,6 +2,7 @@
 #ifndef NOR_KUHN_POKER_STATE_HPP
 #define NOR_KUHN_POKER_STATE_HPP
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <optional>

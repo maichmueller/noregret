@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
+#include <ranges>
 #include <unordered_map>
 #include <utility>
 #include <vector>

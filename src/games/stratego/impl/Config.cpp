@@ -4,6 +4,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
+#include <algorithm>
 #include <ranges>
 #include <utility>
 
@@ -236,10 +237,12 @@ std::map< Team, Config::token_counter_t > Config::_init_tokencounters(
             // both setup and tokensets are given, so we take the superset of both as the truth
             auto token_counter = std::visit(token_visitor, token_sets.at(team).value());
             auto token_counter_from_setup = tokens_from_setup(setups_.at(team).value());
-            for(auto token :
-                std::views::concat(
-                   token_counter | std::views::keys, token_counter_from_setup | std::views::keys
-                ) | std::views::unique) {
+            // both key sequences are sorted, so adjacent-dedup over their concatenation
+            // yields the deduplicated union (std has no views::unique equivalent)
+            auto all_tokens = std::ranges::to< std::vector >(std::views::concat(
+               token_counter | std::views::keys, token_counter_from_setup | std::views::keys
+            ));
+            for(auto token : std::ranges::unique(all_tokens)) {
                counters[team][token] = std::max(
                   token_counter[token], token_counter_from_setup[token]
                );

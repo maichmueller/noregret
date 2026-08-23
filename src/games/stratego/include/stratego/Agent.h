@@ -3,6 +3,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
+#include <algorithm>
 #include <random>
 #include <ranges>
 #include <stdexcept>

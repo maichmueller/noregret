@@ -4,6 +4,7 @@
 
 #include <execution>
 #include <named_type.hpp>
+#include <numeric>
 #include <ranges>
 
 #include "common/common.hpp"

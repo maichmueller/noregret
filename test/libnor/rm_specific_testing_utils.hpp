@@ -3,6 +3,10 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <iterator>
+#include <ranges>
+#include <string>
 #include <unordered_map>
 
 #include "nor/env.hpp"

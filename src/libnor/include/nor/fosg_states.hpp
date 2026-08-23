@@ -2,8 +2,10 @@
 #ifndef NOR_FOSG_STATES_HPP
 #define NOR_FOSG_STATES_HPP
 
+#include <algorithm>
 #include <ranges>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "nor/game_defs.hpp"

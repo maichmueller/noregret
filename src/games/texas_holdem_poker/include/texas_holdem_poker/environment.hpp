@@ -2,6 +2,7 @@
 #ifndef NOR_TEXAS_HOLDEM_POKER_ENVIRONMENT_HPP
 #define NOR_TEXAS_HOLDEM_POKER_ENVIRONMENT_HPP
 
+#include <algorithm>
 #include <ranges>
 #include <string>
 #include <vector>

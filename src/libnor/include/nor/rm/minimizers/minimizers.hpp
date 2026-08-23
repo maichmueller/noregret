@@ -2,10 +2,13 @@
 #ifndef NOR_RM_MINIMIZERS_HPP
 #define NOR_RM_MINIMIZERS_HPP
 
+#include <algorithm>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <ranges>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>

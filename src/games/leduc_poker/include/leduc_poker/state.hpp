@@ -2,8 +2,11 @@
 #ifndef NOR_LEDUC_POKER_STATE_HPP
 #define NOR_LEDUC_POKER_STATE_HPP
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <deque>
+#include <limits>
 #include <optional>
 #include <ranges>
 #include <sstream>

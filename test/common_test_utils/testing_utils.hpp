@@ -3,6 +3,7 @@
 #ifndef NOR_COMMON_TESTING_UTILS_HPP
 #define NOR_COMMON_TESTING_UTILS_HPP
 
+#include <algorithm>
 #include <ranges>
 
 #include "common/common.hpp"

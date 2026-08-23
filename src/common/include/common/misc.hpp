@@ -10,6 +10,7 @@
 #include <ranges>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 template < typename T >

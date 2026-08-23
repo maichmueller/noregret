@@ -2,6 +2,8 @@
 #ifndef NOR_BEST_RESPONSE_HPP
 #define NOR_BEST_RESPONSE_HPP
 
+#include <algorithm>
+#include <ranges>
 #include <unordered_map>
 #include <unordered_set>
 

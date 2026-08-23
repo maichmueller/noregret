@@ -162,7 +162,10 @@ class ActionPolicyView {
 
    template < typename T >
    struct OwningView: interface_type {
-      OwningView(T t) : interface_type(policy), policy(std::move(t)) {}
+      // NOTE: initialize the interface from 't' (not from the 'policy' member):
+      // the member is not yet constructed while bases are initialized, and the
+      // interface snapshots the policy table upon construction.
+      OwningView(T t) : interface_type(t), policy(std::move(t)) {}
 
       size_t size() const override { return policy.size(); }
 

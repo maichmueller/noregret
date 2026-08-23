@@ -1,6 +1,7 @@
 
 #ifndef NOR_POLICY_VALUE_HPP
 #define NOR_POLICY_VALUE_HPP
+#include <algorithm>
 
 #include "nor/concepts.hpp"
 #include "rm_utils.hpp"

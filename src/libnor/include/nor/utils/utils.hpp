@@ -1,6 +1,7 @@
 #ifndef NOR_UTILS_HPP
 #define NOR_UTILS_HPP
 
+#include <algorithm>
 #include <iterator>
 #include <ranges>
 #include <type_traits>

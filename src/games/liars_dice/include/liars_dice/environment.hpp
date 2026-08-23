@@ -2,6 +2,7 @@
 #ifndef NOR_LIARS_DICE_ENVIRONMENT_HPP
 #define NOR_LIARS_DICE_ENVIRONMENT_HPP
 
+#include <algorithm>
 #include <optional>
 #include <ranges>
 #include <string>

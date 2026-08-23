@@ -3,6 +3,9 @@
 #include <fmt/format.h>
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <ranges>
+
 #include "fixtures.hpp"
 #include "leduc_poker/leduc_poker.hpp"
 #include "testing_utils.hpp"

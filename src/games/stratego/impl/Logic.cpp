@@ -1,6 +1,8 @@
 
 #include "stratego/Logic.hpp"
 
+#include <algorithm>
+
 namespace stratego {
 
 Status Logic::check_terminal(const State &state)
