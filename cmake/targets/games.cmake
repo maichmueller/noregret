@@ -131,3 +131,13 @@ add_library(pursuit_evasion INTERFACE)
 target_include_directories(pursuit_evasion INTERFACE ${PROJECT_GAMES_DIR}/pursuit_evasion/include)
 
 target_link_libraries(pursuit_evasion INTERFACE required_min_libs common)
+
+# ######################################################################################################################
+# Oshi Zumo (header-only)
+# ######################################################################################################################
+
+add_library(oshi_zumo INTERFACE)
+
+target_include_directories(oshi_zumo INTERFACE ${PROJECT_GAMES_DIR}/oshi_zumo/include)
+
+target_link_libraries(oshi_zumo INTERFACE required_min_libs common)

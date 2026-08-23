@@ -122,4 +122,12 @@ if(ENABLE_GAMES)
         pursuit_evasion
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        oshi_zumo
+        INCLUDE_DIR
+        oshi_zumo
+        LINK_LIBRARY
+        oshi_zumo
+        SOURCE_FILES
+        test_state.cpp)
 endif()
