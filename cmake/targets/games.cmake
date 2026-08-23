@@ -82,3 +82,15 @@ add_library(rock_paper_scissors SHARED ${ROCKPAPERSCISSORS_SOURCES})
 target_include_directories(rock_paper_scissors PUBLIC ${PROJECT_GAMES_DIR}/rock_paper_scissors/include)
 
 target_link_libraries(rock_paper_scissors PUBLIC required_min_libs common)
+
+# ######################################################################################################################
+# Goofspiel
+# ######################################################################################################################
+
+# goofspiel is a small game and is implemented fully inline (header-only), hence an INTERFACE target
+
+add_library(goofspiel INTERFACE)
+
+target_include_directories(goofspiel INTERFACE ${PROJECT_GAMES_DIR}/goofspiel/include)
+
+target_link_libraries(goofspiel INTERFACE required_min_libs common range-v3::range-v3)
