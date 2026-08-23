@@ -27,13 +27,13 @@ Environment::observation_type Environment::
    private_observation(Player, const world_state_type&, const action_type&, const world_state_type&)
       const
 {
-   return "-";
+   return Observation{};
 }
 Environment::observation_type Environment::
    public_observation(const world_state_type&, const action_type& action, const world_state_type&)
       const
 {
-   return common::to_string(action);
+   return Observation{.kind = Observation::Kind::action, .action = action};
 }
 
 Environment::observation_type Environment::
@@ -41,9 +41,10 @@ Environment::observation_type Environment::
       const
 {
    if(outcome.player == to_kuhn_player(observer)) {
-      return common::to_string(outcome);
+      return Observation{
+         .kind = Observation::Kind::private_deal, .player = outcome.player, .card = outcome.card};
    }
-   return "-";
+   return Observation{};
 }
 
 Environment::observation_type Environment::public_observation(
@@ -52,10 +53,11 @@ Environment::observation_type Environment::public_observation(
    const world_state_type& /*next_wstate*/
 ) const
 {
-   return common::to_string(nor::Player(outcome.player)) + ":?";
+   // only the receiving seat is public knowledge; the card identity stays hidden
+   return Observation{.kind = Observation::Kind::public_deal, .player = outcome.player};
 }
 
-Environment::observation_type Environment::tiny_repr(const world_state_type& wstate) const
+std::string Environment::tiny_repr(const world_state_type& wstate) const
 {
    std::stringstream ss;
    bool first = true;

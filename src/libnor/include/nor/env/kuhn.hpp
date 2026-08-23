@@ -2,6 +2,8 @@
 #ifndef NOR_ENV_KUHN_HPP
 #define NOR_ENV_KUHN_HPP
 
+#include <fmt/format.h>
+
 #include <ranges>
 #include <string>
 #include <vector>
@@ -25,10 +27,52 @@ inline auto to_nor_player(const kuhn::Player& player)
    return static_cast< nor::Player >(player);
 }
 
-using Observation = std::string;
+/**
+ * @brief compact observation record of kuhn poker.
+ *
+ * Replaces the previous std::string encoding ("-", "check"/"bet", the dealt
+ * card's name for private deals, "<seat>:?" for public deals) with a tagged
+ * 4-byte struct that is cheap to copy, compare and hash. The kinds mirror the
+ * information carried by the four observation producers of the environment:
+ *    none          -- no information (legacy "-")
+ *    action        -- a public check/bet action
+ *    private_deal  -- a card deal; carries receiver seat AND card identity
+ *                     (only ever produced for the receiving player)
+ *    public_deal   -- a card deal; carries only the receiver's seat
+ */
+struct Observation {
+   enum class Kind : int8_t { none = 0, action, private_deal, public_deal };
 
-std::string
-observation(const State& state, std::optional< Player > observing_player = std::nullopt);
+   Kind kind = Kind::none;
+   /// receiving seat of a deal (private_deal/public_deal); meaningless otherwise
+   ::kuhn::Player player = ::kuhn::Player::one;
+   /// dealt card identity (private_deal only); meaningless otherwise
+   ::kuhn::Card card = ::kuhn::Card::two;
+   /// bet/check payload (action only); meaningless otherwise
+   ::kuhn::Action action = ::kuhn::Action::check;
+
+   friend bool operator==(const Observation&, const Observation&) = default;
+};
+
+}  // namespace nor::games::kuhn
+
+namespace std {
+
+/// NOTE: defined BEFORE the infostate/publicstate adapter classes below so that
+/// their hash members can instantiate it immediately.
+template <>
+struct hash< nor::games::kuhn::Observation > {
+   size_t operator()(const nor::games::kuhn::Observation& obs) const noexcept
+   {
+      size_t seed = 0;
+      common::hash_combine(seed, obs.kind, obs.player, obs.card, obs.action);
+      return seed;
+   }
+};
+
+}  // namespace std
+
+namespace nor::games::kuhn {
 
 class Publicstate: public DefaultPublicstate< Publicstate, Observation > {
    using base = DefaultPublicstate< Publicstate, Observation >;
@@ -137,10 +181,35 @@ class Environment {
    ) const;
 
    /// debug purposes
-   observation_type tiny_repr(const world_state_type& wstate) const;
+   std::string tiny_repr(const world_state_type& wstate) const;
 };
 
+/// string rendering of an observation; reproduces the legacy string encoding
+/// ("-", "check"/"bet", card name, "<seat>:?") so debug output stays stable
+[[nodiscard]] inline std::string to_string(const Observation& obs)
+{
+   switch(obs.kind) {
+      case Observation::Kind::none: return "-";
+      case Observation::Kind::action: return common::to_string(obs.action);
+      case Observation::Kind::private_deal: return common::to_string(obs.card);
+      case Observation::Kind::public_deal: return common::to_string(obs.player) + ":?";
+   }
+   return "-";
+}
+
 }  // namespace nor::games::kuhn
+
+namespace fmt {
+
+template <>
+struct formatter< nor::games::kuhn::Observation >: formatter< std::string > {
+   auto format(const nor::games::kuhn::Observation& obs, format_context& ctx) const
+   {
+      return formatter< std::string >::format(to_string(obs), ctx);
+   }
+};
+
+}  // namespace fmt
 
 namespace nor {
 

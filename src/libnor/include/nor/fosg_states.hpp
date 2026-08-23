@@ -2,9 +2,13 @@
 #ifndef NOR_FOSG_STATES_HPP
 #define NOR_FOSG_STATES_HPP
 
+#include <fmt/format.h>
+
 #include <algorithm>
+#include <concepts>
 #include <ranges>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -12,6 +16,17 @@
 #include "nor/utils/utils.hpp"
 
 namespace nor {
+
+namespace detail {
+
+/// whether fmt can format 'T' directly (version-robust stand-in for
+/// fmt::formattable which only arrived in fmt 11)
+template < typename T >
+concept formattable_observation = requires(const T& value, fmt::format_context& ctx) {
+   fmt::formatter< T >{}.format(value, ctx);
+};
+
+}  // namespace detail
 
 /**
  * @brief A default Publicstate type building on vectors of observations for environments to use as
@@ -53,6 +68,7 @@ class DefaultPublicstate {
 
    auto to_string() const
       requires std::is_same_v< observation_type, std::string >
+               or detail::formattable_observation< observation_type >
    {
       return _build_string([this](std::string& str) {
          for(const auto& [pos, observation] : std::views::enumerate(m_history)) {
@@ -64,6 +80,7 @@ class DefaultPublicstate {
 
    auto to_pretty_string() const
       requires std::is_same_v< observation_type, std::string >
+               or detail::formattable_observation< observation_type >
    {
       using namespace fmt::literals;
       return _build_string([this](std::string& str) {
@@ -101,10 +118,12 @@ class DefaultPublicstate {
 
    void _hash()
    {
+      // any observation type participates as long as it is std::hash-able;
+      // string observations keep their exact legacy hash composition
       if constexpr(std::is_same_v< observation_type, std::string >) {
          common::hash_combine(m_hash_cache, std::hash< std::string >{}(m_history.back()));
       } else {
-         m_hash_cache = static_cast< derived_type* >(this)->_hash_impl();
+         common::hash_combine(m_hash_cache, std::hash< observation_type >{}(m_history.back()));
       }
    }
 
@@ -151,6 +170,7 @@ class DefaultInfostate {
 
    auto to_string(std::string_view delim = "\n", std::string_view sep = ",") const
       requires std::is_same_v< observation_type, std::string >
+               or detail::formattable_observation< observation_type >
    {
       using namespace fmt::literals;
       constexpr auto opener = "{";
@@ -221,13 +241,18 @@ class DefaultInfostate {
 
    void _hash()
    {
+      // any observation type participates as long as it is std::hash-able;
+      // string observations keep their exact legacy hash composition
       if constexpr(std::is_same_v< observation_type, std::string >) {
          constexpr auto string_hasher = std::hash< std::string >{};
          const auto& latest_entry = m_history.back();
          common::hash_combine(m_hash_cache, string_hasher(std::get< 0 >(latest_entry)));
          common::hash_combine(m_hash_cache, string_hasher(std::get< 1 >(latest_entry)));
       } else {
-         m_hash_cache = static_cast< derived_type* >(this)->_hash_impl();
+         constexpr auto obs_hasher = std::hash< observation_type >{};
+         const auto& latest_entry = m_history.back();
+         common::hash_combine(m_hash_cache, obs_hasher(std::get< 0 >(latest_entry)));
+         common::hash_combine(m_hash_cache, obs_hasher(std::get< 1 >(latest_entry)));
       }
    }
 };
