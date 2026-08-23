@@ -2,7 +2,6 @@
 #ifndef NOR_CFR_HPP
 #define NOR_CFR_HPP
 
-#include <execution>
 #include <iostream>
 #include <list>
 #include <map>

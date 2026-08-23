@@ -212,9 +212,10 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimization(
    const delayed_update_set& update_set
 )
 {
-   // here we now invoke the actual regret minimization procedure for each infostate individually
-   auto execution_policy = std::execution::par_unseq;
-
+   // here we now invoke the actual regret minimization procedure for each infostate individually.
+   // The sweep is intentionally serial (see the determinism note in rm_utils.hpp):
+   // per-infostate workloads are tiny and parallel scheduling would make float
+   // summation orders non-deterministic.
    auto node_view = std::invoke([&] {
       if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
          return std::views::all(_infonodes());
@@ -222,31 +223,26 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimization(
          return std::views::all(update_set);
       };
    });
-   std::for_each(
-      execution_policy,
-      node_view.begin(),
-      node_view.end(),
-      [&](auto& entry) {
-         // the pure-cfr branch iterates the whole infonode table while every
-         // other algorithm iterates the delayed update set of pointer pairs
-         if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
-            auto& [infostate_sptr, data] = entry;
-            // reset the sampled plan per information state
-            data.data().extras.sampled_action.reset();
-            if(not (  // for alternating pure-cfr we have to check if this
-                      // infostate was meant to be updated as well
-                     config.update_mode == UpdateMode::alternating
-                  )
-               or update_set.find({infostate_sptr.get(), &data}) != update_set.end()
-            ) {
-               _invoke_regret_minimizer(common::deref(infostate_sptr), data);
-            }
-         } else {
-            const auto& [infostate_ptr, data_ptr] = entry;
-            _invoke_regret_minimizer(common::deref(infostate_ptr), *data_ptr);
+   std::for_each(node_view.begin(), node_view.end(), [&](auto& entry) {
+      // the pure-cfr branch iterates the whole infonode table while every
+      // other algorithm iterates the delayed update set of pointer pairs
+      if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
+         auto& [infostate_sptr, data] = entry;
+         // reset the sampled plan per information state
+         data.data().extras.sampled_action.reset();
+         if(not (  // for alternating pure-cfr we have to check if this
+                   // infostate was meant to be updated as well
+                   config.update_mode == UpdateMode::alternating
+                )
+            or update_set.find({infostate_sptr.get(), &data}) != update_set.end()
+         ) {
+            _invoke_regret_minimizer(common::deref(infostate_sptr), data);
          }
+      } else {
+         const auto& [infostate_ptr, data_ptr] = entry;
+         _invoke_regret_minimizer(common::deref(infostate_ptr), *data_ptr);
       }
-   );
+   });
 }
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void MCCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(

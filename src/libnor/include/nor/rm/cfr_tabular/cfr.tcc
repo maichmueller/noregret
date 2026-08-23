@@ -102,7 +102,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimiza
    const std::optional< Player >& player_to_update
 )
 {
-   // here we now invoke the actual regret minimization procedure for each infostate individually
+   // here we now invoke the actual regret minimization procedure for each infostate individually.
+   // The sweep is intentionally serial: per-infostate workloads are tiny and a parallel
+   // schedule would render float summation orders (and hence table contents)
+   // non-deterministic. See the determinism note in rm_utils.hpp.
    auto node_view = std::invoke([&] {
       if constexpr(config.update_mode == UpdateMode::alternating) {
          return _infonodes()
@@ -116,15 +119,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimiza
       }
    });
 
-   std::for_each(
-      std::execution::par_unseq,
-      node_view.begin(),
-      node_view.end(),
-      [&](auto& infostate_ptr_data) {
-         auto& [infostate_ptr, data] = infostate_ptr_data;
-         _invoke_regret_minimizer(*infostate_ptr);
-      }
-   );
+   std::for_each(node_view.begin(), node_view.end(), [&](auto& infostate_ptr_data) {
+      auto& [infostate_ptr, data] = infostate_ptr_data;
+      _invoke_regret_minimizer(*infostate_ptr);
+   });
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >

@@ -4,7 +4,6 @@
 #define NOR_CFR_BASE_TABULAR_HPP
 
 #include <algorithm>
-#include <execution>
 #include <iostream>
 #include <list>
 #include <map>

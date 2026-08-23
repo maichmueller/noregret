@@ -2,7 +2,6 @@
 #ifndef NOR_RM_UTILS_HPP
 #define NOR_RM_UTILS_HPP
 
-#include <execution>
 #include <named_type.hpp>
 #include <numeric>
 #include <ranges>
@@ -15,6 +14,13 @@
 #include "nor/utils/utils.hpp"
 
 namespace nor::rm {
+
+// NOTE on parallelism: all kernels in this header as well as the end-of-
+// iteration regret-minimization sweeps of the tabular solvers run strictly
+// SERIAL. Per-infostate workloads are far too small to amortize thread-pool
+// dispatch, while parallel scheduling would additionally make floating-point
+// summation orders non-deterministic. Serial execution guarantees bit-wise
+// reproducible regret/policy tables across runs given identical seeds.
 
 enum class PolicyLabel { current = 0, average = 1 };
 /// strong-types for passing arguments around with intent
@@ -85,19 +91,18 @@ void regret_matching(Policy& policy_map, const std::unordered_map< Action, doubl
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy
-   auto exec_policy{std::execution::par_unseq};
    if(pos_regret_sum > 0) {
       if(cumul_regret.size() != policy_map.size()) {
          throw std::invalid_argument(
             "Passed regrets and policy maps do not have the same number of elements"
          );
       }
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
                                        / pos_regret_sum;
       });
    } else {
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
       });
    }
@@ -138,20 +143,19 @@ void regret_matching(
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy
-   auto exec_policy{std::execution::par_unseq};
    if(pos_regret_sum > 0) {
       if(cumul_regret.size() != policy_map.size()) {
          throw std::invalid_argument(
             "Passed regrets and policy maps do not have the same number of elements"
          );
       }
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry
                 ) = std::max(0., cumul_regret.at(action_wrapper(std::get< 0 >(entry))))
                     / pos_regret_sum;
       });
    } else {
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
       });
    }
@@ -179,19 +183,18 @@ void regret_matching_plus(Policy& policy_map, RegretMap& cumul_regret)
       pos_regret_sum += regret;
    }
    // apply the new policy to the vector policy
-   auto exec_policy{std::execution::par_unseq};
    if(pos_regret_sum > 0) {
       if(cumul_regret.size() != policy_map.size()) {
          throw std::invalid_argument(
             "Passed regrets and policy maps do not have the same number of elements"
          );
       }
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = std::max(0., cumul_regret.at(std::get< 0 >(entry)))
                                        / pos_regret_sum;
       });
    } else {
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
       });
    }
@@ -232,20 +235,19 @@ void regret_matching_plus_rbp(
       pos_regret_sum += std::max(0., cumul_reg);
    }
    // apply the new policy to the vector policy
-   auto exec_policy{std::execution::par_unseq};
    if(pos_regret_sum > 0) {
       if(cumul_regret_map.size() != policy_map.size()) {
          throw std::invalid_argument(
             "Passed regrets and policy maps do not have the same number of elements"
          );
       }
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry
                 ) = std::max(0., cumul_regret_map.at(action_wrapper(std::get< 0 >(entry))))
                     / pos_regret_sum;
       });
    } else {
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
       });
    }
@@ -283,20 +285,19 @@ void regret_matching_plus(
       pos_regret_sum += cumul_regret;
    }
    // apply the new policy to the vector policy
-   auto exec_policy{std::execution::par_unseq};
    if(pos_regret_sum > 0) {
       if(cumul_regret_map.size() != policy_map.size()) {
          throw std::invalid_argument(
             "Passed regrets and policy maps do not have the same number of elements"
          );
       }
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry
                 ) = std::max(0., cumul_regret_map.at(action_wrapper(std::get< 0 >(entry))))
                     / pos_regret_sum;
       });
    } else {
-      std::for_each(exec_policy, policy_map.begin(), policy_map.end(), [&](auto& entry) {
+      std::for_each(policy_map.begin(), policy_map.end(), [&](auto& entry) {
          return std::get< 1 >(entry) = 1. / static_cast< double >(policy_map.size());
       });
    }
