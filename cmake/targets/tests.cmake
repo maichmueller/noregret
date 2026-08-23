@@ -50,7 +50,8 @@ if(ENABLE_GAMES)
         LINK_LIBRARY
         kuhn_poker
         SOURCE_FILES
-        test_state.cpp)
+        test_state.cpp
+        test_state_3p.cpp)
     register_game_target(
         leduc_poker
         INCLUDE_DIR
