@@ -24,7 +24,6 @@ target_link_libraries(
     PUBLIC required_min_libs
            common
            xtensor
-           range-v3::range-v3
            namedtype::namedtype)
 
 # ######################################################################################################################
@@ -39,7 +38,7 @@ add_library(leduc_poker SHARED ${KUHNPOKER_SOURCES})
 
 target_include_directories(leduc_poker PUBLIC ${PROJECT_GAMES_DIR}/leduc_poker/include)
 
-target_link_libraries(leduc_poker PUBLIC required_min_libs common range-v3::range-v3)
+target_link_libraries(leduc_poker PUBLIC required_min_libs common)
 
 # ######################################################################################################################
 # Kuhn Poker
@@ -53,7 +52,7 @@ add_library(kuhn_poker SHARED ${KUHNPOKER_SOURCES})
 
 target_include_directories(kuhn_poker PUBLIC ${PROJECT_GAMES_DIR}/kuhn_poker/include)
 
-target_link_libraries(kuhn_poker PUBLIC required_min_libs common range-v3::range-v3)
+target_link_libraries(kuhn_poker PUBLIC required_min_libs common)
 
 # ######################################################################################################################
 # Liar's Dice (header-only)
@@ -63,7 +62,7 @@ add_library(liars_dice INTERFACE)
 
 target_include_directories(liars_dice INTERFACE ${PROJECT_GAMES_DIR}/liars_dice/include)
 
-target_link_libraries(liars_dice INTERFACE required_min_libs common range-v3::range-v3)
+target_link_libraries(liars_dice INTERFACE required_min_libs common)
 
 # ######################################################################################################################
 # Texas Hold'em Poker
@@ -77,7 +76,7 @@ add_library(texas_holdem_poker SHARED ${TEXHOLDEM_SOURCES})
 
 target_include_directories(texas_holdem_poker PUBLIC ${PROJECT_GAMES_DIR}/texas_holdem_poker/include)
 
-target_link_libraries(texas_holdem_poker PUBLIC required_min_libs common range-v3::range-v3)
+target_link_libraries(texas_holdem_poker PUBLIC required_min_libs common)
 
 # ######################################################################################################################
 # Rock Paper Scissors
@@ -103,7 +102,7 @@ add_library(goofspiel INTERFACE)
 
 target_include_directories(goofspiel INTERFACE ${PROJECT_GAMES_DIR}/goofspiel/include)
 
-target_link_libraries(goofspiel INTERFACE required_min_libs common range-v3::range-v3)
+target_link_libraries(goofspiel INTERFACE required_min_libs common)
 # Battleship (header-only)
 # ######################################################################################################################
 
@@ -111,7 +110,7 @@ add_library(battleship INTERFACE)
 
 target_include_directories(battleship INTERFACE ${PROJECT_GAMES_DIR}/battleship/include)
 
-target_link_libraries(battleship INTERFACE required_min_libs common range-v3::range-v3)
+target_link_libraries(battleship INTERFACE required_min_libs common)
 
 # ######################################################################################################################
 # Dark Hex (header-only)
@@ -121,4 +120,4 @@ add_library(dark_hex INTERFACE)
 
 target_include_directories(dark_hex INTERFACE ${PROJECT_GAMES_DIR}/dark_hex/include)
 
-target_link_libraries(dark_hex INTERFACE required_min_libs common range-v3::range-v3)
+target_link_libraries(dark_hex INTERFACE required_min_libs common)

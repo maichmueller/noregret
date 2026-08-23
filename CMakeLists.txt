@@ -38,18 +38,9 @@ option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
 # settings
 
-# Use C++20
-set(PROJ_CXX_STD_FEATURE cxx_std_20)
-set(PROJ_CXX_STANDARD C++20)
-if(MSVC
-   AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.29.30129
-   AND CMAKE_VERSION VERSION_GREATER 3.20.3)
-    # this change happened in CMake 3.20.4
-    set(PROJ_CXX_STD_FEATURE cxx_std_23) # /std:c++latest - unlocks the non stable cpp20 features. For new 16.11
-    # versions
-else()
-    set(PROJ_CXX_STD_FEATURE cxx_std_20) # /std:c++latest for msvc and -std=c++20 for everyone else.
-endif()
+# Use C++26 (language floor; requires GCC 16+/Clang 21+ with C++26 views such as zip/enumerate/concat)
+set(PROJ_CXX_STD_FEATURE cxx_std_26)
+set(PROJ_CXX_STANDARD C++26)
 
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)
@@ -176,7 +167,6 @@ else()
     find_package(Python3 COMPONENTS Interpreter Development)
 endif()
 find_package(pybind11 REQUIRED)
-find_package(range-v3 REQUIRED)
 find_package(namedtype REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
