@@ -3,7 +3,7 @@
 #define NOR_COMMON_TYPES_HPP
 
 #include <iostream>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <variant>
 #include <vector>
 
@@ -729,7 +729,7 @@ class not_pred {
 
 template < typename T >
 struct inferred_iter_value_type {
-   using type = std::remove_cvref_t< decltype(*(ranges::begin(std::declval< T& >()))) >;
+   using type = std::remove_cvref_t< decltype(*(std::ranges::begin(std::declval< T& >()))) >;
 };
 
 template < typename T >
@@ -737,7 +737,7 @@ using inferred_iter_value_type_t = typename inferred_iter_value_type< T >::type;
 
 template < typename T >
 struct inferred_iter_first_value_type {
-   using type = std::remove_cvref_t< decltype(ranges::begin(std::declval< T& >())->first) >;
+   using type = std::remove_cvref_t< decltype(std::ranges::begin(std::declval< T& >())->first) >;
 };
 
 template < typename T >
@@ -745,7 +745,7 @@ using inferred_iter_first_value_type_t = typename inferred_iter_first_value_type
 
 template < typename T >
 struct inferred_iter_second_value_type {
-   using type = std::remove_cvref_t< decltype(ranges::begin(std::declval< T& >())->second) >;
+   using type = std::remove_cvref_t< decltype(std::ranges::begin(std::declval< T& >())->second) >;
 };
 
 template < typename T >
@@ -784,25 +784,28 @@ deref(T&& t)
    return *std::forward< T >(t);
 }
 
-template < ranges::range Range >
-class deref_view: public ranges::view_base {
+template < typename Rng >
+   requires std::ranges::view< Rng >
+class deref_view: public std::ranges::view_interface< deref_view< Rng > > {
   public:
    struct iterator;
-   deref_view() = default;
-   deref_view(ranges::range auto&& base) : m_base(base) {}
 
-   iterator begin() { return ranges::begin(m_base); }
-   iterator end() { return ranges::end(m_base); }
+   deref_view() = default;
+   constexpr explicit deref_view(Rng base) : m_base(std::move(base)) {}
+
+   iterator begin() { return iterator{std::ranges::begin(m_base)}; }
+   iterator end() { return iterator{std::ranges::end(m_base)}; }
 
   private:
-   Range m_base;
+   Rng m_base{};
 };
 
-template < ranges::range Range >
-struct deref_view< Range >::iterator: ranges::iterator_t< Range > {
-   using base = ranges::iterator_t< Range >;
-   using value_type = std::remove_cvref_t< decltype(deref(*(std::declval< Range >().begin()))) >;
-   using difference_type = ranges::range_difference_t< Range >;
+template < typename Rng >
+   requires std::ranges::view< Rng >
+struct deref_view< Rng >::iterator: std::ranges::iterator_t< Rng > {
+   using base = std::ranges::iterator_t< Rng >;
+   using value_type = std::remove_cvref_t< decltype(deref(*(std::declval< Rng >().begin()))) >;
+   using difference_type = std::ranges::range_difference_t< Rng >;
 
    iterator() = default;
 
@@ -819,29 +822,29 @@ struct deref_view< Range >::iterator: ranges::iterator_t< Range > {
    decltype(auto) operator*() const { return deref(*static_cast< base >(*this)); }
 };
 
-template < ranges::range Range >
-deref_view(Range&&) -> deref_view< ranges::cpp20::views::all_t< Range > >;
+template < typename Rng >
+deref_view(Rng&&) -> deref_view< std::views::all_t< Rng > >;
 
 struct deref_fn {
    template < typename Rng >
-   auto operator()(Rng&& rng) const
+   constexpr auto operator()(Rng&& rng) const
    {
-      return deref_view{ranges::views::all(std::forward< Rng >(rng))};
+      return deref_view{std::views::all(std::forward< Rng >(rng))};
    }
 
    template < typename Rng >
-   friend auto operator|(Rng&& rng, deref_fn const&)
+   friend constexpr auto operator|(Rng&& rng, const deref_fn&)
    {
-      return deref_view{ranges::views::all(std::forward< Rng >(rng))};
+      return deref_view{std::views::all(std::forward< Rng >(rng))};
    }
 };
 
 }  // namespace common
 
-namespace ranges::views {
+namespace common::views {
 
-constexpr ::common::deref_fn deref{};
+inline constexpr ::common::deref_fn deref{};
 
-}  // namespace ranges::views
+}  // namespace common::views
 
 #endif  // NOR_COMMON_TYPES_HPP
