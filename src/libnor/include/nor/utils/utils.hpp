@@ -7,6 +7,8 @@
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/meta/enum_names.hpp"
+#include "nor/meta/features.hpp"
 
 namespace nor::utils {
 
@@ -190,6 +192,10 @@ struct CEBijection {
    }
 };
 
+#ifndef NOR_REFLECTION
+// with reflection available the names are derived directly from the enum
+// declarations (see nor/meta/enum_names.hpp) and the hand-maintained tables
+// are not needed anymore
 constexpr CEBijection< Player, std::string_view, 28 > player_name_bij = {
    std::pair{Player::chance, "chance"},     std::pair{Player::alex, "alex"},
    std::pair{Player::bob, "bob"},           std::pair{Player::cedric, "cedric"},
@@ -210,6 +216,7 @@ constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_b
    std::pair{Stochasticity::deterministic, "deterministic"},
    std::pair{Stochasticity::sample, "sample"},
    std::pair{Stochasticity::choice, "choice"}};
+#endif
 
 }  // namespace nor::utils
 
@@ -217,18 +224,34 @@ namespace common {
 template <>
 inline std::string to_string(const nor::Player& e)
 {
+#ifdef NOR_REFLECTION
+   return std::string(nor::meta::enum_name(e));
+#else
    return std::string(nor::utils::player_name_bij.at(e));
+#endif
 }
 template <>
 inline std::string to_string(const nor::Stochasticity& e)
 {
+#ifdef NOR_REFLECTION
+   return std::string(nor::meta::enum_name(e));
+#else
    return std::string(nor::utils::stochasticity_name_bij.at(e));
+#endif
 }
 
 template <>
 inline nor::Player from_string< nor::Player >(std::string_view str)
 {
+#ifdef NOR_REFLECTION
+   auto player = nor::meta::enum_from_name< nor::Player >(str);
+   if(not player.has_value()) {
+      throw std::range_error("Not Found");
+   }
+   return *player;
+#else
    return nor::utils::player_name_bij.at(str);
+#endif
 }
 
 }  // namespace common
