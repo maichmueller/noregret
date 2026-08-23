@@ -94,6 +94,10 @@ if(ENABLE_GAMES)
         liars_dice
         LINK_LIBRARY
         liars_dice
+        SOURCE_FILES
+        test_state.cpp
+        test_multiplayer.cpp)
+    register_game_target(
         battleship
         INCLUDE_DIR
         battleship
