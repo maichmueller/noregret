@@ -162,7 +162,7 @@ inline auto counter(
    return rv;
 }
 
-template < ranges::range Container, typename Accessor >
+template < std::ranges::range Container, typename Accessor >
 inline auto counter(
    const Container& vals,
    Accessor acc = [](const auto& iter) { return *iter; }
