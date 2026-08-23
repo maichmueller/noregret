@@ -284,32 +284,25 @@ class Environment {
    ) const
    {
       if(action.kind == ActionType::challenge) {
-         // a challenge resolves the round: all alive dice are revealed publicly
-         auto alive_faces = [&]() {
-            std::vector< uint8_t > faces;
-            for(uint8_t seat = 0; seat < next_wstate.config().n_players; ++seat) {
-               auto p = ::liars_dice::Player(seat);
-               if(not next_wstate.alive(p)) {
-                  continue;
-               }
-               for(auto face : next_wstate.dice(p)) {
-                  faces.emplace_back(face);
-               }
+         // a challenge resolves the round: all alive dice are revealed publicly. The reveal is
+         // read from the state's resolution snapshot since a non-terminal challenge advances
+         // the state into the re-roll phase of the next round immediately (wiping the faces).
+         const auto& snap = next_wstate.latest_reveal();
+         if(snap.has_value()) {
+            const auto& faces = snap->faces;
+            auto first = faces.empty() ? uint8_t(0) : faces.front();
+            auto second = faces.size() < 2 ? uint8_t(0) : faces[1];
+            auto further = std::vector< uint8_t >{};
+            if(faces.size() > 2) {
+               further.assign(faces.begin() + 2, faces.end());
             }
-            return faces;
-         }();
-         auto first = alive_faces.empty() ? uint8_t(0) : alive_faces.front();
-         auto second = alive_faces.size() < 2 ? uint8_t(0) : alive_faces[1];
-         auto further = std::vector< uint8_t >{};
-         if(alive_faces.size() > 2) {
-            further.assign(alive_faces.begin() + 2, alive_faces.end());
+            return observation_type{
+               .reveal = Reveal{
+                  .die_one = first,
+                  .die_two = second,
+                  .further_dice = std::move(further),
+                  .outcome = snap->outcome}};
          }
-         return observation_type{
-            .reveal = Reveal{
-               .die_one = first,
-               .die_two = second,
-               .further_dice = std::move(further),
-               .outcome = next_wstate.challenge_outcome().value_or(Outcome::challenger_wins)}};
       }
       // every bid announcement is fully public
       return observation_type{.bid = action.bid};

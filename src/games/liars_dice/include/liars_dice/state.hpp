@@ -129,6 +129,19 @@ struct ActionRecord {
 };
 
 /**
+ * @brief public payload of a resolved challenge: all alive dice faces (seat order) + outcome.
+ *
+ * Snapshotted at challenge resolution time because the world state advances into the re-roll
+ * phase of the next round immediately afterwards (wiping the dice faces).
+ */
+struct RoundReveal {
+   std::vector< uint8_t > faces{};
+   Outcome outcome{};
+
+   friend bool operator==(const RoundReveal&, const RoundReveal&) = default;
+};
+
+/**
  * @brief A world state of a multiplayer elimination liar's dice match.
  *
  * Game flow:
@@ -174,12 +187,19 @@ class State {
       }
       if(action.kind == ActionType::challenge) {
          auto standing = *m_current_bid;
-         auto actual = actual_count(standing.face);
+         auto actual = _live_count(standing.face);
          bool bidder_holds = actual >= standing.count;
          Player
             loser = bidder_holds ? m_active_player /* challenger */ : _last_bidder() /* bidder */;
          m_latest_outcome = bidder_holds ? Outcome::bidder_wins : Outcome::challenger_wins;
          m_round_outcomes.emplace_back(*m_latest_outcome);
+         // snapshot the public reveal BEFORE the state advances into the next round (which
+         // wipes the dice faces of the resolved round)
+         std::vector< uint8_t > faces;
+         for(auto seat : _alive_seats()) {
+            faces.insert(faces.end(), m_dice[seat].begin(), m_dice[seat].begin() + m_rolled[seat]);
+         }
+         m_latest_reveal = RoundReveal{std::move(faces), *m_latest_outcome};
          m_dice_left[as_int(loser)] -= 1;
          if(_alive_count() > 1) {
             _start_next_round();
@@ -204,7 +224,8 @@ class State {
          // all dice dealt --> the round opener starts the bidding
          m_active_player = opener();
       } else {
-         m_active_player = _next_roller();
+         // the chance player keeps acting until every alive die has been dealt
+         m_active_player = Player::chance;
       }
    }
 
@@ -308,9 +329,23 @@ class State {
    {
       return m_latest_outcome;
    }
-   /// number of dice among all alive players' dice showing `face`
+   /// the public reveal snapshot of the most recent challenge (all alive dice + outcome)
+   [[nodiscard]] const std::optional< RoundReveal >& latest_reveal() const
+   {
+      return m_latest_reveal;
+   }
+   /// number of dice showing `face` among the dice of the running round. After a challenge
+   /// resolution the count refers to the resolved round's revealed dice (eliminated players'
+   /// dice included); before any challenge it counts the alive players' rolled dice.
    [[nodiscard]] uint8_t actual_count(uint8_t face) const
    {
+      if(m_latest_reveal.has_value()) {
+         uint8_t count = 0;
+         for(auto f : m_latest_reveal->faces) {
+            count += uint8_t(f == face);
+         }
+         return count;
+      }
       uint8_t count = 0;
       for(auto seat : _alive_seats()) {
          for(uint8_t slot = 0; slot < m_rolled[seat]; ++slot) {
@@ -355,6 +390,17 @@ class State {
       return out;
    }
    [[nodiscard]] size_t _alive_count() const { return _alive_seats().size(); }
+   /// count of `face` among the alive players' rolled dice of the running round
+   [[nodiscard]] uint8_t _live_count(uint8_t face) const
+   {
+      uint8_t count = 0;
+      for(auto seat : _alive_seats()) {
+         for(uint8_t slot = 0; slot < m_rolled[seat]; ++slot) {
+            count += uint8_t(m_dice[seat][slot] == face);
+         }
+      }
+      return count;
+   }
    [[nodiscard]] bool _all_alive_dice_rolled() const
    {
       for(auto seat : _alive_seats()) {
@@ -386,7 +432,9 @@ class State {
       }
       return m_active_player;
    }
-   /// resets all per-round bookkeeping and hands over to the chance player for the re-roll
+   /// resets all per-round bookkeeping and hands over to the chance player for the re-roll.
+   /// NOTE: m_latest_reveal intentionally survives -- it documents the most recent challenge
+   /// resolution until the next one replaces it.
    void _start_next_round()
    {
       m_round += 1;
@@ -418,6 +466,7 @@ class State {
    std::vector< Roll > m_roll_history{};
    std::vector< Outcome > m_round_outcomes{};
    std::optional< Outcome > m_latest_outcome{};
+   std::optional< RoundReveal > m_latest_reveal{};
    Player m_active_player = Player::chance;
 };
 
@@ -456,7 +505,8 @@ inline bool State::is_valid(Roll outcome) const
    if(outcome.player != _next_roller()) {
       return false;
    }
-   if(as_int(outcome.player) < 0 or as_int< int >(outcome.player) >= int(m_config.n_players)) {
+   if(as_int< int >(outcome.player) < 0
+      or as_int< int >(outcome.player) >= int(m_config.n_players)) {
       return false;
    }
    auto seat = as_int(outcome.player);
