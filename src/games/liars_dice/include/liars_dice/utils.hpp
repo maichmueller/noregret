@@ -10,10 +10,12 @@
 
 namespace liars_dice {
 
-constexpr common::CEBijection< Player, std::string_view, 3 > player_name_bij = {
+constexpr common::CEBijection< Player, std::string_view, 5 > player_name_bij = {
    std::pair{Player::chance, "chance"},
    std::pair{Player::one, "one"},
-   std::pair{Player::two, "two"}};
+   std::pair{Player::two, "two"},
+   std::pair{Player::three, "three"},
+   std::pair{Player::four, "four"}};
 
 }  // namespace liars_dice
 
@@ -62,6 +64,7 @@ struct hash< liars_dice::Roll > {
       size_t seed = 0;
       common::hash_combine(seed, std::hash< int >{}(int(roll.player)));
       common::hash_combine(seed, std::hash< int >{}(int(roll.face)));
+      common::hash_combine(seed, std::hash< int >{}(int(roll.slot)));
       return seed;
    }
 };

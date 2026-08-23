@@ -2,6 +2,7 @@
 #ifndef NOR_LIARS_DICE_ENVIRONMENT_HPP
 #define NOR_LIARS_DICE_ENVIRONMENT_HPP
 
+#include <iterator>
 #include <optional>
 #include <range/v3/all.hpp>
 #include <string>
@@ -28,10 +29,17 @@ inline auto to_nor_player(const ::liars_dice::Player& player)
    return static_cast< nor::Player >(player);
 }
 
-/// the public showdown payload revealed upon a challenge
+/**
+ * @brief the public showdown payload revealed upon a challenge.
+ *
+ * The dice of all alive players are revealed in seat order; 'die_one'/'die_two' carry the
+ * first two entries so that the classic 2-player layout is preserved verbatim while
+ * 'further_dice' holds the remaining seats (empty for 2-player configurations).
+ */
 struct Reveal {
    uint8_t die_one;
    uint8_t die_two;
+   std::vector< uint8_t > further_dice{};
    Outcome outcome;
 
    friend bool operator==(const Reveal&, const Reveal&) = default;
@@ -44,7 +52,7 @@ struct Reveal {
  * - a privately received own die roll (only visible to its recipient),
  * - the mere identity of the player receiving a hidden roll (public),
  * - a publicly announced bid,
- * - or the public reveal of both dice together with the challenge resolution.
+ * - or the public reveal of all alive dice together with the challenge resolution.
  *
  * All payloads are optional and at most one of them is set per instance.
  */
@@ -55,7 +63,7 @@ struct Observation {
    std::optional< ::liars_dice::Player > hidden_roll_to{};
    /// a bid announcement that was publicly played
    std::optional< Bid > bid{};
-   /// the public reveal of both dice and the challenge outcome
+   /// the public reveal of all alive dice and the challenge outcome
    std::optional< Reveal > reveal{};
 
    friend bool operator==(const Observation&, const Observation&) = default;
@@ -85,6 +93,9 @@ struct hash< nor::games::liars_dice::Observation > {
          const auto& rev = *obs.reveal;
          common::hash_combine(seed, std::hash< int >{}(int(rev.die_one)));
          common::hash_combine(seed, std::hash< int >{}(int(rev.die_two)));
+         for(auto face : rev.further_dice) {
+            common::hash_combine(seed, std::hash< int >{}(int(face)));
+         }
          common::hash_combine(seed, std::hash< int >{}(int(rev.outcome)));
       }
       return seed;
@@ -98,6 +109,9 @@ struct hash< nor::games::liars_dice::Reveal > {
       size_t seed = 0;
       common::hash_combine(seed, std::hash< int >{}(int(rev.die_one)));
       common::hash_combine(seed, std::hash< int >{}(int(rev.die_two)));
+      for(auto face : rev.further_dice) {
+         common::hash_combine(seed, std::hash< int >{}(int(face)));
+      }
       common::hash_combine(seed, std::hash< int >{}(int(rev.outcome)));
       return seed;
    }
@@ -141,7 +155,7 @@ class Infostate: public DefaultInfostate< Infostate, Observation > {
 };
 
 /**
- * @brief The FOSG environment adapter of single-round liar's dice wrapping liars_dice::State.
+ * @brief The FOSG environment adapter of multiplayer liar's dice wrapping liars_dice::State.
  */
 class Environment {
   public:
@@ -153,9 +167,10 @@ class Environment {
    using chance_outcome_type = Roll;
    using observation_type = Observation;
    using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
-   // nor fosg traits
+   // nor fosg traits. The actual player count is configured per world state (2 by default);
+   // 'dynamic_extent' marks it as a runtime property like in the kuhn/leduc envs.
    static constexpr size_t max_player_count() { return ::liars_dice::max_player_count; }
-   static constexpr size_t player_count() { return ::liars_dice::max_player_count; }
+   static constexpr size_t player_count() { return std::dynamic_extent; }
    static constexpr bool serialized() { return true; }
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::choice; }
@@ -208,6 +223,9 @@ class Environment {
 
    [[nodiscard]] std::vector< Player > players(const world_state_type& wstate) const
    {
+      // the full roster of initial participants: the chance player plus every seat. It is
+      // intentionally elimination-independent so that reach-probability maps and reward maps
+      // always cover all players (eliminated ones keep their terminal payoff share).
       auto seated_players = wstate.players();
       std::vector< Player > out;
       out.reserve(seated_players.size());
@@ -266,11 +284,31 @@ class Environment {
    ) const
    {
       if(action.kind == ActionType::challenge) {
-         // a challenge resolves the hand: both dice are revealed publicly
+         // a challenge resolves the round: all alive dice are revealed publicly
+         auto alive_faces = [&]() {
+            std::vector< uint8_t > faces;
+            for(uint8_t seat = 0; seat < next_wstate.config().n_players; ++seat) {
+               auto p = ::liars_dice::Player(seat);
+               if(not next_wstate.alive(p)) {
+                  continue;
+               }
+               for(auto face : next_wstate.dice(p)) {
+                  faces.emplace_back(face);
+               }
+            }
+            return faces;
+         }();
+         auto first = alive_faces.empty() ? uint8_t(0) : alive_faces.front();
+         auto second = alive_faces.size() < 2 ? uint8_t(0) : alive_faces[1];
+         auto further = std::vector< uint8_t >{};
+         if(alive_faces.size() > 2) {
+            further.assign(alive_faces.begin() + 2, alive_faces.end());
+         }
          return observation_type{
             .reveal = Reveal{
-               .die_one = next_wstate.die(::liars_dice::Player::one).value_or(uint8_t(0)),
-               .die_two = next_wstate.die(::liars_dice::Player::two).value_or(uint8_t(0)),
+               .die_one = first,
+               .die_two = second,
+               .further_dice = std::move(further),
                .outcome = next_wstate.challenge_outcome().value_or(Outcome::challenger_wins)}};
       }
       // every bid announcement is fully public
@@ -291,13 +329,14 @@ class Environment {
    /// API: histories           ///
    ////////////////////////////////
 
-   /// chronological sequence of both die rolls + betting actions. Each entry is masked to what
-   /// `player` can observe (nullopt for hidden entries).
+   /// chronological sequence of rolls + betting actions. Each entry is masked to what `player`
+   /// can observe (nullopt for hidden entries). Rolls stay hidden even from past rounds: the
+   /// public reveal observations are what carries that information into the infostates.
    [[nodiscard]] std::vector< PlayerInformedType< std::optional< action_variant_type > > >
    private_history(Player player, const world_state_type& wstate) const
    {
       std::vector< PlayerInformedType< std::optional< action_variant_type > > > out;
-      out.reserve(rolls_per_history + wstate.actions_history().size());
+      out.reserve(wstate.roll_history().size() + wstate.actions_history().size());
       append_rolls(out, wstate, [&](auto seat) { return to_liars_dice_player(player) == seat; });
       append_actions(out, wstate);
       out.shrink_to_fit();
@@ -308,7 +347,7 @@ class Environment {
    public_history(const world_state_type& wstate) const
    {
       std::vector< PlayerInformedType< std::optional< action_variant_type > > > out;
-      out.reserve(rolls_per_history + wstate.actions_history().size());
+      out.reserve(wstate.roll_history().size() + wstate.actions_history().size());
       append_rolls(out, wstate, []([[maybe_unused]] auto seat) { return false; });
       append_actions(out, wstate);
       out.shrink_to_fit();
@@ -320,11 +359,9 @@ class Environment {
    ) const
    {
       std::vector< PlayerInformedType< action_variant_type > > out;
-      out.reserve(rolls_per_history + wstate.actions_history().size());
-      for(auto roller : {::liars_dice::Player::one, ::liars_dice::Player::two}) {
-         if(auto face = wstate.die(roller)) {
-            out.emplace_back(action_variant_type{Roll{roller, *face}}, Player::chance);
-         }
+      out.reserve(wstate.roll_history().size() + wstate.actions_history().size());
+      for(const auto& roll : wstate.roll_history()) {
+         out.emplace_back(action_variant_type{roll}, Player::chance);
       }
       for(const auto& record : wstate.actions_history()) {
          out.emplace_back(action_variant_type{record.action}, to_nor_player(record.player));
@@ -334,18 +371,12 @@ class Environment {
    }
 
   private:
-   static constexpr size_t rolls_per_history = 2;
-
    template < typename Container, typename VisibleFor >
-   static void append_rolls(Container& out, const world_state_type& wstate, VisibleFor visible_for)
+   void append_rolls(Container& out, const world_state_type& wstate, VisibleFor visible_for) const
    {
-      for(auto roller : {::liars_dice::Player::one, ::liars_dice::Player::two}) {
-         auto face_opt = wstate.die(roller);
-         if(not face_opt.has_value()) {
-            break;  // this die has not been rolled yet --> no further history exists
-         }
-         if(visible_for(roller)) {
-            out.emplace_back(action_variant_type{Roll{roller, *face_opt}}, Player::chance);
+      for(const auto& roll : wstate.roll_history()) {
+         if(visible_for(roll.player)) {
+            out.emplace_back(action_variant_type{roll}, Player::chance);
          } else {
             out.emplace_back(std::nullopt, Player::chance);
          }
@@ -382,10 +413,15 @@ inline std::string to_string(const nor::games::liars_dice::Observation& value)
       return common::to_string(*value.bid);
    }
    if(value.reveal.has_value()) {
+      std::string faces = fmt::format(
+         "{}|{}", int(value.reveal->die_one), int(value.reveal->die_two)
+      );
+      for(auto face : value.reveal->further_dice) {
+         fmt::format_to(std::back_inserter(faces), "|{}", int(face));
+      }
       return fmt::format(
-         "reveal {}|{}:{}",
-         int(value.reveal->die_one),
-         int(value.reveal->die_two),
+         "reveal {}:{}",
+         faces,
          value.reveal->outcome == liars_dice_ns::Outcome::bidder_wins ? "bidder" : "challenger"
       );
    }
