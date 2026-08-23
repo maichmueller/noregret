@@ -13,6 +13,7 @@
 #include "nor/fosg_states.hpp"
 #include "nor/fosg_traits.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/utils/player_informed_type.hpp"
 
 namespace nor::games::liars_dice {
 
@@ -370,7 +371,7 @@ namespace common {
 template <>
 inline std::string to_string(const nor::games::liars_dice::Observation& value)
 {
-   using liars_dice_ns = nor::games::liars_dice;
+   namespace liars_dice_ns = nor::games::liars_dice;
    if(value.roll.has_value()) {
       return fmt::format("{}", common::to_string(*value.roll));
    }

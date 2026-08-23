@@ -64,8 +64,8 @@ struct Roll {
 
 /// a bid claim of 'count' dice showing 'face' across both players' dice
 struct Bid {
-   uint8_t count;  //< in [1, max_bid_count] (i.e. [1, 2])
-   uint8_t face;  //< in [1, n_faces]
+   uint8_t count = 1;  //< in [1, max_bid_count] (i.e. [1, 2])
+   uint8_t face = 1;  //< in [1, n_faces]
 
    /// lexicographic strict dominance: (c',f') > (c,f) iff c'>c or (c'==c and f'>f)
    [[nodiscard]] bool dominates(const Bid& other) const
@@ -278,7 +278,7 @@ inline bool State::is_valid(Roll outcome) const
 inline std::vector< Action > State::actions() const
 {
    std::vector< Action > out;
-   if(not is_valid(Action{ActionType::bid, {}})) {
+   if(is_terminal() || not _all_dice_rolled()) {
       return out;
    }
    // bids in lexicographic order (count ascending, then face ascending), ...
@@ -292,7 +292,7 @@ inline std::vector< Action > State::actions() const
    }
    // ... then the challenge (if a bid stands)
    if(m_current_bid.has_value()) {
-      out.emplace_back(Action{ActionType::challenge, {}});
+      out.emplace_back(Action{ActionType::challenge, Bid{}});
    }
    return out;
 }
