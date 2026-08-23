@@ -58,19 +58,22 @@ Environment::observation_type Environment::public_observation(
 Environment::observation_type Environment::tiny_repr(const world_state_type& wstate) const
 {
    std::stringstream ss;
-   for(auto [idx, card] : ranges::views::enumerate(wstate.cards())) {
+   bool first = true;
+   for(auto& card : wstate.cards()) {
       if(card.has_value()) {
-         ss << card.value();
-         if((idx == 0 and wstate.cards()[1].has_value()) or not wstate.history().empty()) {
+         if(not first) {
             ss << "-";
          }
+         ss << card.value();
+         first = false;
       }
    }
    for(auto [idx, action] : ranges::views::enumerate(wstate.history())) {
-      ss << action;
-      if(idx != wstate.history().size() - 1) {
+      if(not first) {
          ss << "-";
       }
+      ss << action;
+      first = false;
    }
    return ss.str();
 }
@@ -80,6 +83,7 @@ Environment::private_history(Player player, const world_state_type& wstate) cons
 {
    std::vector< PlayerInformedType< std::optional< action_variant_type > > > out;
    auto action_history = wstate.history();
+   const auto& actors = wstate.history_actors();
    out.reserve(action_history.size() + 2);
    for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.cards())) {
       if(not outcome_opt.has_value()) {
@@ -94,10 +98,14 @@ Environment::private_history(Player player, const world_state_type& wstate) cons
       }
    }
    for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
-      if(i != static_cast< size_t >(player)) {
-         out.emplace_back(action_or_outcome, to_nor_player(kuhn::Player(i)));
+      // NOTE: the acting player of an entry is *not* generally its position index. Betting
+      // proceeds cyclically and players skip turns once folded (or while waiting to respond
+      // to a bet), so each entry carries its own actor.
+      const nor::Player actor = to_nor_player(actors[i]);
+      if(to_kuhn_player(player) != actors[i]) {
+         out.emplace_back(action_or_outcome, actor);
       } else {
-         out.emplace_back(std::nullopt, to_nor_player(kuhn::Player(i)));
+         out.emplace_back(std::nullopt, actor);
       }
    }
    out.shrink_to_fit();
@@ -110,9 +118,10 @@ std::vector< PlayerInformedType< Environment::action_variant_type > > Environmen
 {
    std::vector< PlayerInformedType< action_variant_type > > out;
    auto action_history = wstate.history();
+   const auto& actors = wstate.history_actors();
    out.reserve(action_history.size() + 2);
    for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
-      out.emplace_back(action, to_nor_player(kuhn::Player(i)));
+      out.emplace_back(action, to_nor_player(actors[i]));
    }
    out.shrink_to_fit();
    return out;
@@ -121,10 +130,21 @@ std::vector< PlayerInformedType< Environment::action_variant_type > > Environmen
 std::vector< PlayerInformedType< std::optional< Environment::action_variant_type > > >
 Environment::public_history(const world_state_type& wstate) const
 {
-   auto hist = private_history(Player::alex, wstate);
-   // hide the first entry too, since this is private information to Alex
-   if(not hist.empty()) {
-      hist[0].value().reset();
+   std::vector< PlayerInformedType< std::optional< action_variant_type > > > out;
+   auto action_history = wstate.history();
+   const auto& actors = wstate.history_actors();
+   out.reserve(action_history.size() + wstate.player_count());
+   // every private card stays hidden in the public history (dealt cards appear as empty
+   // entries tagged with the chance player)
+   for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.cards())) {
+      if(not outcome_opt.has_value()) {
+         break;
+      }
+      out.emplace_back(std::nullopt, Player::chance);
    }
-   return hist;
+   for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
+      out.emplace_back(action_or_outcome, to_nor_player(actors[i]));
+   }
+   out.shrink_to_fit();
+   return out;
 }
