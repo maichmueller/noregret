@@ -10,6 +10,8 @@
 
 namespace nor::meta {
 
+using namespace std::literals::string_view_literals;
+
 #if defined(NOR_REFLECTION)
 
 /**
@@ -87,45 +89,97 @@ template < typename E >
 
 #else  // fallback: no reflection available
 
-   // Generic fallback based on the compiler's pretty-function spelling of an
-   // enumerator. This keeps the current behavior for valid enumerators on GCC
-   // without requiring any hand-maintained tables.
+   // Without reflection there is no portable way to derive enumerator names, so
+   // the fallback keeps the current behavior via explicit name tables for the
+   // enums that need it (nor::Player and nor::Stochasticity -- mirroring the
+   // tables in nor/utils/utils.hpp) and reports unknown names for all other enum
+   // types.
 
-   #include <limits>
+   #include "nor/game_defs.hpp"
 
 namespace detail {
 
 template < typename E >
-constexpr std::string_view builtin_enumerator_name(E value)
-{
-   std::string_view view = __PRETTY_FUNCTION__;
-   constexpr std::string_view marker = "value = ";
-   const auto pos = view.find(marker);
-   if(pos == std::string_view::npos) {
-      return {};
+struct fallback_name_table {
+   [[nodiscard]] static constexpr std::string_view name(E) { return {}; }
+   [[nodiscard]] static constexpr std::optional< E > parse(std::string_view)
+   {
+      return std::nullopt;
    }
-   const auto start = pos + marker.size();
-   auto end = view.size();
-   for(auto i = start; i < view.size(); ++i) {
-      const char c = view[i];
-      if(c == ']' or c == ';' or c == ',') {
-         end = i;
-         break;
+};
+
+template < std::size_t N, typename E >
+constexpr std::string_view table_lookup(
+   const std::array< E, N >& values,
+   const std::array< std::string_view, N >& names,
+   E value
+)
+{
+   for(std::size_t i = 0; i < N; ++i) {
+      if(values[i] == value) {
+         return names[i];
       }
    }
-   std::string_view name = view.substr(start, end - start);
-   // invalid values are spelled like 'Enum(42)' -- treat them as unnamed
-   if(name.find('(') != std::string_view::npos) {
-      return {};
-   }
-   // scoped enums carry their qualification which is not part of the
-   // enumerator name
-   const auto sep = name.rfind("::");
-   if(sep != std::string_view::npos) {
-      name.remove_prefix(sep + 2);
-   }
-   return name;
+   return {};
 }
+
+template < std::size_t N, typename E >
+constexpr std::optional< E > table_parse(
+   const std::array< E, N >& values,
+   const std::array< std::string_view, N >& names,
+   std::string_view name
+)
+{
+   for(std::size_t i = 0; i < N; ++i) {
+      if(names[i] == name) {
+         return values[i];
+      }
+   }
+   return std::nullopt;
+}
+
+constexpr std::array player_values{
+   Player::unknown, Player::chance,  Player::alex,     Player::bob,      Player::cedric,
+   Player::dexter,  Player::emily,   Player::florence, Player::gustavo,  Player::henrick,
+   Player::ian,     Player::julia,   Player::kelvin,   Player::lea,      Player::michael,
+   Player::norbert, Player::oscar,   Player::pedro,    Player::quentin,  Player::rosie,
+   Player::sophia,  Player::tristan, Player::ulysses,  Player::victoria, Player::william,
+   Player::xavier,  Player::yusuf,   Player::zoey};
+constexpr std::array player_names{
+   "unknown"sv,  "chance"sv,  "alex"sv,     "bob"sv,     "cedric"sv,  "dexter"sv, "emily"sv,
+   "florence"sv, "gustavo"sv, "henrick"sv,  "ian"sv,     "julia"sv,   "kelvin"sv, "lea"sv,
+   "michael"sv,  "norbert"sv, "oscar"sv,    "pedro"sv,   "quentin"sv, "rosie"sv,  "sophia"sv,
+   "tristan"sv,  "ulysses"sv, "victoria"sv, "william"sv, "xavier"sv,  "yusuf"sv,  "zoey"sv};
+
+template <>
+struct fallback_name_table< Player > {
+   [[nodiscard]] static constexpr std::string_view name(Player value)
+   {
+      return table_lookup(player_values, player_names, value);
+   }
+   [[nodiscard]] static constexpr std::optional< Player > parse(std::string_view str)
+   {
+      return table_parse(player_values, player_names, str);
+   }
+};
+
+constexpr std::array stochasticity_values{
+   Stochasticity::deterministic,
+   Stochasticity::sample,
+   Stochasticity::choice};
+constexpr std::array stochasticity_names{"deterministic"sv, "sample"sv, "choice"sv};
+
+template <>
+struct fallback_name_table< Stochasticity > {
+   [[nodiscard]] static constexpr std::string_view name(Stochasticity value)
+   {
+      return table_lookup(stochasticity_values, stochasticity_names, value);
+   }
+   [[nodiscard]] static constexpr std::optional< Stochasticity > parse(std::string_view str)
+   {
+      return table_parse(stochasticity_values, stochasticity_names, str);
+   }
+};
 
 }  // namespace detail
 
@@ -133,33 +187,18 @@ template < typename E >
    requires std::is_enum_v< E >
 [[nodiscard]] constexpr std::string_view enum_name(E value)
 {
-   return detail::builtin_enumerator_name(value);
+   return detail::fallback_name_table< E >::name(value);
 }
 
 /**
- * @brief Fallback name lookup via a bounded scan over the underlying integer
- * representation.
- *
- * Note: unlike the reflected path, this fallback can only find enumerators
- * whose value lies in [-8, 256).
+ * @brief Fallback lookup. Note: only nor::Player and nor::Stochasticity are
+ * supported without reflection; all other enums resolve to nullopt.
  */
 template < typename E >
    requires std::is_enum_v< E >
 [[nodiscard]] constexpr std::optional< E > enum_from_name(std::string_view name)
 {
-   using Base = std::underlying_type_t< E >;
-   constexpr Base lower = -8;
-   constexpr Base upper = 256;
-   for(Base base = lower;; ++base) {
-      const E candidate = static_cast< E >(base);
-      if(detail::builtin_enumerator_name(candidate) == name) {
-         return candidate;
-      }
-      if(base == upper - 1) {
-         break;
-      }
-   }
-   return std::nullopt;
+   return detail::fallback_name_table< E >::parse(name);
 }
 
 #endif  // NOR_REFLECTION
