@@ -31,9 +31,19 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy >::_sanity_check_config
             or config.weighting != MCCFRWeightingMode::stochastic
          );
          // clang-format on
-         return pruning_in_non_full_traversal_modes or ext_sampling_bad_combo;
-      }),
+      return pruning_in_non_full_traversal_modes or ext_sampling_bad_combo;
+   }),
       "Config did not pass the check for correctness."
+   );
+   static_assert(
+      not(config.variance_reduced_baselines and config.update_mode != UpdateMode::alternating),
+      "VR-MCCFR baselines are currently restricted to alternating updates. Under "
+      "simultaneous updates the baseline-corrected low-variance increments make both "
+      "players' current policies chase each other within a single trajectory, and "
+      "average-strategy convergence stalls (empirically established on Kuhn poker for "
+      "epsilon-on-policy exploration >= 0.3 across baseline rates beta in {0, 0.01, "
+      "0.03, 0.1, 1}: exploitability plateaus near 0.11-0.23 instead of descending). "
+      "Alternating updates damp the chase and converge fast."
    );
 };
 
@@ -375,15 +385,15 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    );
 
    // ---- VR-MCCFR quantities (Schmid et al., AAAI 2019, eqs (7)-(11)) ----
-   // Only materialized where the active player's own value stream exists: at
-   // every actual player's infoset under simultaneous updates, and at the
-   // updating player's infosets under alternating updates (opponent streams
-   // are not carried by this implementation's alternating traversal).
+   // Applied at the updating player's infosets only (the configuration is
+   // restricted to alternating updates, see _sanity_check_config): these are
+   // exactly the nodes where this implementation materializes the updater's
+   // own value stream.
    [[maybe_unused]] double vr_sampled_value = 0.;  // eq (9) sampled branch
    [[maybe_unused]] double vr_cf_weight = 0.;      // eq (11) factor pi_-i(h)/q(h)
    [[maybe_unused]] bool vr_active = false;
    if constexpr(config.variance_reduced_baselines) {
-      vr_active = _epsilon_mixed_sampling_active(player_to_update, active_player);
+      vr_active = active_player == player_to_update.value();
    }
    if constexpr(config.variance_reduced_baselines) {
       if(vr_active) {
@@ -433,23 +443,15 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    };
 
    if constexpr(config.update_mode == UpdateMode::simultaneous) {
-      if constexpr(config.variance_reduced_baselines) {
-         // under simultaneous updates every actual player's infoset is a
-         // VR update site (vr_active is always true here)
-         _update_regrets_variance_reduced(
-            infonode_data, actions, action_policy, sampled_action, vr_cf_weight, vr_sampled_value
-         );
-      } else {
-         _update_regrets(
-            reach_probability,
-            active_player,
-            infonode_data,
-            sampled_action,
-            Probability{action_policy_prob},
-            StateValue{action_value_map.get()[active_player]},
-            tail_prob
-         );
-      }
+      _update_regrets(
+         reach_probability,
+         active_player,
+         infonode_data,
+         sampled_action,
+         Probability{action_policy_prob},
+         StateValue{action_value_map.get()[active_player]},
+         tail_prob
+      );
 
       _update_average_policy(
          *infostate,

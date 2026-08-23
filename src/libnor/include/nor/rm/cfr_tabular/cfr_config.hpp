@@ -124,7 +124,10 @@ struct MCCFRConfig {
    /// valued by their baselines, regrets accumulate v̂ᵇ(I,a) − v̂ᵇ(I) per
    /// action, and the σ-weighted mixture propagates bootstrapped up the
    /// single sampled trajectory. Unbiased for any positive sampling rule,
-   /// including ε-on-policy exploration.
+   /// including ε-on-policy exploration. Requires alternating updates
+   /// (enforced statically); under simultaneous updates the low-variance
+   /// increments make both players' policies chase each other within one
+   /// trajectory and average-strategy convergence stalls.
    /// Orthogonal to all other config axes; when false the generated code is
    /// identical to the plain outcome-sampling scheme.
    bool variance_reduced_baselines = false;
