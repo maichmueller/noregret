@@ -26,6 +26,17 @@ inline constexpr std::array< std::string_view, 6 > fosg_member_type_names{
    "chance_outcome_type"};
 
 /**
+ * @brief Compile-time check whether T declares a TYPE member with the given
+ * plain identifier (non-template convenience overload of
+ * has_member_type<T, fixed_str>).
+ */
+template < typename T >
+consteval bool has_member_type(std::string_view name)
+{
+   return not (member_type_or_void(^^T, name) == std::meta::info{});
+}
+
+/**
  * @brief static_assert-friendly check whether Env declares every required FOSG
  * member type.
  */
@@ -38,17 +49,6 @@ consteval bool has_all_fosg_members()
       }
    }
    return true;
-}
-
-/**
- * @brief Compile-time check whether T declares a TYPE member with the given
- * plain identifier (non-template convenience overload of
- * has_member_type<T, fixed_str>).
- */
-template < typename T >
-consteval bool has_member_type(std::string_view name)
-{
-   return not (member_type_or_void(^^T, name) == std::meta::info{});
 }
 
 struct fosg_member_report {

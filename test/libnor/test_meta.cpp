@@ -8,6 +8,7 @@
 
 #include "common/common.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/meta/auto_types.hpp"
 #include "nor/meta/diagnostics.hpp"
 #include "nor/meta/enum_names.hpp"
 #include "nor/meta/features.hpp"
