@@ -151,6 +151,55 @@ class LeducConfig {
       );
    }
 
+   /// "Big Leduc" poker benchmark as a plain configuration of this (otherwise unchanged) Leduc
+   /// state machine.
+   ///
+   /// Transcribed parameters (sources cross-checked):
+   /// - HS-schedules paper "Faster Game Solving via Hyperparameter Schedules"
+   ///   (arXiv:2404.09097, App. C, both v1 & v2): "Big Leduc poker ... a more complex version of
+   ///   Leduc poker with twenty-four cards divided into twelve ranks [and two suits] ...
+   ///   allows a maximum of six raises per round."
+   /// - DDCFR (Xu et al., ICLR 2024) appendix + its reference implementation
+   ///   (PokerRL `BigLeduc`/`BigLeducRules`, which both DDCFR and the HS paper used for their
+   ///   Big-Leduc experiments): deck = 12 ranks x 2 suits (= 24 cards), ONE private card per
+   ///   player, one community (flop) card, ante of 1, fixed-limit bet ladder {2} (round 1) and
+   ///   {4} (round 2), max 6 bets/raises per round.
+   /// NOTE: contrary to occasional secondhand descriptions suggesting two hole cards, every
+   /// primary source above deals exactly one private card; the showdown rule therefore carries
+   /// over from standard Leduc verbatim: a hole card pairing the flop beats any non-pair,
+   /// otherwise the higher hole card wins, and equal-strength hands split the pot evenly.
+   static LeducConfig big_leduc(
+      size_t n_players = 2,
+      Player starting_player = Player::one,
+      size_t n_raises_allowed = 6,
+      double blind = 1.0,
+      std::vector< Card > available_cards =
+         [] {
+            // 12 consecutive ranks x 2 suits. PokerRL displays these ranks as "2".."K"; only the
+            // relative order of ranks is game-theoretically meaningful.
+            constexpr auto first_rank = Rank::two;
+            std::vector< Card > deck;
+            deck.reserve(24);
+            for(int r = 0; r < 12; ++r) {
+               auto rank = Rank(static_cast< int >(first_rank) + r);
+               deck.emplace_back(rank, Suit::clubs);
+               deck.emplace_back(rank, Suit::diamonds);
+            }
+            return deck;
+         }()
+   )
+   {
+      return LeducConfig(
+         n_players,
+         starting_player,
+         n_raises_allowed,
+         blind,
+         /*bet_sizes_round_one=*/{2.},
+         /*bet_sizes_round_two=*/{4.},
+         std::move(available_cards)
+      );
+   }
+
   public:
    size_t n_players;
    Player starting_player;
