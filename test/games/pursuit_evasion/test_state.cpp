@@ -62,11 +62,10 @@ TEST_F(PEGraph, patrol_edges_symmetric_and_confined_to_their_areas)
    }
    // every grey dashed edge stays inside ONE patrol area
    for(const auto& edge : k_patrol_edges) {
-      EXPECT_TRUE(
-         in_patrol1(edge.from) && in_patrol1(edge.to)
-         || in_patrol2(edge.from) && in_patrol2(edge.to)
-      ) << "patrol edge crossing areas: "
-        << unsigned(edge.from) << "-" << unsigned(edge.to);
+      const bool within_p1 = in_patrol1(edge.from) && in_patrol1(edge.to);
+      const bool within_p2 = in_patrol2(edge.from) && in_patrol2(edge.to);
+      EXPECT_NE(within_p1, within_p2)
+         << "patrol edge crossing areas: " << unsigned(edge.from) << "-" << unsigned(edge.to);
    }
    EXPECT_EQ(k_patrol_edges.size(), 4u);
    // the areas are disjoint and exclude exits + the middle column
