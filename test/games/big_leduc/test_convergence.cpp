@@ -37,13 +37,13 @@ struct SparseAveragePolicy {
    using action_type = Action;
    using info_state_type = Infostate;
 
-   const avg_table_type* table;
+   avg_table_type table;
 
-   explicit SparseAveragePolicy(const avg_table_type& t) : table(&t) {}
+   explicit SparseAveragePolicy(const avg_table_type& t) : table(t) {}
 
    [[nodiscard]] action_policy_type at(const Infostate& infostate) const
    {
-      if(auto found = table->find(infostate); found != table->end()) {
+      if(auto found = table.find(infostate); found != table.end()) {
          return normalize_action_policy(found->second);
       }
       static const std::function< double() > half = [] { return 0.5; };
@@ -53,7 +53,7 @@ struct SparseAveragePolicy {
    {
       return at(infostate);
    }
-   [[nodiscard]] size_t size() const { return table->size(); }
+   [[nodiscard]] size_t size() const { return table.size(); }
 };
 
 template < typename Solver >
@@ -64,8 +64,10 @@ double exploitability_of_average_policies(Solver& solver)
       Environment{},
       leduc::State{leduc::LeducConfig::big_leduc()},
       nor::player_hashmap< SparseAveragePolicy >{
-         std::pair{nor::Player::alex, SparseAveragePolicy(avg_policies.at(nor::Player::alex))},
-         std::pair{nor::Player::bob, SparseAveragePolicy(avg_policies.at(nor::Player::bob))}}
+         std::pair{
+            nor::Player::alex, SparseAveragePolicy(avg_policies.at(nor::Player::alex).table())},
+         std::pair{
+            nor::Player::bob, SparseAveragePolicy(avg_policies.at(nor::Player::bob).table())}}
    );
 }
 
