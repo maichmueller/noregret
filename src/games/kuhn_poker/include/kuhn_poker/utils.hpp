@@ -29,9 +29,10 @@ constexpr common::CEBijection< Action, std::string_view, 2 > action_name_bij = {
    std::pair{Action::check, "check"},
    std::pair{Action::bet, "bet"}};
 
-constexpr common::CEBijection< Player, std::string_view, 2 > player_name_bij = {
+constexpr common::CEBijection< Player, std::string_view, 3 > player_name_bij = {
    std::pair{Player::one, "one"},
-   std::pair{Player::two, "two"}};
+   std::pair{Player::two, "two"},
+   std::pair{Player::three, "three"}};
 
 }  // namespace kuhn
 
