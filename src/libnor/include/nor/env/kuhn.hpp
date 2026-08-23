@@ -2,7 +2,7 @@
 #ifndef NOR_ENV_KUHN_HPP
 #define NOR_ENV_KUHN_HPP
 
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <string>
 #include <vector>
 

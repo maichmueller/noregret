@@ -30,7 +30,7 @@ auto map_histories_to_infostates(
       auto operator()(const history_type& hist_vec) const noexcept
       {
          size_t hash = 0;
-         ranges::for_each(hist_vec, [&](const action_variant_type& av) {
+         std::ranges::for_each(hist_vec, [&](const action_variant_type& av) {
             common::hash_combine(
                hash,
                std::visit(
@@ -79,7 +79,7 @@ auto map_histories_to_infostates(
       auto child_action_sequence = visit_data.action_sequence;
       infostate_map_type child_istates_map;
       std::vector< info_state_type > copied_istates;
-      for(const auto& istate_ptr : visit_data.istate_map | ranges::views::values) {
+      for(const auto& istate_ptr : visit_data.istate_map | std::views::values) {
          copied_istates.emplace_back(*istate_ptr);
       }
       // add the last action to the action sequence vector

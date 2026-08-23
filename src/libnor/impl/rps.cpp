@@ -54,7 +54,7 @@ std::vector< PlayerInformedType< Environment::action_variant_type > > Environmen
 ) const
 {
    std::vector< PlayerInformedType< action_variant_type > > out;
-   for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
+   for(auto&& [i, outcome_opt] : std::views::enumerate(wstate.picks())) {
       if(outcome_opt.has_value()) {
          out.emplace_back(*outcome_opt, Player(i));
       }
@@ -66,7 +66,7 @@ std::vector< PlayerInformedType< std::optional< Environment::action_variant_type
 Environment::private_history(Player, const Environment::world_state_type& wstate) const
 {
    std::vector< PlayerInformedType< std::optional< action_variant_type > > > out;
-   for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.picks())) {
+   for(auto&& [i, outcome_opt] : std::views::enumerate(wstate.picks())) {
       if(outcome_opt.has_value()) {
          out.emplace_back(action_type{*outcome_opt}, Player(i));
       } else {

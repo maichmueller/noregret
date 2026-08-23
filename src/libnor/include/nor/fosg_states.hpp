@@ -2,7 +2,7 @@
 #ifndef NOR_FOSG_STATES_HPP
 #define NOR_FOSG_STATES_HPP
 
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -53,7 +53,7 @@ class DefaultPublicstate {
       requires std::is_same_v< observation_type, std::string >
    {
       return _build_string([this](std::string& str) {
-         for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
+         for(const auto& [pos, observation] : std::views::enumerate(m_history)) {
             const auto& [pub_obs, priv_obs] = observation;
             fmt::format_to(std::back_inserter(str), "{}\n{}", pub_obs, priv_obs);
          };
@@ -65,7 +65,7 @@ class DefaultPublicstate {
    {
       using namespace fmt::literals;
       return _build_string([this](std::string& str) {
-         for(const auto& [pos, observation] : ranges::views::enumerate(m_history)) {
+         for(const auto& [pos, observation] : std::views::enumerate(m_history)) {
             const auto& [pub_obs, priv_obs] = observation;
             fmt::format_to(
                std::back_inserter(str),
@@ -84,7 +84,7 @@ class DefaultPublicstate {
       if(size() != other.size()) {
          return false;
       }
-      return ranges::all_of(ranges::views::zip(m_history, other.history()), [](const auto& pair) {
+      return std::ranges::all_of(std::views::zip(m_history, other.history()), [](const auto& pair) {
          return std::get< 0 >(pair) == std::get< 1 >(pair);
       });
    }
@@ -156,7 +156,11 @@ class DefaultInfostate {
       constexpr size_t avg_string_size_expectation = 500;
       std::string str{};
       str.reserve(size() * avg_string_size_expectation);
-      for(const auto& observation : m_history | ranges::views::drop_last(1)) {
+      const auto n_dropped_entries = size_t{1};
+      const auto n_print_entries = m_history.size() < n_dropped_entries
+                                      ? m_history.size()
+                                      : m_history.size() - n_dropped_entries;
+      for(const auto& observation : m_history | std::views::take(n_print_entries)) {
          const auto& [pub_obs, priv_obs] = observation;
          fmt::format_to(
             std::back_inserter(str),
@@ -191,8 +195,8 @@ class DefaultInfostate {
       if(size() != other.size() or m_player != other.player()) {
          return false;
       }
-      return ranges::all_of(
-         ranges::views::zip(m_history, other.history()),
+      return std::ranges::all_of(
+         std::views::zip(m_history, other.history()),
          [](const auto& pair_of_pairs) {
             const auto& [pair1, pair2] = pair_of_pairs;
             const auto& [public_obs_1, private_obs_1] = pair1;

@@ -2,7 +2,7 @@
 #ifndef NOR_ENV_LEDUC_HPP
 #define NOR_ENV_LEDUC_HPP
 
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -87,8 +87,8 @@ class Environment {
       auto rem_players = wstate.remaining_players();
       std::vector< Player > vec_out;
       vec_out.reserve(rem_players.size());
-      ranges::copy(
-         rem_players | ranges::views::transform([](auto p) { return Player(p); }),
+      std::ranges::copy(
+         rem_players | std::views::transform([](auto p) { return Player(p); }),
          std::back_inserter(vec_out)
       );
       return vec_out;

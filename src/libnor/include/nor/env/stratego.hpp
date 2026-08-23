@@ -2,7 +2,7 @@
 #ifndef NOR_ENV_STRATEGO_HPP
 #define NOR_ENV_STRATEGO_HPP
 
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <string>
 #include <vector>
 

@@ -132,7 +132,7 @@ Environment::public_history(const world_state_type& wstate) const
 //    std::vector< Position > hole_pos;
 //    auto lines = nor::split(latest_state_obs, line_delimiter);
 //    auto active_team = stratego::from_string< Team >(lines.front());
-//    for(auto line : ranges::span(lines).subspan(2)) {
+//    for(auto line : std::span{lines}.subspan(2)) {
 //       auto piece_infos = nor::split(line, segment_delimiter);
 //       Position pos = position_parser(piece_infos[0]);
 //       Team team = stratego::from_string< Team >(piece_infos[1]);
@@ -156,15 +156,19 @@ std::string observation(const State& state, std::optional< Player > observing_pl
    // start the infostate with the active player at the state followed by the turn count
    ss << "Active team:" << state.active_team() << "\n";
    ss << "Turn count:" << state.turn_count() << "\n";
-   ss << "Board dims:" << (state.config().game_dims | ranges::views::all) << "\n";
+   ss << "Board dims:";
+   common::print_bracketed(ss, state.config().game_dims);
+   ss << "\n";
 
    for(auto team : std::set{Team::BLUE, Team::RED}) {
-      ss << "Graveyard " << common::to_string(team) << ":"
-         << (state.graveyard(team) | ranges::views::keys) << "|"
-         << (state.graveyard(team) | ranges::views::values) << "\n";
+      ss << "Graveyard " << common::to_string(team) << ":";
+      common::print_bracketed(ss, state.graveyard(team) | std::views::keys);
+      ss << "|";
+      common::print_bracketed(ss, state.graveyard(team) | std::views::values);
+      ss << "\n";
    }
    ss << "Action History:[";
-   for(const auto& [_, action, __] : state.history().elements_map() | ranges::views::values) {
+   for(const auto& [_, action, __] : state.history().elements_map() | std::views::values) {
       ss << common::to_string(action) << ", ";
    }
    ss << "]\n";

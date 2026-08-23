@@ -3,8 +3,7 @@
 #define NOR_CONCRETE_HPP
 
 #include <concepts>
-#include <range/v3/all.hpp>
-// #include <ranges>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -15,6 +14,23 @@
 #include "nor/game_defs.hpp"
 #include "traits.hpp"
 
+namespace nor::concepts::detail {
+
+/// detects types that yield key/value pairs upon iteration, i.e. references
+/// exposing a '.first' and '.second' member (e.g. std::map/unordered_map
+/// elements). This replaces range-v3's ranges::detail::kv_pair_like_.
+template < typename Ref >
+concept kv_pair_like = requires(const std::remove_reference_t< Ref >& ref) {
+   {
+      ref.first
+   };
+   {
+      ref.second
+   };
+};
+
+}  // namespace nor::concepts::detail
+
 namespace nor::concepts {
 
 template < typename T, typename... Args >
@@ -22,7 +38,7 @@ concept brace_initializable = requires(Args&&... args) { T{std::forward< Args >(
 
 template < typename T >
 // clang-format off
-concept iterable = ranges::range<T> and ranges::range<const T>;
+concept iterable = std::ranges::range<T> and std::ranges::range<const T>;
 // clang-format on
 
 template < typename Map >
@@ -48,24 +64,15 @@ concept map_specced = map< Map > && std::same_as< KeyType, typename Map::key_typ
                       && std::same_as< MappedType, typename Map::mapped_type >;
 
 template < typename MapLike >
-concept mapping = (not common::is_specialization_v< MapLike, ranges::ref_view >) and ranges::
-   detail::kv_pair_like_< ranges::range_reference_t< MapLike > >;
-//   // the first condition is merely a patch for a (IMO) bug associated with the range
-//   // library: https://stackoverflow.com/q/74263486/6798071
-//   and requires(MapLike m) {
-//      // has to be key-value-like
-//      // to iterate over values and
-//      // keys only repsectively
-////      ranges::views::keys(m);
-////      ranges::views::values(m);
-//   };
+concept mapping = (not common::is_specialization_v< MapLike, std::ranges::ref_view >) and detail::
+   kv_pair_like< std::ranges::range_reference_t< MapLike > >;
 
 template < typename MapLike, typename KeyType >
 concept maps = mapping< MapLike > and requires(MapLike m) {
    requires std::convertible_to<  // given key type has to be
                                   // convertible to actual key type
       KeyType,
-      std::remove_cvref_t< decltype(*(ranges::views::keys(m).begin())) > >;
+      std::remove_cvref_t< decltype(*(std::views::keys(m).begin())) > >;
 };
 
 template < typename MapLike, typename MappedType = double >
@@ -74,7 +81,7 @@ concept mapping_of = requires(MapLike m) {
    // mapped type has to be convertible to the value type
    requires std::is_convertible_v<
       MappedType,
-      std::remove_cvref_t< decltype(*(ranges::views::values(m).begin())) > >;
+      std::remove_cvref_t< decltype(*(std::views::values(m).begin())) > >;
 };
 
 template < typename T >

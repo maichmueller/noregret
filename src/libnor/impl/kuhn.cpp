@@ -68,7 +68,7 @@ Environment::observation_type Environment::tiny_repr(const world_state_type& wst
          first = false;
       }
    }
-   for(auto [idx, action] : ranges::views::enumerate(wstate.history())) {
+   for(auto [idx, action] : std::views::enumerate(wstate.history())) {
       if(not first) {
          ss << "-";
       }
@@ -85,7 +85,7 @@ Environment::private_history(Player player, const world_state_type& wstate) cons
    auto action_history = wstate.history();
    const auto& actors = wstate.history_actors();
    out.reserve(action_history.size() + 2);
-   for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.cards())) {
+   for(auto&& [i, outcome_opt] : std::views::enumerate(wstate.cards())) {
       if(not outcome_opt.has_value()) {
          // the card has not been set yet, so we just return, as there is no further history
          break;
@@ -97,7 +97,7 @@ Environment::private_history(Player player, const world_state_type& wstate) cons
          out.emplace_back(std::nullopt, Player::chance);
       }
    }
-   for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
+   for(auto&& [i, action_or_outcome] : std::views::enumerate(action_history)) {
       // NOTE: the acting player of an entry is *not* generally its position index. Betting
       // proceeds cyclically and players skip turns once folded (or while waiting to respond
       // to a bet), so each entry carries its own actor.
@@ -120,7 +120,7 @@ std::vector< PlayerInformedType< Environment::action_variant_type > > Environmen
    auto action_history = wstate.history();
    const auto& actors = wstate.history_actors();
    out.reserve(action_history.size() + 2);
-   for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
+   for(auto&& [i, action] : std::views::enumerate(action_history)) {
       out.emplace_back(action, to_nor_player(actors[i]));
    }
    out.shrink_to_fit();
@@ -136,13 +136,13 @@ Environment::public_history(const world_state_type& wstate) const
    out.reserve(action_history.size() + wstate.player_count());
    // every private card stays hidden in the public history (dealt cards appear as empty
    // entries tagged with the chance player)
-   for(auto&& [i, outcome_opt] : ranges::views::enumerate(wstate.cards())) {
+   for(auto&& [i, outcome_opt] : std::views::enumerate(wstate.cards())) {
       if(not outcome_opt.has_value()) {
          break;
       }
       out.emplace_back(std::nullopt, Player::chance);
    }
-   for(auto&& [i, action_or_outcome] : ranges::views::enumerate(action_history)) {
+   for(auto&& [i, action_or_outcome] : std::views::enumerate(action_history)) {
       out.emplace_back(action_or_outcome, to_nor_player(actors[i]));
    }
    out.shrink_to_fit();
