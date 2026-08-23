@@ -75,4 +75,12 @@ if(ENABLE_GAMES)
         goofspiel
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        liars_dice
+        INCLUDE_DIR
+        liars_dice
+        LINK_LIBRARY
+        liars_dice
+        SOURCE_FILES
+        test_state.cpp)
 endif()

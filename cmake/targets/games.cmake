@@ -56,6 +56,16 @@ target_include_directories(kuhn_poker PUBLIC ${PROJECT_GAMES_DIR}/kuhn_poker/inc
 target_link_libraries(kuhn_poker PUBLIC required_min_libs common range-v3::range-v3)
 
 # ######################################################################################################################
+# Liar's Dice (header-only)
+# ######################################################################################################################
+
+add_library(liars_dice INTERFACE)
+
+target_include_directories(liars_dice INTERFACE ${PROJECT_GAMES_DIR}/liars_dice/include)
+
+target_link_libraries(liars_dice INTERFACE required_min_libs common range-v3::range-v3)
+
+# ######################################################################################################################
 # Texas Hold'em Poker
 # ######################################################################################################################
 
