@@ -11,6 +11,54 @@
 
 namespace nor::rm {
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////// prediction shift policies //////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief prediction-shift policies of the predictive minimizer.
+ *
+ * A Shift maps the buffered instantaneous regret rho(I,a) of an action to the
+ * prediction term that the PRM+ recommendation adds on top of the clipped
+ * cumulative regret:
+ *    theta(a) = max(0, clip(z)(a) + Shift{}(rho(a)))
+ *
+ * Upcoming CFR variants (APCFR+/P2PCFR+/LNR) plug in their own Shift types;
+ * the two canned policies below reproduce PCFR+ and SAPCFR+ bit-compatibly.
+ */
+template < typename Shift >
+concept prediction_shift = std::regular_invocable< Shift, double >
+                           and std::convertible_to< std::invoke_result_t< Shift, double >, double >;
+
+/// persistence prediction at full weight: shift = rho. This is PCFR+
+/// (prediction scale s = 1).
+struct IdentityShift {
+   [[nodiscard]] constexpr double operator()(double instant_regret) const noexcept
+   {
+      return instant_regret;
+   }
+};
+
+/// constant-damped persistence prediction: shift = ScaleFactor * rho.
+/// The SAPCFR+ robustification is the instance with ScaleFactor = 1/(1 + alpha)
+/// for alpha = 2 (arXiv:2503.12770), i.e. only the prediction term is damped
+/// while the raw instantaneous regret contribution stays unscaled.
+template < double ScaleFactor >
+struct ConstantShift {
+   static constexpr double scale = ScaleFactor;
+
+   [[nodiscard]] constexpr double operator()(double instant_regret) const noexcept
+   {
+      return scale * instant_regret;
+   }
+};
+
+/// robustification factor alpha of SAPCFR+ (arXiv:2503.12770)
+inline constexpr double sap_alpha = 2.;
+
+/// the SAPCFR+ prediction-shift policy: s = 1 / (1 + alpha), alpha = 2
+using SapPredictionShift = ConstantShift< 1. / (1. + sap_alpha) >;
+
 /**
  * @brief predictive regret matching plus (PCFR+) regret minimizer.
  *
@@ -51,9 +99,10 @@ namespace nor::rm {
  * payoff v^t = <m^t, x^{t-1}>1 - m^t collapses analytically to the last
  * observed instantaneous regret vector rho (this is the principled version of
  * 'counting the last regret vector twice', cf. the remark on Brown &
- * Sandholm's heuristic in section 7 of the paper). For the SAP variant only
- * the prediction term is damped, s = 1/(1 + alpha) with alpha = 2
- * (arXiv:2503.12770); otherwise s = 1.
+ * Sandholm's heuristic in section 7 of the paper). The prediction term's scale
+ * is carried by the 'Shift' template parameter: IdentityShift (s = 1)
+ * reproduces PCFR+ and SapPredictionShift (s = 1/(1 + alpha), alpha = 2)
+ * reproduces SAPCFR+ (arXiv:2503.12770) bit-compatibly.
  *
  * Integration contract with rm::VanillaCFR: since recommend() copies its
  * output distribution into sigma_snap BEFORE returning and the solver calls
@@ -65,12 +114,9 @@ namespace nor::rm {
  * initialized, hence theta vanishes identically and sigma^1 falls back to the
  * uniform distribution (the m^1 = 0 requirement).
  */
-template < concepts::action Action, bool SapRobustified = false >
+template < concepts::action Action, prediction_shift Shift = IdentityShift >
 struct PredictiveRegretMatchingPlus {
-   /// robustification factor alpha of SAPCFR+ (arXiv:2503.12770). Only the
-   /// prediction shift (<rho, sigma_snap> - rho) is damped by 1/(1 + alpha)
-   /// while the raw instantaneous regret contribution stays unscaled.
-   static constexpr double sap_alpha = 2.;
+   using shift_type = Shift;
 
    struct node_data_type {
       detail::action_registry< Action > registry;
@@ -122,11 +168,11 @@ struct PredictiveRegretMatchingPlus {
          cumul_regret = std::max(0., cumul_regret);
       }
 
-      const double shift_scale = SapRobustified ? 1. / (1. + sap_alpha) : 1.;
+      const constexpr Shift shift{};
 
       // theta(a) = clip(z)(a) + s * rho(a), clamped from below at 0
       const auto predicted_regret = [&](auto idx, double cumul_regret) {
-         return cumul_regret + shift_scale * data.instant_regret[idx];
+         return cumul_regret + shift(data.instant_regret[idx]);
       };
 
       // first pass: normalizer over the positive parts of the predicted regret.
@@ -167,7 +213,7 @@ struct PredictiveRegretMatchingPlus {
 
 /// alias for the SAPCFR+-robustified flavor of the predictive minimizer
 template < concepts::action Action >
-using SAPPredictiveRegretMatchingPlus = PredictiveRegretMatchingPlus< Action, true >;
+using SAPPredictiveRegretMatchingPlus = PredictiveRegretMatchingPlus< Action, SapPredictionShift >;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////// concept conformance checks ////////////////////////////////////////

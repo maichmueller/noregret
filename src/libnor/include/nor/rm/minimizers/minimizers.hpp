@@ -470,7 +470,7 @@ consteval auto select_vanilla_minimizer()
          /*discount_regrets=*/false > >{};
    } else if constexpr(rm_mode == RegretMinimizingMode::sap_predictive_regret_matching_plus) {
       return std::type_identity< DiscountedCFR<
-         PredictiveRegretMatchingPlus< Action, true >,
+         SAPPredictiveRegretMatchingPlus< Action >,
          /*discount_regrets=*/false > >{};
    } else if constexpr(weighting == CFRWeightingMode::exponential) {
       return std::type_identity< ExponentialCFR< Action > >{};
