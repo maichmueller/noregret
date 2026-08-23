@@ -112,7 +112,7 @@ void best_response_impl< config, Env >::_run(
          // if one of the infostates is missing then all must be missing or empty, otherwise we
          // have different information states for each player which would lead to inconsistencies
          if(not root_infostates.empty()
-            or ranges::any_of(root_infostates | ranges::views::values, [](const auto& infostate) {
+            or std::ranges::any_of(root_infostates | std::views::values, [](const auto& infostate) {
                   return infostate.size() > 0;
                })) {
             throw std::invalid_argument(
@@ -292,10 +292,9 @@ void best_response_impl< config, Env >::_compute_best_responses(
       }
    };
    for(const auto& infostate :
-       m_infostate_children_map | ranges::views::keys
-          | ranges::views::filter([&](const auto& istate) {
-               return not fetch_player_br_map(istate.player()).contains(istate);
-            })) {
+       m_infostate_children_map | std::views::keys | std::views::filter([&](const auto& istate) {
+          return not fetch_player_br_map(istate.player()).contains(istate);
+       })) {
 #ifndef NDEBUG
       // we compute best-responses only for the br player
       if(not common::isin(infostate.player(), m_br_players)) {
@@ -318,8 +317,8 @@ auto best_response_impl< config, Env >::_best_response(const info_state_type& in
    std::optional< action_type > best_action = std::nullopt;
    double state_value = std::numeric_limits< double >::lowest();
    for(const auto& [action_variant, node_vec] : m_infostate_children_map.at(infostate)) {
-      double action_value = ranges::accumulate(
-         node_vec | ranges::views::transform([&](WorldNode* child_node_uptr) {
+      double action_value = std::ranges::fold_left(
+         node_vec | std::views::transform([&](WorldNode* child_node_uptr) {
             return _value(*child_node_uptr).at(best_responder) * child_node_uptr->opp_reach_prob;
          }),
          double(0.),

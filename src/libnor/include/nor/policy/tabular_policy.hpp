@@ -3,7 +3,7 @@
 #define NOR_TABULAR_POLICY_HPP
 
 #include <concepts>
-#include <range/v3/all.hpp>
+#include <ranges>
 
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"

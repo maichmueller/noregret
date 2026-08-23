@@ -270,13 +270,13 @@ struct ExponentialCFR {
       // L1(I, a) = exp(r(I, a) - mean_r(I)); computed before mutating anything
       auto l1_weights = std::invoke([&] {
          per_action_map< Action > l1;
-         double average_instant_regret = ranges::accumulate(
-                                            instant_table | ranges::views::values,
+         double average_instant_regret = std::ranges::fold_left(
+                                            instant_table | std::views::values,
                                             double(0.),
                                             std::plus{}
                                          )
                                          / double(instant_table.size());
-         ranges::for_each(instant_table, [&](const auto& actionref_to_instant_regret) {
+         std::ranges::for_each(instant_table, [&](const auto& actionref_to_instant_regret) {
             const auto& [action_ref, instant_regret] = actionref_to_instant_regret;
             l1[action_ref] = std::exp(instant_regret - average_instant_regret);
          });

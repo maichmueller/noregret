@@ -9,7 +9,7 @@
 #include <map>
 #include <named_type.hpp>
 #include <queue>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <stack>
 #include <unordered_map>
 #include <utility>
@@ -262,7 +262,7 @@ class TabularCFRBase {
          auto traversing_player_rp_is_zero = reach_probability.get().at(traverser)
                                              <= std::numeric_limits< double >::epsilon();
          return traversing_player_rp_is_zero
-                and ranges::any_of(reach_probability.get(), [&](const auto& player_rp_pair) {
+                and std::ranges::any_of(reach_probability.get(), [&](const auto& player_rp_pair) {
                        const auto& [player, rp] = player_rp_pair;
                        return player != traverser
                               and rp <= std::numeric_limits< double >::epsilon();
@@ -272,7 +272,7 @@ class TabularCFRBase {
          // having reach prob 0 would not suffice in the multiplayer case as some average
          // strategy updates of other opponent with reach prob > 0 would be missed in the case
          // of simultaneous updates.
-         return ranges::all_of(reach_probability.get(), [&](const auto& player_rp_pair) {
+         return std::ranges::all_of(reach_probability.get(), [&](const auto& player_rp_pair) {
             const auto& [player, rp] = player_rp_pair;
             return player != Player::chance and rp <= std::numeric_limits< double >::epsilon();
          });
@@ -334,7 +334,8 @@ Player TabularCFRBase< alternating_updates, Env, Policy, AveragePolicy >::_cycle
       ssout << "Given player to update ";
       ssout << player_to_update.value();
       ssout << " is not a member of the update schedule.";
-      ssout << ranges::views::all(m_player_update_schedule) << ".";
+      common::print_bracketed(ssout, m_player_update_schedule);
+      ssout << ".";
       throw std::invalid_argument(ssout.str());
    }
    Player next_to_update = *player_q_iter;

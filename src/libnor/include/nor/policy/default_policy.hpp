@@ -3,7 +3,7 @@
 #define NOR_UNIFORM_POLICY_HPP
 
 #include <concepts>
-#include <range/v3/all.hpp>
+#include <ranges>
 
 #include "nor/concepts.hpp"
 

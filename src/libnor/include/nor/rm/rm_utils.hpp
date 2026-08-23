@@ -4,7 +4,7 @@
 
 #include <execution>
 #include <named_type.hpp>
-#include <range/v3/all.hpp>
+#include <ranges>
 
 #include "common/common.hpp"
 #include "node.hpp"
@@ -38,7 +38,7 @@ using ReachProbabilityMap = fluent::
 template < concepts::mapping_of< double > KVdouble >
 [[nodiscard]] inline double reach_probability(const KVdouble& reach_probability_contributions)
 {
-   auto values_view = reach_probability_contributions | ranges::views::values;
+   auto values_view = reach_probability_contributions | std::views::values;
    return std::reduce(values_view.begin(), values_view.end(), double(1.), std::multiplies{});
 }
 /**
@@ -53,16 +53,16 @@ template < concepts::mapping_of< double > KVdouble >
 template < concepts::mapping_of< double > KVdouble >
    requires requires(KVdouble m) {
       // the keys have to of type 'Player' as well
-      std::is_convertible_v< decltype(*(ranges::views::keys(m).begin())), Player >;
+      std::is_convertible_v< decltype(*(std::views::keys(m).begin())), Player >;
    }
 inline double
 cf_reach_probability(const Player& player, const KVdouble& reach_probability_contributions)
 {
    auto values_view = reach_probability_contributions
-                      | ranges::views::filter([&](const auto& player_rp_pair) {
+                      | std::views::filter([&](const auto& player_rp_pair) {
                            return std::get< 0 >(player_rp_pair) != player;
                         })
-                      | ranges::views::values;
+                      | std::views::values;
    return std::reduce(values_view.begin(), values_view.end(), double(1.), std::multiplies{});
 }
 

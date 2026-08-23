@@ -41,7 +41,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
 {
    std::vector< std::unordered_map< Player, double > > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
-   for([[maybe_unused]] auto _ : ranges::views::iota(size_t(0), n_iters)) {
+   for([[maybe_unused]] auto _ : std::views::iota(size_t(0), n_iters)) {
       SPDLOG_DEBUG("Iteration number: {}", _iteration());
       std::optional< Player > player_to_update = std::nullopt;
       if constexpr(config.update_mode == UpdateMode::alternating) {
@@ -206,9 +206,9 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimization(
 
    auto node_view = std::invoke([&] {
       if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
-         return ranges::views::all(_infonodes());
+         return std::views::all(_infonodes());
       } else {
-         return ranges::views::all(update_set);
+         return std::views::all(update_set);
       };
    });
    std::for_each(
@@ -308,7 +308,12 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    // we have to clone the infostate to ensure that it is not written to upon further traversal
    // (we need this state after traversal to update policy and regrets)
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      utils::clone_any_way(infostates.get().at(active_player)), infostate_data_type{}
+      // NOTE: materialize the key as the exact key type of the node table. Handing a
+      // unique_ptr to try_emplace compiles under C++20 (implicit shared_ptr conversion)
+      // but selects libstdc++'s C++26 heterogeneous-insertion overload whose lookup path
+      // cannot convert from a unique_ptr lvalue.
+      sptr< info_state_type >{utils::clone_any_way(infostates.get().at(active_player))},
+      infostate_data_type{}
    );
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
@@ -634,8 +639,8 @@ template < bool return_likelihood >
 auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_outcome(const world_state_type& state)
 {
    auto chance_actions = _env().chance_actions(state);
-   auto chance_probabilities = ranges::to< std::unordered_map< chance_outcome_type, double > >(
-      chance_actions | ranges::views::transform([this, &state](const auto& outcome) {
+   auto chance_probabilities = std::ranges::to< std::unordered_map< chance_outcome_type, double > >(
+      chance_actions | std::views::transform([this, &state](const auto& outcome) {
          return std::pair{outcome, _env().chance_probability(state, outcome)};
       })
    );
@@ -711,7 +716,12 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    }
 
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      utils::clone_any_way(infostates.get().at(active_player)), infostate_data_type{}
+      // NOTE: materialize the key as the exact key type of the node table. Handing a
+      // unique_ptr to try_emplace compiles under C++20 (implicit shared_ptr conversion)
+      // but selects libstdc++'s C++26 heterogeneous-insertion overload whose lookup path
+      // cannot convert from a unique_ptr lvalue.
+      sptr< info_state_type >{utils::clone_any_way(infostates.get().at(active_player))},
+      infostate_data_type{}
    );
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
@@ -776,8 +786,8 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
       auto state_value_estimate = std::invoke([&] {
          if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
-            return ranges::accumulate(
-               actions | ranges::views::transform([&](const auto& action) {
+            return std::ranges::fold_left(
+               actions | std::views::transform([&](const auto& action) {
                   return value_estimates.emplace(action, traverse_for_action_value(action))
                             .first->second
                          * action_policy[action];
@@ -905,7 +915,12 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
    auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      utils::clone_any_way(infostates.get().at(active_player)), infostate_data_type{}
+      // NOTE: materialize the key as the exact key type of the node table. Handing a
+      // unique_ptr to try_emplace compiles under C++20 (implicit shared_ptr conversion)
+      // but selects libstdc++'s C++26 heterogeneous-insertion overload whose lookup path
+      // cannot convert from a unique_ptr lvalue.
+      sptr< info_state_type >{utils::clone_any_way(infostates.get().at(active_player))},
+      infostate_data_type{}
    );
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;

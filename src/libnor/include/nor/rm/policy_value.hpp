@@ -38,7 +38,7 @@ struct policy_value_impl {
          return StateValueMap{collect_rewards(env, *state, root_players)};
       }
 
-      if(ranges::all_of(reach_probability.get(), [&](const auto& player_rp_pair) {
+      if(std::ranges::all_of(reach_probability.get(), [&](const auto& player_rp_pair) {
             // A mere check on ONE of the opponents having reach prob 0 and the active player
             // having reach prob 0 would not suffice in the multiplayer case as some average
             // strategy updates of other opponent with reach prob > 0 would be missed
@@ -131,8 +131,8 @@ struct policy_value_impl {
 
       auto& this_infostate = infostate_map.at(active_player);
       auto&& action_policy = policy_profile.at(active_player).at(this_infostate);
-      //      double normalizing_factor = ranges::accumulate(
-      //         action_policy | ranges::views::values, double(0.), std::plus{}
+      //      double normalizing_factor = std::accumulate(
+      //         action_policy | std::views::values, double(0.), std::plus{}
       //      );
       //      if(std::abs(normalizing_factor) < 1e-20) {
       //         throw std::invalid_argument(
