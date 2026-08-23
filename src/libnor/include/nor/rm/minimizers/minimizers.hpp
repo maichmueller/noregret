@@ -479,6 +479,16 @@ struct optimistic_weighting_extras {
    void register_action(const auto&) {}
 };
 
+/// state-action baselines b̂(I, a) for variance-reduced outcome-sampling MCCFR
+/// (Schmid et al., AAAI 2019): one scalar per legal action, regressed onto the
+/// baseline-corrected value estimates of the sampled trajectories visiting I.
+template < concepts::action Action >
+struct vr_baseline_extras {
+   per_action_map< Action > baseline;
+
+   void register_action(const Action& action) { baseline.emplace(std::cref(action), 0.); }
+};
+
 template < MCCFRAlgorithmMode algorithm, MCCFRWeightingMode weighting, concepts::action Action >
 using mccfr_extras_t = std::conditional_t<
    algorithm == MCCFRAlgorithmMode::pure_cfr,
@@ -496,12 +506,18 @@ using mccfr_extras_t = std::conditional_t<
 /**
  * @brief the MCCFR regret minimizer: plain external regret matching on top of
  * whatever per-config extras the sampling/weighting scheme requires.
+ *
+ * The 'variance_reduced' switch additionally attaches the VR-MCCFR
+ * state-action baseline table to every node (Schmid et al., AAAI 2019). It is
+ * kept orthogonal to the weighting extras so that both can be active at once;
+ * when false, 'vr_extras' collapses to the empty struct and costs nothing.
  */
 template <
    concepts::action Action,
    MCCFRAlgorithmMode algorithm,
    MCCFRWeightingMode weighting,
-   RegretMinimizingMode rm_mode = RegretMinimizingMode::regret_matching >
+   RegretMinimizingMode rm_mode = RegretMinimizingMode::regret_matching,
+   bool variance_reduced = false >
 struct MCCFRMinimizer {
    static_assert(
       rm_mode == RegretMinimizingMode::regret_matching,
@@ -509,16 +525,22 @@ struct MCCFRMinimizer {
    );
 
    using extras_type = detail::mccfr_extras_t< algorithm, weighting, Action >;
+   using vr_extras_type = std::
+      conditional_t< variance_reduced, vr_baseline_extras< Action >, detail::no_mccfr_extras >;
 
    struct node_data_type {
       per_action_map< Action > regret;
       [[no_unique_address]] extras_type extras;
+      [[no_unique_address]] vr_extras_type vr_extras;
 
       void register_action(const Action& action)
       {
          regret.emplace(std::cref(action), 0.);
          if constexpr(not std::is_empty_v< extras_type >) {
             extras.register_action(action);
+         }
+         if constexpr(not std::is_empty_v< vr_extras_type >) {
+            vr_extras.register_action(action);
          }
       }
    };
@@ -540,8 +562,12 @@ struct MCCFRMinimizer {
 /// maps an MCCFR configuration onto the concrete regret minimizer type acting
 /// on actions of type 'Action'
 template < MCCFRConfig config, concepts::action Action >
-using mccfr_minimizer_for_t =
-   MCCFRMinimizer< Action, config.algorithm, config.weighting, config.regret_minimizing_mode >;
+using mccfr_minimizer_for_t = MCCFRMinimizer<
+   Action,
+   config.algorithm,
+   config.weighting,
+   config.regret_minimizing_mode,
+   config.variance_reduced_baselines >;
 
 }  // namespace nor::rm
 

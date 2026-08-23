@@ -384,6 +384,22 @@ class MCCFR:
       auto& action_policy
    );
 
+   /**
+    * @brief whether the epsilon-on-policy action mixture is in effect at an
+    * infoset of 'active_player' during the current traversal.
+    *
+    * This mirrors exactly the selection logic inside @see _sample_action: the
+    * mixture epsilon*uniform + (1-epsilon)*policy is sampled at the updating
+    * player's infosets (at every actual player's infosets under simultaneous
+    * updates), while pure on-policy sampling applies elsewhere.
+    */
+   static constexpr bool
+   _epsilon_mixed_sampling_active(std::optional< Player > player_to_update, Player active_player)
+   {
+      return config.update_mode == UpdateMode::simultaneous
+             or active_player == player_to_update.value_or(Player::chance);
+   }
+
    auto _sample_action_on_policy(const std::vector< action_type >& actions, auto& action_policy);
 
    template < bool return_likelihood = true >

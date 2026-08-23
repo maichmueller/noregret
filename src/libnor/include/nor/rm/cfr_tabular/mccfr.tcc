@@ -374,6 +374,61 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       std::move(next_weights)
    );
 
+   if constexpr(config.variance_reduced_baselines) {
+      // ---- VR-MCCFR baseline correction (Schmid, Burch, Lanctot, Moravcik,
+      // Kadlec, Bowling; "Variance Reduction in Monte Carlo Counterfactual
+      // Regret Minimization (VR-MCCFR) for Extensive Form Games Using
+      // Baselines", AAAI 2019) ------------------------------------------
+      //
+      // The value arriving from below, ṽ = u(z)/σ(z) (raw terminal reward
+      // importance-scaled by the full trajectory sampling probability), is an
+      // unbiased but high-variance estimate of q(I, a*). It is replaced by the
+      // control-variate estimate
+      //     v̂(I) = ṽ − b̂(I,a*) + b̄(I),    b̄(I) = Σ_a s(I,a)·b̂(I,a),
+      // where a* is the sampled action and s(I,·) is the ACTUAL sampling
+      // distribution of the trajectory. Since E_{a*~s}[b̂(I,a*)] = b̄(I) by
+      // construction, the correction has zero expectation at every visited
+      // infoset and v̂ stays unbiased -- this is why the scheme survives the
+      // repo's ε-on-policy exploration: taking b̄ under the ε-mixture s =
+      // ε·unif + (1−ε)·σ_t (rather than the raw policy σ_t) makes the
+      // paper's Lemma 2 recursion go through verbatim even for degenerate
+      // exploration draws. The corrected v̂(I) -- not the raw terminal reward
+      // -- is what the PARENT infoset's update consumes further up the single
+      // sampled trajectory (bootstrapped propagation); chance nodes and the
+      // terminal seed propagate values unchanged. Finally, the sampled
+      // action's baseline regresses onto the corrected estimate:
+      //     b̂(I,a*) ← b̂(I,a*) + β·(v̂(I) − b̂(I,a*)).
+      //
+      // Corrections are applied only where the active player's own value
+      // stream actually exists: at every actual player's infoset under
+      // simultaneous updates, and at the updating player's infosets under
+      // alternating updates (opponent streams are not materialized there).
+      if(_epsilon_mixed_sampling_active(player_to_update, active_player)) {
+         auto& baseline_table = infonode_data.data().vr_extras.baseline;
+         const double uniform_prob = 1. / static_cast< double >(actions.size());
+         const double avg_baseline = std::ranges::fold_left(
+            actions | std::views::transform([&](const auto& action) {
+               // the guard above is exactly _sample_action's condition for
+               // drawing a* from the ε-mixture s(I,·) = ε·unif + (1−ε)·σ_t,
+               // hence b̄ integrates over s and cancels b̂(I,a*) in expectation
+               const double sample_prob =
+                  m_epsilon * uniform_prob + (1. - m_epsilon) * action_policy[action];
+               return sample_prob * baseline_table.at(std::cref(action));
+            }),
+            0.,
+            std::plus{}
+         );
+         double& sampled_baseline = baseline_table.at(std::cref(sampled_action));
+         double& player_value = action_value_map.get().at(active_player);
+         const double corrected_value = player_value - sampled_baseline + avg_baseline;
+         sampled_baseline +=
+            config.baseline_update_rate * (corrected_value - sampled_baseline);
+         // propagate the corrected value upward: the parent infoset's regret
+         // update bootstraps from it instead of the raw terminal reward
+         player_value = corrected_value;
+      }
+   }
+
    auto active_weight_param = [&] {
       if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
          return Weight{weights.get()[active_player]};
@@ -622,8 +677,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
    // here we now decide what sampling procedure is exactly executed. It depends on the MCCFR
    // config given and then on the specific algorithm's sampling scheme
    if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-      if((config.update_mode == UpdateMode::simultaneous
-          or active_player == player_to_update.value_or(Player::chance))) {
+      if(_epsilon_mixed_sampling_active(player_to_update, active_player)) {
          // if we do simultaneous updates we need to explore for each player that we update!
          return epsilon_on_policy_sampling();
       } else {
