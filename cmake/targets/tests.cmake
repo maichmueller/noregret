@@ -67,4 +67,12 @@ if(ENABLE_GAMES)
         texas_holdem_poker
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        goofspiel
+        INCLUDE_DIR
+        goofspiel
+        LINK_LIBRARY
+        goofspiel
+        SOURCE_FILES
+        test_state.cpp)
 endif()
