@@ -243,7 +243,7 @@ TEST(BattleshipShotResolution, repeated_shots_are_permitted_and_idempotent)
 // payoff scenarios
 // #####################################################################################################################
 
-TEST_P(PayoffParamsF, payoff_table)
+TEST_P(BattleshipPayoffParamsF, payoff_table)
 {
    const auto& [script, payoff_one, payoff_two] = GetParam();
    auto final_state = play_script(script);
@@ -254,7 +254,7 @@ TEST_P(PayoffParamsF, payoff_table)
 
 INSTANTIATE_TEST_SUITE_P(
    BattleshipPayoffs,
-   PayoffParamsF,
+   BattleshipPayoffParamsF,
    ::testing::Values(
       // light variant: sink win / get sunk loss
       std::make_tuple(
