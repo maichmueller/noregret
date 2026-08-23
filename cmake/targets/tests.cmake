@@ -98,4 +98,12 @@ if(ENABLE_GAMES)
         dark_hex
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        pursuit_evasion
+        INCLUDE_DIR
+        pursuit_evasion
+        LINK_LIBRARY
+        pursuit_evasion
+        SOURCE_FILES
+        test_state.cpp)
 endif()

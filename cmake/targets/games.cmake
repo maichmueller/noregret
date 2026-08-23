@@ -122,3 +122,13 @@ add_library(dark_hex INTERFACE)
 target_include_directories(dark_hex INTERFACE ${PROJECT_GAMES_DIR}/dark_hex/include)
 
 target_link_libraries(dark_hex INTERFACE required_min_libs common range-v3::range-v3)
+
+# ######################################################################################################################
+# Pursuit Evasion (header-only)
+# ######################################################################################################################
+
+add_library(pursuit_evasion INTERFACE)
+
+target_include_directories(pursuit_evasion INTERFACE ${PROJECT_GAMES_DIR}/pursuit_evasion/include)
+
+target_link_libraries(pursuit_evasion INTERFACE required_min_libs common range-v3::range-v3)
