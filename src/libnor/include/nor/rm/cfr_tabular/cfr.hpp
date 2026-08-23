@@ -330,6 +330,42 @@ using CFRPlus = VanillaCFR<
    Policy,
    AveragePolicy >;
 
+/**
+ * PCFR+ (Farina, Kroer, Sandholm — "Faster Game Solving via Predictive
+ * Blackwell Approachability", AAAI 2021): CFR+ whose regret-matching step is
+ * conditioned on a persistence prediction of the next instantaneous regret.
+ *
+ * The config rides the discounted weighting machinery purely for its gamma-side
+ * quadratic average-policy accumulation (the default CFRDiscountedParameters
+ * already provide gamma = 2); the alpha/beta regret discounts are compiled out
+ * by the minimizer selection for this mode. Constructed like CFRDiscounted,
+ * i.e. with a leading (possibly default) rm::CFRDiscountedParameters argument.
+ */
+template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+using PCFRPlus = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = RegretMinimizingMode::predictive_regret_matching_plus,
+      .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/**
+ * SAPCFR+ (arXiv:2503.12770): robustified PCFR+ in which only the prediction
+ * shift term is damped by 1/(1 + alpha) with alpha = 2. Same construction
+ * constraints as PCFRPlus.
+ */
+template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+using SAPCFRPlus = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = RegretMinimizingMode::sap_predictive_regret_matching_plus,
+      .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
 template < CFRExponentialConfig config, typename Env, typename Policy, typename AveragePolicy >
 using CFRExponential = VanillaCFR<
    CFRConfig{

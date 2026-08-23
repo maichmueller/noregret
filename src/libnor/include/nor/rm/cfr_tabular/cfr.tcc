@@ -179,9 +179,17 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    InfostateSptrMap infostates
 )
 {
-   if(_env().is_terminal(*state)) {
-      return StateValueMap{collect_rewards(_env(), *state)};
-   }
+    if(_env().is_terminal(*state)) {
+       // NOTE: pass the ROOT participant set explicitly. The default of
+       // collect_rewards derives the player set from env.players(terminal
+       // state), which excludes players that have folded out of poker-like
+       // games. Downstream, update_regret_and_policy looks up every actual
+       // player in each action's value map and would throw out_of_range for
+       // such subtrees. Environments must support reward() for all initial
+       // participants (e.g. leduc pays folded players their sunk stakes).
+       return StateValueMap{
+          collect_rewards(_env(), *state, _env().players(root_state()))};
+    }
 
    if constexpr(config.pruning_mode == CFRPruningMode::partial) {
       if(_partial_pruning_condition(player_to_update, reach_probability)) {
@@ -340,7 +348,17 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
 
       auto child_reach_prob = reach_probability.get();
       auto outcome_prob = _env().chance_probability(*state, outcome);
-      child_reach_prob[active_player] *= outcome_prob;
+      // NOTE: environments differ in whether 'Player::chance' is part of
+      // env.players(root_state) (kuhn: yes, leduc: no). Default-initializing
+      // the entry via operator[] here would multiply 0 by the outcome
+      // probability and permanently zero out the counterfactual reach of every
+      // descendant infostate, silently disabling all regret updates. Seed the
+      // entry with the outcome probability when absent.
+      auto [chance_reach_entry, inserted] =
+         child_reach_prob.try_emplace(active_player, outcome_prob);
+      if(not inserted) {
+         chance_reach_entry->second *= outcome_prob;
+      }
 
       auto [child_observation_buffer, child_infostate_map] = next_infostate_and_obs_buffers(
          _env(), observation_buffer.get(), infostate_map.get(), *state, outcome, *next_wstate_uptr
@@ -452,6 +470,27 @@ namespace detail {
 template < CFRConfig config >
 consteval bool sanity_check_cfr_config()
 {
+   if constexpr(
+      config.regret_minimizing_mode == RegretMinimizingMode::predictive_regret_matching_plus
+      or config.regret_minimizing_mode
+         == RegretMinimizingMode::sap_predictive_regret_matching_plus
+   ) {
+      // the predictive regret minimizers (PCFR+/SAPCFR+) pair the strategy
+      // snapshot of the previous recommendation with the instantaneous regrets
+      // of exactly one full iteration. This pairing is only well-defined for
+      // alternating updates over unpruned traversals (in simultaneous updates
+      // and under pruning the rho/sigma_snap correspondence breaks). The
+      // discounted weighting mode is REQUIRED as carrier of the quadratic
+      // average-policy accumulation (gamma = 2); its alpha/beta regret
+      // discounts are compiled out by the minimizer selection
+      if constexpr(
+         config.update_mode != UpdateMode::alternating
+         or config.pruning_mode != CFRPruningMode::none
+         or config.weighting_mode != CFRWeightingMode::discounted
+      ) {
+         return false;
+      }
+   }
    if constexpr(
       (config.weighting_mode == CFRWeightingMode::exponential)
       and (config.pruning_mode == CFRPruningMode::regret_based)
