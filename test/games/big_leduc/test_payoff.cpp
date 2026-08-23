@@ -104,6 +104,9 @@ TEST(BigLeducShowdownTable, pair_beats_high_across_all_twelve_ranks)
       // opponent holds the highest possible unpaired card (never the same suit twice)
       auto opp_rank = (paired_rank == Rank::king) ? Rank::queen : Rank::king;
       state.apply_action(Card{opp_rank, Suit::diamonds});
+      // close the pre-flop betting round so that chance gets to reveal the flop
+      state.apply_action(ActionType::check);
+      state.apply_action(ActionType::check);
       auto flop = Card{paired_rank, Suit::diamonds};
       ASSERT_TRUE(state.is_valid(flop));
       state.apply_action(flop);

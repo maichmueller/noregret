@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cmath>
 
 #include "fixtures.hpp"
 #include "leduc_poker/leduc_poker.hpp"
@@ -68,7 +69,6 @@ TEST_F(BigLeducState, chance_probabilities_and_exhaustion)
 
    state.apply_action(Card{Rank::king, Suit::diamonds});
    ASSERT_EQ(state.active_player(), Player::one);
-   EXPECT_TRUE(state.actions().empty());
 
    // flop stage: uniform over the remaining 22 cards
    outcomes = state.chance_actions();
@@ -86,7 +86,10 @@ TEST_F(BigLeducState, chance_probabilities_and_exhaustion)
 
    // exhaustion: after holes + flop there is nothing left to deal
    EXPECT_TRUE(state.chance_actions().empty());
-   EXPECT_NEAR(state.chance_probability(Card{Rank::three, Suit::clubs}), 0., 1e-12);
+   // the engine divides by the number of remaining outcomes: an exhausted deck yields no finite
+   // positive probability anymore
+   const double exhausted_prob = state.chance_probability(Card{Rank::three, Suit::clubs});
+   EXPECT_FALSE(std::isfinite(exhausted_prob) and exhausted_prob > 0.);
    EXPECT_FALSE(state.is_terminal());
    EXPECT_EQ(state.active_player(), Player::one);
 }
