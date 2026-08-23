@@ -82,3 +82,13 @@ add_library(rock_paper_scissors SHARED ${ROCKPAPERSCISSORS_SOURCES})
 target_include_directories(rock_paper_scissors PUBLIC ${PROJECT_GAMES_DIR}/rock_paper_scissors/include)
 
 target_link_libraries(rock_paper_scissors PUBLIC required_min_libs common)
+
+# ######################################################################################################################
+# Battleship (header-only)
+# ######################################################################################################################
+
+add_library(battleship INTERFACE)
+
+target_include_directories(battleship INTERFACE ${PROJECT_GAMES_DIR}/battleship/include)
+
+target_link_libraries(battleship INTERFACE required_min_libs common range-v3::range-v3)
