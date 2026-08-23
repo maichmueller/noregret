@@ -5,6 +5,9 @@
 
 BENCHMARK(benchmarks::CFR_VANILLA_alternating);
 BENCHMARK(benchmarks::CFR_VANILLA_simultaneous);
+BENCHMARK(benchmarks::CFR_VANILLA_LEDUC);
+BENCHMARK(benchmarks::PCFR_PLUS_KUHN);
+BENCHMARK(benchmarks::PCFR_PLUS_LEDUC);
 BENCHMARK(benchmarks::CFR_LINEAR_alternating);
 BENCHMARK(benchmarks::CFR_LINEAR_simultaneous);
 BENCHMARK(benchmarks::CFR_DISCOUNTED_alternating);
