@@ -1,6 +1,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -272,15 +273,15 @@ TEST_F(GoofspielState, cards_cannot_be_reused_across_rounds)
    ASSERT_EQ(state.phase(), Phase::commit_p1);
    auto legal = state.actions();
    // card 2 was spent in round one
-   EXPECT_FALSE(ranges::contains(legal, Bid{2}));
-   EXPECT_TRUE(ranges::contains(legal, Bid{1}));
+   EXPECT_FALSE(std::ranges::contains(legal, Bid{2}));
+   EXPECT_TRUE(std::ranges::contains(legal, Bid{1}));
    EXPECT_THROW(state.apply_action(Bid{2}), std::invalid_argument);
    EXPECT_FALSE(state.is_valid(Bid{2}));
 
    // player two analogously cannot reuse his spent card
    state.apply_action(Bid{1});
    ASSERT_EQ(state.phase(), Phase::commit_p2);
-   EXPECT_FALSE(ranges::contains(state.actions(), Bid{3}));
+   EXPECT_FALSE(std::ranges::contains(state.actions(), Bid{3}));
    EXPECT_THROW(state.apply_action(Bid{3}), std::invalid_argument);
 }
 

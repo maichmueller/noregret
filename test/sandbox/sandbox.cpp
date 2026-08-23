@@ -7,7 +7,7 @@
 #include <iostream>
 #include <memory>
 #include <named_type.hpp>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <string>
 #include <tuple>
 #include <unordered_map>

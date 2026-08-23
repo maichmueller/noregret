@@ -4,7 +4,8 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
-#include <range/v3/all.hpp>
+#include <algorithm>
+#include <ranges>
 #include <utility>
 
 #include "stratego/StrategoDefs.hpp"
@@ -40,7 +41,7 @@ std::map< std::pair< Token, Token >, FightOutcome > default_battlematrix()
             bm[{Token(i), Token(j)}] = FightOutcome::kill;
          }
       }
-      if(ranges::contains(std::array{0, 11, 99}, i)) {
+      if(std::ranges::contains(std::array{0, 11, 99}, i)) {
          continue;
       }
       bm[{Token(i), Token::flag}] = FightOutcome::kill;
@@ -63,10 +64,10 @@ std::map< Position2D, Token > default_setup(size_t /*game_dims*/, Team /*team*/)
 
    return setup;
 }
-std::map< Position2D, Token > default_setup(ranges::span< size_t, 2 > game_dims, Team team)
+std::map< Position2D, Token > default_setup(std::span< size_t, 2 > game_dims, Team team)
 {
    if(game_dims[0] == game_dims[1]
-      and ranges::contains(
+      and std::ranges::contains(
          std::array{DefinedBoardSizes::small, DefinedBoardSizes::medium, DefinedBoardSizes::large},
          static_cast< DefinedBoardSizes >(game_dims[0])
       )) {
@@ -82,7 +83,7 @@ std::map< Team, std::map< Position2D, Token > > default_setup(size_t game_dims)
       std::pair{Team::RED, default_setup(game_dims, Team::RED)}};
 }
 std::map< Team, std::optional< std::map< Position2D, Token > > > default_setup(
-   ranges::span< size_t, 2 > game_dims
+   std::span< size_t, 2 > game_dims
 )
 {
    return std::map{
@@ -110,7 +111,7 @@ std::vector< Position2D > default_holes(size_t game_dims)
       )
    ));
 }
-std::vector< Position2D > default_holes(ranges::span< size_t, 2 > game_dims)
+std::vector< Position2D > default_holes(std::span< size_t, 2 > game_dims)
 {
    if(game_dims[0] == game_dims[1]
       and std::set<
@@ -210,8 +211,8 @@ const std::vector< Position2D >& _check_alignment(
    const std::map< Position2D, Token >& setup
 )
 {
-   if(ranges::any_of(setup | ranges::views::keys, [&](const Position2D& pos) {
-         return ranges::find(positions, pos) == positions.end();
+   if(std::ranges::any_of(setup | std::views::keys, [&](const Position2D& pos) {
+         return std::ranges::find(positions, pos) == positions.end();
       })) {
       throw std::invalid_argument(
          "Passed starting positions parameter and setup parameter do not match."
@@ -236,10 +237,12 @@ std::map< Team, Config::token_counter_t > Config::_init_tokencounters(
             // both setup and tokensets are given, so we take the superset of both as the truth
             auto token_counter = std::visit(token_visitor, token_sets.at(team).value());
             auto token_counter_from_setup = tokens_from_setup(setups_.at(team).value());
-            for(auto token : ranges::views::concat(
-                                token_counter | ranges::views::keys,
-                                token_counter_from_setup | ranges::views::keys
-                             ) | ranges::views::unique) {
+            // both key sequences are sorted, so adjacent-dedup over their concatenation
+            // yields the deduplicated union (std has no views::unique equivalent)
+            auto all_tokens = std::ranges::to< std::vector >(std::views::concat(
+               token_counter | std::views::keys, token_counter_from_setup | std::views::keys
+            ));
+            for(auto token : std::ranges::unique(all_tokens)) {
                counters[team][token] = std::max(
                   token_counter[token], token_counter_from_setup[token]
                );
@@ -304,14 +307,14 @@ std::vector< Position2D > Config::_init_hole_positions(
                 common::Overload{
                    [](size_t d) { return default_holes(d); },
                    [](DefinedBoardSizes d) { return default_holes(static_cast< size_t >(d)); },
-                   [](ranges::span< size_t, 2 > a) { return default_holes(a); }},
+                   [](std::span< size_t, 2 > a) { return default_holes(a); }},
                 game_dims_
              );
 }
 
 Config::token_counter_t tokens_from_setup(const Config::setup_t& setup)
 {
-   auto values = setup | ranges::views::values;
+   auto values = setup | std::views::values;
    return common::counter(std::vector< Token >{values.begin(), values.end()});
 }
 
@@ -322,7 +325,7 @@ std::map< Team, std::optional< Config::token_counter_t > > tokens_from_setup(
    std::map< Team, std::optional< Config::token_counter_t > > counters;
    for(auto team : std::set{Team::BLUE, Team::RED}) {
       if(setups.at(team).has_value()) {
-         auto values = setups.at(team).value() | ranges::views::values;
+         auto values = setups.at(team).value() | std::views::values;
          counters[team] = common::counter(std::vector< Token >{values.begin(), values.end()});
       }
    }
@@ -385,7 +388,7 @@ Config::Config(
       token_set_,
    const std::map< Team, std::optional< std::vector< Position2D > > >& start_fields_,
    bool fixed_starting_team_,
-   std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
+   std::variant< bool, std::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
    std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
    std::map< Token, std::function< bool(size_t) > > move_ranges_
@@ -397,7 +400,7 @@ Config::Config(
             [](size_t d) {
                return std::array{d, d};
             },
-            [](ranges::span< size_t, 2 > d) {
+            [](std::span< size_t, 2 > d) {
                return std::array{d[0], d[1]};
             }},
          game_dims_
@@ -408,7 +411,7 @@ Config::Config(
             [](bool value) {
                return std::array{value, value};
             },
-            [](ranges::span< bool, 2 > d) {
+            [](std::span< bool, 2 > d) {
                return std::array{d[0], d[1]};
                ;
             }},
@@ -440,7 +443,7 @@ Config::Config(
    const std::map< Team, std::optional< setup_t > >& setups_,
    const std::optional< std::vector< Position2D > >& hole_positions_,
    bool fixed_starting_team_,
-   std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
+   std::variant< bool, std::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
    std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
    std::map< Token, std::function< bool(size_t) > > move_ranges_
@@ -468,7 +471,7 @@ Config::Config(
       token_set_,
    const std::map< Team, std::optional< std::vector< Position2D > > >& start_fields_,
    bool fixed_starting_team_,
-   std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
+   std::variant< bool, std::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
    std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
    std::map< Token, std::function< bool(size_t) > > move_ranges_
@@ -493,7 +496,7 @@ Config::Config(
    Team starting_team_,
    DefinedBoardSizes game_dims_,
    bool fixed_starting_team_,
-   std::variant< bool, ranges::span< bool, 2 > > fixed_setups_,
+   std::variant< bool, std::span< bool, 2 > > fixed_setups_,
    size_t max_turn_count_,
    std::map< std::pair< Token, Token >, FightOutcome > battle_matrix_,
    std::map< Token, std::function< bool(size_t) > > move_ranges_

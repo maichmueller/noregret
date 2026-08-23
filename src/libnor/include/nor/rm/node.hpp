@@ -2,6 +2,7 @@
 #ifndef NOR_NODE_HPP
 #define NOR_NODE_HPP
 
+#include <ranges>
 #include <vector>
 
 #include "common/common.hpp"
@@ -37,14 +38,14 @@ class InfostateNodeData {
 
    InfostateNodeData() = default;
 
-   template < ranges::range ActionRange >
+   template < std::ranges::range ActionRange >
    explicit InfostateNodeData(ActionRange actions)
    {
       emplace(std::move(actions));
    }
 
    /// registers all actions of the given range and their per-action tables
-   template < ranges::range ActionRange >
+   template < std::ranges::range ActionRange >
    void emplace(ActionRange actions)
    {
       if constexpr(concepts::is::sized< ActionRange >) {

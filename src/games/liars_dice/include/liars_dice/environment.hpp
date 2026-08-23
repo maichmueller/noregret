@@ -2,9 +2,10 @@
 #ifndef NOR_LIARS_DICE_ENVIRONMENT_HPP
 #define NOR_LIARS_DICE_ENVIRONMENT_HPP
 
+#include <algorithm>
 #include <iterator>
 #include <optional>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -229,8 +230,8 @@ class Environment {
       auto seated_players = wstate.players();
       std::vector< Player > out;
       out.reserve(seated_players.size());
-      ranges::copy(
-         seated_players | ranges::views::transform([](auto p) { return to_nor_player(p); }),
+      std::ranges::copy(
+         seated_players | std::views::transform([](auto p) { return to_nor_player(p); }),
          std::back_inserter(out)
       );
       return out;

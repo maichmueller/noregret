@@ -1,6 +1,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <unordered_set>
 #include <variant>
@@ -315,25 +316,26 @@ TEST_F(TexasHoldemState, betting_legality_and_min_raise)
    auto sb_actions = state.actions();
    // fold & call (SB owes 1), raise-to targets bb + increments of bb*mult for mult {1,2,4,8},
    // plus all-in
-   EXPECT_TRUE(ranges::contains(sb_actions, Action{ActionType::fold}));
-   EXPECT_TRUE(ranges::contains(sb_actions, Action{ActionType::call}));
-   EXPECT_FALSE(ranges::contains(sb_actions, Action{ActionType::check}));
+   EXPECT_TRUE(std::ranges::contains(sb_actions, Action{ActionType::fold}));
+   EXPECT_TRUE(std::ranges::contains(sb_actions, Action{ActionType::call}));
+   EXPECT_FALSE(std::ranges::contains(sb_actions, Action{ActionType::check}));
    for(double target : {4., 6., 10., 18.}) {
-      EXPECT_TRUE(ranges::contains(sb_actions, Action{ActionType::raise, target}));
+      EXPECT_TRUE(std::ranges::contains(sb_actions, Action{ActionType::raise, target}));
    }
-   EXPECT_TRUE(ranges::contains(sb_actions, Action{ActionType::all_in}));
+   EXPECT_TRUE(std::ranges::contains(sb_actions, Action{ActionType::all_in}));
 
    // after a raise to 6 (increment 4 over the big blind) the minimum re-raise-to is 10:
    state.apply_action(Action{ActionType::raise, 6.});
    auto bb_actions = state.actions();
-   EXPECT_FALSE(ranges::contains(bb_actions, Action{ActionType::raise, 8.}));  // below min-raise
-   EXPECT_TRUE(ranges::contains(bb_actions, Action{ActionType::raise, 10.}));
-   EXPECT_TRUE(ranges::contains(bb_actions, Action{ActionType::raise, 14.}));
-   EXPECT_TRUE(ranges::contains(bb_actions, Action{ActionType::raise, 22.}));
-   EXPECT_FALSE(ranges::contains(bb_actions, Action{ActionType::bet, 6.})
+   EXPECT_FALSE(std::ranges::contains(bb_actions, Action{ActionType::raise, 8.})
+   );  // below min-raise
+   EXPECT_TRUE(std::ranges::contains(bb_actions, Action{ActionType::raise, 10.}));
+   EXPECT_TRUE(std::ranges::contains(bb_actions, Action{ActionType::raise, 14.}));
+   EXPECT_TRUE(std::ranges::contains(bb_actions, Action{ActionType::raise, 22.}));
+   EXPECT_FALSE(std::ranges::contains(bb_actions, Action{ActionType::bet, 6.})
    );  // no bets when facing one
-   EXPECT_TRUE(ranges::contains(bb_actions, Action{ActionType::fold}));
-   EXPECT_TRUE(ranges::contains(bb_actions, Action{ActionType::call}));
+   EXPECT_TRUE(std::ranges::contains(bb_actions, Action{ActionType::fold}));
+   EXPECT_TRUE(std::ranges::contains(bb_actions, Action{ActionType::call}));
    EXPECT_DOUBLE_EQ(state.last_increment(), 4.);
    EXPECT_EQ(state.last_aggressor(), 0);
 
@@ -354,9 +356,9 @@ TEST_F(TexasHoldemState, betting_legality_and_min_raise)
    EXPECT_EQ(state.active_player(), Player::two);
    // postflop betting opens at zero
    auto flop_actions = state.actions();
-   EXPECT_TRUE(ranges::contains(flop_actions, Action{ActionType::check}));
-   EXPECT_TRUE(ranges::contains(flop_actions, Action{ActionType::bet, bb * 8.}));
-   EXPECT_FALSE(ranges::contains(flop_actions, Action{ActionType::call}));
+   EXPECT_TRUE(std::ranges::contains(flop_actions, Action{ActionType::check}));
+   EXPECT_TRUE(std::ranges::contains(flop_actions, Action{ActionType::bet, bb * 8.}));
+   EXPECT_FALSE(std::ranges::contains(flop_actions, Action{ActionType::call}));
    EXPECT_DOUBLE_EQ(state.current_total_bet(), 0.);
 }
 
@@ -372,8 +374,8 @@ TEST_F(TexasHoldemState, short_stack_all_in_below_min_raise)
    );
    auto actions = short_state.actions();
    // a jam to 3 is below the min-raise-to of 4 but still offered as an explicit all-in
-   EXPECT_FALSE(ranges::contains(actions, Action{ActionType::raise, 3.}));
-   EXPECT_TRUE(ranges::contains(actions, Action{ActionType::all_in}));
+   EXPECT_FALSE(std::ranges::contains(actions, Action{ActionType::raise, 3.}));
+   EXPECT_TRUE(std::ranges::contains(actions, Action{ActionType::all_in}));
 
    short_state.apply_action(Action{ActionType::all_in});
    EXPECT_TRUE(short_state.is_allin(Player::one));

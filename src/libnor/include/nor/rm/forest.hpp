@@ -4,8 +4,11 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <execution>
-#include <range/v3/all.hpp>
+#include <ranges>
+#include <stack>
+#include <vector>
 
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
@@ -158,17 +161,17 @@ class GameTreeTraverser {
          hooks.pre_child_hook(curr_wstate_raw_ptr, visit_data);
 
          for(const action_variant_type& action_variant : [&] {
-                auto to_variant_transform = ranges::views::transform([](const auto& any) {
+                auto to_variant_transform = std::views::transform([](const auto& any) {
                    return action_variant_type(any);
                 });
                 if constexpr(concepts::stochastic_env< Env >) {
                    if(curr_player == Player::chance) {
                       auto actions = m_env->chance_actions(*curr_wstate_uptr.get());
-                      return ranges::to< std::vector >(actions | to_variant_transform);
+                      return std::ranges::to< std::vector >(actions | to_variant_transform);
                    }
                 }
                 auto actions = m_env->actions(curr_player, *curr_wstate_uptr.get());
-                return ranges::to< std::vector >(actions | to_variant_transform);
+                return std::ranges::to< std::vector >(actions | to_variant_transform);
              }()) {
             // beginning of for loop body
 

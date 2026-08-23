@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
+#include <ranges>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -262,7 +264,7 @@ double kuhn_exploitability_after(size_t n_iterations)
    solver.iterate(n_iterations);
 
    const auto& avg_policies = solver.average_policy();
-   if(not ranges::all_of(avg_policies | ranges::views::values, [](const auto& policy) {
+   if(not std::ranges::all_of(avg_policies | std::views::values, [](const auto& policy) {
          return policy.size() == size_t(6);
       })) {
       return std::numeric_limits< double >::max();

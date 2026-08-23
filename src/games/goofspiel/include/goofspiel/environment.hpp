@@ -3,7 +3,7 @@
 #define NOR_GOOFSPIEL_ENVIRONMENT_HPP
 
 #include <optional>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>

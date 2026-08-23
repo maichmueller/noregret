@@ -1,6 +1,10 @@
 
 #include "leduc_poker/state.hpp"
 
+#include <algorithm>
+#include <cassert>
+#include <numeric>
+#include <ranges>
 #include <unordered_set>
 
 namespace leduc {
@@ -12,7 +16,7 @@ inline Player State::_cycle_active_player(bool folded, size_t shift_amount)
       m_remaining_players.pop_front();
    } else {
       // left rotate all entries (pop front and append to the back)
-      ranges::rotate(
+      std::ranges::rotate(
          m_remaining_players, std::next(m_remaining_players.begin(), long(shift_amount))
       );
    }
@@ -51,11 +55,12 @@ void State::apply_action(Action action)
    m_history.emplace_back(action);
    m_history_since_last_bet[m_active_player] = std::move(action);
 
-   if(ranges::all_of(
-         ranges::views::enumerate(m_history_since_last_bet),
+   if(std::ranges::all_of(
+         std::views::enumerate(m_history_since_last_bet),
          [&](const auto& player_opt) {
             const auto& [player, opt] = player_opt;
-            return opt.has_value() or not ranges::contains(m_remaining_players, Player(player));
+            return opt.has_value()
+                   or not std::ranges::contains(m_remaining_players, Player(player));
          }
       )) [[unlikely]] {
       // everyone left in the game acted in this round and the round is over
@@ -97,7 +102,7 @@ void State::_reset_order_of_play()
    Player player_to_go_next =
       ((min_pos_pair.second.has_value()) ? *min_pos_pair.second : *min_neg_pair.second);
    auto cycle_table_by = std::distance(
-      m_remaining_players.begin(), ranges::find(m_remaining_players, player_to_go_next)
+      m_remaining_players.begin(), std::ranges::find(m_remaining_players, player_to_go_next)
    );
    _cycle_active_player(false, size_t(cycle_table_by));
 }
@@ -150,7 +155,7 @@ void State::_single_pot_winner(std::vector< double >& payoffs, Player player) co
 {
    // the chosen player is the winnign player so all the pot goes to him, the payoff is everyone
    // else's bet in the game minus one's own contributions
-   payoffs[as_int(player)] = ranges::accumulate(m_stakes, 0.) - stake(player);
+   payoffs[as_int(player)] = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.) - stake(player);
 }
 
 std::vector< double > State::payoff()
@@ -161,11 +166,9 @@ std::vector< double > State::payoff()
    // initiate payoffs first as negative stakes for each player
    std::vector< double > payoffs;
    payoffs.reserve(m_stakes.size());
-   ranges::insert(
-      payoffs, payoffs.begin(), m_stakes | ranges::views::transform([](const auto& value) {
-                                   return -value;
-                                })
-   );
+   auto negated_stakes_view = m_stakes
+                              | std::views::transform([](const auto& value) { return -value; });
+   payoffs.insert(payoffs.begin(), negated_stakes_view.begin(), negated_stakes_view.end());
 
    if(auto n_remaining = m_remaining_players.size(); n_remaining == 1) {
       _single_pot_winner(payoffs, m_remaining_players[0]);
@@ -202,7 +205,7 @@ void State::_determine_highest_card_winner(std::vector< Player >& winners) const
    auto rem_player_begin = m_remaining_players.begin();
    winners.emplace_back(*rem_player_begin);
    Rank highest_rank = card(*rem_player_begin).rank;
-   for(auto rem_player : ranges::subrange{rem_player_begin + 1, m_remaining_players.end()}) {
+   for(auto rem_player : std::ranges::subrange{rem_player_begin + 1, m_remaining_players.end()}) {
       auto curr_rank = card(rem_player).rank;
       if(curr_rank > highest_rank) {
          winners.clear();
@@ -221,7 +224,7 @@ bool State::is_valid(Action action) const
    }
    if(action.action_type == ActionType::bet) {
       return (m_bets_this_round < m_config.n_raises_allowed)
-             and ranges::contains(bet_sizes(round_nr()), action.bet);
+             and std::ranges::contains(bet_sizes(round_nr()), action.bet);
    }
    return true;
 }
@@ -249,9 +252,11 @@ std::vector< Card > State::chance_actions() const
    if(_all_player_cards_assigned() and m_public_card.has_value()) {
       return {};
    }
-   return ranges::to_vector(ranges::views::filter(m_config.available_cards, [&](const auto& card) {
-      return not ranges::contains(m_player_cards, card);
-   }));
+   return std::ranges::to< std::vector >(
+      m_config.available_cards | std::views::filter([&](const auto& card) {
+         return not std::ranges::contains(m_player_cards, card);
+      })
+   );
 }
 
 std::vector< Action > State::actions() const
@@ -287,8 +292,8 @@ State::State(LeducConfig config)
    size_t start = static_cast< size_t >(m_config.starting_player);
    // emplace the players into the order queue from the starting player onwards, i.e.
    // (starter, starter + 1, starter + 2, ..., nr_players, 0, 1, ..., starter - 1)
-   for(size_t p : ranges::views::concat(
-          ranges::views::iota(start, nr_players), ranges::views::iota(size_t(0), start)
+   for(size_t p : std::views::concat(
+          std::views::iota(start, nr_players), std::views::iota(size_t(0), start)
        )) {
       m_remaining_players.emplace_back(Player(p));
    }

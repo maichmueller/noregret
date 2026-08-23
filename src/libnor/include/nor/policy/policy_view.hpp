@@ -2,6 +2,11 @@
 #ifndef NOR_POLICY_VIEW_HPP
 #define NOR_POLICY_VIEW_HPP
 
+#include <concepts>
+#include <iterator>
+#include <memory>
+#include <type_traits>
+
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
 #include "nor/utils/utils.hpp"
@@ -11,6 +16,81 @@
 /// containers of policies.
 
 namespace nor {
+
+/// A minimal owning, type-erasing, single-pass input range whose iterators yield elements as the
+/// given reference type. This replaces ranges::any_view (used before the migration to
+/// std::ranges), for which the standard library offers no direct equivalent.
+template < typename Reference >
+   requires std::is_reference_v< Reference >
+class AnyOwningView {
+  private:
+   struct Concept_ {
+      virtual ~Concept_() = default;
+      virtual Reference current() const = 0;
+      virtual void advance() = 0;
+      virtual bool exhausted() const = 0;
+   };
+
+   template < std::ranges::input_range Rng >
+      requires std::convertible_to< std::ranges::range_reference_t< const Rng >, Reference >
+   struct Model final: Concept_ {
+      Rng rng;
+      std::ranges::iterator_t< const Rng > current_it;
+      std::ranges::sentinel_t< const Rng > end_it;
+
+      explicit Model(const Rng& r)
+          : rng(r), current_it(std::ranges::begin(rng)), end_it(std::ranges::end(rng))
+      {
+      }
+
+      Reference current() const final { return *this->current_it; }
+      void advance() final { ++this->current_it; }
+      bool exhausted() const final { return this->current_it == this->end_it; }
+   };
+
+  public:
+   AnyOwningView() = default;
+
+   template < std::ranges::input_range Rng >
+      requires std::convertible_to< std::ranges::range_reference_t< const Rng >, Reference >
+   AnyOwningView(const Rng& rng) : m_model(std::make_unique< Model< Rng > >(rng))
+   {
+   }
+
+   class const_iterator {
+     public:
+      using value_type = std::remove_const_t< std::remove_reference_t< Reference > >;
+      using reference = Reference;
+      using difference_type = std::ptrdiff_t;
+      using iterator_concept = std::input_iterator_tag;
+
+      const_iterator() = default;
+      explicit const_iterator(const AnyOwningView* owner) : m_owner(owner) {}
+
+      reference operator*() const { return m_owner->m_model->current(); }
+
+      const_iterator& operator++()
+      {
+         m_owner->m_model->advance();
+         return *this;
+      }
+      void operator++(int) { m_owner->m_model->advance(); }
+
+      friend bool operator==(const const_iterator& iter, std::default_sentinel_t)
+      {
+         return iter.m_owner == nullptr or iter.m_owner->m_model->exhausted();
+      }
+
+     private:
+      const AnyOwningView* m_owner = nullptr;
+   };
+
+   [[nodiscard]] const_iterator begin() const { return const_iterator{this}; }
+   [[nodiscard]] std::default_sentinel_t end() const { return std::default_sentinel; }
+
+  private:
+   mutable std::unique_ptr< Concept_ > m_model;
+};
 
 template < concepts::action Action >
 struct ActionPolicyInterface {
@@ -39,7 +119,7 @@ struct ActionPolicyInterface {
    /// type erased view to provide an iterator basis for the underlying policies.
    /// while costly, this view allows us to provide a standard begin(), end() range functionality to
    /// the policies under the view
-   ranges::any_view< const mapped_type& > iterator_source;
+   AnyOwningView< const mapped_type& > iterator_source;
 };
 
 template < concepts::action Action >
@@ -82,7 +162,10 @@ class ActionPolicyView {
 
    template < typename T >
    struct OwningView: interface_type {
-      OwningView(T t) : interface_type(policy), policy(std::move(t)) {}
+      // NOTE: initialize the interface from 't' (not from the 'policy' member):
+      // the member is not yet constructed while bases are initialized, and the
+      // interface snapshots the policy table upon construction.
+      OwningView(T t) : interface_type(t), policy(std::move(t)) {}
 
       size_t size() const override { return policy.size(); }
 

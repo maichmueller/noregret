@@ -1,7 +1,9 @@
 
 #include "kuhn_poker/state.hpp"
 
+#include <algorithm>
 #include <iostream>
+#include <ranges>
 #include <stdexcept>
 
 namespace kuhn {
@@ -107,7 +109,7 @@ int State::payoff(Player player) const
       // showdown: highest card among the survivors wins; true ties split evenly with any
       // remainder chips awarded to the tied players in seat order
       Card best_card = m_player_cards[survivors.front()].value();
-      for(auto seat : survivors | ranges::views::drop(1)) {
+      for(auto seat : survivors | std::views::drop(1)) {
          best_card = std::max(best_card, m_player_cards[seat].value());
       }
       std::vector< size_t > winners;
@@ -116,10 +118,10 @@ int State::payoff(Player player) const
             winners.emplace_back(seat);
          }
       }
-      auto winner_pos = ranges::find(winners, this_seat);
+      auto winner_pos = std::ranges::find(winners, this_seat);
       if(winner_pos != winners.end()) {
          share = pot / static_cast< int >(winners.size());
-         if(ranges::distance(winners.begin(), winner_pos)
+         if(std::distance(winners.begin(), winner_pos)
             < static_cast< size_t >(pot % static_cast< int >(winners.size()))) {
             share += 1;
          }
@@ -155,14 +157,15 @@ bool State::_all_cards_engaged() const
 
 size_t State::_dealt_count() const
 {
-   return static_cast< size_t >(ranges::count_if(m_player_cards, [](const auto& opt_card) {
+   return static_cast< size_t >(std::ranges::count_if(m_player_cards, [](const auto& opt_card) {
       return opt_card.has_value();
    }));
 }
 
 int State::_active_count() const
 {
-   return static_cast< int >(m_player_count) - static_cast< int >(ranges::count(m_folded, char(1)));
+   return static_cast< int >(m_player_count)
+          - static_cast< int >(std::ranges::count(m_folded, char(1)));
 }
 
 kuhn::Player State::_next_active_seat(Player after) const
@@ -182,7 +185,7 @@ int State::_contribution(Player player) const
    // every player posts an ante of 1 and adds 1 chip per bet they placed themselves. Since
    // raising is not part of the game each player can wager at most once per deal.
    int contribution = 1;
-   for(auto&& [actor, action] : ranges::views::zip(m_actors, m_history)) {
+   for(auto&& [actor, action] : std::views::zip(m_actors, m_history)) {
       if(actor == player and action == Action::bet) {
          contribution += 1;
       }
@@ -199,7 +202,7 @@ std::vector< ChanceOutcome > State::chance_actions() const
    std::vector< ChanceOutcome > outcomes;
    outcomes.reserve(m_card_pool.size());
    for(auto card : m_card_pool) {
-      const bool already_dealt = ranges::any_of(m_player_cards, [&](const auto& opt_card) {
+      const bool already_dealt = std::ranges::any_of(m_player_cards, [&](const auto& opt_card) {
          return opt_card.has_value() and opt_card.value() == card;
       });
       if(not already_dealt) {

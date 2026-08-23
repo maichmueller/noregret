@@ -7,9 +7,10 @@
 #include <memory>
 #include <optional>
 #include <random>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 template < typename T >
@@ -66,7 +67,7 @@ inline auto create_rng(RNG rng)
 }
 
 template < typename RAContainer >
-   requires ranges::range< RAContainer >
+   requires std::ranges::range< RAContainer >
 inline auto& choose(const RAContainer& cont, RNG& rng)
 {
    auto chooser = [&](const auto& actual_ra_container) -> auto& {
@@ -74,18 +75,18 @@ inline auto& choose(const RAContainer& cont, RNG& rng)
          rng
       )];
    };
-   if constexpr(ranges::random_access_range< RAContainer > and ranges::sized_range< RAContainer >) {
+   if constexpr(std::ranges::random_access_range< RAContainer > and std::ranges::sized_range< RAContainer >) {
       return chooser(cont);
    } else {
-      auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([](const auto& elem) {
-                                              return std::ref(elem);
-                                           }));
+      auto cont_as_vec = std::ranges::to< std::vector >(
+         cont | std::views::transform([](const auto& elem) { return std::ref(elem); })
+      );
       return chooser(cont_as_vec).get();
    }
 }
 
 template < typename RAContainer, typename Policy >
-   requires ranges::range< RAContainer > and requires(Policy p) {
+   requires std::ranges::range< RAContainer > and requires(Policy p) {
       {
          // policy has to be a callable returning the
          // probability of the input matching the
@@ -95,7 +96,7 @@ template < typename RAContainer, typename Policy >
    }
 inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
 {
-   if constexpr(ranges::random_access_range< RAContainer > and ranges::sized_range< RAContainer >) {
+   if constexpr(std::ranges::random_access_range< RAContainer > and std::ranges::sized_range< RAContainer >) {
       std::vector< double > weights;
       weights.reserve(cont.size());
       for(const auto& elem : cont) {
@@ -104,14 +105,16 @@ inline auto& choose(const RAContainer& cont, const Policy& policy, RNG& rng)
       return cont[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)];
    } else {
       std::vector< double > weights;
-      if constexpr(ranges::sized_range< RAContainer >) {
+      if constexpr(std::ranges::sized_range< RAContainer >) {
          // if we can know how many elements are in the container, then reserve that amount.
          weights.reserve(cont.size());
       }
-      auto cont_as_vec = ranges::to_vector(cont | ranges::views::transform([&](const auto& elem) {
-                                              weights.emplace_back(policy(elem));
-                                              return std::ref(elem);
-                                           }));
+      auto cont_as_vec = std::ranges::to< std::vector >(
+         cont | std::views::transform([&](const auto& elem) {
+            weights.emplace_back(policy(elem));
+            return std::ref(elem);
+         })
+      );
       return cont_as_vec[std::discrete_distribution< size_t >(weights.begin(), weights.end())(rng)]
          .get();
    }
@@ -160,7 +163,7 @@ inline auto counter(
    return rv;
 }
 
-template < ranges::range Container, typename Accessor >
+template < std::ranges::range Container, typename Accessor >
 inline auto counter(
    const Container& vals,
    Accessor acc = [](const auto& iter) { return *iter; }
@@ -217,10 +220,10 @@ struct Printer< std::span< T > > {
 template < class T >
 Printer(std::span< T >) -> Printer< std::span< T > >;
 
-template < ranges::range Rng >
+template < std::ranges::range Rng >
    requires requires(Rng t) { std::cout << *(t.begin()); }
 struct RangePrinter {
-   ranges::ref_view< Rng > value;
+   std::ranges::ref_view< Rng > value;
    std::string delimiter;
 
    RangePrinter(Rng& range, std::string delim = ", ") : value(range), delimiter(std::move(delim)) {}
@@ -247,17 +250,17 @@ struct RangePrinter {
    }
 };
 
-template < ranges::range Rng >
+template < std::ranges::range Rng >
    requires requires(Rng t) {
       // elements must be decomposable into key and value
-      ranges::views::keys(t);
-      ranges::views::values(t);
+      std::views::keys(t);
+      std::views::values(t);
       // elements must be printable
-      std::cout << *(ranges::views::keys(t).begin());
-      std::cout << *(ranges::views::values(t).begin());
+      std::cout << *(std::views::keys(t).begin());
+      std::cout << *(std::views::values(t).begin());
    }
 struct KeyValueRangePrinter {
-   ranges::ref_view< Rng > view;
+   std::ranges::ref_view< Rng > view;
    std::string delimiter;
 
    KeyValueRangePrinter(Rng& range, std::string delim = ", ")
@@ -297,6 +300,28 @@ constexpr bool is_constexpr(Lambda)
 constexpr bool is_constexpr(...)
 {
    return false;
+}
+
+/// prints any range as '[e0,e1,...]' (comma-separated, no spaces).
+/// This mirrors the ostream operator that range-v3's view_interface used to
+/// provide and which is relied upon for observation string formats.
+template < typename Rng >
+   requires std::ranges::input_range< Rng >
+void print_bracketed(std::ostream& os, Rng&& rng)
+{
+   os << '[';
+   auto iter = std::ranges::begin(rng);
+   const auto end = std::ranges::end(rng);
+   if(iter != end) {
+      for(;;) {
+         os << *iter;
+         if(++iter == end) {
+            break;
+         }
+         os << ',';
+      }
+   }
+   os << ']';
 }
 
 template < typename Container, typename T >

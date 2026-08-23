@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <stdexcept>
 #include <vector>
 

@@ -75,7 +75,7 @@ Environment::observation_type Environment::public_observation(
 // Environment::observation_type Environment::tiny_repr(const world_state_type& wstate) const
 //{
 //    std::stringstream ss;
-//    for(auto [idx, card] : ranges::views::enumerate(wstate.cards())) {
+//    for(auto [idx, card] : std::views::enumerate(wstate.cards())) {
 //       if(card.has_value()) {
 //          ss << card.value();
 //          if((idx == 0 and wstate.cards()[1].has_value()) or not wstate.history().empty()) {
@@ -83,7 +83,7 @@ Environment::observation_type Environment::public_observation(
 //          }
 //       }
 //    }
-//    for(auto [idx, action] : ranges::views::enumerate(wstate.history())) {
+//    for(auto [idx, action] : std::views::enumerate(wstate.history())) {
 //       ss << action;
 //       if(idx != wstate.history().size() - 1) {
 //          ss << "-";
@@ -99,14 +99,14 @@ Environment::private_history(Player player, const world_state_type& wstate) cons
    auto action_history = wstate.history();
    const auto n_players_total = wstate.config().n_players;
    out.reserve(action_history.size() + n_players_total);
-   for(auto&& [i, card] : ranges::views::enumerate(wstate.cards())) {
+   for(auto&& [i, card] : std::views::enumerate(wstate.cards())) {
       if(i == static_cast< size_t >(player)) {
          out.emplace_back(card, Player::chance);
       } else {
          out.emplace_back(std::nullopt, Player::chance);
       }
    }
-   for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
+   for(auto&& [i, action] : std::views::enumerate(action_history)) {
       out.emplace_back(action, nor::Player(i));
    }
    out.shrink_to_fit();
@@ -121,10 +121,10 @@ std::vector< PlayerInformedType< Environment::action_variant_type > > Environmen
    auto action_history = wstate.history();
    const auto n_players_total = wstate.config().n_players;
    out.reserve(action_history.size() + n_players_total);
-   for(auto&& [i, card] : ranges::views::enumerate(wstate.cards())) {
+   for(auto&& [i, card] : std::views::enumerate(wstate.cards())) {
       out.emplace_back(card, Player::chance);
    }
-   for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
+   for(auto&& [i, action] : std::views::enumerate(action_history)) {
       out.emplace_back(action, nor::Player(i));
    }
    out.shrink_to_fit();
@@ -137,10 +137,10 @@ Environment::public_history(const world_state_type& wstate) const
    auto action_history = wstate.history();
    const auto n_players_total = wstate.config().n_players;
    out.reserve(action_history.size() + n_players_total);
-   for([[maybe_unused]] auto&& _ : ranges::views::enumerate(wstate.cards())) {
+   for([[maybe_unused]] auto&& _ : std::views::enumerate(wstate.cards())) {
       out.emplace_back(std::nullopt, Player::chance);
    }
-   for(auto&& [i, action] : ranges::views::enumerate(action_history)) {
+   for(auto&& [i, action] : std::views::enumerate(action_history)) {
       out.emplace_back(action, nor::Player(i));
    }
    out.shrink_to_fit();

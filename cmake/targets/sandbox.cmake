@@ -17,5 +17,4 @@ target_link_libraries(
             required_min_libs
             common
             project_warnings
-            range-v3::range-v3
             xtensor)

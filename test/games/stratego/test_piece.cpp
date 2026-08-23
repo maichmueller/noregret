@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <range/v3/all.hpp>
+#include <ranges>
 
 #include "fixtures.hpp"
 #include "testing_utils.hpp"

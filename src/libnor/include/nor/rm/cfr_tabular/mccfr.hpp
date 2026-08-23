@@ -8,9 +8,10 @@
 #include <map>
 #include <named_type.hpp>
 #include <queue>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <stack>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 

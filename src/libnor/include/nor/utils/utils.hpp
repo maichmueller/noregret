@@ -1,7 +1,9 @@
 #ifndef NOR_UTILS_HPP
 #define NOR_UTILS_HPP
 
+#include <algorithm>
 #include <iterator>
+#include <ranges>
 #include <type_traits>
 
 #include "common/common.hpp"
@@ -17,7 +19,7 @@ constexpr auto is_actual_player_pred = [](Player player) {
    // this comparison also excludes 'player' being 'unknown' (currently set to -2)
    return static_cast< int >(player) > static_cast< int >(Player::chance);
 };
-constexpr auto is_actual_player_filter = ranges::views::filter(is_actual_player_pred);
+constexpr auto is_actual_player_filter = std::views::filter(is_actual_player_pred);
 
 /// an empty struct to refer to special cases
 struct empty {};
@@ -470,12 +472,13 @@ uptr< Worldstate > child_state(Env&& env, const Worldstate& state, const auto& a
    return next_wstate_uptr;
 }
 
-template < ranges::range Policy >
+template < std::ranges::range Policy >
 auto& normalize_action_policy_inplace(Policy& policy)
 {
-   auto sum = ranges::accumulate(
-      /*range=*/policy | ranges::views::values,
-      /*init_value=*/std::remove_cvref_t< decltype(*(ranges::views::values(policy).begin())) >{0},
+   auto sum = std::ranges::fold_left(
+      /*range=*/policy | std::views::values,
+      /*init_value=*/
+      std::remove_cvref_t< decltype(*(std::views::values(policy).begin())) >{0},
       /*operation=*/std::plus{}
    );
    for(auto& [action, prob] : policy) {
@@ -484,7 +487,7 @@ auto& normalize_action_policy_inplace(Policy& policy)
    return policy;
 };
 
-template < ranges::range Policy >
+template < std::ranges::range Policy >
 auto normalize_action_policy(const Policy& policy)
 {
    Policy copy = policy;
@@ -492,7 +495,7 @@ auto normalize_action_policy(const Policy& policy)
    return copy;
 };
 
-template < ranges::range Policy >
+template < std::ranges::range Policy >
 auto& normalize_state_policy_inplace(Policy& policy)
 {
    for(auto& [_, action_policy] : policy) {
@@ -501,7 +504,7 @@ auto& normalize_state_policy_inplace(Policy& policy)
    return policy;
 };
 
-template < ranges::range Policy >
+template < std::ranges::range Policy >
 auto normalize_state_policy(const Policy& policy)
 {
    auto copy = policy;

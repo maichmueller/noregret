@@ -1,6 +1,7 @@
 #pragma once
 
 #include <spdlog/spdlog.h>
+#include <algorithm>
 
 #include "cfr.hpp"
 
@@ -11,7 +12,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
 {
    std::vector< player_hashmap< double > > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
-   for([[maybe_unused]] auto _ : ranges::views::iota(size_t(0), n_iters)) {
+   for([[maybe_unused]] auto _ : std::views::iota(size_t(0), n_iters)) {
       SPDLOG_DEBUG("Iteration number: {}", _iteration());
       StateValueMap value = std::invoke([&] {
          if constexpr(config.update_mode == UpdateMode::alternating) {
@@ -105,13 +106,13 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimiza
    auto node_view = std::invoke([&] {
       if constexpr(config.update_mode == UpdateMode::alternating) {
          return _infonodes()
-                | ranges::views::filter(
+                | std::views::filter(
                    [update_player = *player_to_update](const auto& infostate_ptr_data) {
                       return std::get< 0 >(infostate_ptr_data)->player() == update_player;
                    }
                 );
       } else {
-         return ranges::views::all(_infonodes());
+         return std::views::all(_infonodes());
       }
    });
 
@@ -162,7 +163,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          const double policy_weight = m_regret_minimizer.policy_weight(_iteration());
          for(auto& policy_prob :
              this->template fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())
-                | ranges::views::values) {
+                | std::views::values) {
             policy_prob *= policy_weight;
          }
       }
@@ -291,9 +292,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          // we try to normalize only for the average policy, since iterations with the current
          // policy are for the express purpose of updating the average strategy. As such, we
          // should not intervene to change these values, as that may alter the values incorrectly
-         double normalization = ranges::accumulate(
-            action_policy | ranges::views::values, double(0.), std::plus{}
-         );
+         double normalization =
+            std::ranges::fold_left(action_policy | std::views::values, double(0.), std::plus{});
          if(std::abs(normalization) < 1e-20) {
             throw std::invalid_argument(
                "Average policy likelihoods accumulate to 0. Such values cannot be normalized."

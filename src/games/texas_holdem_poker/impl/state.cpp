@@ -121,7 +121,7 @@ bool State::_round_complete() const
       // during an all-in runout no further betting round can be started
       return true;
    }
-   for(const auto& record : m_players | ranges::views::take(m_config.n_players)) {
+   for(const auto& record : m_players | std::views::take(m_config.n_players)) {
       if(not _can_act(record)) {
          continue;
       }
@@ -225,16 +225,16 @@ bool State::operator==(const State& other) const
    if(m_actions.size() != other.m_actions.size()) {
       return false;
    }
-   bool players_equal = ranges::all_of(
-      ranges::views::zip(m_players, other.m_players),
+   bool players_equal = std::ranges::all_of(
+      std::views::zip(m_players, other.m_players),
       [](const auto& zipped) {
          const auto& [mine, theirs] = zipped;
          return mine.folded == theirs.folded and mine.allin == theirs.allin
                 and mine.acted == theirs.acted;
       }
    );
-   bool chips_equal = ranges::all_of(
-      ranges::views::zip(m_players, other.m_players),
+   bool chips_equal = std::ranges::all_of(
+      std::views::zip(m_players, other.m_players),
       [](const auto& zipped) {
          const auto& [mine, theirs] = zipped;
          return std::fabs(mine.stack - theirs.stack) <= 1e-9
@@ -242,8 +242,8 @@ bool State::operator==(const State& other) const
                 and std::fabs(mine.total_contribution - theirs.total_contribution) <= 1e-9;
       }
    );
-   bool history_equal = ranges::all_of(
-      ranges::views::zip(m_actions, other.m_actions),
+   bool history_equal = std::ranges::all_of(
+      std::views::zip(m_actions, other.m_actions),
       [](const auto& zipped) { return std::get< 0 >(zipped) == std::get< 1 >(zipped); }
    );
    return players_equal and chips_equal and history_equal;
@@ -289,7 +289,7 @@ std::vector< Action > State::_betting_actions(Player player) const
       for(double multiple : m_config.bet_size_multiples) {
          double target = bb * multiple;
          if(target + tol >= bb && target <= max_wager + tol
-            && not ranges::contains(out, Action{ActionType::bet, target})) {
+            && not std::ranges::contains(out, Action{ActionType::bet, target})) {
             largest_candidate = std::max(largest_candidate, target);
             out.emplace_back(Action{ActionType::bet, target});
          }
@@ -300,7 +300,7 @@ std::vector< Action > State::_betting_actions(Player player) const
       for(double multiple : m_config.bet_size_multiples) {
          double target = m_current_total_bet + bb * multiple;
          if(target + tol >= min_target && target <= max_wager + tol
-            && not ranges::contains(out, Action{ActionType::raise, target})) {
+            && not std::ranges::contains(out, Action{ActionType::raise, target})) {
             largest_candidate = std::max(largest_candidate, target);
             out.emplace_back(Action{ActionType::raise, target});
          }
@@ -345,7 +345,7 @@ std::vector< Card > State::chance_actions() const
 double State::chance_probability(Card outcome) const
 {
    auto outcomes = chance_actions();
-   if(ranges::contains(outcomes, outcome)) {
+   if(std::ranges::contains(outcomes, outcome)) {
       return 1. / static_cast< double >(outcomes.size());
    }
    return 0.;
@@ -356,7 +356,7 @@ bool State::is_valid(Action action) const
    if(m_active_player == Player::chance) {
       return false;
    }
-   return ranges::contains(actions(), action);
+   return std::ranges::contains(actions(), action);
 }
 
 bool State::is_valid(Card outcome) const
@@ -400,7 +400,7 @@ void State::apply_action(Card outcome)
 
 void State::_start_new_betting_round()
 {
-   for(auto& record : m_players | ranges::views::take(m_config.n_players)) {
+   for(auto& record : m_players | std::views::take(m_config.n_players)) {
       record.acted = false;
    }
    m_current_total_bet = 0.;
@@ -414,7 +414,7 @@ void State::_start_new_betting_round()
 void State::_conclude_street()
 {
    // sweep the street contributions into their totals and prepare the next round
-   for(auto& record : m_players | ranges::views::take(m_config.n_players)) {
+   for(auto& record : m_players | std::views::take(m_config.n_players)) {
       record.street_contribution = 0.;
       record.acted = false;
    }

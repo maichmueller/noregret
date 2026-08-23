@@ -4,7 +4,7 @@
 #define NOR_ACTION_POLICY_HPP
 
 #include <concepts>
-#include <range/v3/all.hpp>
+#include <ranges>
 
 #include "nor/concepts.hpp"
 
@@ -122,7 +122,7 @@ class HashmapActionPolicy {
    {
    }
 
-   HashmapActionPolicy(ranges::range auto&& actions, double value, std::function< double() > dvg = &_zero< double >)
+   HashmapActionPolicy(std::ranges::range auto&& actions, double value, std::function< double() > dvg = &_zero< double >)
        : m_map(), m_def_value_gen(std::move(dvg))
    {
       for(auto&& action : actions) {
@@ -163,7 +163,7 @@ class HashmapActionPolicy {
       requires std::is_integral_v< action_type >
        : m_map(), m_def_value_gen(std::move(dvg))
    {
-      for(auto a : ranges::views::iota(size_t(0), n_actions)) {
+      for(auto a : std::views::iota(size_t(0), n_actions)) {
          emplace(a, m_def_value_gen());
       }
    }

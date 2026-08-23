@@ -2,10 +2,13 @@
 #ifndef NOR_LEDUC_POKER_STATE_HPP
 #define NOR_LEDUC_POKER_STATE_HPP
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <deque>
+#include <limits>
 #include <optional>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <sstream>
 #include <vector>
 
@@ -84,8 +87,8 @@ inline bool operator==(const Action& action1, const Action& action2)
 class LeducConfig {
   public:
    template <
-      ranges::sized_range Rng1 = std::initializer_list< double >,
-      ranges::sized_range Rng2 = std::initializer_list< double > >
+      std::ranges::sized_range Rng1 = std::initializer_list< double >,
+      std::ranges::sized_range Rng2 = std::initializer_list< double > >
    LeducConfig(
       size_t n_players_ = 2,
       Player starting_player_ = Player::one,
@@ -105,8 +108,8 @@ class LeducConfig {
          starting_player(starting_player_),
          n_raises_allowed(n_raises_allowed_),
          blind(blind_),
-         bet_sizes(ranges::to< std::vector< double > >(
-            ranges::views::concat(bet_sizes_round_one_, bet_sizes_round_two_)
+         bet_sizes(std::ranges::to< std::vector< double > >(
+            std::views::concat(bet_sizes_round_one_, bet_sizes_round_two_)
          )),
          bet_sizes_shapes({bet_sizes_round_one_.size(), bet_sizes_round_two_.size()}),
          available_cards(std::move(available_cards_))
@@ -228,12 +231,12 @@ class HistorySinceBet {
 
    void reset()
    {
-      ranges::for_each(m_container, [](auto& action_opt) { action_opt.reset(); });
+      std::ranges::for_each(m_container, [](auto& action_opt) { action_opt.reset(); });
    }
 
    inline bool all_acted(const std::vector< Player >& remaining_players)
    {
-      return ranges::all_of(remaining_players, [&](Player player) {
+      return std::ranges::all_of(remaining_players, [&](Player player) {
          return m_container[as_int(player)].has_value();
       });
    }
@@ -255,8 +258,8 @@ inline bool operator==(const HistorySinceBet& left, const HistorySinceBet& right
    if(left.container().size() != right.container().size()) {
       return false;
    }
-   return ranges::all_of(
-      ranges::views::zip(left.container(), right.container()),
+   return std::ranges::all_of(
+      std::views::zip(left.container(), right.container()),
       [](const auto& paired_actions) {
          const auto& [left_action, right_action] = paired_actions;
          return left_action == right_action;
@@ -310,12 +313,9 @@ class State {
    {
       std::vector< Player > players;
       players.reserve(config().n_players);
-      ranges::insert(
-         players,
-         players.begin(),
-         ranges::views::iota(0UL, config().n_players)
-            | ranges::views::transform([](int p) { return Player(p); })
-      );
+      auto player_view = std::views::iota(0UL, config().n_players)
+                         | std::views::transform([](int p) { return Player(p); });
+      players.insert(players.begin(), player_view.begin(), player_view.end());
       return players;
    }
    [[nodiscard]] std::span< const double > bet_sizes(bool round_two) const
@@ -350,8 +350,8 @@ class State {
 
    double& _stake(Player player) { return m_stakes[as_int(player)]; }
 
-   template < ranges::sized_range Range >
-      requires std::is_same_v< ranges::value_type_t< Range >, Player >
+   template < std::ranges::sized_range Range >
+      requires std::is_same_v< std::ranges::range_value_t< Range >, Player >
    void _split_pot(std::vector< double >& payoffs, const Range& winners) const
    {
       double pot = std::accumulate(m_stakes.begin(), m_stakes.end(), 0.);

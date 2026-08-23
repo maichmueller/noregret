@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <range/v3/all.hpp>
+#include <ranges>
 
 #include "fixtures.hpp"
 #include "testing_utils.hpp"
@@ -53,7 +53,7 @@ auto get_tokenvector(std::map< Team, std::optional< Config::setup_t > > setups)
    std::map< Team, std::map< Token, unsigned int > > counters;
    for(auto team : std::set{Team::BLUE, Team::RED}) {
       if(setups.at(team).has_value()) {
-         auto values = setups.at(team).value() | ranges::views::values;
+         auto values = setups.at(team).value() | std::views::values;
          counters[team] = common::counter(std::vector< Token >{values.begin(), values.end()});
       }
    }
@@ -64,7 +64,7 @@ auto get_tokenpositions(std::map< Team, std::optional< Config::setup_t > > setup
    std::map< Team, std::vector< Position2D > > counters;
    for(auto team : std::set{Team::BLUE, Team::RED}) {
       if(setups.at(team).has_value()) {
-         auto values = setups.at(team).value() | ranges::views::keys;
+         auto values = setups.at(team).value() | std::views::keys;
          counters[team] = std::vector< Position2D >{values.begin(), values.end()};
       }
    }
@@ -75,7 +75,7 @@ auto get_tokenvector(std::map< Team, Config::setup_t > setups)
 {
    std::map< Team, std::map< Token, unsigned int > > counters;
    for(auto team : std::set{Team::BLUE, Team::RED}) {
-      auto values = setups.at(team) | ranges::views::values;
+      auto values = setups.at(team) | std::views::values;
       counters[team] = common::counter(std::vector< Token >{values.begin(), values.end()});
    }
    return counters;
@@ -84,7 +84,7 @@ auto get_tokenpositions(std::map< Team, Config::setup_t > setups)
 {
    std::map< Team, std::vector< Position2D > > counters;
    for(auto team : std::set{Team::BLUE, Team::RED}) {
-      auto values = setups.at(team) | ranges::views::keys;
+      auto values = setups.at(team) | std::views::keys;
       counters[team] = std::vector< Position2D >{values.begin(), values.end()};
    }
    return counters;

@@ -12,7 +12,7 @@ struct factory {
   private:
    template < typename ValueType >
    static std::unordered_map< Player, ValueType >
-   to_map(ranges::range auto players, const ValueType& value)
+   to_map(std::ranges::range auto players, const ValueType& value)
    {
       std::unordered_map< Player, ValueType > map;
       for(auto player : players | utils::is_actual_player_filter) {

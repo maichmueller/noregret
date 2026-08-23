@@ -7,7 +7,7 @@ add_library(common INTERFACE)
 target_include_directories(common INTERFACE $<BUILD_INTERFACE:${PROJECT_COMMON_INCLUDE_DIR}>
                                             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-target_link_libraries(common INTERFACE ${required_min_libs} range-v3::range-v3)
+target_link_libraries(common INTERFACE ${required_min_libs})
 
 # ######################################################################################################################
 # NOR                 ###
@@ -22,7 +22,6 @@ target_link_libraries(
     ${nor_lib}
     INTERFACE required_min_libs
               common
-              range-v3::range-v3
               namedtype::namedtype
               fmt::fmt-header-only)
 

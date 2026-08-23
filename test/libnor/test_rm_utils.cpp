@@ -1,6 +1,9 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <ranges>
+
 #include "nor/env.hpp"
 #include "nor/nor.hpp"
 #include "nor/policy/policy.hpp"
@@ -121,7 +124,7 @@ TEST_P(RegretMatchingParamsF, integer_actions)
    auto [regret, expected, policy] = GetParam();
 
    std::unordered_map< int, double > regret_map;
-   for(auto [a, r] : ranges::views::zip(actions, regret)) {
+   for(auto [a, r] : std::views::zip(actions, regret)) {
       regret_map[a] = r;
    }
    rm::regret_matching(policy, regret_map);

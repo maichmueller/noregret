@@ -2,10 +2,11 @@
 #ifndef NOR_KUHN_POKER_STATE_HPP
 #define NOR_KUHN_POKER_STATE_HPP
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <optional>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <sstream>
 #include <vector>
 
@@ -54,7 +55,7 @@ inline bool operator==(const History& left, const History& right)
    if(left.size() != right.size()) {
       return false;
    }
-   return ranges::all_of(ranges::views::zip(left, right), [](const auto& paired_actions) {
+   return std::ranges::all_of(std::views::zip(left, right), [](const auto& paired_actions) {
       return std::get< 0 >(paired_actions) == std::get< 1 >(paired_actions);
    });
 }

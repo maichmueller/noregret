@@ -4,7 +4,7 @@
 
 #include <functional>
 #include <optional>
-#include <range/v3/all.hpp>
+#include <ranges>
 #include <string>
 #include <vector>
 
