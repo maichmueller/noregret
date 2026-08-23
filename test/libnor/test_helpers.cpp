@@ -15,11 +15,12 @@ TEST(IteratingInformationStates, rps_correctness)
    auto istate_imap = std::get< 1 >(ret);
    for(auto [history, actives_infostatemap] : istate_imap) {
       const auto& [active_players, infostate_map] = actives_infostatemap;
-      std::cout << ((history | ranges::views::transform([](const auto& av) {
-                        return std::visit([&](const auto& a) { return common::to_string(a); }, av);
-                     })))
-                << "\n"
-                << infostate_map.at(active_players[0])->to_string() << "\n";
+      common::print_bracketed(
+         std::cout, history | std::views::transform([](const auto& av) {
+                       return std::visit([&](const auto& a) { return common::to_string(a); }, av);
+                    })
+      );
+      std::cout << "\n" << infostate_map.at(active_players[0])->to_string() << "\n";
    }
 }
 
@@ -32,10 +33,12 @@ TEST(IteratingInformationStates, kuhn_correctness)
    auto istate_imap = std::get< 1 >(ret);
    for(auto [history, actives_infostatemap] : istate_imap) {
       const auto& [active_players, infostate_map] = actives_infostatemap;
-      std::cout << ((history | ranges::views::transform([](const auto& av) {
-                        return std::visit([&](const auto& a) { return common::to_string(a); }, av);
-                     })))
-                << "\n"
+      common::print_bracketed(
+         std::cout, history | std::views::transform([](const auto& av) {
+                       return std::visit([&](const auto& a) { return common::to_string(a); }, av);
+                    })
+      );
+      std::cout << "\n"
                 << (active_players.empty() ? std::string("")
                                            : infostate_map.at(active_players[0])->to_string())
                 << "\n";

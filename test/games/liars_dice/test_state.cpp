@@ -141,10 +141,12 @@ TEST_P(BidLegalityParamsF, bid_dominance_table)
       << "standing bid: " << common::to_string(candidate);
    // consistency between is_valid and the generated action list
    auto legal_actions = state.actions();
-   bool contained = ranges::contains(legal_actions, candidate_action);
+   bool contained = std::ranges::contains(legal_actions, candidate_action);
    EXPECT_EQ(contained, expected_legal);
    // challenge availability mirrors the standing bid
-   bool challenge_available = ranges::contains(legal_actions, Action{ActionType::challenge, Bid{}});
+   bool challenge_available = std::ranges::contains(
+      legal_actions, Action{ActionType::challenge, Bid{}}
+   );
    EXPECT_EQ(challenge_available, standing_opt.has_value());
    if(standing_opt.has_value()) {
       // the challenge is always enumerated last

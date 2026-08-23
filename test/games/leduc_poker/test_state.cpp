@@ -301,7 +301,7 @@ TEST(LeducPokerState_5_Players, actions_and_stakes)
    state.apply_action(Rank::ace, Suit::hearts);  // P4 - highest chance
    state.apply_action(Rank::three, Suit::hearts);  // P5 - okay chance
    // first betting round
-   for(auto player_action : ranges::views::enumerate(first_round)) {
+   for(auto player_action : std::views::enumerate(first_round)) {
       auto [player, action] = player_action;
       EXPECT_EQ(state.active_player(), Player(player % n_players));
       EXPECT_TRUE(state.is_valid(action));
@@ -313,7 +313,7 @@ TEST(LeducPokerState_5_Players, actions_and_stakes)
    // add the public card
    state.apply_action(Rank::five, Suit::diamonds);
    // second betting round
-   for(auto player_action : ranges::views::enumerate(second_round)) {
+   for(auto player_action : std::views::enumerate(second_round)) {
       auto [player, action] = player_action;
       // player 1 folded so enumerate needs to start at 1
       EXPECT_EQ(state.active_player(), Player((player + 1)));
@@ -329,7 +329,7 @@ TEST_P(LeducTerminalParamsF, terminal_situations)
    auto state = leduc::State{config};
 
    for(auto&& card :
-       ranges::span{config.available_cards}.subspan(0, static_cast< long >(config.n_players))) {
+       std::span{config.available_cards}.subspan(0, static_cast< long >(config.n_players))) {
       state.apply_action(card);
    }
 

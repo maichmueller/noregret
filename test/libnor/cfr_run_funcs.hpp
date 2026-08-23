@@ -58,8 +58,8 @@ void run_cfr_on_kuhn_poker(
       n_iters++;
 
       const auto& avg_policies = solver.average_policy();
-      if(ranges::all_of(
-            avg_policies | ranges::views::values,
+      if(std::ranges::all_of(
+            avg_policies | std::views::values,
             [](const auto& policy) { return policy.size() == n_infostates; }
          )
          and n_iters % update_freq == 0) {
@@ -134,8 +134,8 @@ void run_cfr_on_rps(
       n_iters++;
 
       const auto& avg_policies = solver.average_policy();
-      if(ranges::all_of(
-            avg_policies | ranges::views::values,
+      if(std::ranges::all_of(
+            avg_policies | std::views::values,
             [](const auto& policy) { return policy.size() == n_infostates; }
          )
          and n_iters % update_freq == 0) {

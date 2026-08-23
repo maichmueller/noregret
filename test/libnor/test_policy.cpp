@@ -253,8 +253,8 @@ TEST_P(BestResponse_RPS_ParamsF, rock_paper_scissors)
       EXPECT_EQ(br_prob_actual, 1.);
       EXPECT_EQ(br_action_actual, br_action_expected);
    } else {
-      EXPECT_TRUE(ranges::any_of(br_map, [&](const auto& action_prob_pair) {
-         return ranges::contains(probable_br_actions, std::get< 0 >(action_prob_pair));
+      EXPECT_TRUE(std::ranges::any_of(br_map, [&](const auto& action_prob_pair) {
+         return std::ranges::contains(probable_br_actions, std::get< 0 >(action_prob_pair));
       }));
    }
 }

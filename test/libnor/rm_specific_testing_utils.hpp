@@ -11,9 +11,9 @@
 template < typename ActionPolicy >
 std::string print_action_policy(const ActionPolicy& action_policy)
 {
-   size_t max_len_action = ranges::max(
-      action_policy | ranges::views::keys
-      | ranges::views::transform([](auto p) { return common::to_string(p).size(); })
+   size_t max_len_action = std::ranges::max(
+      action_policy | std::views::keys
+      | std::views::transform([](auto p) { return common::to_string(p).size(); })
    );
 
    std::string result = "[";
@@ -32,10 +32,12 @@ std::string print_policy(
    std::string istate_to_string_delim = "|"
 )
 {
-   auto policy_vec = ranges::to_vector(policy | ranges::views::transform([](const auto& kv) {
-                                          return std::pair{std::get< 0 >(kv), std::get< 1 >(kv)};
-                                       }));
-   ranges::actions::sort(policy_vec, [](const auto& kv, const auto& other_kv) {
+   auto policy_vec = std::ranges::to< std::vector >(
+      policy | std::views::transform([](const auto& kv) {
+         return std::pair{std::get< 0 >(kv), std::get< 1 >(kv)};
+      })
+   );
+   std::ranges::sort(policy_vec, [](const auto& kv, const auto& other_kv) {
       const auto& istate_0 = std::get< 0 >(kv);
       const auto& istate_1 = std::get< 0 >(other_kv);
       return istate_0.to_string("|").size() < istate_1.to_string("|").size();
@@ -64,26 +66,26 @@ void print_policy_profile(const PolicyMap& policy_map)
 
    const std::string to_string_delim = "|";
 
-   auto players = ranges::to_vector(policy_map | ranges::views::keys);
-   ranges::actions::sort(players, [](auto p1, auto p2) {
+   auto players = std::ranges::to< std::vector >(policy_map | std::views::keys);
+   std::ranges::sort(players, [](auto p1, auto p2) {
       return static_cast< int >(p1) < static_cast< int >(p2);
    });
 
-   size_t max_len_names = ranges::max(players | ranges::views::transform([](auto p) {
-                                         return common::to_string(p).size();
-                                      }));
+   size_t max_len_names = std::ranges::max(players | std::views::transform([](auto p) {
+                                              return common::to_string(p).size();
+                                           }));
 
-   size_t max_len_istate_str = ranges::max(
+   size_t max_len_istate_str = std::ranges::max(
       policy_map
-      | ranges::views::values /*the actual policy of the player, i.e. istate -> action_policy*/
-      | ranges::views::transform([&](const auto& kv) {
+      | std::views::values /*the actual policy of the player, i.e. istate -> action_policy*/
+      | std::views::transform([&](const auto& kv) {
            if(kv.begin() == kv.end()) {
               return size_t(0);
            }
-           return ranges::max(
-              kv | ranges::views::keys /*the actual policy of the player, i.e.
+           return std::ranges::max(
+              kv | std::views::keys /*the actual policy of the player, i.e.
                                           istate -> action_policy*/
-              | ranges::views::transform([&](const auto& istate) {
+              | std::views::transform([&](const auto& istate) {
                    return istate.to_string(to_string_delim).size();
                 })
            );
@@ -123,13 +125,13 @@ void evaluate_policies(
    }
 
    double total_dev = 0.;
-   for(auto p : prev_policy_profile | ranges::views::keys) {
+   for(auto p : prev_policy_profile | std::views::keys) {
       for(const auto& [curr_pol, prev_pol] :
-          ranges::views::zip(policy_profile_this_iter[p], prev_policy_profile[p])) {
+          std::views::zip(policy_profile_this_iter[p], prev_policy_profile[p])) {
          const auto& [curr_istate, curr_istate_pol] = curr_pol;
          const auto& [prev_istate, prev_istate_pol] = prev_pol;
          for(const auto& [curr_pol_state_pol, prev_pol_state_pol] :
-             ranges::views::zip(curr_istate_pol, prev_istate_pol)) {
+             std::views::zip(curr_istate_pol, prev_istate_pol)) {
             total_dev = std::abs(
                std::get< 1 >(curr_pol_state_pol) - std::get< 1 >(prev_pol_state_pol)
             );
@@ -156,7 +158,7 @@ void evaluate_policies(
 template < bool current_policy, typename CFRRunner >
 void evaluate_policies(
    CFRRunner& solver,
-   ranges::range auto players,
+   std::ranges::range auto players,
    size_t iteration,
    std::string policy_name = "Average Policy"
 )
@@ -189,7 +191,7 @@ void evaluate_policies(
 
 class ValueChecker {
   public:
-   template < ranges::range Container = std::vector< double > >
+   template < std::ranges::range Container = std::vector< double > >
    ValueChecker(Container&& expected_values = {}) : m_expected()
    {
       for(auto&& value : expected_values) {
@@ -203,7 +205,7 @@ class ValueChecker {
       if(m_expected.empty())
          return true;
 
-      return ranges::any_of(m_expected, [&](double exp_value) {
+      return std::ranges::any_of(m_expected, [&](double exp_value) {
          return std::abs(value - exp_value) < m_tolerance;
       });
    }
@@ -513,12 +515,12 @@ void assert_optimal_policy_kuhn(const auto& solver, auto& env, double precision 
    auto optimal_tables = std::vector{std::move(alex_optimal_table), std::move(bob_optimal_table)};
 
    for(const auto& [computed_table, optimal_table] :
-       ranges::views::zip(policy_tables, optimal_tables)) {
+       std::views::zip(policy_tables, optimal_tables)) {
       for(const auto& computed_state_policy : computed_table) {
          const auto& [istate, action_policy] = computed_state_policy;
          auto normalized_ap = normalize_action_policy(action_policy);
          for(const auto& [optim_action_and_prob, action_and_prob] :
-             ranges::views::zip(optimal_table.at(istate), normalized_ap)) {
+             std::views::zip(optimal_table.at(istate), normalized_ap)) {
             auto found_action_prob = std::get< 1 >(action_and_prob);
             auto optimal_action_prob = std::get< 1 >(optim_action_and_prob);
             ASSERT_NEAR(found_action_prob, optimal_action_prob, precision);

@@ -27,7 +27,7 @@ TEST_P(KuhnThreePlayerDealParamsF, deal_probability_uniform_over_ordered_deals)
    kuhn::State state{{Card::jack, Card::queen, Card::king}, 3};
 
    double accumulated = 1.;
-   for(auto&& [seat, card] : ranges::views::enumerate(deal)) {
+   for(auto&& [seat, card] : std::views::enumerate(deal)) {
       auto outcomes = state.chance_actions();
       double stage_sum = 0.;
       for(auto outcome : outcomes) {
@@ -332,7 +332,7 @@ TEST_F(KuhnThreePlayerState, env_history_attributes_entries_to_acting_seats)
 
    auto open_hist = env.open_history(state);
    ASSERT_EQ(open_hist.size(), 4);
-   for(auto&& [i, entry] : ranges::views::enumerate(open_hist)) {
+   for(auto&& [i, entry] : std::views::enumerate(open_hist)) {
       EXPECT_EQ(entry.player(), to_nor_player(expected_actor_seats[i]));
    }
 
@@ -353,7 +353,7 @@ TEST_F(KuhnThreePlayerState, env_history_attributes_entries_to_acting_seats)
    // public history keeps every card hidden and every action visible with correct attribution
    auto public_hist = env.public_history(state);
    ASSERT_EQ(public_hist.size(), 7);
-   for(auto&& [i, entry] : ranges::views::enumerate(public_hist)) {
+   for(auto&& [i, entry] : std::views::enumerate(public_hist)) {
       if(i < 3) {
          EXPECT_EQ(entry.player(), nor::Player::chance);
          EXPECT_FALSE(entry.value().has_value());
