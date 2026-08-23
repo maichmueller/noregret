@@ -85,8 +85,8 @@ struct hash< nor::games::oshi_zumo::Observation > {
          common::hash_combine(
             seed,
             std::hash< unsigned long >{}(
-               97ul + 4096ul * unsigned long(obs.revealed_bids->first.amount)
-               + unsigned long(obs.revealed_bids->second.amount)
+               97ul + 4096ul * static_cast< unsigned long >(obs.revealed_bids->first.amount)
+               + static_cast< unsigned long >(obs.revealed_bids->second.amount)
             )
          );
       }
