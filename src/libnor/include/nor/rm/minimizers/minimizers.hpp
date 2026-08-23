@@ -9,9 +9,10 @@
 #include <functional>
 #include <optional>
 #include <ranges>
+#include <stdexcept>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
@@ -21,24 +22,23 @@
 namespace nor::rm {
 
 /// the canonical per-action double table used by all tabular regret minimizers.
-/// Keys are reference wrappers into the infostate node's owned action storage,
-/// hence the custom hash/compare.
+/// Entry i of the table belongs to the i-th action registered at the owning
+/// infostate node (see 'detail::action_registry'); tables are grown in lockstep
+/// with the registry by 'register_action'.
 template < concepts::action Action >
-using per_action_map = std::unordered_map<
-   std::reference_wrapper< const Action >,
-   double,
-   common::ref_wrapper_hasher< const Action >,
-   common::ref_wrapper_comparator< const Action > >;
+using per_action_table = std::vector< double >;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////// minimizer node data protocol /////////////////////////////////////
+///////////////////////////// minimizer node data protocol /////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Every regret minimizer type M exposes:
 //    using node_data_type            -- the per-infostate tables it needs. It always contains a
-//                                       'regret' member of type per_action_map<Action>.
+//                                       'regret' member of type per_action_table<Action> whose
+//                                       entries are aligned to the node's action registry, and
 //    static void register_action(node_data_type&, const Action&)
-//                                    -- zero-initialize all per-action tables for 'action'
+//                                    -- append 'action' to the registry and zero-initialize all
+//                                       per-action table slots for it
 //    static void observe(node_data_type&, const Action&, double increment)
 //                                    -- fold one counterfactually weighted instantaneous regret
 //                                       increment into the tables
@@ -72,23 +72,49 @@ concept regret_minimizer_for = concepts::action< Action > and std::is_default_co
 
 namespace detail {
 
+/// the registration-order list of an infostate node's legal actions. It is the
+/// single source of truth for the action -> index mapping that all flat
+/// per-action tables ('per_action_table') of a node are aligned to: entry i of
+/// every table belongs to 'actions[i]'.
+template < concepts::action Action >
+struct action_registry {
+   std::vector< Action > actions;
+
+   void register_action(const Action& action) { actions.emplace_back(action); }
+
+   /// resolves the table index of 'action' (linear scan; legal-action counts
+   /// per infostate are tiny, so this beats any keyed structure)
+   [[nodiscard]] size_t index_of(const Action& action) const
+   {
+      const auto found = std::ranges::find(actions, action);
+      if(found == actions.end()) {
+         throw std::out_of_range("action is not registered at this infostate node");
+      }
+      return static_cast< size_t >(found - actions.begin());
+   }
+};
+
 /// writes `positive-part-of-regret / sum(positive parts)` (or uniform when the
 /// sum vanishes) for every registered action into the policy output
-template < typename RegretTable, typename PolicyOut >
-void _recommend_from_regret(const RegretTable& regret, PolicyOut& policy_out)
+template < typename Action, typename PolicyOut >
+void _recommend_from_regret(
+   const std::vector< Action >& actions,
+   const std::vector< double >& regret,
+   PolicyOut& policy_out
+)
 {
    double pos_regret_sum{0.};
-   for(const auto& [action_ref, cumul_regret] : regret) {
+   for(double cumul_regret : regret) {
       pos_regret_sum += std::max(0., cumul_regret);
    }
    if(pos_regret_sum > 0.) {
-      for(const auto& [action_ref, cumul_regret] : regret) {
-         policy_out[action_ref.get()] = std::max(0., cumul_regret) / pos_regret_sum;
+      for(auto&& [action, cumul_regret] : std::views::zip(actions, regret)) {
+         policy_out[action] = std::max(0., cumul_regret) / pos_regret_sum;
       }
    } else {
       const double uniform_prob = 1. / static_cast< double >(regret.size());
-      for(const auto& [action_ref, _] : regret) {
-         policy_out[action_ref.get()] = uniform_prob;
+      for(const auto& action : actions) {
+         policy_out[action] = uniform_prob;
       }
    }
 }
@@ -103,22 +129,31 @@ void _recommend_from_regret(const RegretTable& regret, PolicyOut& policy_out)
 template < concepts::action Action >
 struct RegretMatching {
    struct node_data_type {
-      per_action_map< Action > regret;
+      detail::action_registry< Action > registry;
+      /// cumulative counterfactual regret z(I,a); entry i belongs to registry.actions[i]
+      per_action_table< Action > regret;
 
-      void register_action(const Action& action) { regret.emplace(std::cref(action), 0.); }
+      void register_action(const Action& action)
+      {
+         registry.register_action(action);
+         regret.emplace_back(0.);
+      }
+
+      [[nodiscard]] size_t index_of(const Action& action) const
+      {
+         return registry.index_of(action);
+      }
    };
 
    static void observe(node_data_type& data, const Action& action, double increment)
    {
-      // all legal actions are pre-registered via register_action, so this never
-      // inserts a key referencing storage owned outside this node
-      data.regret[std::cref(action)] += increment;
+      data.regret[data.registry.index_of(action)] += increment;
    }
 
    template < typename PolicyOut >
    static void recommend(const node_data_type& data, PolicyOut& policy_out, size_t /*iteration*/)
    {
-      detail::_recommend_from_regret(data.regret, policy_out);
+      detail::_recommend_from_regret(data.registry.actions, data.regret, policy_out);
    }
 
    static constexpr double policy_weight(size_t /*iteration*/) { return 1.; }
@@ -129,14 +164,24 @@ struct RegretMatching {
 template < concepts::action Action >
 struct RegretMatchingPlus {
    struct node_data_type {
-      per_action_map< Action > regret;
+      detail::action_registry< Action > registry;
+      per_action_table< Action > regret;
 
-      void register_action(const Action& action) { regret.emplace(std::cref(action), 0.); }
+      void register_action(const Action& action)
+      {
+         registry.register_action(action);
+         regret.emplace_back(0.);
+      }
+
+      [[nodiscard]] size_t index_of(const Action& action) const
+      {
+         return registry.index_of(action);
+      }
    };
 
    static void observe(node_data_type& data, const Action& action, double increment)
    {
-      data.regret[std::cref(action)] += increment;
+      data.regret[data.registry.index_of(action)] += increment;
    }
 
    template < typename PolicyOut >
@@ -144,18 +189,18 @@ struct RegretMatchingPlus {
    {
       // CFR+ clamps the cumulative regret in place before deriving the policy
       double pos_regret_sum{0.};
-      for(auto& [action_ref, cumul_regret] : data.regret) {
+      for(double& cumul_regret : data.regret) {
          cumul_regret = std::max(0., cumul_regret);
          pos_regret_sum += cumul_regret;
       }
       if(pos_regret_sum > 0.) {
-         for(const auto& [action_ref, cumul_regret] : data.regret) {
-            policy_out[action_ref.get()] = cumul_regret / pos_regret_sum;
+         for(auto&& [action, cumul_regret] : std::views::zip(data.registry.actions, data.regret)) {
+            policy_out[action] = cumul_regret / pos_regret_sum;
          }
       } else {
          const double uniform_prob = 1. / static_cast< double >(data.regret.size());
-         for(const auto& [action_ref, _] : data.regret) {
-            policy_out[action_ref.get()] = uniform_prob;
+         for(const auto& action : data.registry.actions) {
+            policy_out[action] = uniform_prob;
          }
       }
    }
@@ -169,20 +214,27 @@ struct RegretMatchingPlus {
 template < concepts::action Action >
 struct RegretMatchingPlusRBP {
    struct node_data_type {
-      per_action_map< Action > regret;
+      detail::action_registry< Action > registry;
+      per_action_table< Action > regret;
       /// instantaneous regret increments r(I, a) of the current iteration
-      per_action_map< Action > cumulative_instant_regret;
+      per_action_table< Action > cumulative_instant_regret;
 
       void register_action(const Action& action)
       {
-         regret.emplace(std::cref(action), 0.);
-         cumulative_instant_regret.emplace(std::cref(action), 0.);
+         registry.register_action(action);
+         regret.emplace_back(0.);
+         cumulative_instant_regret.emplace_back(0.);
+      }
+
+      [[nodiscard]] size_t index_of(const Action& action) const
+      {
+         return registry.index_of(action);
       }
    };
 
    static void observe(node_data_type& data, const Action& action, double increment)
    {
-      data.regret[std::cref(action)] += increment;
+      data.regret[data.registry.index_of(action)] += increment;
    }
 
    template < typename PolicyOut >
@@ -191,21 +243,22 @@ struct RegretMatchingPlusRBP {
       // apply the replace-if-positive rule on the buffered instantaneous regret
       // and consume the buffer while deriving the new recommendation
       double pos_regret_sum{0.};
-      for(auto& [action_ref, cumul_regret] : data.regret) {
-         auto& instant_regret = data.cumulative_instant_regret[action_ref];
+      for(auto idx : std::views::iota(size_t{0}, data.regret.size())) {
+         double& cumul_regret = data.regret[idx];
+         double& instant_regret = data.cumulative_instant_regret[idx];
          cumul_regret = instant_regret > 0. and cumul_regret < 0. ? instant_regret
                                                                   : cumul_regret + instant_regret;
          instant_regret = 0.;
          pos_regret_sum += std::max(0., cumul_regret);
       }
       if(pos_regret_sum > 0.) {
-         for(const auto& [action_ref, cumul_regret] : data.regret) {
-            policy_out[action_ref.get()] = std::max(0., cumul_regret) / pos_regret_sum;
+         for(auto&& [action, cumul_regret] : std::views::zip(data.registry.actions, data.regret)) {
+            policy_out[action] = std::max(0., cumul_regret) / pos_regret_sum;
          }
       } else {
          const double uniform_prob = 1. / static_cast< double >(data.regret.size());
-         for(const auto& [action_ref, _] : data.regret) {
-            policy_out[action_ref.get()] = uniform_prob;
+         for(const auto& action : data.registry.actions) {
+            policy_out[action] = uniform_prob;
          }
       }
    }
@@ -223,25 +276,29 @@ struct RegretMatchingPlusRBP {
 template < concepts::action Action >
 struct ExponentialCFR {
    struct node_data_type {
-      per_action_map< Action > regret;
-      per_action_map< Action > instant_regret;
+      detail::action_registry< Action > registry;
+      per_action_table< Action > regret;
+      per_action_table< Action > instant_regret;
       double reach_prob_snapshot = 0.;
-      per_action_map< Action > avg_policy_denominator;
+      per_action_table< Action > avg_policy_denominator;
 
       void register_action(const Action& action)
       {
-         regret.emplace(std::cref(action), 0.);
-         instant_regret.emplace(std::cref(action), 0.);
-         avg_policy_denominator.emplace(std::cref(action), 0.);
+         registry.register_action(action);
+         regret.emplace_back(0.);
+         instant_regret.emplace_back(0.);
+         avg_policy_denominator.emplace_back(0.);
+      }
+
+      [[nodiscard]] size_t index_of(const Action& action) const
+      {
+         return registry.index_of(action);
       }
    };
 
    static void observe(node_data_type& data, const Action& action, double increment)
    {
-      // canonicalize the key through the cumulative regret table so that the
-      // buffered entry references stable storage owned by this node
-      auto [iter, _] = data.regret.try_emplace(action, 0.);
-      data.instant_regret[std::cref(iter->first)] += increment;
+      data.instant_regret[data.registry.index_of(action)] += increment;
    }
 
    static void snapshot_reach_probability(node_data_type& data, double reach_prob)
@@ -252,7 +309,7 @@ struct ExponentialCFR {
    template < typename PolicyOut >
    static void recommend(const node_data_type& data, PolicyOut& policy_out, size_t /*iteration*/)
    {
-      detail::_recommend_from_regret(data.regret, policy_out);
+      detail::_recommend_from_regret(data.registry.actions, data.regret, policy_out);
    }
 
    static constexpr double policy_weight(size_t /*iteration*/) { return 1.; }
@@ -269,41 +326,41 @@ struct ExponentialCFR {
       BetaFn&& beta
    )
    {
+      const auto n_actions = data.regret.size();
       auto& instant_table = data.instant_regret;
       // L1(I, a) = exp(r(I, a) - mean_r(I)); computed before mutating anything
       auto l1_weights = std::invoke([&] {
-         per_action_map< Action > l1;
+         per_action_table< Action > l1;
+         l1.reserve(n_actions);
          double average_instant_regret = std::ranges::fold_left(
-                                            instant_table | std::views::values,
-                                            double(0.),
-                                            std::plus{}
+                                            instant_table, double(0.), std::plus{}
                                          )
-                                         / double(instant_table.size());
-         std::ranges::for_each(instant_table, [&](const auto& actionref_to_instant_regret) {
-            const auto& [action_ref, instant_regret] = actionref_to_instant_regret;
-            l1[action_ref] = std::exp(instant_regret - average_instant_regret);
-         });
+                                         / double(n_actions);
+         for(double instant_regret : instant_table) {
+            l1.push_back(std::exp(instant_regret - average_instant_regret));
+         }
          return l1;
       });
 
-      for(auto& [action_ref, cumul_regret] : data.regret) {
-         auto& instant_regret = instant_table[action_ref];
+      for(auto idx : std::views::iota(size_t{0}, n_actions)) {
+         double& cumul_regret = data.regret[idx];
+         double& instant_regret = instant_table[idx];
          if(instant_regret >= 0.) {
-            cumul_regret += l1_weights[action_ref] * instant_regret;
+            cumul_regret += l1_weights[idx] * instant_regret;
          } else {
-            cumul_regret += l1_weights[action_ref] * beta(instant_regret, iteration);
+            cumul_regret += l1_weights[idx] * beta(instant_regret, iteration);
          }
          // reset the buffer so the next iteration starts fresh
          instant_regret = 0.;
       }
 
-      for(auto& [action_ref, denominator] : data.avg_policy_denominator) {
-         const auto& action = action_ref.get();
-         const double l1_weight = l1_weights[action_ref];
+      for(auto idx : std::views::iota(size_t{0}, n_actions)) {
+         const auto& action = data.registry.actions[idx];
+         const double l1_weight = l1_weights[idx];
          // cumulative numerator update
          avg_policy[action] += l1_weight * data.reach_prob_snapshot * curr_policy[action];
          // cumulative denominator update
-         denominator += l1_weight * data.reach_prob_snapshot;
+         data.avg_policy_denominator[idx] += l1_weight * data.reach_prob_snapshot;
       }
 
       recommend(data, curr_policy, iteration);
@@ -356,8 +413,7 @@ class DiscountedCFR {
       if constexpr(discount_regrets) {
          double t_alpha = std::pow(double(iteration), m_params.alpha);
          double t_beta = std::pow(double(iteration), m_params.beta);
-         for(auto& [action_ref, cumul_regret] : data.regret) {
-            (void) action_ref;
+         for(double& cumul_regret : data.regret) {
             cumul_regret *= cumul_regret > 0. ? t_alpha / (t_alpha + 1.) : t_beta / (t_beta + 1.);
          }
       }
@@ -456,12 +512,9 @@ struct no_mccfr_extras {};
 /// average-policy mass of actions that were not sampled since the last visit
 template < concepts::action Action >
 struct lazy_weighting_extras {
-   per_action_map< Action > pending_avg_accumulator;
+   per_action_table< Action > pending_avg_accumulator;
 
-   void register_action(const Action& action)
-   {
-      pending_avg_accumulator.emplace(std::cref(action), 0.);
-   }
+   void register_action(const Action&) { pending_avg_accumulator.emplace_back(0.); }
 };
 
 /// pure CFR samples one 'pure strategy' action per infostate per iteration
@@ -484,9 +537,9 @@ struct optimistic_weighting_extras {
 /// baseline-corrected value estimates of the sampled trajectories visiting I.
 template < concepts::action Action >
 struct vr_baseline_extras {
-   per_action_map< Action > baseline;
+   per_action_table< Action > baseline;
 
-   void register_action(const Action& action) { baseline.emplace(std::cref(action), 0.); }
+   void register_action(const Action&) { baseline.emplace_back(0.); }
 };
 
 template < MCCFRAlgorithmMode algorithm, MCCFRWeightingMode weighting, concepts::action Action >
@@ -531,13 +584,15 @@ struct MCCFRMinimizer {
       detail::no_mccfr_extras >;
 
    struct node_data_type {
-      per_action_map< Action > regret;
+      detail::action_registry< Action > registry;
+      per_action_table< Action > regret;
       [[no_unique_address]] extras_type extras;
       [[no_unique_address]] vr_extras_type vr_extras;
 
       void register_action(const Action& action)
       {
-         regret.emplace(std::cref(action), 0.);
+         registry.register_action(action);
+         regret.emplace_back(0.);
          if constexpr(not std::is_empty_v< extras_type >) {
             extras.register_action(action);
          }
@@ -545,17 +600,22 @@ struct MCCFRMinimizer {
             vr_extras.register_action(action);
          }
       }
+
+      [[nodiscard]] size_t index_of(const Action& action) const
+      {
+         return registry.index_of(action);
+      }
    };
 
    static void observe(node_data_type& data, const Action& action, double increment)
    {
-      data.regret[std::cref(action)] += increment;
+      data.regret[data.registry.index_of(action)] += increment;
    }
 
    template < typename PolicyOut >
    static void recommend(const node_data_type& data, PolicyOut& policy_out, size_t /*iteration*/)
    {
-      detail::_recommend_from_regret(data.regret, policy_out);
+      detail::_recommend_from_regret(data.registry.actions, data.regret, policy_out);
    }
 
    static constexpr double policy_weight(size_t /*iteration*/) { return 1.; }

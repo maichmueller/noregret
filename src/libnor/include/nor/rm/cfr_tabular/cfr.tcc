@@ -435,11 +435,6 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
          // t ends we have to delete them again, so that this is only a memory of the current
          // iteration! Each history h that passed through infostate I will increment here the
          // instantaneous regret values r(h,a), in order to accumulate r(I, a) = sum_h r(h, a)
-
-         // The minimizer's observe() emplaces the action into the cumulative
-         // regret table first (if not present) and keys the instantaneous buffer
-         // through that stable entry, so no references to caller-owned action
-         // storage dangle inside the node.
          m_regret_minimizer.observe(
             istate_data.data(),
             action,

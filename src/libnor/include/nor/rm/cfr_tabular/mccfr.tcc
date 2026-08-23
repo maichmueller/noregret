@@ -353,12 +353,15 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    auto next_reach_prob = reach_probability.get();
    next_reach_prob[active_player] *= action_policy_prob;
 
-   auto next_weights = weights;
-   if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
-      auto& active_weight = next_weights.get()[active_player];
-      active_weight = active_weight * action_policy_prob
-                      + infonode_data.data().extras.pending_avg_accumulator.at(std::cref(sampled_action));
-   }
+    auto next_weights = weights;
+    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
+       auto& active_weight = next_weights.get()[active_player];
+       active_weight = active_weight * action_policy_prob
+                       + infonode_data.data()
+                            .extras.pending_avg_accumulator[infonode_data.data().index_of(
+                               sampled_action
+                            )];
+    }
    auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
       utils::clone_any_way(state)
    );
@@ -401,8 +404,9 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          // incoming bootstrapped value u(h a*|z): the raw terminal reward at
          // the deepest of this player's infosets, else the eq-(10) mixture
          // propagated from the child infoset
-         double& stream = action_value_map.get().at(active_player);
-         const double sampled_baseline = baseline_table.at(std::cref(sampled_action));
+          double& stream = action_value_map.get().at(active_player);
+          const size_t sampled_idx = infonode_data.data().index_of(sampled_action);
+          const double sampled_baseline = baseline_table[sampled_idx];
          // eq (9), sampled branch: b̂(I,a*) + (u(h a*|z) - b̂(I,a*))/ξ(h,a*).
          // Dividing the deviation by the ACTUAL sampling probability of a*
          // (the ε-on-policy mixture where exploration applies) is what keeps
@@ -415,13 +419,12 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
          // eq (10): propagate the σ_t-weighted mixture of the sampled-branch
          // value and the off-trajectory baselines up to the parent infoset
          // (bootstrapped propagation; chance nodes pass values unchanged)
-         double off_trajectory_mass = 0.;
-         for(const auto& action : actions) {
-            if(!(action == sampled_action)) {
-               off_trajectory_mass +=
-                  action_policy[action] * baseline_table.at(std::cref(action));
-            }
-         }
+          double off_trajectory_mass = 0.;
+          for(auto idx : std::views::iota(size_t{0}, actions.size())) {
+             if(!(actions[idx] == sampled_action)) {
+                off_trajectory_mass += action_policy[actions[idx]] * baseline_table[idx];
+             }
+          }
          stream = action_policy[sampled_action] * vr_sampled_value + off_trajectory_mass;
          // eq (11) prefactor: counterfactual reach over prefix sampling
          // probability q(h) (everything sampled above this infoset)
@@ -579,25 +582,25 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets_variance_reduc
    // value coming from eq (9)'s sampled branch and every off-trajectory
    // action valued by its baseline. The baseline snapshot read here is the
    // same one that produced 'sampled_value' (no mutation has happened yet).
-   auto& baseline_table = infostate_data.data().vr_extras.baseline;
-   auto action_value_of = [&](const action_type& action) {
-      return action == sampled_action ?
-             sampled_value :
-             baseline_table.at(std::cref(action));
-   };
-   double node_value = 0.;
-   for(const auto& action : actions) {
-      node_value += action_policy[action] * action_value_of(action);
-   }
-   node_value *= cf_weight;
-   for(const auto& action : actions) {
-      infostate_data.regret(action) += cf_weight * action_value_of(action) - node_value;
-   }
-   // paper step (e): regress the sampled action's baseline onto its
-   // baseline-corrected estimate b̂(I,a*) <- b̂(I,a*) + β(v̂ - b̂(I,a*))
-   auto& sampled_baseline = baseline_table.at(std::cref(sampled_action));
-   sampled_baseline += config.baseline_update_rate * (sampled_value - sampled_baseline);
-}
+    auto& baseline_table = infostate_data.data().vr_extras.baseline;
+    const size_t sampled_idx = infostate_data.data().index_of(sampled_action);
+    auto action_value_of = [&](auto idx, const action_type& action) {
+       return action == sampled_action ? sampled_value : baseline_table[idx];
+    };
+    double node_value = 0.;
+    for(auto idx : std::views::iota(size_t{0}, actions.size())) {
+       node_value += action_policy[actions[idx]] * action_value_of(idx, actions[idx]);
+    }
+    node_value *= cf_weight;
+    for(auto idx : std::views::iota(size_t{0}, actions.size())) {
+       infostate_data.regret(actions[idx]) +=
+          cf_weight * action_value_of(idx, actions[idx]) - node_value;
+    }
+    // paper step (e): regress the sampled action's baseline onto its
+    // baseline-corrected estimate b̂(I,a*) <- b̂(I,a*) + β(v̂ - b̂(I,a*))
+    auto& sampled_baseline = baseline_table[sampled_idx];
+    sampled_baseline += config.baseline_update_rate * (sampled_value - sampled_baseline);
+ }
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
@@ -648,13 +651,14 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
    auto& avg_policy = this->template fetch_policy< false >(infostate, infonode_data.actions());
 
    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
-      for(const action_type& action : infonode_data.actions()) {
+      for(auto idx : std::views::iota(size_t{0}, infonode_data.actions().size())) {
+         const auto& action = infonode_data.actions()[idx];
          auto policy_incr = (weight.get() + reach_prob.get()) * current_policy[action];
          avg_policy[action] += policy_incr;
          if(action == sampled_action) [[unlikely]] {
-            infonode_data.data().extras.pending_avg_accumulator[std::cref(action)] = 0.;
+            infonode_data.data().extras.pending_avg_accumulator[idx] = 0.;
          } else [[likely]] {
-            infonode_data.data().extras.pending_avg_accumulator[std::cref(action)] += policy_incr;
+            infonode_data.data().extras.pending_avg_accumulator[idx] += policy_incr;
          }
       }
    }

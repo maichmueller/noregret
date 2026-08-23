@@ -37,27 +37,27 @@ NodeData two_action_node_data()
 
 double& z(NodeData& data, KuhnAction action)
 {
-   return data.regret[std::cref(action)];
+   return data.regret[data.index_of(action)];
 }
 double& rho(NodeData& data, KuhnAction action)
 {
-   return data.instant_regret[std::cref(action)];
+   return data.instant_regret[data.index_of(action)];
 }
 double& snap(NodeData& data, KuhnAction action)
 {
-   return data.strategy_snapshot[std::cref(action)];
+   return data.strategy_snapshot[data.index_of(action)];
 }
 const double& z(const NodeData& data, KuhnAction action)
 {
-   return data.regret.at(std::cref(action));
+   return data.regret[data.index_of(action)];
 }
 const double& rho(const NodeData& data, KuhnAction action)
 {
-   return data.instant_regret.at(std::cref(action));
+   return data.instant_regret[data.index_of(action)];
 }
 const double& snap(const NodeData& data, KuhnAction action)
 {
-   return data.strategy_snapshot.at(std::cref(action));
+   return data.strategy_snapshot[data.index_of(action)];
 }
 
 }  // namespace
@@ -208,9 +208,9 @@ TEST(SAPPredictiveRegretMatchingPlusKernel, prediction_shift_damped_by_one_third
    };
 
    auto data = sap_node_data();
-   auto z_sap = [&](SapNodeData& d, KuhnAction a) -> double& { return d.regret[std::cref(a)]; };
+   auto z_sap = [&](SapNodeData& d, KuhnAction a) -> double& { return d.regret[d.index_of(a)]; };
    auto snap_sap = [&](const SapNodeData& d, KuhnAction a) -> const double& {
-      return d.strategy_snapshot.at(std::cref(a));
+      return d.strategy_snapshot[d.index_of(a)];
    };
 
    SapPredictiveKernel::observe(data, k_check, 2.);

@@ -169,10 +169,10 @@ class VanillaCFR:
       auto avg_policy_out = base::average_policy();
       for(auto& [_, avg_player_policy_out] : avg_policy_out) {
          for(auto& [infostate_ptr, action_policy] : avg_player_policy_out) {
-            const auto&
-               action_policy_denominator = _infonode(infostate_ptr).data().avg_policy_denominator;
-            for(auto& [action_ref, policy_prob] : action_policy) {
-               policy_prob /= action_policy_denominator.at(action_ref);
+            const auto& node_data = _infonode(infostate_ptr).data();
+            const auto& action_policy_denominator = node_data.avg_policy_denominator;
+            for(auto& [action, policy_prob] : action_policy) {
+               policy_prob /= action_policy_denominator[node_data.index_of(action)];
             }
          }
       }

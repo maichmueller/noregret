@@ -2,9 +2,9 @@
 #ifndef NOR_RM_MINIMIZERS_PREDICTIVE_HPP
 #define NOR_RM_MINIMIZERS_PREDICTIVE_HPP
 
-// NOTE: this header relies on 'per_action_map' which is defined in
-// nor/rm/minimizers/minimizers.hpp BEFORE it includes this file. Include the
-// former instead of this file directly.
+// NOTE: this header relies on 'per_action_table' and the minimizer node data
+// protocol which are defined in nor/rm/minimizers/minimizers.hpp BEFORE it
+// includes this file. Include the former instead of this file directly.
 
 #include <concepts>
 #include <cstddef>
@@ -73,22 +73,30 @@ struct PredictiveRegretMatchingPlus {
    static constexpr double sap_alpha = 2.;
 
    struct node_data_type {
-      /// cumulative counterfactual regret z(I,a)
-      per_action_map< Action > regret;
+      detail::action_registry< Action > registry;
+      /// cumulative counterfactual regret z(I,a); entry i belongs to registry.actions[i]
+      per_action_table< Action > regret;
       /// instantaneous counterfactual regret buffer of the current iteration
-      per_action_map< Action > instant_regret;
+      per_action_table< Action > instant_regret;
       /// strategy snapshot written by the previous recommend() call
-      per_action_map< Action > strategy_snapshot;
+      per_action_table< Action > strategy_snapshot;
 
       void register_action(const Action& action)
       {
-         regret.emplace(std::cref(action), 0.);
-         instant_regret.emplace(std::cref(action), 0.);
-         strategy_snapshot.emplace(std::cref(action), 0.);
+         registry.register_action(action);
+         regret.emplace_back(0.);
+         instant_regret.emplace_back(0.);
+         strategy_snapshot.emplace_back(0.);
+      }
+
+      [[nodiscard]] size_t index_of(const Action& action) const
+      {
+         return registry.index_of(action);
       }
    };
 
-   /// protocol entry point: zero-initialize all per-action tables for 'action'
+   /// protocol entry point: append 'action' to the registry and zero-initialize
+   /// all per-action tables for it
    static void register_action(node_data_type& data, const Action& action)
    {
       data.register_action(action);
@@ -96,59 +104,58 @@ struct PredictiveRegretMatchingPlus {
 
    static void observe(node_data_type& data, const Action& action, double increment)
    {
-      // all legal actions are pre-registered via register_action, so both
-      // lookups hit entries whose keys reference storage owned by this node
+      const auto idx = data.registry.index_of(action);
       // Algorithm 5 line 7: the cumulative table is clipped at fold-in time
-      data.regret[std::cref(action)] = std::max(0., data.regret[std::cref(action)] + increment);
-      data.instant_regret[std::cref(action)] += increment;
+      auto& cumul_regret = data.regret[idx];
+      cumul_regret = std::max(0., cumul_regret + increment);
+      data.instant_regret[idx] += increment;
    }
 
    template < typename PolicyOut >
    static void recommend(node_data_type& data, PolicyOut& policy_out, size_t /*iteration*/)
    {
+      const auto n_actions = data.regret.size();
+
       // defensive re-clip of the stored table (no-op under regular observe()
       // flow; guards externally injected table states)
-      for(auto& [_, cumul_regret] : data.regret) {
-         (void) _;
+      for(double& cumul_regret : data.regret) {
          cumul_regret = std::max(0., cumul_regret);
       }
 
       const double shift_scale = SapRobustified ? 1. / (1. + sap_alpha) : 1.;
 
       // theta(a) = clip(z)(a) + s * rho(a), clamped from below at 0
-      const auto predicted_regret = [&](const Action& action, double cumul_regret) {
-         return cumul_regret + shift_scale * data.instant_regret.at(std::cref(action));
+      const auto predicted_regret = [&](auto idx, double cumul_regret) {
+         return cumul_regret + shift_scale * data.instant_regret[idx];
       };
 
       // first pass: normalizer over the positive parts of the predicted regret.
       // note that the cumulative table itself is NOT clamped in place.
       double pos_sum{0.};
-      for(const auto& [action_ref, cumul_regret] : data.regret) {
-         pos_sum += std::max(0., predicted_regret(action_ref.get(), cumul_regret));
+      for(auto idx : std::views::iota(size_t{0}, n_actions)) {
+         pos_sum += std::max(0., predicted_regret(idx, data.regret[idx]));
       }
 
       // second pass: derive the policy and mirror it into the snapshot such
       // that the NEXT round's recommend pairs it against the then-observed
       // instantaneous regret (predictive x^{t-1} semantics)
       if(pos_sum > 0.) {
-         for(const auto& [action_ref, cumul_regret] : data.regret) {
-            const double prob = std::max(0., predicted_regret(action_ref.get(), cumul_regret))
-                                / pos_sum;
-            policy_out[action_ref.get()] = prob;
-            data.strategy_snapshot.at(action_ref) = prob;
+         for(auto idx : std::views::iota(size_t{0}, n_actions)) {
+            const double prob = std::max(0., predicted_regret(idx, data.regret[idx])) / pos_sum;
+            policy_out[data.registry.actions[idx]] = prob;
+            data.strategy_snapshot[idx] = prob;
          }
       } else {
-         const double uniform_prob = 1. / static_cast< double >(data.regret.size());
-         for(const auto& [action_ref, _] : data.regret) {
-            policy_out[action_ref.get()] = uniform_prob;
-            data.strategy_snapshot.at(action_ref) = uniform_prob;
+         const double uniform_prob = 1. / static_cast< double >(n_actions);
+         for(auto idx : std::views::iota(size_t{0}, n_actions)) {
+            policy_out[data.registry.actions[idx]] = uniform_prob;
+            data.strategy_snapshot[idx] = uniform_prob;
          }
       }
 
       // consume the instantaneous buffer: the next accumulation phase starts
       // from scratch so that rho always reflects exactly one full iteration
-      for(auto& [_, instant_regret] : data.instant_regret) {
-         (void) _;
+      for(double& instant_regret : data.instant_regret) {
          instant_regret = 0.;
       }
    }
