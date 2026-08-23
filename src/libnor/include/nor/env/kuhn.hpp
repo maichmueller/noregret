@@ -49,9 +49,10 @@ class Environment {
    using chance_outcome_type = ChanceOutcome;
    using observation_type = Observation;
    using action_variant_type = action_variant_type_generator_t< action_type, chance_outcome_type >;
-   // nor fosg traits
-   static constexpr size_t max_player_count() { return 2; }
-   static constexpr size_t player_count() { return 2; }
+   // nor fosg traits. The actual player count is configured per world state (2 by default);
+   // 'dynamic_extent' marks it as a runtime property like in the leduc/texas hold'em envs.
+   static constexpr size_t max_player_count() { return nor::games::kuhn::State::max_player_count; }
+   static constexpr size_t player_count() { return std::dynamic_extent; }
    static constexpr bool serialized() { return true; }
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::choice; }
@@ -84,9 +85,18 @@ class Environment {
       return wstate.chance_probability(outcome);
    }
 
-   static inline std::vector< Player > players(const world_state_type&)
+   static inline std::vector< Player > players(const world_state_type& wstate)
    {
-      return {Player::chance, Player::alex, Player::bob};
+      // the full roster of initial participants: the chance player plus every seat. It is
+      // intentionally fold-independent so that reach-probability maps and reward maps always
+      // cover all players (folded ones keep their sunk stakes in the pot).
+      std::vector< Player > roster;
+      roster.reserve(wstate.player_count() + 1);
+      roster.emplace_back(Player::chance);
+      for(size_t seat = 0; seat < wstate.player_count(); ++seat) {
+         roster.emplace_back(static_cast< Player >(seat));
+      }
+      return roster;
    }
    [[nodiscard]] Player active_player(const world_state_type& wstate) const;
    static bool is_terminal(const world_state_type& wstate);
