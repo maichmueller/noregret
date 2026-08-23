@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <random>
+#include <ranges>
 #include <unordered_set>
 #include <vector>
 
@@ -383,7 +384,7 @@ TEST(LiarsDiceMpPlayouts, random_playouts_preserve_zero_sum_and_single_winner)
       auto payoffs = rollout_state.payoffs();
       ASSERT_EQ(payoffs.size(), 3u);
       EXPECT_NEAR(payoffs[0] + payoffs[1] + payoffs[2], 0., 1e-12) << "playout " << playout;
-      size_t winners = static_cast< size_t >(ranges::count_if(payoffs, [](double v) {
+      size_t winners = static_cast< size_t >(std::ranges::count_if(payoffs, [](double v) {
          return std::abs(v - 1.) < 1e-12;
       }));
       EXPECT_EQ(winners, 1u);
@@ -415,7 +416,7 @@ TEST(LiarsDiceMpObservations, opponent_dice_indistinguishable_until_reveal_acros
 
    for(auto i : {0u, 1u}) {
       // identical own + bob's rolls ...
-      for(auto [seat, face] : ranges::views::enumerate(first_two[i])) {
+      for(auto [seat, face] : std::views::enumerate(first_two[i])) {
          auto pre = worlds[i];
          auto outcome = Roll{Player(uint8_t(seat)), face, 0};
          env.transition(worlds[i], outcome);
