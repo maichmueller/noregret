@@ -64,11 +64,15 @@ struct Move {
 struct Config {
    size_t board_size = 3;
    RulesMode rules_mode = RulesMode::cdh;
+   /// hard cap on total attempts (0 = unlimited). Unlimited instances are faithful to classical
+   /// dark hex but contain infinite all-retry branches, which exhaustive solvers (vanilla CFR /
+   /// best-response oracles) cannot traverse; set a finite limit for such workloads. Reaching
+   /// the cap without a connection ends the game in a 0/0 timeout.
+   size_t move_limit = 0;
 
    Config() = default;
    Config(size_t board_size_, RulesMode rules_mode_)
-       : board_size(board_size_),
-         rules_mode(rules_mode_)
+       : board_size(board_size_), rules_mode(rules_mode_)
    {
       validate();
    }
@@ -86,6 +90,18 @@ struct Config {
 
    [[nodiscard]] friend bool operator==(const Config&, const Config&) = default;
 };
+
+/// the classical dark hex variant (rejected attempts retain the turn)
+[[nodiscard]] inline Config cdh_config(size_t board_size = 3)
+{
+   return Config{board_size, RulesMode::cdh};
+}
+
+/// the abrupt dark hex variant (rejected attempts consume the turn)
+[[nodiscard]] inline Config adh_config(size_t board_size = 3)
+{
+   return Config{board_size, RulesMode::adh};
+}
 
 /**
  * @brief One chronological entry of the world state's move log.
@@ -110,7 +126,7 @@ struct LogEntry {
  * so copying (which happens for every edge of the search tree) stays cheap.
  */
 class State {
-   public:
+  public:
    explicit State(Config config = {}) : m_config(config) { m_config.validate(); }
 
    ////////////////////////////////
@@ -148,6 +164,12 @@ class State {
       m_attempts[as_int(actor)] += 1;
       m_move_count += 1;
       m_log.push_back(LogEntry{actor, move.cell_index});
+      if(m_active != Player::none && m_config.move_limit > 0
+         && m_move_count >= m_config.move_limit) {
+         // attempt budget exhausted without a connection: timeout draw
+         m_active = Player::none;
+         m_timed_out = true;
+      }
    }
 
    [[nodiscard]] bool is_valid(const Move& move) const
@@ -161,13 +183,17 @@ class State {
 
    [[nodiscard]] bool terminal() const { return m_active == Player::none; }
 
+   /// whether the game ended through the move_limit timeout instead of a connection
+   [[nodiscard]] bool timed_out() const { return m_timed_out; }
+
    /**
-    * zero-sum terminal payoff: the connecting player receives +1, his opponent -1. Non-terminal
-    * states score 0 for everyone (draws are impossible in hex once the game runs out).
+    * zero-sum terminal payoff: the connecting player receives +1, his opponent -1; a
+    * move-limit timeout scores 0 for everyone. Non-terminal states score 0 (draws by
+    * connection are impossible in hex).
     */
    [[nodiscard]] double payoff(Player player) const
    {
-      if(not terminal()) {
+      if(not terminal() or m_timed_out) {
          return 0.;
       }
       return has_won(player) ? 1. : -1.;
@@ -274,15 +300,17 @@ class State {
       return m_config == other.m_config && m_active == other.m_active
              && m_stones[0] == other.m_stones[0] && m_stones[1] == other.m_stones[1]
              && m_last_attempt_failed == other.m_last_attempt_failed
-             && m_move_count == other.m_move_count && m_log == other.m_log;
+             && m_timed_out == other.m_timed_out && m_move_count == other.m_move_count
+             && m_log == other.m_log;
    }
-   [[nodiscard]] bool operator!=(const State& other) const { return not(*this == other); }
+   [[nodiscard]] bool operator!=(const State& other) const { return not (*this == other); }
 
-   private:
+  private:
    Config m_config{};
    Player m_active = Player::one;
    std::array< uint32_t, 2 > m_stones{0u, 0u};
    bool m_last_attempt_failed = false;
+   bool m_timed_out = false;
    size_t m_move_count = 0;
    std::array< size_t, 2 > m_attempts{0, 0};
    std::vector< LogEntry > m_log{};

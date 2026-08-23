@@ -15,7 +15,8 @@
 #include "nor/exploitability.hpp"
 #include "nor/nor.hpp"
 
-using namespace dark_hex;
+// NOTE: 'Player' stays unambiguously bound to ::dark_hex::Player; nor's player enum is always
+// spelled 'nor::Player' in this file.
 using namespace nor::games::dark_hex;
 
 namespace {
@@ -34,7 +35,7 @@ constexpr uint8_t rc(size_t n, size_t row, size_t col)
 
 TEST_F(DarkHexState, connectivity_orients_rows_and_columns)
 {
-   state = State{Config{3}};
+   state = State{cdh_config()};
    const uint32_t col_zero = (1u << 0) | (1u << 3) | (1u << 6);  // cells (0,0),(1,0),(2,0)
    // player one bridges top <-> bottom (a fixed column) ...
    EXPECT_TRUE(state.connected(col_zero, /*top_bottom=*/true));
@@ -47,38 +48,38 @@ TEST_F(DarkHexState, connectivity_orients_rows_and_columns)
 
 TEST_F(DarkHexState, connectivity_follows_hex_adjacency_incl_bridges)
 {
-   state = State{Config{3}};
+   state = State{cdh_config()};
    // zigzag chain (0,1)-(1,0)-(2,0): each consecutive pair is hex-adjacent ((+1,-1) and (+1,0))
    const uint32_t zigzag = (1u << rc(3, 0, 1)) | (1u << rc(3, 1, 0)) | (1u << rc(3, 2, 0));
    EXPECT_TRUE(state.connected(zigzag, true));
 
-   // the diagonal neighbours (r-1,c+1)/(r+1,c-1) alone do NOT connect orthogonal directions:
-   // (1,1) touches (2,0) only diagonally -- a top-bottom chain must route around
-   const uint32_t diagonal_pair = (1u << rc(3, 1, 1)) | (1u << rc(3, 2, 0));
-   EXPECT_FALSE(state.connected(diagonal_pair, false));  // cols 1..0 but col 2 missing anyway
-   EXPECT_FALSE(state.connected(diagonal_pair | (1u << rc(3, 0, 2)), true));
+   // a pure diagonal step ((r-1,c+1) / (r+1,c-1)) links (0,1)-(1,1)-(2,0) across rows
+   const uint32_t diagonal_chain = (1u << rc(3, 0, 1)) | (1u << rc(3, 1, 1)) | (1u << rc(3, 2, 0));
+   EXPECT_TRUE(state.connected(diagonal_chain, true));
+   EXPECT_FALSE(state.connected(diagonal_chain, false));  // column 2 never reached
 
-   // bridge template: (1,1) and (3,0) on a 5-board are two common-neighbour steps apart; either
-   // of the shared neighbours (2,0)/(2,1) completes the chain but nothing else does
-   State big{Config{5}};
-   const uint32_t a = 1u << rc(5, 1, 1);
-   const uint32_t b = 1u << rc(5, 3, 0);
-   EXPECT_FALSE(big.connected(a | b, true));
-   EXPECT_TRUE(big.connected(a | b | (1u << rc(5, 2, 0)), true));
-   EXPECT_TRUE(big.connected(a | b | (1u << rc(5, 2, 1)), true));
-   // an unrelated stone in between the two bridge endpoints' other side stays disconnected
-   EXPECT_FALSE(big.connected(a | b | (1u << rc(5, 0, 4)), true));
+   // bridge template on a 5-board anchored top and bottom: (1,1) and (3,0) are two steps apart
+   // sharing exactly the common neighbours (2,0)/(2,1); either completes the chain
+   State big{cdh_config(5)};
+   const uint32_t anchored_bridge = (1u << rc(5, 0, 1)) | (1u << rc(5, 1, 1)) | (1u << rc(5, 3, 0))
+                                    | (1u << rc(5, 4, 0));
+   EXPECT_FALSE(big.connected(anchored_bridge, true));
+   EXPECT_TRUE(big.connected(anchored_bridge | (1u << rc(5, 2, 0)), true));
+   EXPECT_TRUE(big.connected(anchored_bridge | (1u << rc(5, 2, 1)), true));
+   // an unrelated far-away stone does not complete the bridge
+   EXPECT_FALSE(big.connected(anchored_bridge | (1u << rc(5, 0, 4)), true));
 
-   // scattered stones never connect
-   const uint32_t scattered =
-      (1u << rc(3, 0, 0)) | (1u << rc(3, 1, 2)) | (1u << rc(3, 2, 1)) | (1u << rc(3, 0, 2));
+   // scattered stones never connect: the anti-diagonal (0,0),(1,1),(2,2) uses only non-hex
+   // diagonal steps ((+1,+1)), plus an unrelated corner stone
+   const uint32_t scattered = (1u << rc(3, 0, 0)) | (1u << rc(3, 1, 1)) | (1u << rc(3, 2, 2))
+                              | (1u << rc(3, 0, 2));
    EXPECT_FALSE(state.connected(scattered, true));
    EXPECT_FALSE(state.connected(scattered, false));
 }
 
 TEST_F(DarkHexState, has_won_detects_winning_lines_of_both_players)
 {
-   state = State{Config{3}};
+   state = State{cdh_config()};
    // player one wins through the centre column
    state.apply_action(Move{rc(3, 0, 1)});
    state.apply_action(Move{rc(3, 0, 0)});
@@ -90,7 +91,7 @@ TEST_F(DarkHexState, has_won_detects_winning_lines_of_both_players)
    EXPECT_TRUE(state.terminal());
 
    // player two wins through the middle row
-   State s2{Config{3}};
+   State s2{adh_config()};
    s2.apply_action(Move{rc(3, 0, 0)});
    s2.apply_action(Move{rc(3, 1, 0)});
    s2.apply_action(Move{rc(3, 0, 1)});
@@ -107,7 +108,7 @@ TEST_F(DarkHexState, has_won_detects_winning_lines_of_both_players)
 
 TEST_F(DarkHexState, cdh_rejection_retains_turn_and_places_nothing)
 {
-   state = State{Config{3, RulesMode::cdh}};
+   state = State{cdh_config()};
    ASSERT_EQ(state.active_player(), Player::one);
 
    // a fresh placement flips the turn as usual
@@ -119,7 +120,7 @@ TEST_F(DarkHexState, cdh_rejection_retains_turn_and_places_nothing)
    state.apply_action(Move{rc(3, 0, 0)});
    EXPECT_TRUE(state.last_attempt_failed());
    EXPECT_EQ(state.active_player(), Player::two);  // turn RETAINED
-   EXPECT_EQ(state.stones(Player::two), 0u);       // stone NOT placed
+   EXPECT_EQ(state.stones(Player::two), 0u);  // stone NOT placed
    EXPECT_EQ(state.attempts(Player::two), 1u);
    EXPECT_EQ(state.move_count(), 2u);
    EXPECT_FALSE(state.terminal());
@@ -133,7 +134,7 @@ TEST_F(DarkHexState, cdh_rejection_retains_turn_and_places_nothing)
 
 TEST_F(DarkHexState, adh_rejection_consumes_the_turn)
 {
-   state = State{Config{3, RulesMode::adh}};
+   state = State{adh_config()};
    state.apply_action(Move{rc(3, 0, 0)});
    ASSERT_EQ(state.active_player(), Player::two);
 
@@ -147,9 +148,9 @@ TEST_F(DarkHexState, adh_rejection_consumes_the_turn)
 
 TEST_F(DarkHexState, occupancy_blocks_success_on_own_and_enemy_stones)
 {
-   state = State{Config{3, RulesMode::cdh}};
-   state.apply_action(Move{rc(3, 0, 0)});        // one owns (0,0)
-   state.apply_action(Move{rc(3, 0, 1)});        // two owns (0,1)
+   state = State{cdh_config()};
+   state.apply_action(Move{rc(3, 0, 0)});  // one owns (0,0)
+   state.apply_action(Move{rc(3, 0, 1)});  // two owns (0,1)
 
    // player one may neither overwrite his own stone ...
    state.apply_action(Move{rc(3, 0, 0)});
@@ -171,7 +172,24 @@ TEST_F(DarkHexState, occupancy_blocks_success_on_own_and_enemy_stones)
    EXPECT_FALSE(state.is_valid(Move{uint8_t(9)}));
    EXPECT_TRUE(state.is_valid(Move{rc(3, 0, 0)}));  // occupied != illegal: it FAILS instead
    EXPECT_THROW(state.apply_action(Move{uint8_t(42)}), std::invalid_argument);
-   EXPECT_THROW(State{Config{6}}.validate(), std::invalid_argument);
+   EXPECT_THROW(cdh_config(6).validate(), std::invalid_argument);
+}
+
+TEST_F(DarkHexState, move_limit_timeout_ends_the_game_in_a_draw)
+{
+   auto config = cdh_config();
+   config.move_limit = 4;
+   state = State{config};
+   state.apply_action(Move{rc(3, 0, 0)});
+   state.apply_action(Move{rc(3, 1, 1)});
+   state.apply_action(Move{rc(3, 0, 1)});
+   EXPECT_FALSE(state.terminal());
+   state.apply_action(Move{rc(3, 2, 2)});  // attempt #4 hits the cap without a connection
+   EXPECT_TRUE(state.terminal());
+   EXPECT_TRUE(state.timed_out());
+   EXPECT_EQ(state.active_player(), Player::none);  // sentinel for the observation flush
+   EXPECT_DOUBLE_EQ(state.payoff(Player::one), 0.);
+   EXPECT_DOUBLE_EQ(state.payoff(Player::two), 0.);
 }
 
 // #####################################################################################################################
@@ -182,11 +200,8 @@ namespace {
 
 /// replays `script` while accumulating the observation stream that `observer` receives into an
 /// infostate + publicstate (mirroring exactly what the solvers' traversal does)
-std::pair< Infostate, Publicstate > observed_states(
-   const Environment& env,
-   const DarkHexScript& script,
-   nor::Player observer
-)
+std::pair< Infostate, Publicstate >
+observed_states(const Environment& env, const DarkHexScript& script, nor::Player observer)
 {
    Infostate infostate{observer};
    Publicstate publicstate{};
@@ -211,20 +226,20 @@ std::pair< Infostate, Publicstate > observed_states(
 
 TEST(DarkHexInformation, opponent_board_invisible_given_identical_own_view_histories)
 {
-   using namespace nor;
-   Environment env{Config{3, RulesMode::cdh}};
+   Environment env{cdh_config()};
 
    // the two scripts differ ONLY in bob's hidden placements; alex never stumbles onto any of
    // bob's cells, so every observation alex receives coincides in both worlds
    DarkHexScript script_a{};
-   script_a.config = Config{3, RulesMode::cdh};
+   script_a.config = cdh_config();
    script_a.moves = {
       {Player::one, rc(3, 0, 0)},
       {Player::two, rc(3, 0, 1)},
       {Player::one, rc(3, 1, 1)},
       {Player::two, rc(3, 0, 2)},
       {Player::one, rc(3, 2, 0)},
-      {Player::two, rc(3, 2, 1)}};
+      {Player::two, rc(3, 2, 1)}
+   };
    DarkHexScript script_b = script_a;
    script_b.moves[1].second = rc(3, 2, 2);
    script_b.moves[3].second = rc(3, 1, 0);
@@ -248,15 +263,18 @@ TEST(DarkHexInformation, opponent_board_invisible_given_identical_own_view_histo
 
 TEST(DarkHexInformation, visible_referee_feedback_splits_information_sets)
 {
-   using namespace nor;
-   Environment env{Config{3, RulesMode::cdh}};
+   Environment env{cdh_config()};
 
    // baseline: alex places freely
    DarkHexScript clean{};
-   clean.config = Config{3, RulesMode::cdh};
-   clean.moves = {{Player::one, rc(3, 0, 0)}, {Player::two, rc(3, 0, 1)},
-                  {Player::one, rc(3, 1, 1)}, {Player::two, rc(3, 0, 2)},
-                  {Player::one, rc(3, 1, 0)}};
+   clean.config = cdh_config();
+   clean.moves = {
+      {Player::one, rc(3, 0, 0)},
+      {Player::two, rc(3, 0, 1)},
+      {Player::one, rc(3, 1, 1)},
+      {Player::two, rc(3, 0, 2)},
+      {Player::one, rc(3, 1, 0)}
+   };
 
    // collision: bob secretly took (1,0) instead of (0,2), so alex's last attempt is publicly
    // silent but privately REJECTED to him -- a visible outcome difference at equal history length
@@ -286,8 +304,7 @@ TEST(DarkHexInformation, visible_referee_feedback_splits_information_sets)
 
 TEST(DarkHexInformation, environment_observation_functions_deliver_privately)
 {
-   using namespace nor;
-   Environment env{Config{3, RulesMode::cdh}};
+   Environment env{cdh_config()};
    State s{env.config()};
    s.apply_action(Move{rc(3, 0, 0)});  // alex places
    auto next = s;
@@ -300,15 +317,13 @@ TEST(DarkHexInformation, environment_observation_functions_deliver_privately)
    EXPECT_EQ(priv_alex.kind, Observation::Kind::none);
 
    // successful placements confirm the stone to its owner only
-   State s2{Config{3, RulesMode::cdh}};
+   State s2{env.config()};
    State s2_after = s2;
    s2_after.apply_action(Move{rc(3, 1, 1)});
-   auto priv_alex_ok =
-      env.private_observation(nor::Player::alex, s2, Move{rc(3, 1, 1)}, s2_after);
+   auto priv_alex_ok = env.private_observation(nor::Player::alex, s2, Move{rc(3, 1, 1)}, s2_after);
    EXPECT_EQ(priv_alex_ok.kind, Observation::Kind::stone_placed);
    EXPECT_EQ(priv_alex_ok.cell_index, rc(3, 1, 1));
-   auto priv_bob_other =
-      env.private_observation(nor::Player::bob, s2, Move{rc(3, 1, 1)}, s2_after);
+   auto priv_bob_other = env.private_observation(nor::Player::bob, s2, Move{rc(3, 1, 1)}, s2_after);
    EXPECT_EQ(priv_bob_other.kind, Observation::Kind::none);
 
    // the public channel never carries payload
@@ -344,7 +359,7 @@ TEST_P(DarkHexPayoffParamsF, payoff_table_plus_minus_one)
 {
    const auto& [script, payoff_one, payoff_two] = GetParam();
    auto final_state = play_script(script);
-   ASSERT_TRUE(final_state.terminal()) << common::to_string(final_state.move_count());
+   ASSERT_TRUE(final_state.terminal());
    EXPECT_DOUBLE_EQ(final_state.payoff(Player::one), payoff_one);
    EXPECT_DOUBLE_EQ(final_state.payoff(Player::two), payoff_two);
    EXPECT_DOUBLE_EQ(final_state.payoff(Player::one) + final_state.payoff(Player::two), 0.);
@@ -357,32 +372,34 @@ INSTANTIATE_TEST_SUITE_P(
       // player one bridges top <-> bottom through the leftmost column
       std::make_tuple(
          DarkHexScript{
-            Config{3, RulesMode::cdh},
+            cdh_config(),
             {{Player::one, rc(3, 0, 0)},
              {Player::two, rc(3, 0, 1)},
              {Player::one, rc(3, 1, 0)},
              {Player::two, rc(3, 0, 2)},
-             {Player::one, rc(3, 2, 0)}}},
+             {Player::one, rc(3, 2, 0)}}
+         },
          1.,
          -1.
       ),
       // player two bridges left <-> right through the middle row
       std::make_tuple(
          DarkHexScript{
-            Config{3, RulesMode::adh},
+            adh_config(),
             {{Player::one, rc(3, 0, 0)},
              {Player::two, rc(3, 1, 0)},
              {Player::one, rc(3, 0, 1)},
              {Player::two, rc(3, 1, 1)},
              {Player::one, rc(3, 2, 0)},
-             {Player::two, rc(3, 1, 2)}}},
+             {Player::two, rc(3, 1, 2)}}
+         },
          -1.,
          1.
       ),
       // cdh: player one wastes attempts on taken cells (retained turns) before winning
       std::make_tuple(
          DarkHexScript{
-            Config{3, RulesMode::cdh},
+            cdh_config(),
             {{Player::one, rc(3, 1, 1)},
              {Player::two, rc(3, 0, 0)},
              {Player::one, rc(3, 1, 1)},  // rejected on own stone, turn retained
@@ -392,7 +409,8 @@ INSTANTIATE_TEST_SUITE_P(
              {Player::one, rc(3, 0, 2)},
              {Player::two, rc(3, 0, 2)},  // rejected on enemy stone, turn retained
              {Player::two, rc(3, 1, 0)},
-             {Player::one, rc(3, 2, 2)}}},
+             {Player::one, rc(3, 2, 2)}}
+         },
          1.,
          -1.
       )
@@ -435,9 +453,9 @@ TEST(DarkHexTraits, deterministic_fosg_concepts)
 {
    using Env = nor::games::dark_hex::Environment;
    static_assert(std::same_as< typename Env::chance_outcome_type, std::monostate >);
-   static_assert(
-      std::same_as< typename Env::action_variant_type, std::variant< Move, std::monostate > >
-   );
+   static_assert(std::same_as<
+                 typename Env::action_variant_type,
+                 std::variant< Move, std::monostate > >);
    EXPECT_TRUE((nor::concepts::fosg< Env >) );
    EXPECT_TRUE((nor::concepts::deterministic_env< Env >) );
    EXPECT_FALSE((nor::concepts::stochastic_env< Env >) );
@@ -459,8 +477,7 @@ struct DarkHexConvergenceReport {
    size_t iterations = 0;
 };
 
-inline DarkHexConvergenceReport
-print_convergence_report(const DarkHexConvergenceReport& report)
+inline DarkHexConvergenceReport print_convergence_report(const DarkHexConvergenceReport& report)
 {
    fmt::print(
       "[darkhex-cfr-baseline] iterations={} expl_at_iter_50={:.6e} expl_final={:.6e}\n",
@@ -477,10 +494,14 @@ TEST(DarkHexCFR, vanilla_alternating_2x2_cdh_converges)
 {
    using namespace nor;
    using Env = games::dark_hex::Environment;
-   auto config = dark_hex::Config{/*board_size=*/2, dark_hex::RulesMode::cdh};
+   // NOTE: unlimited cdh contains infinite all-retry branches which exhaustive traversal (vanilla
+   // CFR + best-response oracle) cannot enumerate; the smoke run therefore caps the attempt
+   // budget. Timeout draws score 0/0 and leave the +/-1 payoff structure of decided games intact.
+   auto config = cdh_config(/*board_size=*/2);
+   config.move_limit = 9;
    Env env{config};
 
-   auto root_state = std::make_unique< dark_hex::State >(config);
+   auto root_state = std::make_unique< games::dark_hex::State >(config);
 
    auto avg_policy = factory::make_tabular_policy(
       std::unordered_map< games::dark_hex::Infostate, HashmapActionPolicy< Move > >{}
@@ -511,8 +532,10 @@ TEST(DarkHexCFR, vanilla_alternating_2x2_cdh_converges)
          games::dark_hex::State{config},
          player_hashmap< AvgTablePolicy >{
             std::pair{
-               nor::Player::alex, normalize_state_policy(avg_policies.at(nor::Player::alex))},
-            std::pair{nor::Player::bob, normalize_state_policy(avg_policies.at(nor::Player::bob))}}
+               nor::Player::alex, normalize_state_policy(avg_policies.at(nor::Player::alex))
+            },
+            std::pair{nor::Player::bob, normalize_state_policy(avg_policies.at(nor::Player::bob))}
+         }
       );
       fmt::print("[darkhex-cfr-baseline] iter={} exploitability={:.6e}\n", iter, expl);
       if(iter == kCheckpoint) {

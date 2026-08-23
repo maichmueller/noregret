@@ -14,10 +14,6 @@
 #include "nor/game_defs.hpp"
 #include "nor/utils/player_informed_type.hpp"
 
-namespace dark_hex {
-enum class RulesMode : uint8_t;
-}
-
 namespace nor::games::dark_hex {
 
 using namespace ::dark_hex;
@@ -116,7 +112,7 @@ class Infostate: public DefaultInfostate< Infostate, Observation > {
  * and is therefore delivered through `private_observation` keyed to the acting player only.
  */
 class Environment {
-   public:
+  public:
    // nor fosg typedefs
    using world_state_type = State;
    using info_state_type = Infostate;
@@ -132,7 +128,7 @@ class Environment {
    static constexpr bool unrolled() { return true; }
    static constexpr Stochasticity stochasticity() { return Stochasticity::deterministic; }
 
-   public:
+  public:
    Environment() = default;
    explicit Environment(Config config) : m_config(std::move(config)) {}
 
@@ -152,10 +148,7 @@ class Environment {
       worldstate.apply_action(action);
    }
 
-   [[nodiscard]] world_state_type initial_world_state() const
-   {
-      return world_state_type(m_config);
-   }
+   [[nodiscard]] world_state_type initial_world_state() const { return world_state_type(m_config); }
 
    /////////////////////////////////
    /// API: players and payoffs  ///
@@ -206,10 +199,12 @@ class Environment {
       if(wstate.is_occupied(action.cell_index)) {
          // resolved from the PRE-transition occupancy: this very attempt targeted a taken cell
          return observation_type{
-            .kind = Observation::Kind::attempt_rejected, .cell_index = action.cell_index};
+            .kind = Observation::Kind::attempt_rejected, .cell_index = action.cell_index
+         };
       }
       return observation_type{
-         .kind = Observation::Kind::stone_placed, .cell_index = action.cell_index};
+         .kind = Observation::Kind::stone_placed, .cell_index = action.cell_index
+      };
    }
 
    observation_type public_observation(
@@ -261,7 +256,7 @@ class Environment {
       return out;
    }
 
-   private:
+  private:
    template < typename VisibleFor >
    [[nodiscard]] std::vector< PlayerInformedType< std::optional< action_variant_type > > >
    _masked_history(const world_state_type& wstate, VisibleFor&& visible_for) const
@@ -281,7 +276,7 @@ class Environment {
       return out;
    }
 
-   private:
+  private:
    Config m_config{};
 };
 

@@ -46,9 +46,7 @@ inline std::string to_string(const dark_hex::Config& config)
 template <>
 inline std::string to_string(const dark_hex::LogEntry& entry)
 {
-   return fmt::format(
-      "{}:{}", common::to_string(entry.actor), unsigned(entry.cell_index)
-   );
+   return fmt::format("{}:{}", common::to_string(entry.actor), unsigned(entry.cell_index));
 }
 
 }  // namespace common
