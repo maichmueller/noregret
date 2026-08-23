@@ -104,3 +104,11 @@ add_library(goofspiel INTERFACE)
 target_include_directories(goofspiel INTERFACE ${PROJECT_GAMES_DIR}/goofspiel/include)
 
 target_link_libraries(goofspiel INTERFACE required_min_libs common range-v3::range-v3)
+# Battleship (header-only)
+# ######################################################################################################################
+
+add_library(battleship INTERFACE)
+
+target_include_directories(battleship INTERFACE ${PROJECT_GAMES_DIR}/battleship/include)
+
+target_link_libraries(battleship INTERFACE required_min_libs common range-v3::range-v3)

@@ -81,6 +81,11 @@ if(ENABLE_GAMES)
         liars_dice
         LINK_LIBRARY
         liars_dice
+        battleship
+        INCLUDE_DIR
+        battleship
+        LINK_LIBRARY
+        battleship
         SOURCE_FILES
         test_state.cpp)
 endif()
