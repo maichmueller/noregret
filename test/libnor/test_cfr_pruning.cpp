@@ -261,11 +261,27 @@ std::pair< double, RunCounters > timed_leduc_iterations(size_t n_iters)
 
 TEST(LeducPoker, RBP_SpeedupOverUnpruned)
 {
-   const double unpruned_ms = timed_leduc_iterations< rm::CFRPlusConfig{} >(LEDUC_SPEEDUP_ITERS);
-   const double pruned_ms = timed_leduc_iterations< rbp_rmplus_uniform >(LEDUC_SPEEDUP_ITERS);
+   // wall-clock noise on shared machines exceeds the per-run effect, so interleave the two
+   // variants and compare the MINIMUM of several repetitions (standard micro-benchmark
+   // practice: the minimum approaches the true cost)
+   constexpr size_t reps = 3;
+   double unpruned_ms = std::numeric_limits< double >::max();
+   double pruned_ms = std::numeric_limits< double >::max();
+   RunCounters pruned_counters{};
+   for(size_t rep = 0; rep < reps; ++rep) {
+      const auto unpruned = timed_leduc_iterations< rm::CFRPlusConfig{} >(LEDUC_SPEEDUP_ITERS);
+      const auto pruned = timed_leduc_iterations< rbp_rmplus_uniform >(LEDUC_SPEEDUP_ITERS);
+      unpruned_ms = std::min(unpruned_ms, unpruned.first);
+      pruned_ms = std::min(pruned_ms, pruned.first);
+      pruned_counters = pruned.second;
+   }
    const double ratio = unpruned_ms / pruned_ms;
-   std::cout << "[          ] leduc " << LEDUC_SPEEDUP_ITERS << " iters: unpruned=" << unpruned_ms
-             << "ms pruned=" << pruned_ms << "ms speedup=" << ratio << "x\n";
+   std::cout << "[          ] leduc " << LEDUC_SPEEDUP_ITERS << " iters x" << reps
+             << " reps (min): unpruned=" << unpruned_ms << "ms pruned=" << pruned_ms
+             << "ms speedup=" << ratio << "x | armed=" << pruned_counters.windows_armed
+             << " skips=" << pruned_counters.skipped_edge_visits
+             << " folds=" << pruned_counters.window_folds << " br=" << pruned_counters.br_refreshes
+             << "\n";
    EXPECT_GT(ratio, 1.);
 }
 
