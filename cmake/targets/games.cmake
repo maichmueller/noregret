@@ -141,3 +141,33 @@ add_library(oshi_zumo INTERFACE)
 target_include_directories(oshi_zumo INTERFACE ${PROJECT_GAMES_DIR}/oshi_zumo/include)
 
 target_link_libraries(oshi_zumo INTERFACE required_min_libs common)
+
+# ######################################################################################################################
+# Shapley's game (header-only)
+# ######################################################################################################################
+
+add_library(shapley INTERFACE)
+
+target_include_directories(shapley INTERFACE ${PROJECT_GAMES_DIR}/shapley/include)
+
+target_link_libraries(shapley INTERFACE required_min_libs common)
+
+# ######################################################################################################################
+# Centipede game (header-only)
+# ######################################################################################################################
+
+add_library(centipede INTERFACE)
+
+target_include_directories(centipede INTERFACE ${PROJECT_GAMES_DIR}/centipede/include)
+
+target_link_libraries(centipede INTERFACE required_min_libs common)
+
+# ######################################################################################################################
+# Discretized Colonel Blotto (header-only)
+# ######################################################################################################################
+
+add_library(colonel_blotto INTERFACE)
+
+target_include_directories(colonel_blotto INTERFACE ${PROJECT_GAMES_DIR}/colonel_blotto/include)
+
+target_link_libraries(colonel_blotto INTERFACE required_min_libs common)
