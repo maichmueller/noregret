@@ -777,6 +777,7 @@ consteval bool sanity_check_cfr_config()
 ////////////////////// regret-based pruning / dynamic thresholding engine /////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
+
 /// resolves the registered action at 'action_idx' (gate/fold helpers speak in table indices)
 template < typename NodeData >
 decltype(auto) action_of_index(NodeData& node_data, size_t action_idx)
@@ -823,7 +824,6 @@ pruning::PayoffBound VanillaCFR< config, Env, Policy, AveragePolicy >::_edge_bou
                if(act_it != ist_it->second.end()) {
                   return act_it->second;
                }
-            }
          }
       }
       const auto& global = m_payoff_bounds.at(infostate.player());
@@ -846,7 +846,12 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_edge_bounds()
    }
    world_state_type& root_ref = *_root_state_uptr();
    world_state_type& arena_root = _arena_state(0, root_ref);
-   _probe_dfs(arena_root, 0, infostates, buffers);
+   // the ROOT hull doubles as the conservative global per-player interval used whenever an
+   // edge lookup misses
+   const auto global_hull = _probe_dfs(arena_root, 0, infostates, buffers);
+   for(auto idx : std::views::iota(size_t{0}, m_root_player_order.size())) {
+      m_payoff_bounds.emplace(m_root_player_order[idx], global_hull[idx]);
+   }
 
    // convert raw per-edge {min,max} of u_owner below h*a into the paper's pair
    // { lower = L(I), upper = U(I,a) } with L(I) = min over the node's actions

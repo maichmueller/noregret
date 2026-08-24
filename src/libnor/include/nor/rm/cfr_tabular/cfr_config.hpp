@@ -109,7 +109,7 @@ struct CFRConfig {
    /// m = floor(|R(I,a)| / (U(I,a) - L(I))) -- before a pruning window is armed. The NIPS'15
    /// paper's Appendix B recommends such a minimum-skip filter (their experiments use 25 on
    /// Leduc-5); small bed games need smaller values so that windows engage at all.
-   double rbp_min_skip_iterations = 2.;
+   double rbp_min_skip_iterations = 1.;
    /// Period (in visits to a pruned edge) between recomputations of the buffered best-response
    /// value against the opponents' current average strategies ("periodic BR traversals").
    /// Higher periods trade surrogate freshness for less BR-walk overhead; the NIPS'15 appendix
