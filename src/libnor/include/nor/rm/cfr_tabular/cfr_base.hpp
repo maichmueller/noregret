@@ -108,6 +108,7 @@ class TabularCFRBase {
       for(auto player : m_env.players(*m_root_state) | utils::is_actual_player_filter) {
          m_curr_policy.emplace(player, policy);
          m_avg_policy.emplace(player, avg_policy);
+         ++m_root_player_count;
       }
       _init_player_update_schedule();
    }
@@ -200,6 +201,10 @@ class TabularCFRBase {
 
    [[nodiscard]] inline const auto& root_state() const { return *m_root_state; }
    [[nodiscard]] inline auto iteration() const { return m_iteration; }
+   /// the CYCLE index: iteration / num_actual_players. Used e.g. by the
+   /// 'weight_by_cycle' option of DiscountedCFR so that per-player weighting
+   /// stays consistent under alternating updates (B3 hook).
+   [[nodiscard]] inline size_t cycle() const { return m_iteration / m_root_player_count; }
    [[nodiscard]] inline const auto& policy() const { return m_curr_policy; }
    [[nodiscard]] inline const auto& average_policy() const { return m_avg_policy; }
    [[nodiscard]] inline const auto& env() const { return m_env; }
@@ -237,11 +242,12 @@ class TabularCFRBase {
     */
    inline void _init_player_update_schedule()
    {
-      if constexpr(alternating_updates) {
-         for(auto player : m_env.players(*m_root_state)) {
-            if(player != Player::chance) {
+      for(auto player : m_env.players(*m_root_state)) {
+         if(player != Player::chance) {
+            if constexpr(alternating_updates) {
                m_player_update_schedule.push_back(player);
             }
+            ++m_root_player_count;
          }
       }
    }
@@ -299,6 +305,8 @@ class TabularCFRBase {
    std::deque< Player > m_player_update_schedule{};
    /// the number of iterations we have run so far.
    size_t m_iteration = 0;
+   /// number of ACTUAL players at the root (chance excluded); basis of cycle()
+   size_t m_root_player_count = 0;
 };
 
 template < bool alternating_updates, typename Env, typename Policy, typename AveragePolicy >

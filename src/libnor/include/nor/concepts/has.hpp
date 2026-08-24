@@ -449,7 +449,27 @@ concept stochasticity = requires(T t) {
    } -> std::same_as< Stochasticity >;
 };
 
+/// B4 (payoff-bounds trait): environments MAY expose a static per-player
+/// payoff bound pair (lower, upper). Used by regret-based-pruning style
+/// agents (RBP) to bound counterfactual values.
+///
+/// Fallback contract: when the concept is NOT satisfied, solvers must derive
+/// bounds themselves, either by probing the environment's maximal reward or
+/// from a user-provided bound struct passed to the solver constructor.
+/// The detection is static_assert-able:
+///    static_assert(nor::concepts::has::method::payoff_bounds<Env>);
+template < typename T >
+concept payoff_bounds = requires(const T t, Player player) {
+   {
+      t.payoff_bounds(player)
+   } -> std::convertible_to< std::pair< double, double > >;
+};
+
 }  // namespace method
+
+/// convenience alias for env-level payoff-bound support detection
+template < typename Env >
+concept supports_payoff_bounds = method::payoff_bounds< Env >;
 
 }  // namespace nor::concepts::has
 

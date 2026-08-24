@@ -24,6 +24,7 @@
 #include "nor/rm/minimizers/minimizers.hpp"
 #include "nor/rm/node.hpp"
 #include "nor/rm/rm_utils.hpp"
+#include "nor/rm/sampling_rules.hpp"
 #include "nor/type_defs.hpp"
 #include "nor/utils/utils.hpp"
 
@@ -36,7 +37,12 @@ namespace nor::rm {
  * @tparam Env, the environment/game type to run VanillaCFR on.
  *
  */
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule = EpsilonOnPolicySamplingRule >
 class MCCFR:
     public TabularCFRBase<
        config.update_mode == UpdateMode::alternating,
@@ -132,12 +138,22 @@ class MCCFR:
       Policy policy_ = Policy(),
       AveragePolicy avg_policy_ = AveragePolicy(),
       double epsilon = 0.6,
-      size_t seed = common::default_seed  // consistent with factory.hpp defaults
+      size_t seed = common::default_seed,  // consistent with factory.hpp defaults
+      SamplingRule sampling_rule = SamplingRule{}
    )
        : base(std::move(env_), std::move(root_state_), std::move(policy_), std::move(avg_policy_)),
          m_epsilon(epsilon),
-         m_rng(seed)
+         m_rng(seed),
+         m_sampling_rule(std::move(sampling_rule))
    {
+      static_assert(
+         config.exploration != MCCFRExplorationMode::custom_sampling_policy
+            or rm::sampling_rule_for< SamplingRule, action_type, decltype([](const action_type&) {
+                                         return 1.;
+                                      }) >,
+         "MCCFRExplorationMode::custom_sampling_policy requires an injectable "
+         "SamplingRule satisfying rm::sampling_rule_for."
+      );
    }
 
    MCCFR(
@@ -146,7 +162,8 @@ class MCCFR:
       Policy policy_ = Policy(),
       AveragePolicy avg_policy_ = AveragePolicy(),
       double epsilon = 0.6,
-      size_t seed = common::default_seed  // consistent with factory.hpp defaults
+      size_t seed = common::default_seed,  // consistent with factory.hpp defaults
+      SamplingRule sampling_rule = SamplingRule{}
    )
        : MCCFR(
           tag::internal_construct{},
@@ -155,7 +172,8 @@ class MCCFR:
           std::move(policy_),
           std::move(avg_policy_),
           epsilon,
-          seed
+          seed,
+          std::move(sampling_rule)
        )
    {
    }
@@ -167,12 +185,22 @@ class MCCFR:
       std::unordered_map< Player, Policy > policy_,
       std::unordered_map< Player, AveragePolicy > avg_policy_,
       double epsilon = 0.6,
-      size_t seed = common::default_seed  // consistent with factory.hpp defaults
+      size_t seed = common::default_seed,  // consistent with factory.hpp defaults
+      SamplingRule sampling_rule = SamplingRule{}
    )
        : base(std::move(env_), std::move(root_state_), std::move(policy_), std::move(avg_policy_)),
          m_epsilon(epsilon),
-         m_rng(seed)
+         m_rng(seed),
+         m_sampling_rule(std::move(sampling_rule))
    {
+      static_assert(
+         config.exploration != MCCFRExplorationMode::custom_sampling_policy
+            or rm::sampling_rule_for< SamplingRule, action_type, decltype([](const action_type&) {
+                                         return 1.;
+                                      }) >,
+         "MCCFRExplorationMode::custom_sampling_policy requires an injectable "
+         "SamplingRule satisfying rm::sampling_rule_for."
+      );
    }
 
    ////////////////////////////////////
@@ -186,6 +214,7 @@ class MCCFR:
    using base::policy;
    using base::average_policy;
    using base::iteration;
+   using base::cycle;
    using base::root_state;
    using base::fetch_policy;
 
@@ -267,6 +296,10 @@ class MCCFR:
    std::uniform_real_distribution< double > m_uniform_01_dist{0., 1.};
    /// the actual regret minimizing method we will apply on the infostates
    [[no_unique_address]] minimizer_type m_regret_minimizer{};
+   /// B6: injectable sampling rule (active only under
+   /// MCCFRExplorationMode::custom_sampling_policy; default rule reproduces
+   /// the epsilon-on-policy behavior draw-for-draw)
+   [[no_unique_address]] SamplingRule m_sampling_rule{};
    /// depth-indexed world-state slots reused across the recursion within one
    /// iteration (deque: growing never moves slots, keeping references of
    /// active frames valid)

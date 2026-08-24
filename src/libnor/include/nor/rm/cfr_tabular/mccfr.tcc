@@ -7,8 +7,13 @@
 
 namespace nor::rm {
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-constexpr void MCCFR< config, Env, Policy, AveragePolicy >::_sanity_check_config()
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+constexpr void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sanity_check_config()
 {
    static_assert(
       not std::invoke([&] {
@@ -47,8 +52,13 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy >::_sanity_check_config
    );
 };
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(size_t n_iters)
 {
    std::vector< std::unordered_map< Player, double > > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
@@ -88,8 +98,13 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
    return root_values_per_iteration;
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(std::optional< Player > player_to_update)
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(std::optional< Player > player_to_update)
    requires(config.update_mode == UpdateMode::alternating)
 {
    SPDLOG_DEBUG("Iteration number: {}", _iteration());
@@ -101,8 +116,13 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(std::optional< Player 
    return value;
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-auto MCCFR< config, Env, Policy, AveragePolicy >::_arena_state(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_arena_state(
    size_t depth,
    const world_state_type& source
 ) -> world_state_type&
@@ -115,8 +135,13 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_arena_state(
    return m_traversal_state_arena[depth].construct_from(source);
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player > player_to_update)
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(std::optional< Player > player_to_update)
 {
    auto players = _env().players(*_root_state_uptr());
    auto init_infostates = [&] {
@@ -211,8 +236,13 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
    }
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-void MCCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimization(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_initiate_regret_minimization(
    const delayed_update_set& update_set
 )
 {
@@ -248,8 +278,13 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimization(
       }
    });
 }
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-void MCCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_invoke_regret_minimizer(
    const info_state_type& infostate,
    infostate_data_type& data
 )
@@ -263,8 +298,13 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 /////////////////////////////////// Outcome-Sampling MCCFR /////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
    std::optional< Player > player_to_update,
    world_state_type& state,
    size_t depth,
@@ -525,8 +565,13 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
    return std::pair{std::move(action_value_map), Probability{tail_prob.get() * action_policy_prob}};
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-auto MCCFR< config, Env, Policy, AveragePolicy >::_terminal_value(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_terminal_value(
    world_state_type& state,
    std::optional< Player > player_to_update,
    Probability sample_probability
@@ -579,8 +624,13 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_terminal_value(
    }
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets_variance_reduced(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_update_regrets_variance_reduced(
    infostate_data_type& infostate_data,
    const std::vector< action_type >& actions,
    const auto& action_policy,
@@ -615,8 +665,13 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets_variance_reduc
     sampled_baseline += config.baseline_update_rate * (sampled_value - sampled_baseline);
  }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_update_regrets(
    const ReachProbabilityMap& reach_probability,  // = pi(z[I])
    Player active_player,
    infostate_data_type& infostate_data,  // = -->r(I) and A(I)
@@ -649,8 +704,13 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_regrets(
    }
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_update_average_policy(
    const info_state_type& infostate,
    infostate_data_type& infonode_data,
    const auto& current_policy,
@@ -700,8 +760,13 @@ void MCCFR< config, Env, Policy, AveragePolicy >::_update_average_policy(
    }
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action_on_policy(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action_on_policy(
    const std::vector< action_type >& actions,
    auto& action_policy
 )
@@ -709,8 +774,13 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action_on_policy(
    return common::choose(actions, [&](const auto& act) { return action_policy[act]; }, m_rng);
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action(
    Player active_player,
    std::optional< Player > player_to_update,
    const std::vector< action_type >& actions,
@@ -763,6 +833,16 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
       }
    };
 
+   // B6: an injectable custom sampling rule (ESCHER/bandit agents) takes
+   // precedence whenever the config selects it. The rule reports the action
+   // and its SAMPLING probability; the policy probability is derived here so
+   // downstream importance weights stay unchanged.
+   if constexpr(config.exploration == MCCFRExplorationMode::custom_sampling_policy) {
+      const auto [chosen_action, sample_prob] =
+         m_sampling_rule(m_rng, actions, [&](const action_type& act) { return action_policy[act]; });
+      return std::tuple{chosen_action, sample_prob, action_policy[chosen_action]};
+   }
+
    // here we now decide what sampling procedure is exactly executed. It depends on the MCCFR
    // config given and then on the specific algorithm's sampling scheme
    if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
@@ -778,9 +858,14 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_action(
    }
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
 template < bool return_likelihood >
-auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_outcome(const world_state_type& state)
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_outcome(const world_state_type& state)
 {
    auto chance_actions = _env().chance_actions(state);
    auto chance_probabilities = std::ranges::to< std::unordered_map< chance_outcome_type, double > >(
@@ -804,8 +889,13 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_outcome(const world_st
 /////////////////////////////////// External-Sampling MCCFR ////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
    Player player_to_update,
    world_state_type& state,
    size_t depth,
@@ -1031,8 +1121,13 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 ////////////////////// Chance-Sampling MCCFR & Pure CFR Sim. Updating //////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
    std::optional< Player > player_to_update,
    world_state_type& curr_worldstate,
    size_t depth,
@@ -1252,8 +1347,13 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
    return state_value;
 }
 
-template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-void MCCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::update_regret_and_policy(
    const info_state_type& infostate,
    const ReachProbabilityMap& reach_probability,
    const StateValueMap& state_value,

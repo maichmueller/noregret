@@ -181,9 +181,14 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       // derive the recommendation from the (possibly weighted) stored regret
       m_regret_minimizer.recommend(istate_data.data(), current_policy, _iteration());
 
-      // scale the accumulated average policy by this iteration's weight
+      // scale the accumulated average policy by this iteration's weight.
+      // B3: with 'weight_by_cycle' the gamma exponentiation indexes by the
+      // cycle number (iteration / num_players) instead of the raw iteration.
       if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
-         const double policy_weight = m_regret_minimizer.policy_weight(_iteration());
+         const size_t weight_index =
+            m_regret_minimizer.discounted_parameters().weight_by_cycle ? this->cycle()
+                                                                          : _iteration();
+         const double policy_weight = m_regret_minimizer.policy_weight(weight_index);
          for(auto& policy_prob :
              this->template fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())
                 | std::views::values) {

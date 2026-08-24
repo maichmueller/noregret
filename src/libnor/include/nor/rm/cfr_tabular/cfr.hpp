@@ -152,6 +152,7 @@ class VanillaCFR:
    using base::env;
    using base::policy;
    using base::iteration;
+   using base::cycle;
    using base::root_state;
 
    auto& average_policy() const

@@ -411,8 +411,8 @@ class DiscountedCFR {
       // while the policy weight below uses the logical iteration number. This
       // mirrors the historical behavior which empirically converged faster.
       if constexpr(discount_regrets) {
-         double t_alpha = std::pow(double(iteration), m_params.alpha);
-         double t_beta = std::pow(double(iteration), m_params.beta);
+         double t_alpha = std::pow(double(iteration), m_params.alpha_at(iteration));
+         double t_beta = std::pow(double(iteration), m_params.beta_at(iteration));
          for(double& cumul_regret : data.regret) {
             cumul_regret *= cumul_regret > 0. ? t_alpha / (t_alpha + 1.) : t_beta / (t_beta + 1.);
          }
@@ -424,10 +424,15 @@ class DiscountedCFR {
    {
       // add +1 to obtain the logical iteration number t (iterations count from
       // 0 numerically but from 1 theoretically); the resulting fraction is then
-      // exponentiated by gamma
+      // exponentiated by gamma. When 'weight_by_cycle' is active the solver
+      // passes the CYCLE index (= iteration / num_players) instead of the raw
+      // iteration (see TabularCFRBase::cycle()).
       double t = double(iteration) + 1.;
-      return std::pow(t / (t + 1.), m_params.gamma);
+      return std::pow(t / (t + 1.), m_params.gamma_at(iteration));
    }
+
+   /// the stored parameters (exposes 'weight_by_cycle' to the solver)
+   [[nodiscard]] const CFRDiscountedParameters& discounted_parameters() const { return m_params; }
 
   private:
    CFRDiscountedParameters m_params;

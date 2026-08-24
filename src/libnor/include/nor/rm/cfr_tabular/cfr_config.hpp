@@ -2,6 +2,8 @@
 #ifndef NOR_CFR_CONFIG_HPP
 #define NOR_CFR_CONFIG_HPP
 
+#include <functional>
+
 namespace nor::rm {
 
 enum class RegretMinimizingMode {
@@ -147,6 +149,33 @@ struct CFRDiscountedParameters {
    double beta = 0.;
    /// the parameter to exponentiate the weight of the cumulative policy with
    double gamma = 2.;
+
+   /// OPTIONAL per-iteration schedules overriding the constants above.
+   /// Each schedule is invoked with the raw (0-based) iteration index and must
+   /// return the parameter value for that iteration. When null the constants
+   /// are used (static fast path; identical arithmetic to previous versions).
+   /// Consumers: HS-schedules / DDCFR agents.
+   std::function< double(size_t) > alpha_schedule{};
+   std::function< double(size_t) > beta_schedule{};
+   std::function< double(size_t) > gamma_schedule{};
+
+   [[nodiscard]] double alpha_at(size_t iteration) const
+   {
+      return alpha_schedule ? alpha_schedule(iteration) : alpha;
+   }
+   [[nodiscard]] double beta_at(size_t iteration) const
+   {
+      return beta_schedule ? beta_schedule(iteration) : beta;
+   }
+   [[nodiscard]] double gamma_at(size_t iteration) const
+   {
+      return gamma_schedule ? gamma_schedule(iteration) : gamma;
+   }
+
+   /// B3: when true, the gamma-side policy weighting indexes by the CYCLE
+   /// number (= iteration / num_players) instead of the raw iteration index.
+   /// Default false keeps the historical indexing bit-for-bit.
+   bool weight_by_cycle = false;
 };
 
 namespace detail {
