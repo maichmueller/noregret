@@ -840,7 +840,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_edge_bounds()
    player_hashmap< std::vector< std::pair< observation_type, observation_type > > > buffers{};
    for(auto p : m_root_player_order) {
       infostates.emplace(p, std::make_shared< info_state_type >(p));
-      buffers.emplace(p, decltype(buffers.at(p)){});
+      buffers.emplace(
+         p, std::vector< std::pair< observation_type, observation_type > >{}
+      );
    }
    world_state_type& root_ref = *_root_state_uptr();
    world_state_type& arena_root = _arena_state(0, root_ref);
