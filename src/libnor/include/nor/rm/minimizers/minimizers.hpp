@@ -755,17 +755,22 @@ using mccfr_extras_t = std::conditional_t<
  * @brief the MCCFR regret minimizer: plain external regret matching on top of
  * whatever per-config extras the sampling/weighting scheme requires.
  *
- * The 'variance_reduced' switch additionally attaches the VR-MCCFR
- * state-action baseline table to every node (Schmid et al., AAAI 2019). It is
- * kept orthogonal to the weighting extras so that both can be active at once;
- * when false, 'vr_extras' collapses to the empty struct and costs nothing.
+ * The 'variance_reduction' switch additionally attaches the VR-MCCFR
+ * state-action baseline table to every node (Schmid et al., AAAI 2019) when
+ * set to VarianceReductionMode::action_baseline. It is kept orthogonal to the
+ * weighting extras so that both can be active at once; under
+ * VarianceReductionMode::history_value (ESCHER-style history values,
+ * McAleer et al., ICLR 2023) no per-infostate table is needed -- the
+ * history-value store lives in the MCCFR engine keyed by world-state-edge
+ * hashes -- so the extras collapse to the empty struct as well. 'none' is the
+ * plain outcome-sampling layout, identical to the historical flag-off path.
  */
 template <
    concepts::action Action,
    MCCFRAlgorithmMode algorithm,
    MCCFRWeightingMode weighting,
    RegretMinimizingMode rm_mode = RegretMinimizingMode::regret_matching,
-   bool variance_reduced = false >
+   VarianceReductionMode variance_reduction = VarianceReductionMode::none >
 struct MCCFRMinimizer {
    static_assert(
       rm_mode == RegretMinimizingMode::regret_matching,
@@ -774,7 +779,7 @@ struct MCCFRMinimizer {
 
    using extras_type = detail::mccfr_extras_t< algorithm, weighting, Action >;
    using vr_extras_type = std::conditional_t<
-      variance_reduced,
+      variance_reduction == VarianceReductionMode::action_baseline,
       detail::vr_baseline_extras< Action >,
       detail::no_mccfr_extras >;
 
@@ -824,7 +829,7 @@ using mccfr_minimizer_for_t = MCCFRMinimizer<
    config.algorithm,
    config.weighting,
    config.regret_minimizing_mode,
-   config.variance_reduced_baselines >;
+   effective_variance_reduction(config) >;
 
 }  // namespace nor::rm
 

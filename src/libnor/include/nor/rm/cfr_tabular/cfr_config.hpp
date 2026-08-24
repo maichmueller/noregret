@@ -181,6 +181,54 @@ enum class MCCFRExplorationMode {
    custom_sampling_policy = 1
 };
 
+/// Which variance-reduction machinery is attached to outcome-sampling updates.
+/// Supersedes the boolean 'variance_reduced_baselines' (kept as a legacy shim;
+/// see 'effective_variance_reduction').
+enum class VarianceReductionMode {
+   // plain outcome-sampling MCCFR: no baselines, importance-weighted terminal values
+   none = 0,
+   // VR-MCCFR (Schmid et al., AAAI 2019): per-infostate-and-action running-mean
+   // baselines b(I,a) correcting the sampled continuation values
+   action_baseline = 1,
+   // ESCHER-style history-value function V(h) (McAleer, Farina, Lanctot,
+   // Sandholm, ICLR 2023, arXiv:2206.04122): one scalar per visited world-state
+   // edge (h -> h a), keyed by a rolling hash of the sampled trajectory prefix
+   // plus the local action index; bootstrapped along the single sampled
+   // trajectory exactly like the action baselines, but at HISTORY granularity
+   // (no generalization across the histories of an infoset)
+   history_value = 2
+};
+
+/// How the baseline of the sampled edge is maintained after the regret update.
+enum class BaselineUpdateRule {
+   // exponentially-decaying running mean toward the baseline-corrected value
+   // estimate of the sampled branch (VR-MCCFR paper step (e))
+   running_mean = 0,
+   // predictive baseline (Davis, Schmid, Bowling, ICML 2020, eq (8)): regress
+   // the sampled edge's baseline onto the trajectory value RE-EVALUATED under
+   // the next strategy sigma^{t+1} (obtained by recommending from the freshly
+   // updated regret table). Provably optimal (zero-variance under complete
+   // sampling schemes); empirically lower variance under outcome sampling.
+   predictive = 1
+};
+
+/// Distribution used to sample the UPDATING player's actions during an
+/// outcome-sampling traversal.
+enum class UpdaterSamplingMode {
+   // epsilon-on-policy sampling w.r.t. the current strategy (classical OS-MCCFR
+   // / VR-MCCFR). Time-varying sampling rule => importance corrections required.
+   current_policy = 0,
+   // ESCHER (sec. 3): sample the updating player's actions from a FIXED uniform
+   // distribution over legal actions (opponents keep their current policy).
+   // Because the sampling rule no longer changes across iterations, all
+   // importance-sampling corrections are dropped: neither the eq-(9) 1/xi
+   // deviation factor nor the eq-(11) pi_-i/q(h) reach weighting is applied.
+   // The per-infoset visit frequency under the fixed policy plays the role of
+   // the positive scaling w(s) of ESCHER's Theorem 1. Requires
+   // VarianceReductionMode::history_value (enforced statically).
+   fixed_uniform = 1
+};
+
 struct MCCFRConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    MCCFRAlgorithmMode algorithm = MCCFRAlgorithmMode::outcome_sampling;
@@ -209,7 +257,41 @@ struct MCCFRConfig {
    /// off-trajectory baseline values; the paper likewise prescribes an
    /// exponentially-decaying average rather than a cumulative one.
    double baseline_update_rate = 0.1;
+   ///////////////////////////////////////////////////////////////////////////
+   /// tri-state variance-reduction surface (supersedes the boolean above) ///
+   ///////////////////////////////////////////////////////////////////////////
+   /// Selects among no reduction, VR-MCCFR action baselines b(I,a), and
+   /// ESCHER-style history values V(h). The legacy boolean
+   /// 'variance_reduced_baselines' remains fully functional as a shim: when it
+   /// is true and this field is left at 'none', the effective mode resolves to
+   /// 'action_baseline' (see 'effective_variance_reduction'). Explicitly
+   /// setting both wins for the enum.
+   VarianceReductionMode variance_reduction = VarianceReductionMode::none;
+   /// baseline maintenance rule applied to the sampled edge's baseline after
+   /// the regret update ('running_mean' = VR-MCCFR step (e); 'predictive' =
+   /// Davis et al. eq (8), regressing onto the next-strategy re-evaluation).
+   BaselineUpdateRule baseline_update_rule = BaselineUpdateRule::running_mean;
+   /// sampling distribution of the updating player's actions; 'fixed_uniform'
+   /// activates the ESCHER importance-sampling-free scheme (requires
+   /// variance_reduction == history_value).
+   UpdaterSamplingMode updater_sampling = UpdaterSamplingMode::current_policy;
 };
+
+/// Resolves the LEGACY boolean flag against the tri-state enum. Call sites
+/// (minimizer selection, engine constexpr branches) must consult this instead
+/// of reading either field directly so that old designated-initializer configs
+/// keep their exact historical behavior:
+///   .variance_reduced_baselines = true  => action_baseline
+///   everything else                     => the enum value verbatim
+[[nodiscard]] inline constexpr VarianceReductionMode effective_variance_reduction(MCCFRConfig config
+)
+{
+   if(config.variance_reduction != VarianceReductionMode::none) {
+      return config.variance_reduction;
+   }
+   return config.variance_reduced_baselines ? VarianceReductionMode::action_baseline
+                                            : VarianceReductionMode::none;
+}
 
 struct CFRDiscountedParameters {
    /// the parameter to exponentiate the weight of positive cumulative regrets with

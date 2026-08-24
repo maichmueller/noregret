@@ -82,6 +82,25 @@ class MCCFR:
       not std::is_same_v< infostate_data_type, void >,
       "Infostate node data is void type."
    );
+
+   /// resolved variance-reduction mode of this instantiation (legacy boolean
+   /// shim applied; see 'effective_variance_reduction')
+   static constexpr VarianceReductionMode vr_mode = effective_variance_reduction(config);
+   /// ESCHER-style history values V(h) keyed by world-state-edge hashes
+   static constexpr bool vr_history_active = vr_mode == VarianceReductionMode::history_value;
+   /// predictive baseline maintenance (Davis et al., ICML 2020, eq (8)) needs a
+   /// side channel carrying the next-strategy value stream up the recursion
+   static constexpr bool vr_predictive_active = config.baseline_update_rule
+                                                   == BaselineUpdateRule::predictive
+                                                and vr_mode != VarianceReductionMode::none;
+
+   /// storage of the ESCHER history-value function: one scalar per visited
+   /// world-state EDGE (h --a--> h a) at which the updating player acts. Keys
+   /// are a rolling hash of the sampled trajectory prefix combined with the
+   /// action's registry index; entries materialize lazily on first regression.
+   struct HistoryValueStore {
+      std::unordered_map< size_t, double > edge_values{};
+   };
    /// strong-types for player based maps
    using WeightMap = fluent::
       NamedType< std::unordered_map< Player, double >, struct weight_map_tag >;
@@ -218,6 +237,17 @@ class MCCFR:
    using base::root_state;
    using base::fetch_policy;
 
+   /// number of materialized history-value entries (diagnostics/memory
+   /// profiling; zero unless variance_reduction == history_value)
+   [[nodiscard]] size_t history_value_entry_count() const
+   {
+      if constexpr(vr_history_active) {
+         return m_vr_history_store.edge_values.size();
+      } else {
+         return 0;
+      }
+   }
+
   public:
    /**
     * @brief executes n iterations of the VanillaCFR algorithm.
@@ -304,6 +334,26 @@ class MCCFR:
    /// iteration (deque: growing never moves slots, keeping references of
    /// active frames valid)
    std::deque< utils::ReusableSlot< world_state_type > > m_traversal_state_arena;
+   /// ESCHER history-value table V(h->a); empty (and overlapped via
+   /// no_unique_address) unless vr_history_active
+   [[no_unique_address]] std::conditional_t< vr_history_active, HistoryValueStore, utils::empty >
+      m_vr_history_store{};
+   /// per-depth side channel of the predictive baseline: slot d holds the
+   /// outgoing next-strategy (sigma^{t+1}-weighted) value stream of the frame
+   /// at depth d, consumed by its parent after the recursive call returns.
+   /// Empty unless vr_predictive_active.
+   [[no_unique_address]] std::
+      conditional_t< vr_predictive_active, std::vector< double >, utils::empty >
+         m_vr_secondary_streams{};
+
+   /// grows (if needed) and returns the secondary-stream slot of 'depth'
+   double& _vr_secondary_slot(size_t depth)
+   {
+      if(m_vr_secondary_streams.size() <= depth) {
+         m_vr_secondary_streams.resize(depth + 1, 0.);
+      }
+      return m_vr_secondary_streams[depth];
+   }
 
    /// define the implementation details of the
 
@@ -333,7 +383,8 @@ class MCCFR:
       ObservationbufferMap& observation_buffer,
       InfostateSptrMap& infostates,
       Probability sample_probability,
-      ConditionalWeightMap& weights
+      ConditionalWeightMap& weights,
+      size_t path_hash
    )
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
@@ -388,21 +439,37 @@ class MCCFR:
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
    /**
-    * @brief VR-MCCFR regret accumulation at one infoset (paper steps (d)+(e)).
+    * @brief VR-MCCFR regret accumulation at one infoset (paper step (d)).
     *
     * Accumulates R(I,a) += v̂ᵇ(I,a) − v̂ᵇ(I) for every legal action, with
     * v̂ᵇ(I,a) = π₋ᵢ(h)/q(h) · ûᵇ(h,a) (eq 11): the sampled action carries the
     * baseline-corrected continuation value, every off-trajectory action is
-    * valued by its state-action baseline. Afterwards the sampled action's
-    * baseline regresses onto its corrected estimate.
+    * valued by its baseline. Baselines are read through the 'baseline_at'
+    * accessor so both the per-infostate action-baseline table (VR-MCCFR) and
+    * the engine-side history-value store (ESCHER mode) share this code path.
     */
-   void _update_regrets_variance_reduced(
+   template < typename BaselineAt >
+   void _vr_accumulate_regrets(
       infostate_data_type& infostate_data,
       const std::vector< action_type >& actions,
       const auto& action_policy,
-      const action_type& sampled_action,
+      size_t sampled_idx,
       double cf_weight,
-      double sampled_value
+      double sampled_value,
+      BaselineAt&& baseline_at
+   ) const
+      requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
+
+   /**
+    * @brief VR-MCCFR baseline regression of the sampled edge (paper step (e)):
+    * running-mean blend toward the corrected estimate. Kept for the
+    * 'running_mean' rule; the predictive rule is handled inline in _traverse.
+    */
+   void _vr_regress_running_mean(
+      size_t sampled_idx,
+      double snapshot,
+      double target,
+      auto&& regress_sampled
    ) const
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
@@ -436,7 +503,8 @@ class MCCFR:
    auto _terminal_value(
       world_state_type& state,
       std::optional< Player > player_to_update,
-      Probability sample_probability
+      Probability sample_probability,
+      size_t depth
    )
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 

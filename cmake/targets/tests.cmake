@@ -16,6 +16,7 @@ register_nor_target(${nor_test}_cfr_predictive_variants test_cfr_predictive_vari
 register_nor_target(${nor_test}_cfr_scheduled test_cfr_scheduled.cpp)
 register_nor_target(${nor_test}_cfr_monte_carlo test_cfr_monte_carlo.cpp)
 register_nor_target(${nor_test}_cfr_vr_monte_carlo test_cfr_vr_monte_carlo.cpp)
+register_nor_target(${nor_test}_cfr_escher test_cfr_escher.cpp)
 register_nor_target(${nor_test}_policy test_policy.cpp)
 register_nor_target(${nor_test}_helpers test_helpers.cpp)
 register_nor_target(${nor_test}_exploitability test_exploitability.cpp)
