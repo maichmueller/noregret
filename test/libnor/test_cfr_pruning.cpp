@@ -450,6 +450,8 @@ TEST(CFRPruningSanityMatrix, OshiZumo_Size2Coins6_RegretBased)
 {
    const games::oshi_zumo::Config oz_config(/*size=*/2, /*coins=*/6, /*min_bid=*/1);
    expect_finite_values(std::get< 0 >(run_iterations< rbp_rmplus_uniform >(
-      games::oshi_zumo::Environment{oz_config}, games::oshi_zumo::State{oz_config}, 100
+      games::oshi_zumo::Environment{oz_config},
+      std::make_unique< games::oshi_zumo::State >(oz_config),
+      100
    )));
 }
