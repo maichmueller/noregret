@@ -138,4 +138,12 @@ if(ENABLE_GAMES)
         shapley
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        centipede
+        INCLUDE_DIR
+        centipede
+        LINK_LIBRARY
+        centipede
+        SOURCE_FILES
+        test_state.cpp)
 endif()
