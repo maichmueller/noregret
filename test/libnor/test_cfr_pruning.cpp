@@ -131,16 +131,27 @@ std::pair< std::vector< double >, RunCounters > kuhn_exploitability_trajectory(s
    );
    std::vector< double > trajectory;
    trajectory.reserve(n_iters);
+   constexpr size_t n_infostates = 6;
    for(size_t iter = 0; iter < n_iters; ++iter) {
       solver.iterate(1);
       const auto& avg_policies = solver.average_policy();
-      trajectory.push_back(exploitability(
-         expl_env,
-         KuhnState{},
-         player_hashmap< std::decay_t< decltype(avg_policies.at(Player::alex)) > >{
-            std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
-            std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
-      ));
+      // exploitability needs fully populated average-policy tables (same guard as
+      // cfr_run_funcs.hpp); record NaN until then so both trajectories stay index-aligned
+      const bool tables_ready = std::ranges::all_of(
+         avg_policies | std::views::values,
+         [](const auto& policy) { return policy.size() == n_infostates; }
+      );
+      trajectory.push_back(
+         not tables_ready
+            ? std::numeric_limits< double >::quiet_NaN()
+            : exploitability(
+               expl_env,
+               KuhnState{},
+               player_hashmap< std::decay_t< decltype(avg_policies.at(Player::alex)) > >{
+                  std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
+                  std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
+            )
+      );
    }
    return {std::move(trajectory), RunCounters::of(solver)};
 }
@@ -189,10 +200,15 @@ TEST(KuhnPoker, RBP_CFRPlus_TrajectoryEquivalence)
 
    ASSERT_EQ(unpruned_traj.size(), pruned_traj.size());
    double max_abs_diff = 0.;
+   size_t compared = 0;
    for(auto [unpruned, pruned] : std::views::zip(unpruned_traj, pruned_traj)) {
+      if(std::isnan(unpruned) or std::isnan(pruned)) {
+         continue;
+      }
       ASSERT_TRUE(std::isfinite(unpruned));
       ASSERT_TRUE(std::isfinite(pruned));
       max_abs_diff = std::max(max_abs_diff, std::abs(unpruned - pruned));
+      ++compared;
    }
    std::cout << "[          ] RBP armed=" << pruned_counters.windows_armed
              << " skips=" << pruned_counters.skipped_edge_visits
