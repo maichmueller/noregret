@@ -449,6 +449,24 @@ concept stochasticity = requires(T t) {
    } -> std::same_as< Stochasticity >;
 };
 
+/// B7 (PCS sampling rule) game-side classification of chance events:
+/// environments MAY expose 'public_chance_event(wstate, outcome)' answering
+/// whether a chance event at 'wstate' yielding 'outcome' is observed by ALL
+/// players (public), as opposed to a private deal whose payload only one
+/// player sees (e.g. hole cards / hidden dice rolls). Used by
+/// rm::PublicChanceSamplingRule to decide between distribution-sampling and
+/// deterministic resolution of chance outcomes during MCCFR traversals.
+template < typename T, typename Worldstate, typename Outcome >
+concept public_chance_event = requires(
+   const T t,
+   const Worldstate& wstate,
+   const Outcome& outcome
+) {
+   {
+      t.public_chance_event(wstate, outcome)
+   } -> std::convertible_to< bool >;
+};
+
 /// B4 (payoff-bounds trait): environments MAY expose a static per-player
 /// payoff bound pair (lower, upper). Used by regret-based-pruning style
 /// agents (RBP) to bound counterfactual values.
@@ -470,6 +488,44 @@ concept payoff_bounds = requires(const T t, Player player) {
 /// convenience alias for env-level payoff-bound support detection
 template < typename Env >
 concept supports_payoff_bounds = method::payoff_bounds< Env >;
+
+/// convenience alias for env-level chance-classification support detection.
+/// (SFINAE-safe: probes the method through the env's own state/outcome types.)
+template < typename Env >
+concept supports_public_chance_classification = requires(
+   const Env env,
+   const typename Env::world_state_type& wstate,
+   const typename Env::chance_outcome_type& outcome
+) {
+   {
+      env.public_chance_event(wstate, outcome)
+   } -> std::convertible_to< bool >;
+};
+
+/**
+ * @brief B7 (PCS) detection trait: is the chance event at 'wstate' yielding
+ * 'outcome' a PUBLIC one?
+ *
+ * Documented fallback: when 'Env' does not provide the classification method,
+ * EVERY chance event is treated as public. Under this fallback PCS
+ * (Public Chance Sampling, Gibson et al., AAAI 2012) samples every chance
+ * outcome from its distribution and therefore degenerates exactly to vanilla
+ * chance/outcome sampling -- draw-for-draw identical trajectories.
+ */
+template < typename Env, typename Worldstate, typename Outcome >
+   requires method::public_chance_event< Env, Worldstate, Outcome >
+constexpr bool public_chance_event(const Env& env, const Worldstate& wstate, const Outcome& outcome)
+{
+   return env.public_chance_event(wstate, outcome);
+}
+
+template < typename Env, typename Worldstate, typename Outcome >
+   requires(not method::public_chance_event< Env, Worldstate, Outcome >)
+constexpr bool public_chance_event(const Env&, const Worldstate&, const Outcome&)
+{
+   // documented fallback: all chance events public
+   return true;
+}
 
 }  // namespace nor::concepts::has
 
