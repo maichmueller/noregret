@@ -341,9 +341,17 @@ TEST(KuhnPoker, DynamicThresholded_ExponentialCFR_Converges)
       );
       double expl = std::numeric_limits< double >::max();
       size_t iters = 0;
+      constexpr size_t n_infostates = 6;
       for(; iters < max_iters; ++iters) {
          solver.iterate(1);
          const auto& avg_policies = solver.average_policy();
+         const bool tables_ready = std::ranges::all_of(
+            avg_policies | std::views::values,
+            [](const auto& policy) { return policy.size() == n_infostates; }
+         );
+         if(not tables_ready) {
+            continue;
+         }
          expl = exploitability(
             expl_env,
             KuhnState{},
@@ -374,9 +382,17 @@ TEST(KuhnPoker, DynamicThresholded_ExponentialCFR_Converges)
       );
       double expl = std::numeric_limits< double >::max();
       size_t iters = 0;
+      constexpr size_t n_infostates = 6;
       for(; iters < max_iters; ++iters) {
          solver.iterate(1);
          const auto& avg_policies = solver.average_policy();
+         const bool tables_ready = std::ranges::all_of(
+            avg_policies | std::views::values,
+            [](const auto& policy) { return policy.size() == n_infostates; }
+         );
+         if(not tables_ready) {
+            continue;
+         }
          expl = exploitability(
             expl_env,
             KuhnState{},
