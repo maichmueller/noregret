@@ -115,16 +115,17 @@ struct RunCounters {
 template < auto config >
 std::pair< std::vector< double >, RunCounters > kuhn_exploitability_trajectory(size_t n_iters)
 {
-   using namespace games::kuhn;
-   Environment expl_env{};
+   using KuhnEnv = games::kuhn::Environment;
+   using KuhnState = games::kuhn::State;
+   KuhnEnv expl_env{};
    auto avg_policy = factory::make_tabular_policy(
-      std::unordered_map< Infostate, HashmapActionPolicy< Action > >{}
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{}
    );
    auto curr_policy = factory::make_tabular_policy(
-      std::unordered_map< Infostate, HashmapActionPolicy< Action > >{}
+      std::unordered_map< games::kuhn::Infostate, HashmapActionPolicy< games::kuhn::Action > >{}
    );
    auto solver = factory::make_cfr< config, true >(
-      Environment{}, std::make_unique< State >(), curr_policy, avg_policy
+      KuhnEnv{}, std::make_unique< KuhnState >(), curr_policy, avg_policy
    );
    std::vector< double > trajectory;
    trajectory.reserve(n_iters);
@@ -133,7 +134,7 @@ std::pair< std::vector< double >, RunCounters > kuhn_exploitability_trajectory(s
       const auto& avg_policies = solver.average_policy();
       trajectory.push_back(exploitability(
          expl_env,
-         State{},
+         KuhnState{},
          player_hashmap< std::decay_t< decltype(avg_policies.at(Player::alex)) > >{
             std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
             std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
@@ -214,15 +215,16 @@ namespace {
 template < auto config >
 double timed_leduc_iterations(size_t n_iters)
 {
-   using namespace games::leduc;
+   using LeducEnv = games::leduc::Environment;
+   using LeducState = games::leduc::State;
    auto avg_policy = factory::make_tabular_policy(
-      std::unordered_map< Infostate, HashmapActionPolicy< Action > >{}
+      std::unordered_map< games::leduc::Infostate, HashmapActionPolicy< games::leduc::Action > >{}
    );
    auto curr_policy = factory::make_tabular_policy(
-      std::unordered_map< Infostate, HashmapActionPolicy< Action > >{}
+      std::unordered_map< games::leduc::Infostate, HashmapActionPolicy< games::leduc::Action > >{}
    );
    auto solver = factory::make_cfr< config, true >(
-      Environment{}, std::make_unique< State >(), curr_policy, avg_policy
+      LeducEnv{}, std::make_unique< LeducState >(), curr_policy, avg_policy
    );
    const auto start = std::chrono::steady_clock::now();
    solver.iterate(n_iters);
@@ -248,7 +250,10 @@ TEST(LeducPoker, RBP_SpeedupOverUnpruned)
 
 TEST(KuhnPoker, DynamicThresholded_ExponentialCFR_Converges)
 {
-   using namespace games::kuhn;
+   using KuhnEnv = games::kuhn::Environment;
+   using KuhnState = games::kuhn::State;
+   using KuhnInfostate = games::kuhn::Infostate;
+   using KuhnAction = games::kuhn::Action;
    constexpr rm::CFRConfig thresholded_config{
       .update_mode = rm::UpdateMode::alternating,
       .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching,
@@ -263,15 +268,15 @@ TEST(KuhnPoker, DynamicThresholded_ExponentialCFR_Converges)
    constexpr size_t max_iters = 5000;
 
    {
-      Environment expl_env{};
+      KuhnEnv expl_env{};
       auto avg = factory::make_tabular_policy(
-         std::unordered_map< Infostate, HashmapActionPolicy< Action > >{}
+         std::unordered_map< KuhnInfostate, HashmapActionPolicy< KuhnAction > >{}
       );
       auto cur = factory::make_tabular_policy(
-         std::unordered_map< Infostate, HashmapActionPolicy< Action > >{}
+         std::unordered_map< KuhnInfostate, HashmapActionPolicy< KuhnAction > >{}
       );
       auto solver = factory::make_cfr< thresholded_config, true >(
-         Environment{}, std::make_unique< State >(), cur, avg
+         KuhnEnv{}, std::make_unique< KuhnState >(), cur, avg
       );
       double expl = std::numeric_limits< double >::max();
       size_t iters = 0;
@@ -280,7 +285,7 @@ TEST(KuhnPoker, DynamicThresholded_ExponentialCFR_Converges)
          const auto& avg_policies = solver.average_policy();
          expl = exploitability(
             expl_env,
-            State{},
+            KuhnState{},
             player_hashmap< std::decay_t< decltype(avg_policies.at(Player::alex)) > >{
                std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
                std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
@@ -296,15 +301,15 @@ TEST(KuhnPoker, DynamicThresholded_ExponentialCFR_Converges)
    }
 
    {
-      Environment expl_env{};
+      KuhnEnv expl_env{};
       auto avg = factory::make_tabular_policy(
-         std::unordered_map< Infostate, HashmapActionPolicy< Action > >{}
+         std::unordered_map< KuhnInfostate, HashmapActionPolicy< KuhnAction > >{}
       );
       auto cur = factory::make_tabular_policy(
-         std::unordered_map< Infostate, HashmapActionPolicy< Action > >{}
+         std::unordered_map< KuhnInfostate, HashmapActionPolicy< KuhnAction > >{}
       );
       auto solver = factory::make_cfr< vanilla_config, true >(
-         Environment{}, std::make_unique< State >(), cur, avg
+         KuhnEnv{}, std::make_unique< KuhnState >(), cur, avg
       );
       double expl = std::numeric_limits< double >::max();
       size_t iters = 0;
@@ -313,7 +318,7 @@ TEST(KuhnPoker, DynamicThresholded_ExponentialCFR_Converges)
          const auto& avg_policies = solver.average_policy();
          expl = exploitability(
             expl_env,
-            State{},
+            KuhnState{},
             player_hashmap< std::decay_t< decltype(avg_policies.at(Player::alex)) > >{
                std::pair{Player::alex, normalize_state_policy(avg_policies.at(Player::alex))},
                std::pair{Player::bob, normalize_state_policy(avg_policies.at(Player::bob))}}
@@ -400,10 +405,12 @@ TEST(CFRPruningSanityMatrix, KuhnPoker2P_PruningModes)
 
 TEST(CFRPruningSanityMatrix, KuhnPoker3P_RegretBased)
 {
-   using namespace games::kuhn;
-   const std::vector< Card > full_deck{Card::jack, Card::queen, Card::king};
+   const std::vector< games::kuhn::Card > full_deck{
+      games::kuhn::Card::jack, games::kuhn::Card::queen, games::kuhn::Card::king};
    expect_finite_values(std::get< 0 >(run_iterations< rbp_rmplus_uniform >(
-      Environment{}, std::make_unique< State >(full_deck, /*player_count=*/3), 100
+      games::kuhn::Environment{},
+      std::make_unique< games::kuhn::State >(full_deck, /*player_count=*/3),
+      100
    )));
 }
 
@@ -421,26 +428,26 @@ TEST(CFRPruningSanityMatrix, RockPaperScissors_DynamicThresholdingSimultaneous)
 
 TEST(CFRPruningSanityMatrix, Goofspiel_K4Reveal_RegretBasedAndThresholded)
 {
-   using namespace games::goofspiel;
+   using GoofEnv = games::goofspiel::Environment;
+   using GoofState = games::goofspiel::State;
    constexpr rm::CFRConfig gs_dt{
       .update_mode = rm::UpdateMode::alternating,
       .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching,
       .weighting_mode = rm::CFRWeightingMode::uniform,
       .pruning_mode = rm::CFRPruningMode::dynamic_thresholding};
-   const GoofspielConfig gs_config{.deck_size = 4, .imp_info = false};
+   const games::goofspiel::GoofspielConfig gs_config{.deck_size = 4, .imp_info = false};
    expect_finite_values(std::get< 0 >(
-      run_iterations< rbp_rmplus_uniform >(Environment{gs_config}, State{gs_config}, 100)
+      run_iterations< rbp_rmplus_uniform >(GoofEnv{gs_config}, GoofState{gs_config}, 100)
    ));
    expect_finite_values(
-      std::get< 0 >(run_iterations< gs_dt >(Environment{gs_config}, State{gs_config}, 100))
+      std::get< 0 >(run_iterations< gs_dt >(GoofEnv{gs_config}, GoofState{gs_config}, 100))
    );
 }
 
 TEST(CFRPruningSanityMatrix, OshiZumo_Size2Coins6_RegretBased)
 {
-   using namespace games::oshi_zumo;
-   const Config oz_config(/*size=*/2, /*coins=*/6, /*min_bid=*/1);
-   expect_finite_values(std::get< 0 >(
-      run_iterations< rbp_rmplus_uniform >(Environment{oz_config}, State{oz_config}, 100)
-   ));
+   const games::oshi_zumo::Config oz_config(/*size=*/2, /*coins=*/6, /*min_bid=*/1);
+   expect_finite_values(std::get< 0 >(run_iterations< rbp_rmplus_uniform >(
+      games::oshi_zumo::Environment{oz_config}, games::oshi_zumo::State{oz_config}, 100
+   )));
 }

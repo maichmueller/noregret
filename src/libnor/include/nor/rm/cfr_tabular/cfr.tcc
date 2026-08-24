@@ -784,6 +784,43 @@ decltype(auto) action_of_index(NodeData& node_data, size_t action_idx)
    return node_data.registry.actions[action_idx];
 }
 
+/// depth-first enumeration of the full game tree tracking min/max terminal reward per player.
+/// The one-shot fallback for environments that do not support the B4 payoff-bounds trait
+/// (concepts::has::supports_payoff_bounds); intended for the small bed games RBP targets.
+template < typename Env, typename State >
+void probe_payoff_bounds_tree(
+   const Env& env,
+   State& state,
+   const std::vector< Player >& players,
+   player_hashmap< pruning::PayoffBound >& bounds
+)
+{
+   if(env.is_terminal(state)) {
+      for(auto [player, value] : collect_rewards(env, state, players)) {
+         auto& bound = bounds.at(player);
+         bound.lower = std::min(bound.lower, value);
+         bound.upper = std::max(bound.upper, value);
+      }
+      return;
+   }
+   Player active = env.active_player(state);
+   if constexpr(concepts::stochastic_env< Env >) {
+      if(active == Player::chance) {
+         for(auto&& outcome : env.chance_actions(state)) {
+            State child{state};
+            env.transition(child, outcome);
+            probe_payoff_bounds_tree(env, child, players, bounds);
+         }
+         return;
+      }
+   }
+   for(const auto& action : env.actions(active, state)) {
+      State child{state};
+      env.transition(child, action);
+      probe_payoff_bounds_tree(env, child, players, bounds);
+   }
+}
+
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 pruning::PayoffBound VanillaCFR< config, Env, Policy, AveragePolicy >::_payoff_bound(Player player)
 {
@@ -792,9 +829,29 @@ pruning::PayoffBound VanillaCFR< config, Env, Policy, AveragePolicy >::_payoff_b
       or config.pruning_mode == CFRPruningMode::dynamic_thresholding
    ) {
       if(m_payoff_bounds.empty()) {
-         // one-shot acquisition: env-provided B4 bounds when supported, otherwise a single
-         // full-tree probe of the terminal rewards (fine for the bed games this mode targets)
-         m_payoff_bounds = pruning::payoff_bounds_or_probe(_env(), root_state());
+         auto root_players = _env().players(root_state());
+         if constexpr(concepts::has::supports_payoff_bounds< env_type >) {
+            // B4 trait contract: the environment reports its own per-player bounds
+            for(auto p : root_players) {
+               if(p == Player::chance) {
+                  continue;
+               }
+               auto [lo, hi] = _env().payoff_bounds(p);
+               m_payoff_bounds.emplace(p, pruning::PayoffBound{.lower = lo, .upper = hi});
+            }
+         } else {
+            // fallback: symmetric max-|reward| style bounds probed from the tree exactly once.
+            // Seeding with 0/0 only ever WIDENS the observed range, which shrinks windows and
+            // is therefore sound for pruning.
+            for(auto p : root_players) {
+               if(p != Player::chance) {
+                  m_payoff_bounds.emplace(p, pruning::PayoffBound{});
+               }
+            }
+            auto& root_ref = *_root_state_uptr();
+            using world_state_type = auto_world_state_type< Env >;
+            probe_payoff_bounds_tree(_env(), root_ref, root_players, m_payoff_bounds);
+         }
       }
       return m_payoff_bounds.at(player);
    } else {
@@ -1042,8 +1099,9 @@ double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax(
 )
 {
    if(_env().is_terminal(state)) {
-      // pass the ROOT participant set explicitly (see _traverse's terminal note)
-      return collect_rewards(_env(), state, _env().players(root_state())).get().at(br_player);
+      // pass the ROOT participant set explicitly (see _traverse's terminal note);
+      // collect_rewards returns a plain player->value map
+      return collect_rewards(_env(), state, _env().players(root_state())).at(br_player);
    }
    const Player active_player = _env().active_player(state);
 
