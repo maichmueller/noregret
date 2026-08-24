@@ -114,7 +114,7 @@ struct CFRConfig {
    /// value against the opponents' current average strategies ("periodic BR traversals").
    /// Higher periods trade surrogate freshness for less BR-walk overhead; the NIPS'15 appendix
    /// argues the scheme is insensitive to such cadence choices.
-   size_t rbp_br_refresh_period = 8;
+   size_t rbp_br_refresh_period = 16;
 
    /// Aggressiveness constant C >= 1 of the dynamic-thresholding schedules
    ///   RM-family (their Theorem 2): tau_t = (C^2 - 1) / (2 C |A(I)|^2 sqrt(t))

@@ -273,10 +273,11 @@ TEST(LeducPoker, RBP_SpeedupOverUnpruned)
    // ASSERTION lives at a horizon where engagement is statistically unambiguous while the
    // spec's 200-iteration ratio is still REPORTED (documented deviation).
    constexpr size_t assertion_iters = 1200;
+   constexpr size_t reps = 3;
    double unpruned_ms = std::numeric_limits< double >::max();
    double pruned_ms = std::numeric_limits< double >::max();
    RunCounters pruned_counters{};
-   for(size_t rep = 0; rep < 2; ++rep) {
+   for(size_t rep = 0; rep < reps; ++rep) {
       const auto unpruned = timed_leduc_iterations< rm::CFRPlusConfig{} >(LEDUC_SPEEDUP_ITERS);
       const auto pruned = timed_leduc_iterations< rbp_rmplus_uniform >(LEDUC_SPEEDUP_ITERS);
       unpruned_ms = std::min(unpruned_ms, unpruned.first);
@@ -287,7 +288,7 @@ TEST(LeducPoker, RBP_SpeedupOverUnpruned)
 
    double unpruned_long = std::numeric_limits< double >::max();
    double pruned_long = std::numeric_limits< double >::max();
-   for(size_t rep = 0; rep < 2; ++rep) {
+   for(size_t rep = 0; rep < reps; ++rep) {
       const auto unpruned = timed_leduc_iterations< rm::CFRPlusConfig{} >(assertion_iters);
       const auto pruned = timed_leduc_iterations< rbp_rmplus_uniform >(assertion_iters);
       unpruned_long = std::min(unpruned_long, unpruned.first);
