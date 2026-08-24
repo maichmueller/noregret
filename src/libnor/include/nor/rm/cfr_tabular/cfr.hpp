@@ -22,6 +22,7 @@
 #include "nor/rm/forest.hpp"
 #include "nor/rm/minimizers/minimizers.hpp"
 #include "nor/rm/node.hpp"
+#include "nor/rm/pruning.hpp"
 #include "nor/rm/rm_utils.hpp"
 #include "nor/tag.hpp"
 #include "nor/type_defs.hpp"
@@ -142,6 +143,21 @@ class VanillaCFR:
    {
    }
 
+   /// exponential weighting WITHOUT explicit parameters (purely additive): lets generic
+   /// CFRConfig-driven factories construct exponential-weighted solvers -- including the
+   /// dynamic-thresholding combinations -- with default beta
+   template < typename T1, typename... Args >
+      requires(config.weighting_mode == CFRWeightingMode::exponential)
+                 and common::is_none_v<
+                    std::remove_cvref_t< T1 >,
+                    tag::internal_construct,
+                    VanillaCFR,
+                    CFRExponentialParameters >
+   VanillaCFR(tag::internal_construct, T1&& t, Args&&... args)
+       : base(std::forward< T1 >(t), std::forward< Args >(args)...), m_expcfr_params{}
+   {
+   }
+
    ////////////////////////////////////
    /// API: public member functions ///
    ////////////////////////////////////
@@ -202,6 +218,19 @@ class VanillaCFR:
 
    StateValueMap game_value() { return _iterate< false, false >(std::nullopt); }
 
+   /// activity counters of the pruning engine (regret-based / dynamic-thresholding modes):
+   /// windows armed at recommendation time, subtree descents avoided by the traversal gate,
+   /// window folds (buffered best-response regret folded back in) and periodic best-response
+   /// refresh traversals. Always available; only ever non-zero under the pruning modes.
+   struct PruningStats {
+      size_t windows_armed = 0;
+      size_t skipped_edge_visits = 0;
+      size_t window_folds = 0;
+      size_t br_refreshes = 0;
+   };
+
+   [[nodiscard]] PruningStats pruning_stats() const { return m_pruning_stats; }
+
    /**
     * @brief updates the regret and policy tables of the infostate with the state-values.
     */
@@ -261,6 +290,21 @@ class VanillaCFR:
       m_expcfr_params;
    /// the actual regret minimizing method we will apply on the infostates
    [[no_unique_address]] minimizer_type m_regret_minimizer{};
+
+   /// ---- pruning engine state (empty cost when pruning_mode == none) ----------------------
+   PruningStats m_pruning_stats{};
+   /// memoized GLOBAL per-player bounds (B4 trait path, or degenerate fallback)
+   player_hashmap< pruning::PayoffBound > m_payoff_bounds{};
+   /// per-(infostate,action) probed ranges: lower = L(I) (min payoff below I), upper = U(I,a)
+   /// (max payoff below h*a). Filled by the one-shot probe when the env lacks B4 bounds.
+   player_hashmap< std::unordered_map<
+      info_state_type,
+      std::unordered_map< action_type, pruning::PayoffBound, common::value_hasher< action_type > >,
+      common::value_hasher< info_state_type >,
+      common::value_comparator< info_state_type > > >
+      m_edge_bounds{};
+   /// root participant order backing _probe_dfs's interval vectors (chance excluded)
+   std::vector< Player > m_root_player_order{};
 
    /////////////////////////////////////////////////
    /// private implementation details of the API ///
@@ -340,6 +384,108 @@ class VanillaCFR:
 
    /// performs the end-of-traversal regret minimization step for one infostate
    void _invoke_regret_minimizer(const info_state_type& infostate);
+
+   ///////////////////////////////////////////////////////////////////////////////////////////
+   ////////////////////// regret-based pruning / dynamic thresholding ////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////////////////
+
+   /// lazily resolves (and memoizes) the payoff-bound stand-ins for the paper's U/L quantities:
+   /// environments supporting the B4 trait report per-player global bounds; everything else is
+   /// probed once from the tree as PER-(infostate,action) terminal-reward ranges -- the faithful
+   /// (much tighter) reading of U(I,a) and L(I)
+   [[nodiscard]] pruning::PayoffBound
+   _edge_bound(const info_state_type& infostate, const action_type& action);
+
+   /// one-shot acquisition of the per-(infostate,action) payoff ranges via a full-tree
+   /// enumeration (shared edge-advance mechanics with the best-response walk)
+   void _probe_edge_bounds();
+
+   /// recursive worker of _probe_edge_bounds; returns the {lo,hi} interval of every ROOT
+   /// player's terminal reward below 'state' (order aligned with m_root_player_order)
+   [[nodiscard]] std::vector< pruning::PayoffBound > _probe_dfs(
+      world_state_type& state,
+      size_t depth,
+      player_hashmap< sptr< info_state_type > >& infostates,
+      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
+         observation_buffers
+   );
+
+   /// arms pruning windows on an infostate whose post-recommend regret entries cleared the
+   /// minimum-skip filter; deadline = T0 + Theorem-1 window, pessimistic eq-(9) tracker seeded
+   /// with R^{T0}(I,a)
+   template < typename NodeData >
+   void _arm_pruning_windows(const info_state_type& infostate, NodeData& node_data);
+
+   /// traversal gate for edge (infostate of 'active_player', action at 'action_idx').
+   /// Returns true when the subtree below the edge must be SKIPPED this traversal (the caller
+   /// records a deferred window visit); when the edge's window deadline has expired the buffered
+   /// best-response regret folds into the minimizer tables here and false is returned so the
+   /// caller resumes normal recursion.
+   template < typename NodeData >
+   bool _rbp_gate(
+      std::optional< Player > player_to_update,
+      Player active_player,
+      NodeData& node_data,
+      size_t action_idx,
+      const action_type& action,
+      InfostateSptrMap& infostates,
+      ObservationbufferMap& observation_buffer,
+      const world_state_type& state,
+      size_t depth
+   );
+
+   /// deferred per-visit bookkeeping pushed by the caller once its state_value aggregation is
+   /// complete: buffer pi_{-i} * (v_BR - v(I)) into the best-response regret and advance the
+   /// eq-(9) pessimistic tracker, folding early when the window provably cannot continue
+   template < typename NodeData >
+   void _push_window_visit(
+      NodeData& node_data,
+      Player active_player,
+      const info_state_type& infostate,
+      size_t action_idx,
+      double cf_reach_prob,
+      double state_value_for_player
+   );
+
+   /// folds a window's buffered best-response regret back into the minimizer tables ("update
+   /// the regrets to match this", NIPS'15 sec. 4) and clears the window
+   template < typename NodeData >
+   void _rbp_fold(NodeData& node_data, size_t action_idx, const action_type& action);
+
+   /// one-edge advancement shared by the best-response walk and the bounds probe: transitions
+   /// into the arena slot of depth+1 and applies the observation flush/buffering IN PLACE on
+   /// the passed containers (callers needing restoration snapshot beforehand)
+   template < typename ActionOrOutcome >
+   world_state_type& _br_advance(
+      const ActionOrOutcome& action_or_outcome,
+      const world_state_type& state,
+      size_t depth,
+      player_hashmap< sptr< info_state_type > >& infostates,
+      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
+         observation_buffers
+   );
+
+   /// value of D(state, action_or_outcome) for 'br_player': best response against the
+   /// OPPONENTS' AVERAGE strategies (greedy maxima at own nodes, average-policy expectation at
+   /// opponent nodes, chance-probability expectation at chance nodes). Mutates the containers
+   /// along each descent but restores them per edge (cheap targeted snapshots, no map copies).
+   template < typename ActionOrOutcome >
+   double _br_expectimax_from_edge(
+      Player br_player,
+      const ActionOrOutcome& action_or_outcome,
+      const world_state_type& state,
+      size_t depth,
+      player_hashmap< sptr< info_state_type > >& infostates,
+      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
+         observation_buffers
+   );
+
+   /// normalized (current) AVERAGE strategy of an infostate; handles the exponential-weighting
+   /// numerator/denominator representation
+   [[nodiscard]] std::vector< double > _normalized_average_policy(
+      const info_state_type& infostate,
+      const std::vector< action_type >& actions
+   );
 };
 
 template < typename Env, typename Policy, typename AveragePolicy >

@@ -78,11 +78,21 @@ enum class CFRPruningMode {
    none = 0,
    // Partial pruning drops the subtree if a player policy upstream hits 0
    partial = 1,
-   // TODO: Regret-based pruning skips subtrees for all t > t_0 if an action's regret is < 0 at time
-   // t_0 and updates upon take up t_1 with a best-response against the average strategy of the
-   // opponents during this period.
+   // Regret-based pruning (Brown & Sandholm, "Regret-Based Pruning in Extensive-Form Games",
+   // NIPS 2015). When the cumulative counterfactual regret of an action a at infostate I is
+   // sufficiently negative, the subtree D(I,a) is skipped for a sound number of iterations
+   // (Theorem 1: m = floor(|R(I,a)| / (U(I,a) - L(I)))) while a best-response value against the
+   // opponents' average strategies is buffered; at the deadline the buffer folds into the regret
+   // table and normal traversal resumes. Requires alternating updates, RM+-style recommendations
+   // and non-exponential weighting (statically enforced).
    regret_based = 2,
-   // TODO:
+   // Dynamic thresholding (Brown, Kroer, Sandholm, "Dynamic Thresholding and Pruning for Regret
+   // Minimization", AAAI 2017, DOI 10.1609/aaai.v31i1.10603). Every recommendation zeroes actions
+   // below the schedule tau_t and renormalizes (their Theorems 1 and 2), which makes
+   // low-probability
+   // subtrees prunable even for local regret minimizers that would otherwise put positive mass on
+   // every action. Implemented as the Thresholded<Inner> minimizer wrapper plus reuse of the
+   // regret-based traversal gate.
    dynamic_thresholding = 3
 };
 
@@ -91,6 +101,28 @@ struct CFRConfig {
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
    CFRWeightingMode weighting_mode = CFRWeightingMode::uniform;
    CFRPruningMode pruning_mode = CFRPruningMode::none;
+
+   /// ---- regret-based pruning knobs (only meaningful when pruning_mode == regret_based or
+   /// dynamic_thresholding) -------------------------------------------------------------
+
+   /// Minimum worst-case window length -- computed via the Theorem-1 bound
+   /// m = floor(|R(I,a)| / (U(I,a) - L(I))) -- before a pruning window is armed. The NIPS'15
+   /// paper's Appendix B recommends such a minimum-skip filter (their experiments use 25 on
+   /// Leduc-5); small bed games need smaller values so that windows engage at all.
+   double rbp_min_skip_iterations = 1.;
+   /// Period (in visits to a pruned edge) between recomputations of the buffered best-response
+   /// value against the opponents' current average strategies ("periodic BR traversals").
+   /// Higher periods trade surrogate freshness for less BR-walk overhead; the NIPS'15 appendix
+   /// argues the scheme is insensitive to such cadence choices.
+   size_t rbp_br_refresh_period = 16;
+
+   /// Aggressiveness constant C >= 1 of the dynamic-thresholding schedules
+   ///   RM-family (their Theorem 2): tau_t = (C^2 - 1) / (2 C |A(I)|^2 sqrt(t))
+   ///   Hedge-family (their Theorem 1): tau_t = (C - 1) sqrt(ln |A(I)|) / (sqrt(2) |A(I)|^2
+   ///   sqrt(t))
+   /// with t the logical iteration number. Their experiments show insensitivity to C; C == 1
+   /// disables thresholding entirely (tau_t collapses to 0).
+   double dynamic_threshold_c = 3.;
 };
 
 struct CFRPlusConfig {

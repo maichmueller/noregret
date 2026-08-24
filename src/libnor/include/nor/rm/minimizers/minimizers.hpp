@@ -17,6 +17,7 @@
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
 #include "nor/rm/cfr_tabular/cfr_config.hpp"
+#include "nor/rm/pruning.hpp"
 #include "nor/rm/rm_utils.hpp"
 
 namespace nor::rm {
@@ -208,9 +209,17 @@ struct RegretMatchingPlus {
    static constexpr double policy_weight(size_t /*iteration*/) { return 1.; }
 };
 
-/// CFR+ with regret-based pruning: negative cumulative regrets may be REPLACED
-/// (rather than merely incremented) by positive instantaneous regrets. The
-/// instantaneous buffer is consumed (reset to 0) on each recommendation.
+/// CFR+ with regret-based pruning (Brown & Sandholm, NIPS 2015, sec. 4.2). The cumulative
+/// regret follows CFR+'s modified update rule
+///    R^T(I,a) = r^T(I,a)   if r^T(I,a) > 0 and R^{T-1}(I,a) <= 0
+///    R^T(I,a) = R^{T-1}(I,a) + r^T(I,a)   otherwise
+/// which reproduces plain CFR+ whenever the result would be non-negative but lets the table
+/// drop below zero so that pruning windows can be armed on deeply negative entries. The
+/// iteration-aggregated instantaneous regret r^T is buffered by 'observe' across a traversal
+/// and folded in -- with the replace-if-positive rule -- by 'recommend'.
+///
+/// The node data additionally carries the per-(infostate,action) RBP bookkeeping tables
+/// (prune deadlines, best-response buffers) consulted by the solver's traversal gate.
 template < concepts::action Action >
 struct RegretMatchingPlusRBP {
    struct node_data_type {
@@ -218,12 +227,15 @@ struct RegretMatchingPlusRBP {
       per_action_table< Action > regret;
       /// instantaneous regret increments r(I, a) of the current iteration
       per_action_table< Action > cumulative_instant_regret;
+      /// regret-based pruning window bookkeeping (deadlines + best-response buffers)
+      pruning::RBPTables rbp;
 
       void register_action(const Action& action)
       {
          registry.register_action(action);
          regret.emplace_back(0.);
          cumulative_instant_regret.emplace_back(0.);
+         rbp.register_action();
       }
 
       [[nodiscard]] size_t index_of(const Action& action) const
@@ -234,20 +246,22 @@ struct RegretMatchingPlusRBP {
 
    static void observe(node_data_type& data, const Action& action, double increment)
    {
-      data.regret[data.registry.index_of(action)] += increment;
+      // buffer the increment; the paper's rule aggregates over all histories h in I visited
+      // within one iteration before deciding between replace and add
+      data.cumulative_instant_regret[data.registry.index_of(action)] += increment;
    }
 
    template < typename PolicyOut >
    static void recommend(node_data_type& data, PolicyOut& policy_out, size_t /*iteration*/)
    {
-      // apply the replace-if-positive rule on the buffered instantaneous regret
-      // and consume the buffer while deriving the new recommendation
+      // fold the buffered instantaneous regret into the cumulative table via the modified
+      // CFR+ rule (replace-if-positive) while deriving the new recommendation
       double pos_regret_sum{0.};
       for(auto idx : std::views::iota(size_t{0}, data.regret.size())) {
          double& cumul_regret = data.regret[idx];
          double& instant_regret = data.cumulative_instant_regret[idx];
-         cumul_regret = instant_regret > 0. and cumul_regret < 0. ? instant_regret
-                                                                  : cumul_regret + instant_regret;
+         cumul_regret = instant_regret > 0. and cumul_regret <= 0. ? instant_regret
+                                                                   : cumul_regret + instant_regret;
          instant_regret = 0.;
          pos_regret_sum += std::max(0., cumul_regret);
       }
@@ -441,6 +455,134 @@ class DiscountedCFR {
    CFRDiscountedParameters m_params;
 };
 
+/**
+ * @brief Dynamic-thresholding decorator (Brown, Kroer, Sandholm, AAAI 2017,
+ * DOI 10.1609/aaai.v31i1.10603) around an inner regret minimizer.
+ *
+ * At every recommendation, actions whose probability falls below the schedule
+ *
+ *    tau_t = (C^2 - 1) / (2 C |A(I)|^2 sqrt(t))     (their Theorem 2; RM-family recommenders,
+ *                                                   which is what all our local minimizers are,
+ *                                                   including ExponentialCFR whose
+ *                                                   recommendation step is regret matching on
+ *                                                   its cumulative table)
+ *
+ * are set to exactly zero probability and the remainder is renormalized to sum to one. t is the
+ * logical (1-based) iteration and C >= 1 the aggressiveness constant. This makes low-probability
+ * actions prunable even for inner minimizers that would otherwise assign positive mass to every
+ * action, and their Theorem 2 guarantees the regret bound degrades only by the constant factor C.
+ *
+ * The decorator honors the full observe/recommend/policy_weight protocol of the minimizer
+ * framework, forwards ExponentialCFR's finalize_iteration (re-applying thresholding after the
+ * inner policy refresh), and carries the per-(infostate,action) RBP tables in its node data so
+ * that the solver's traversal gate can be reused unchanged for pruning_mode ==
+ * dynamic_thresholding.
+ */
+template < typename Inner, double ThresholdC >
+class Thresholded {
+   static_assert(ThresholdC >= 1., "dynamic thresholding requires C >= 1");
+
+  public:
+   constexpr Thresholded() = default;
+
+   /// node data = inner node data + the RBP window bookkeeping consulted by the traversal gate
+   struct node_data_type: public Inner::node_data_type {
+      pruning::RBPTables rbp;
+
+      void register_action(const auto& action)
+      {
+         Inner::node_data_type::register_action(action);
+         rbp.register_action();
+      }
+   };
+
+   static void register_action(node_data_type& data, const auto& action)
+   {
+      data.register_action(action);
+   }
+
+   static void observe(node_data_type& data, const auto& action, double increment)
+   {
+      Inner::observe(data, action, increment);
+   }
+
+   template < typename PolicyOut >
+   static void recommend(node_data_type& data, PolicyOut& policy_out, size_t iteration)
+   {
+      Inner::recommend(data, policy_out, iteration);
+      const double tau = pruning::rm_dynamic_threshold(
+         data.registry.actions.size(), iteration + 1, ThresholdC
+      );
+      _apply_threshold(policy_out, tau);
+   }
+
+   static double policy_weight(size_t iteration) { return Inner::policy_weight(iteration); }
+
+   /// forwards ExponentialCFR's deferred end-of-iteration update; the inner refresh ends with
+   /// its own recommendation, after which thresholding is re-applied here
+   template < typename CurrentPolicy, typename AveragePolicy, typename BetaFn >
+      requires requires(
+         node_data_type& data,
+         CurrentPolicy& curr,
+         AveragePolicy& avg,
+         size_t it,
+         BetaFn&& beta
+      ) { Inner::finalize_iteration(data, curr, avg, it, std::forward< BetaFn >(beta)); }
+   static void finalize_iteration(
+      node_data_type& data,
+      CurrentPolicy& curr,
+      AveragePolicy& avg,
+      size_t iteration,
+      BetaFn&& beta
+   )
+   {
+      Inner::finalize_iteration(data, curr, avg, iteration, std::forward< BetaFn >(beta));
+      recommend(data, curr, iteration);
+   }
+
+  private:
+   /// zeroes every entry below tau and renormalizes the survivors; if EVERY entry falls below
+   /// tau the argmax entry is kept at probability 1 (a pure recommendation cannot be all-zero,
+   /// so the renormalizer's denominator is rescued from vanishing)
+   template < typename PolicyOut >
+   static void _apply_threshold(PolicyOut& policy_out, double tau)
+   {
+      if(tau <= 0.) {
+         return;
+      }
+      using entry_type = std::remove_reference_t< decltype(*std::begin(policy_out)) >;
+      const entry_type* best_kept = nullptr;
+      double kept_mass = 0.;
+      for(auto& entry : policy_out) {
+         if(entry.second >= tau) {
+            kept_mass += entry.second;
+            if(best_kept == nullptr or entry.second > best_kept->second) {
+               best_kept = &entry;
+            }
+         } else {
+            entry.second = 0.;
+         }
+      }
+      if(kept_mass > 0.) {
+         for(auto& entry : policy_out) {
+            entry.second /= kept_mass;
+         }
+         return;
+      }
+      const entry_type* best_any = nullptr;
+      for(auto& entry : policy_out) {
+         if(best_any == nullptr or entry.second > best_any->second) {
+            best_any = &entry;
+         }
+      }
+      if(best_any != nullptr) {
+         for(auto& entry : policy_out) {
+            entry.second = (&entry == best_any) ? 1. : 0.;
+         }
+      }
+   }
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////// predictive minimizers //////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -535,13 +677,23 @@ consteval auto select_vanilla_minimizer()
 }  // namespace detail
 
 /// maps a CFR configuration onto the concrete regret minimizer type acting on
-/// actions of type 'Action'
+/// actions of type 'Action' (before any pruning-mode decoration)
 template < CFRConfig config, concepts::action Action >
-using minimizer_for_t = typename decltype(detail::select_vanilla_minimizer<
-                                          Action,
-                                          config.weighting_mode,
-                                          config.pruning_mode,
-                                          config.regret_minimizing_mode >())::type;
+using base_minimizer_for_t = typename decltype(detail::select_vanilla_minimizer<
+                                               Action,
+                                               config.weighting_mode,
+                                               config.pruning_mode,
+                                               config.regret_minimizing_mode >())::type;
+
+/// final minimizer selection: dynamic thresholding wraps whatever base minimizer the rest of
+/// the configuration selects (Brown, Kroer, Sandholm, AAAI 2017 -- thresholding is orthogonal
+/// to the local regret minimizer). regret_based pruning needs no wrapper: it selects
+/// RegretMatchingPlusRBP directly inside 'select_vanilla_minimizer'.
+template < CFRConfig config, concepts::action Action >
+using minimizer_for_t = std::conditional_t<
+   config.pruning_mode == CFRPruningMode::dynamic_thresholding,
+   Thresholded< base_minimizer_for_t< config, Action >, config.dynamic_threshold_c >,
+   base_minimizer_for_t< config, Action > >;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////// MCCFR minimizers //////////////////////////////////////////
