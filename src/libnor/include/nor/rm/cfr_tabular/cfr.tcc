@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <limits>
 
 #include "cfr.hpp"
 
@@ -196,6 +197,15 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          }
       }
    }
+   if constexpr(
+      config.pruning_mode == CFRPruningMode::regret_based
+      or config.pruning_mode == CFRPruningMode::dynamic_thresholding
+   ) {
+      // the regret tables are now in their post-iteration state (RM+RBP has folded its
+      // instantaneous buffer via the replace-if-positive rule); scan for entries negative
+      // enough to open a pruning window for the NEXT iterations
+      _arm_pruning_windows(infostate, istate_data.data());
+   }
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -335,7 +345,38 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       } else
          return 1.;
    });
-   for(const action_type& action : actions) {
+   // deferred per-visit records of pruned edges traversed in THIS visit; their value
+   // contributions are pushed once state_value below is fully aggregated (the buffer update
+   // needs the final v(I), which includes all sibling actions)
+   [[maybe_unused]] std::vector< std::pair< size_t, double > > pending_window_visits{};
+   for(auto [action_idx, action] : std::views::enumerate(actions)) {
+      if constexpr(
+         config.pruning_mode == CFRPruningMode::regret_based
+         or config.pruning_mode == CFRPruningMode::dynamic_thresholding
+      ) {
+         if constexpr(use_current_policy) {
+            if(_rbp_gate(
+                  player_to_update,
+                  active_player,
+                  _infonode(this_infostate).data(),
+                  action_idx,
+                  action,
+                  infostates,
+                  observation_buffer,
+                  state,
+                  depth
+               ))
+            {
+               // the pruned action's current probability is exactly zero, so its contribution
+               // to v(I) and its average-strategy increment would both vanish anyway; skipping
+               // the recursion leaves state_value and action_value untouched for this action
+               pending_window_visits.emplace_back(
+                  action_idx, rm::cf_reach_probability(active_player, reach_probability.get())
+               );
+               continue;
+            }
+         }
+      }
       auto action_prob = action_policy[action] / normalizing_factor;
 
       // ---- save/restore bookkeeping for the recursion boundary --------------
@@ -439,6 +480,19 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          state_value.get()[player] += action_prob * child_value;
       }
       action_value.emplace(action, std::move(child_rewards_map));
+   }
+
+   if constexpr(
+      config.pruning_mode == CFRPruningMode::regret_based
+      or config.pruning_mode == CFRPruningMode::dynamic_thresholding
+   ) {
+      if(not pending_window_visits.empty()) {
+         auto& node_data = _infonode(this_infostate).data();
+         const double v_I = state_value.get().at(active_player);
+         for(auto [action_idx, cf_reach] : pending_window_visits) {
+            _push_window_visit(node_data, active_player, action_idx, cf_reach, v_I);
+         }
+      }
    }
 }
 
@@ -640,8 +694,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       istate_data.data().reach_prob_snapshot = player_reach_prob;
    }
 }
-
 namespace detail {
+
 /// @brief a verification of the correctness of the chosen configuration
 template < CFRConfig config >
 consteval bool sanity_check_cfr_config()
@@ -693,9 +747,360 @@ consteval bool sanity_check_cfr_config()
       // normal cumulative regret update (i.e. R^t+1(I,a) = R^t(I,a) + r(I,a))
       return false;
    }
+   if constexpr(config.pruning_mode == CFRPruningMode::regret_based) {
+      // Regret-based pruning is proven for alternating updates whose local recommendations are
+      // regret-matching based with UNIFORM average-strategy accumulation (Brown & Sandholm,
+      // NIPS 2015, secs. 3-4.2; their sec. 4.2 even flags linear averaging as noticeably noisier
+      // under RBP). The discounted/linear/exponential families re-weight exactly the regret
+      // increments a pruned window buffers and were not analyzed; simultaneous updates traverse
+      // every player in one pass so skipped windows would have to be folded per-player.
+      // CHOICE: statically reject instead of implementing an unanalyzed safe variant.
+      if constexpr(
+         config.regret_minimizing_mode != RegretMinimizingMode::regret_matching_plus
+         or config.update_mode != UpdateMode::alternating
+         or config.weighting_mode != CFRWeightingMode::uniform
+      ) {
+         return false;
+      }
+   }
+   // dynamic_thresholding composes with any base minimizer recommending via regret matching on
+   // its cumulative table (plain RM, RM+ via DiscountedCFR carrier, ExponentialCFR) -- which is
+   // what the selection in minimizers.hpp produces; it also keeps working under simultaneous
+   // updates since thresholding only reshapes recommendations. The predictive/discounted-kernel
+   // modes are already rejected above because they require pruning_mode == none altogether.
    return true;
 }
 
 }  // namespace detail
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////// regret-based pruning / dynamic thresholding engine /////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+/// resolves the registered action at 'action_idx' (gate/fold helpers speak in table indices)
+template < typename NodeData >
+decltype(auto) action_of_index(NodeData& node_data, size_t action_idx)
+{
+   return node_data.registry.actions[action_idx];
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+pruning::PayoffBound VanillaCFR< config, Env, Policy, AveragePolicy >::_payoff_bound(Player player)
+{
+   if constexpr(
+      config.pruning_mode == CFRPruningMode::regret_based
+      or config.pruning_mode == CFRPruningMode::dynamic_thresholding
+   ) {
+      if(m_payoff_bounds.empty()) {
+         // one-shot acquisition: env-provided B4 bounds when supported, otherwise a single
+         // full-tree probe of the terminal rewards (fine for the bed games this mode targets)
+         m_payoff_bounds = pruning::payoff_bounds_or_probe(_env(), root_state());
+      }
+      return m_payoff_bounds.at(player);
+   } else {
+      return pruning::PayoffBound{};
+   }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename NodeData >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_arm_pruning_windows(
+   const info_state_type& infostate,
+   NodeData& node_data
+)
+{
+   auto& rbp = node_data.rbp;
+   const double bound_range = _payoff_bound(infostate.player()).range();
+   // conservative per-iteration regret growth bound r^t(I,a) <= increment_bound; exponential
+   // weighting inflates by e^range because its L1 factors rescale increments (pruning.hpp)
+   const double inc_bound =
+      pruning::window_increment_bound(config.weighting_mode, bound_range);
+   const size_t t0 = _iteration() + 1;
+   for(auto idx : std::views::iota(size_t{0}, node_data.regret.size())) {
+      if(rbp.pruned_until[idx] != 0) {
+         continue;
+      }
+      const double R = node_data.regret[idx];
+      // Appendix-B minimum-skip filter (NIPS'15): only open a window when even the WORST-CASE
+      // window length floor(|R| / inc-bound) clears the configured minimum
+      if(R >= -config.rbp_min_skip_iterations * inc_bound) {
+         continue;
+      }
+      const size_t m = pruning::theorem1_window(R, inc_bound);
+      rbp.pruned_until[idx] = t0 + m;
+      rbp.last_pruned_iteration[idx] = t0;
+      rbp.pessimistic_regret[idx] = R;
+      rbp.br_regret_buffer[idx] = 0.;
+      rbp.cached_br_value[idx] = 0.;
+      rbp.visits_since_refresh[idx] = 0;
+      ++m_pruning_stats.windows_armed;
+   }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename NodeData >
+bool VanillaCFR< config, Env, Policy, AveragePolicy >::_rbp_gate(
+   std::optional< Player > player_to_update,
+   Player active_player,
+   NodeData& node_data,
+   size_t action_idx,
+   const action_type& /*action*/,
+   InfostateSptrMap& infostates,
+   ObservationbufferMap& observation_buffer,
+   const world_state_type& state,
+   size_t depth
+)
+{
+   auto& rbp = node_data.rbp;
+   if(rbp.pruned_until[action_idx] == 0) {
+      return false;
+   }
+   if(not player_to_update.has_value() or active_player != player_to_update.value()) {
+      // windows only gate the OWNING player's own update traversals: opponents passing through
+      // (I,a) still need the subtree for their average-strategy updates (their counterfactual
+      // regret updates below (I,a) are zero-reach anyway)
+      return false;
+   }
+   const size_t current_iteration = _iteration();
+   if(current_iteration < rbp.pruned_until[action_idx]) {
+      auto& since_refresh = rbp.visits_since_refresh[action_idx];
+      if(since_refresh % config.rbp_br_refresh_period == 0) {
+         // periodic best-response traversal of D(h,a) against the opponents' AVERAGE strategies
+         rbp.cached_br_value[action_idx] = std::invoke([&] {
+            player_hashmap< sptr< info_state_type > > ist_copy = infostates.get();
+            player_hashmap< std::vector< std::pair< observation_type, observation_type > > >
+               obs_copy = observation_buffer.get();
+            world_state_type& child =
+               _br_advance(action_of_index(node_data, action_idx), state, depth, ist_copy, obs_copy);
+            return _br_expectimax(
+               active_player,
+               child,
+               depth + 1,
+               std::move(ist_copy),
+               std::move(obs_copy)
+            );
+         });
+         ++m_pruning_stats.br_refreshes;
+      }
+      ++since_refresh;
+      ++m_pruning_stats.skipped_edge_visits;
+      return true;
+   }
+   // deadline expired: fold the buffered best-response regret and resume normal traversal
+   _rbp_fold(node_data, action_idx, action_of_index(node_data, action_idx));
+   return false;
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename NodeData >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_push_window_visit(
+   NodeData& node_data,
+   Player active_player,
+   size_t action_idx,
+   double cf_reach_prob,
+   double state_value_for_player
+)
+{
+   auto& rbp = node_data.rbp;
+   // eq-(9) pessimistic tracker: assume the pruned action delivered its maximal payoff U(I,a);
+   // this upper-bounds the true regret evolution because v(I->a) <= U(I,a) pointwise
+   const double u_upper = _payoff_bound(active_player).upper;
+   rbp.pessimistic_regret[action_idx] += cf_reach_prob * (u_upper - state_value_for_player);
+   // best-response buffer: the missing true increments pi_{-i}(v(I->a) - v(I)) are replaced by
+   // pi_{-i}(v_BR - v(I)); folded into the regret table at unfold time
+   rbp.br_regret_buffer[action_idx] +=
+      cf_reach_prob * (rbp.cached_br_value[action_idx] - state_value_for_player);
+   if(pruning::pessimistic_unfold_required(rbp.pessimistic_regret[action_idx])) {
+      _rbp_fold(node_data, action_idx, node_data.registry.actions[action_idx]);
+   }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename NodeData >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_rbp_fold(
+   NodeData& node_data,
+   size_t action_idx,
+   const action_type& action
+)
+{
+   auto& rbp = node_data.rbp;
+   if(rbp.br_regret_buffer[action_idx] != 0.) {
+      // "update the regrets to match this": announce the window's best response as having been
+      // played on every skipped iteration; observe routes into the minimizer's own update rule
+      // (RM+RBP's replace-if-positive fold happens at its next recommend)
+      m_regret_minimizer.observe(node_data, action, rbp.br_regret_buffer[action_idx]);
+   }
+   rbp.pruned_until[action_idx] = 0;
+   rbp.br_regret_buffer[action_idx] = 0.;
+   rbp.pessimistic_regret[action_idx] = 0.;
+   rbp.cached_br_value[action_idx] = 0.;
+   rbp.visits_since_refresh[action_idx] = 0;
+   ++m_pruning_stats.window_folds;
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+std::vector< double >
+VanillaCFR< config, Env, Policy, AveragePolicy >::_normalized_average_policy(
+   const info_state_type& infostate,
+   const std::vector< action_type >& actions
+)
+{
+   std::vector< double > probs;
+   probs.reserve(actions.size());
+   double sum = 0.;
+   if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
+      // exponential weighting keeps an unnormalized numerator plus a separate denominator
+      // table; normalize against the denominators exactly like average_policy() does
+      const auto& node_data = _infonode(infostate).data();
+      auto& raw = this->template fetch_policy< PolicyLabel::average >(infostate, actions);
+      for(const auto& action : actions) {
+         // NOTE: 'actions' here comes from the environment and need not share the infostate
+         // registry's registration order -- resolve each action's table slot explicitly
+         const double denominator =
+            std::max(node_data.avg_policy_denominator[node_data.index_of(action)], 1e-20);
+         const double p = raw[action] / denominator;
+         probs.push_back(p);
+         sum += p;
+      }
+   } else {
+      auto& raw = this->template fetch_policy< PolicyLabel::average >(infostate, actions);
+      for(const auto& action : actions) {
+         sum += raw[action];
+      }
+      for(const auto& action : actions) {
+         probs.push_back(raw[action]);
+      }
+   }
+   if(sum < 1e-20) {
+      // never-visited infostate: fall back to uniform
+      std::ranges::fill(probs, 1. / static_cast< double >(actions.size()));
+      return probs;
+   }
+   for(double& p : probs) {
+      p /= sum;
+   }
+   return probs;
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename ActionOrOutcome >
+world_state_type& VanillaCFR< config, Env, Policy, AveragePolicy >::_br_advance(
+   const ActionOrOutcome& action_or_outcome,
+   const world_state_type& state,
+   size_t depth,
+   player_hashmap< sptr< info_state_type > >& infostates,
+   player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
+      observation_buffers
+)
+{
+   // NOTE on arena safety: this walk only ever touches arena slots strictly DEEPER than the
+   // gating traversal frame's depth, and that frame holds no live references to those slots
+   world_state_type& next_wstate = _arena_state(depth + 1, state);
+   _env().transition(next_wstate, action_or_outcome);
+
+   const auto public_obs = _env().public_observation(state, action_or_outcome, next_wstate);
+   const Player next_active_player = _env().active_player(next_wstate);
+   if(next_active_player == Player::chance) {
+      return next_wstate;
+   }
+   auto infostate_entry_it = infostates.find(next_active_player);
+   if(infostate_entry_it == infostates.end()) {
+      infostate_entry_it =
+         infostates.emplace(next_active_player, std::make_shared< info_state_type >()).first;
+   }
+   auto child_infostate = std::make_shared< info_state_type >(*infostate_entry_it->second);
+   auto& obs_history = observation_buffers[next_active_player];
+   for(auto& obs : obs_history) {
+      ::nor::detail::update_infostate(child_infostate, std::move(obs.first), std::move(obs.second));
+   }
+   obs_history.clear();
+   ::nor::detail::update_infostate(
+      child_infostate,
+      public_obs,
+      _env().private_observation(next_active_player, state, action_or_outcome, next_wstate)
+   );
+   infostate_entry_it->second = std::move(child_infostate);
+   for(auto player : _env().players(next_wstate)) {
+      if(player == Player::chance or player == next_active_player) {
+         continue;
+      }
+      observation_buffers[player].emplace_back(
+         public_obs, _env().private_observation(player, state, action_or_outcome, next_wstate)
+      );
+   }
+   return next_wstate;
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax(
+   Player br_player,
+   world_state_type& state,
+   size_t depth,
+   player_hashmap< sptr< info_state_type > > infostates,
+   player_hashmap< std::vector< std::pair< observation_type, observation_type > > >
+      observation_buffers
+)
+{
+   if(_env().is_terminal(state)) {
+      // pass the ROOT participant set explicitly (see _traverse's terminal note)
+      return collect_rewards(_env(), state, _env().players(root_state())).get().at(br_player);
+   }
+   const Player active_player = _env().active_player(state);
+
+   if constexpr(concepts::stochastic_env< env_type >) {
+      if(active_player == Player::chance) {
+         double value = 0.;
+         for(auto&& outcome : _env().chance_actions(state)) {
+            const double prob = _env().chance_probability(state, outcome);
+            if(prob <= 0.) {
+               continue;
+            }
+            auto ist_child = infostates;
+            auto obs_child = observation_buffers;
+            world_state_type& next =
+               _br_advance(outcome, state, depth, ist_child, obs_child);
+            value += prob
+                     * _br_expectimax(
+                        br_player, next, depth + 1, std::move(ist_child), std::move(obs_child)
+                     );
+         }
+         return value;
+      }
+   }
+
+   const auto& actions = _env().actions(active_player, state);
+   if(active_player == br_player) {
+      // best response: greedy max over the subtree values
+      double best = std::numeric_limits< double >::lowest();
+      for(const auto& action : actions) {
+         auto ist_child = infostates;
+         auto obs_child = observation_buffers;
+         world_state_type& next = _br_advance(action, state, depth, ist_child, obs_child);
+         best = std::max(
+            best,
+            _br_expectimax(br_player, next, depth + 1, std::move(ist_child), std::move(obs_child))
+         );
+      }
+      return best;
+   }
+
+   // opponent: expectation under their CURRENT AVERAGE strategy (fetch_policy<average>)
+   const auto& active_infostate = *infostates.at(active_player);
+   const std::vector< double > avg_probs = _normalized_average_policy(active_infostate, actions);
+   double value = 0.;
+   for(auto [idx, action] : std::views::enumerate(actions)) {
+      if(avg_probs[idx] <= 0.) {
+         continue;
+      }
+      auto ist_child = infostates;
+      auto obs_child = observation_buffers;
+      world_state_type& next = _br_advance(action, state, depth, ist_child, obs_child);
+      value += avg_probs[idx]
+               * _br_expectimax(
+                  br_player, next, depth + 1, std::move(ist_child), std::move(obs_child)
+               );
+   }
+   return value;
+}
 
 }  // namespace nor::rm
