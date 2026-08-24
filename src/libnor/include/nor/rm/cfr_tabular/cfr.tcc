@@ -1041,14 +1041,14 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_normalized_average_policy(
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 template < typename ActionOrOutcome >
-world_state_type& VanillaCFR< config, Env, Policy, AveragePolicy >::_br_advance(
+auto VanillaCFR< config, Env, Policy, AveragePolicy >::_br_advance(
    const ActionOrOutcome& action_or_outcome,
    const world_state_type& state,
    size_t depth,
    player_hashmap< sptr< info_state_type > >& infostates,
    player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
       observation_buffers
-)
+) -> world_state_type&
 {
    // NOTE on arena safety: this walk only ever touches arena slots strictly DEEPER than the
    // gating traversal frame's depth, and that frame holds no live references to those slots

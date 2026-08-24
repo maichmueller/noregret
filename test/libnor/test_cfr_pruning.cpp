@@ -8,10 +8,12 @@
 #include <vector>
 
 #include "cfr_run_funcs.hpp"
+#include "goofspiel/goofspiel.hpp"
 #include "nor/env.hpp"
 #include "nor/nor.hpp"
 #include "nor/rm/minimizers/minimizers.hpp"
 #include "nor/rm/pruning.hpp"
+#include "oshi_zumo/oshi_zumo.hpp"
 
 using namespace nor;
 
