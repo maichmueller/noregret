@@ -824,6 +824,10 @@ pruning::PayoffBound VanillaCFR< config, Env, Policy, AveragePolicy >::_edge_bou
                if(act_it != ist_it->second.end()) {
                   return act_it->second;
                }
+            }
+            // Edge-table miss (infostate keys are value-matched between the one-shot probe
+            // and live traversals; rare representation drift is handled here): fall back to
+            // the global per-player interval -- strictly WIDER, hence still sound.
          }
       }
       const auto& global = m_payoff_bounds.at(infostate.player());
