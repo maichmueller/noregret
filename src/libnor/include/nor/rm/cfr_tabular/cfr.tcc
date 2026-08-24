@@ -1149,31 +1149,29 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_br_advance(
 
    const auto public_obs = _env().public_observation(state, action_or_outcome, next_wstate);
    const Player next_active_player = _env().active_player(next_wstate);
-   if(next_active_player == Player::chance) {
-      return next_wstate;
+   // NOTE: unlike a naive early-return design we must NOT skip buffering when the child is
+   // still a chance state -- multi-draw deals chain chance edges and every observation pair
+   // has to reach the eventual flush target (mirrors the main traversal exactly)
+   if(next_active_player != Player::chance) {
+      auto infostate_entry_it = infostates.find(next_active_player);
+      if(infostate_entry_it != infostates.end()) {
+         auto child_infostate =
+            std::make_shared< info_state_type >(*infostate_entry_it->second);
+         auto& obs_history = observation_buffers[next_active_player];
+         for(auto& obs : obs_history) {
+            ::nor::detail::update_infostate(
+               child_infostate, std::move(obs.first), std::move(obs.second)
+            );
+         }
+         obs_history.clear();
+         ::nor::detail::update_infostate(
+            child_infostate,
+            public_obs,
+            _env().private_observation(next_active_player, state, action_or_outcome, next_wstate)
+         );
+         infostate_entry_it->second = std::move(child_infostate);
+      }
    }
-   auto infostate_entry_it = infostates.find(next_active_player);
-   if(infostate_entry_it == infostates.end()) {
-      // NOTE: game infostates are generally NOT default-constructible -- seed with the player
-      infostate_entry_it = infostates
-                              .emplace(
-                                 next_active_player,
-                                 std::make_shared< info_state_type >(next_active_player)
-                              )
-                              .first;
-   }
-   auto child_infostate = std::make_shared< info_state_type >(*infostate_entry_it->second);
-   auto& obs_history = observation_buffers[next_active_player];
-   for(auto& obs : obs_history) {
-      ::nor::detail::update_infostate(child_infostate, std::move(obs.first), std::move(obs.second));
-   }
-   obs_history.clear();
-   ::nor::detail::update_infostate(
-      child_infostate,
-      public_obs,
-      _env().private_observation(next_active_player, state, action_or_outcome, next_wstate)
-   );
-   infostate_entry_it->second = std::move(child_infostate);
    for(auto player : _env().players(next_wstate)) {
       if(player == Player::chance or player == next_active_player) {
          continue;
