@@ -490,7 +490,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          auto& node_data = _infonode(this_infostate).data();
          const double v_I = state_value.get().at(active_player);
          for(auto [action_idx, cf_reach] : pending_window_visits) {
-            _push_window_visit(node_data, active_player, action_idx, cf_reach, v_I);
+            _push_window_visit(node_data, active_player, *this_infostate, action_idx, cf_reach, v_I);
          }
       }
    }
@@ -784,79 +784,156 @@ decltype(auto) action_of_index(NodeData& node_data, size_t action_idx)
    return node_data.registry.actions[action_idx];
 }
 
-/// depth-first enumeration of the full game tree tracking min/max terminal reward per player.
-/// The one-shot fallback for environments that do not support the B4 payoff-bounds trait
-/// (concepts::has::supports_payoff_bounds); intended for the small bed games RBP targets.
-template < typename Env, typename State >
-void probe_payoff_bounds_tree(
-   const Env& env,
-   State& state,
-   const std::vector< Player >& players,
-   player_hashmap< pruning::PayoffBound >& bounds
-)
-{
-   if(env.is_terminal(state)) {
-      for(auto [player, value] : collect_rewards(env, state, players)) {
-         auto& bound = bounds.at(player);
-         bound.lower = std::min(bound.lower, value);
-         bound.upper = std::max(bound.upper, value);
-      }
-      return;
-   }
-   Player active = env.active_player(state);
-   if constexpr(concepts::stochastic_env< Env >) {
-      if(active == Player::chance) {
-         for(auto&& outcome : env.chance_actions(state)) {
-            State child{state};
-            env.transition(child, outcome);
-            probe_payoff_bounds_tree(env, child, players, bounds);
-         }
-         return;
-      }
-   }
-   for(const auto& action : env.actions(active, state)) {
-      State child{state};
-      env.transition(child, action);
-      probe_payoff_bounds_tree(env, child, players, bounds);
-   }
-}
-
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-pruning::PayoffBound VanillaCFR< config, Env, Policy, AveragePolicy >::_payoff_bound(Player player)
+pruning::PayoffBound VanillaCFR< config, Env, Policy, AveragePolicy >::_edge_bound(
+   const info_state_type& infostate,
+   const action_type& action
+)
 {
    if constexpr(
       config.pruning_mode == CFRPruningMode::regret_based
       or config.pruning_mode == CFRPruningMode::dynamic_thresholding
    ) {
-      if(m_payoff_bounds.empty()) {
+      if(m_payoff_bounds.empty() and m_edge_bounds.empty()) {
          auto root_players = _env().players(root_state());
+         for(auto p : root_players) {
+            if(p != Player::chance) {
+               m_root_player_order.push_back(p);
+            }
+         }
          if constexpr(concepts::has::supports_payoff_bounds< env_type >) {
-            // B4 trait contract: the environment reports its own per-player bounds
-            for(auto p : root_players) {
-               if(p == Player::chance) {
-                  continue;
-               }
+            // B4 trait contract: the environment reports per-player global bounds; honor them
+            for(auto p : m_root_player_order) {
                auto [lo, hi] = _env().payoff_bounds(p);
                m_payoff_bounds.emplace(p, pruning::PayoffBound{.lower = lo, .upper = hi});
             }
          } else {
-            // fallback: symmetric max-|reward| style bounds probed from the tree exactly once.
-            // Seeding with 0/0 only ever WIDENS the observed range, which shrinks windows and
-            // is therefore sound for pruning.
-            for(auto p : root_players) {
-               if(p != Player::chance) {
-                  m_payoff_bounds.emplace(p, pruning::PayoffBound{});
-               }
-            }
-            auto& root_ref = *_root_state_uptr();
-            using world_state_type = auto_world_state_type< Env >;
-            probe_payoff_bounds_tree(_env(), root_ref, root_players, m_payoff_bounds);
+            // fallback: probe PER-(infostate,action) terminal-reward ranges once -- the tight,
+            // faithful reading of the paper's U(I,a)/L(I). The full-tree walk costs one
+            // traversal and runs outside any active recursion (arena is idle there).
+            _probe_edge_bounds();
          }
       }
-      return m_payoff_bounds.at(player);
+      if constexpr(not concepts::has::supports_payoff_bounds< env_type >) {
+         if(not m_edge_bounds.empty()) {
+            auto& table = m_edge_bounds.at(infostate.player());
+            const auto ist_it = table.find(infostate);
+            if(ist_it != table.end()) {
+               const auto act_it = ist_it->second.find(action);
+               if(act_it != ist_it->second.end()) {
+                  return act_it->second;
+               }
+            }
+         }
+      }
+      const auto& global = m_payoff_bounds.at(infostate.player());
+      return global;
    } else {
       return pruning::PayoffBound{};
    }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_edge_bounds()
+{
+   player_hashmap< sptr< info_state_type > > infostates{};
+   player_hashmap< std::vector< std::pair< observation_type, observation_type > > > buffers{};
+   for(auto p : m_root_player_order) {
+      infostates.emplace(p, std::make_shared< info_state_type >(p));
+      buffers.emplace(p, decltype(buffers.at(p)){});
+   }
+   world_state_type& root_ref = *_root_state_uptr();
+   world_state_type& arena_root = _arena_state(0, root_ref);
+   _probe_dfs(arena_root, 0, infostates, buffers);
+
+   // convert raw per-edge {min,max} of u_owner below h*a into the paper's pair
+   // { lower = L(I), upper = U(I,a) } with L(I) = min over the node's actions
+   for(auto& [player, table] : m_edge_bounds) {
+      for(auto& [istate, edges] : table) {
+         double l_of_I = std::numeric_limits< double >::infinity();
+         for(auto& [action, bound] : edges) {
+            (void)action;
+            l_of_I = std::min(l_of_I, bound.lower);  // still raw min here
+         }
+         for(auto& [action, bound] : edges) {
+            (void)action;
+            bound.lower = l_of_I;
+         }
+      }
+   }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+std::vector< pruning::PayoffBound >
+VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
+   world_state_type& state,
+   size_t depth,
+   player_hashmap< sptr< info_state_type > >& infostates,
+   player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
+      observation_buffers
+)
+{
+   const size_t n = m_root_player_order.size();
+   if(_env().is_terminal(state)) {
+      auto rewards = collect_rewards(_env(), state, _env().players(root_state()));
+      std::vector< pruning::PayoffBound > out(n);
+      for(auto idx : std::views::iota(size_t{0}, n)) {
+         const double r = rewards.at(m_root_player_order[idx]);
+         out[idx] = pruning::PayoffBound{.lower = r, .upper = r};
+      }
+      return out;
+   }
+
+   // merge helper: elementwise interval hull
+   auto hull = [&](std::vector< pruning::PayoffBound >& acc,
+                   const std::vector< pruning::PayoffBound >& sub) {
+      for(auto idx : std::views::iota(size_t{0}, n)) {
+         acc[idx].lower = std::min(acc[idx].lower, sub[idx].lower);
+         acc[idx].upper = std::max(acc[idx].upper, sub[idx].upper);
+      }
+   };
+
+   std::vector< pruning::PayoffBound > ranges(
+      n, pruning::PayoffBound{.lower = std::numeric_limits< double >::infinity(),
+                              .upper = -std::numeric_limits< double >::infinity()}
+   );
+
+   Player active = _env().active_player(state);
+   if constexpr(concepts::stochastic_env< env_type >) {
+      if(active == Player::chance) {
+         for(auto&& outcome : _env().chance_actions(state)) {
+            auto ist_child = infostates;
+            auto buf_child = observation_buffers;
+            world_state_type& next = _br_advance(outcome, state, depth, ist_child, buf_child);
+            hull(ranges, _probe_dfs(next, depth + 1, ist_child, buf_child));
+         }
+         return ranges;
+      }
+   }
+
+   for(const auto& action : _env().actions(active, state)) {
+      auto ist_child = infostates;
+      auto buf_child = observation_buffers;
+      world_state_type& next = _br_advance(action, state, depth, ist_child, buf_child);
+      auto sub = _probe_dfs(next, depth + 1, ist_child, buf_child);
+      hull(ranges, sub);
+      // record the raw range of u_active reachable through THIS edge from the ACTIVE
+      // player's current infostate
+      const auto& active_infostate = *ist_child.at(active);
+      const auto owner_idx = static_cast< size_t >(
+         std::ranges::find(m_root_player_order, active) - m_root_player_order.begin()
+      );
+      auto& edges = m_edge_bounds[active][active_infostate];
+      auto& bound =
+         edges
+            .try_emplace(action, pruning::PayoffBound{
+                                    .lower = std::numeric_limits< double >::infinity(),
+                                    .upper = -std::numeric_limits< double >::infinity()})
+            .first->second;
+      bound.lower = std::min(bound.lower, sub[owner_idx].lower);
+      bound.upper = std::max(bound.upper, sub[owner_idx].upper);
+   }
+   return ranges;
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -867,16 +944,19 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_arm_pruning_windows(
 )
 {
    auto& rbp = node_data.rbp;
-   const double bound_range = _payoff_bound(infostate.player()).range();
-   // conservative per-iteration regret growth bound r^t(I,a) <= increment_bound; exponential
-   // weighting inflates by e^range because its L1 factors rescale increments (pruning.hpp)
-   const double inc_bound =
-      pruning::window_increment_bound(config.weighting_mode, bound_range);
    const size_t t0 = _iteration() + 1;
    for(auto idx : std::views::iota(size_t{0}, node_data.regret.size())) {
       if(rbp.pruned_until[idx] != 0) {
          continue;
       }
+      const auto& action = node_data.registry.actions[idx];
+      // Theorem-1 window denominator: U(I,a) - L(I), resolved from the per-edge probed ranges
+      // (or the env's global B4 bounds when provided)
+      const double bound_range = _edge_bound(infostate, action).range();
+      // conservative per-iteration regret growth bound r^t(I,a) <= increment_bound; exponential
+      // weighting inflates by e^range because its L1 factors rescale increments (pruning.hpp)
+      const double inc_bound =
+         pruning::window_increment_bound(config.weighting_mode, bound_range);
       const double R = node_data.regret[idx];
       // Appendix-B minimum-skip filter (NIPS'15): only open a window when even the WORST-CASE
       // window length floor(|R| / inc-bound) clears the configured minimum
@@ -953,6 +1033,7 @@ template < typename NodeData >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_push_window_visit(
    NodeData& node_data,
    Player active_player,
+   const info_state_type& infostate,
    size_t action_idx,
    double cf_reach_prob,
    double state_value_for_player
@@ -961,7 +1042,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_push_window_visit(
    auto& rbp = node_data.rbp;
    // eq-(9) pessimistic tracker: assume the pruned action delivered its maximal payoff U(I,a);
    // this upper-bounds the true regret evolution because v(I->a) <= U(I,a) pointwise
-   const double u_upper = _payoff_bound(active_player).upper;
+   const double u_upper = _edge_bound(infostate, node_data.registry.actions[action_idx]).upper;
    rbp.pessimistic_regret[action_idx] += cf_reach_prob * (u_upper - state_value_for_player);
    // best-response buffer: the missing true increments pi_{-i}(v(I->a) - v(I)) are replaced by
    // pi_{-i}(v_BR - v(I)); folded into the regret table at unfold time

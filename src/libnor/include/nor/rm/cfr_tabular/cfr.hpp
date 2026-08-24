@@ -293,8 +293,18 @@ class VanillaCFR:
 
    /// ---- pruning engine state (empty cost when pruning_mode == none) ----------------------
    PruningStats m_pruning_stats{};
-   /// memoized per-player payoff bounds; filled on first use under the RBP modes
+   /// memoized GLOBAL per-player bounds (B4 trait path, or degenerate fallback)
    player_hashmap< pruning::PayoffBound > m_payoff_bounds{};
+   /// per-(infostate,action) probed ranges: lower = L(I) (min payoff below I), upper = U(I,a)
+   /// (max payoff below h*a). Filled by the one-shot probe when the env lacks B4 bounds.
+   player_hashmap< std::unordered_map<
+      info_state_type,
+      std::unordered_map< action_type, pruning::PayoffBound, common::value_hasher< action_type > >,
+      common::value_hasher< info_state_type >,
+      common::value_comparator< info_state_type > > >
+      m_edge_bounds{};
+   /// root participant order backing _probe_dfs's interval vectors (chance excluded)
+   std::vector< Player > m_root_player_order{};
 
    /////////////////////////////////////////////////
    /// private implementation details of the API ///
@@ -379,10 +389,26 @@ class VanillaCFR:
    ////////////////////// regret-based pruning / dynamic thresholding ////////////////////////
    ///////////////////////////////////////////////////////////////////////////////////////////
 
-   /// lazily resolves (and memoizes) the per-player payoff bounds standing in for the paper's
-   /// U/L quantities: environments supporting the B4 trait report their own bounds, everything
-   /// else is probed from terminal rewards exactly once
-   [[nodiscard]] pruning::PayoffBound _payoff_bound(Player player);
+   /// lazily resolves (and memoizes) the payoff-bound stand-ins for the paper's U/L quantities:
+   /// environments supporting the B4 trait report per-player global bounds; everything else is
+   /// probed once from the tree as PER-(infostate,action) terminal-reward ranges -- the faithful
+   /// (much tighter) reading of U(I,a) and L(I)
+   [[nodiscard]] pruning::PayoffBound
+   _edge_bound(const info_state_type& infostate, const action_type& action);
+
+   /// one-shot acquisition of the per-(infostate,action) payoff ranges via a full-tree
+   /// enumeration (shared edge-advance mechanics with the best-response walk)
+   void _probe_edge_bounds();
+
+   /// recursive worker of _probe_edge_bounds; returns the {lo,hi} interval of every ROOT
+   /// player's terminal reward below 'state' (order aligned with m_root_player_order)
+   [[nodiscard]] std::vector< pruning::PayoffBound > _probe_dfs(
+      world_state_type& state,
+      size_t depth,
+      player_hashmap< sptr< info_state_type > >& infostates,
+      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
+         observation_buffers
+   );
 
    /// arms pruning windows on an infostate whose post-recommend regret entries cleared the
    /// minimum-skip filter; deadline = T0 + Theorem-1 window, pessimistic eq-(9) tracker seeded
@@ -415,6 +441,7 @@ class VanillaCFR:
    void _push_window_visit(
       NodeData& node_data,
       Player active_player,
+      const info_state_type& infostate,
       size_t action_idx,
       double cf_reach_prob,
       double state_value_for_player
