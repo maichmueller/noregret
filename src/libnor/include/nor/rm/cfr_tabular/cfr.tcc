@@ -209,6 +209,31 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename ActionPolicyTable >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_force_warm_start_policy(
+   const info_state_type& infostate,
+   const std::vector< action_type >& actions,
+   ActionPolicyTable& action_policy
+)
+{
+   if constexpr(config.warm_start_iterations > 0) {
+      if(m_warm_start_policy.distribution) {
+         const auto fixed_distribution = m_warm_start_policy.distribution(infostate, actions);
+         for(const auto& action : actions) {
+            // .at() on purpose: an incomplete fixed distribution is a caller bug we want to
+            // fail loudly on instead of silently zeroing actions
+            action_policy[action] = fixed_distribution.at(action);
+         }
+      } else {
+         const double uniform_prob = 1. / static_cast< double >(actions.size());
+         for(const auto& action : actions) {
+            action_policy[action] = uniform_prob;
+         }
+      }
+   }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 template < bool initialize_infonodes, bool use_current_policy >
 StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    std::optional< Player > player_to_update,
@@ -329,6 +354,30 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    auto& action_policy = this->template fetch_policy< use_current_policy >(
       *this_infostate, actions
    );
+   if constexpr(config.warm_start_iterations > 0 and use_current_policy) {
+      // WARM START pre-play phase: while warm_start_active(_iteration()) holds, EVERY
+      // player's played strategy is forced to the fixed warm-start policy by overwriting
+      // the current-policy tables AT THE VISIT, i.e. at the exact point where the edge
+      // probabilities are read; the counterfactual regret updates below therefore
+      // accumulate best-response information about a fully STATIONARY opposition into
+      // whoever is being updated this iteration. Roles alternate exactly like regular CFR.
+      // Everything else -- regret increments and all minimizer bookkeeping (recommend(),
+      // discounting, clamping) -- runs exactly as in plain CFR; only what is PLAYED
+      // differs, and the average strategy is left untouched by the pre-play phase
+      // altogether (see update_regret_and_policy). Overwriting here rather than
+      // intercepting recommend() preserves every minimizer invariant bit-for-bit.
+      //
+      // PROVENANCE: this is the 'naive' fixed-opposition pre-play regime -- analyzed and
+      // DISMISSED as a warm start in Brown & Sandholm, "Strategy-Based Warm Starting for
+      // Regret Minimization in Games" (AAAI 2016), sec. 2, because it cannot substitute
+      // for their regret-table substitution; it survives as an empirical early-descent
+      // device (cf. the "warm-start form" of DeepStack, Moravčík et al., Science 2017,
+      // and the warm-start references around DDCFR, Xu et al., ICLR 2024). No dedicated
+      // convergence analysis exists for it; see rm::CFRConfig::warm_start_iterations.
+      if(warm_start_active(_iteration())) {
+         _force_warm_start_policy(*this_infostate, actions, action_policy);
+      }
+   }
    double normalizing_factor = std::invoke([&] {
       if constexpr(not use_current_policy) {
          // we try to normalize only for the average policy, since iterations with the current
@@ -676,17 +725,30 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
             cf_reach_prob * (action_value.get().at(player) - player_state_value)
          );
       }
-      if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
-         // update the cumulative policy according to the formula:
-         // let
-         //    'I' be the infostate,
-         //    'p' be the player,
-         //    'a' be the chosen action,
-         //    'sigma^t' the current policy
-         //  -->  avg_sigma^{t+1} = \sum_a reach_prob_{p}(I) * sigma^t(I, a)
-         avg_action_policy[action] += player_reach_prob * curr_action_policy[action];
-         // For exponential CFR we update the average policy after the tree traversal
+   }
+   if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
+      // update the cumulative policy according to the formula:
+      // let
+      //    'I' be the infostate,
+      //    'p' be the player,
+      //    'a' be the chosen action,
+      //    'sigma^t' the current policy
+      //  -->  avg_sigma^{t+1} = \sum_a reach_prob_{p}(I) * sigma^t(I, a)
+      //
+      // WARM START: pre-play iterations are 'BEFORE play' -- they exist purely to seed
+      // the regret tables with best-response information about the fixed profile, so
+      // they contribute NOTHING to the average strategy (the degenerate weighting
+      // schedule of the weighted-averaging family, cf. DCFR's downweighting of early
+      // rounds). Without this exclusion the phase's uniform rounds would pollute the
+      // average and negate the seeding benefit.
+      if(not warm_start_active(_iteration())) {
+         for(const auto& [action_variant, action_value] : action_value_map) {
+            (void) action_value;
+            const auto& action = std::get< 0 >(action_variant);
+            avg_action_policy[action] += player_reach_prob * curr_action_policy[action];
+         }
       }
+      // For exponential CFR we update the average policy after the tree traversal
    }
    if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
       // For exponential CFR we need to store the reach probability of the active player until
@@ -768,6 +830,18 @@ consteval bool sanity_check_cfr_config()
    // what the selection in minimizers.hpp produces; it also keeps working under simultaneous
    // updates since thresholding only reshapes recommendations. The predictive/discounted-kernel
    // modes are already rejected above because they require pruning_mode == none altogether.
+   if constexpr(config.warm_start_iterations > 0) {
+      // the warm-start pre-play phase forces the PLAYED strategy during early traversals at
+      // the policy-fetch point while regret/average updates run unmodified (see
+      // _traverse_player_actions). Exponential CFR defers both its cumulative updates AND its
+      // policy refresh into finalize_iteration with a separate L1-weighted
+      // numerator/denominator machinery; forcing played policies mid-phase is unanalyzed
+      // there, so the combination is statically rejected. All regret-matching-based modes
+      // (RM / RM+, incl. their discounted/linear carriers) are supported.
+      if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
+         return false;
+      }
+   }
    return true;
 }
 

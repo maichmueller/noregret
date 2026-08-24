@@ -2,6 +2,7 @@
 #ifndef NOR_CFR_HPP
 #define NOR_CFR_HPP
 
+#include <functional>
 #include <iostream>
 #include <list>
 #include <map>
@@ -36,6 +37,32 @@ template < CFRConfig config >
 consteval bool sanity_check_cfr_config();
 
 }  // namespace detail
+
+/**
+ * Fixed-policy carrier of the warm-start pre-play phase (see
+ * rm::CFRConfig::warm_start_iterations). During the phase the solver forces every player's
+ * PLAYED strategy to the distribution this selector reports; counterfactual regret updates
+ * run unmodified, seeding the cumulative regret tables away from zero (the pre-play rounds
+ * contribute nothing to the average strategy).
+ *
+ * The 'distribution' callable receives an infostate (which carries its owner) and that
+ * infostate's registered actions and must return the FULL normalized action distribution for
+ * it. An EMPTY callable selects the default uniform distribution over the legal actions.
+ */
+template < typename InfoState, typename Action >
+struct WarmStartPolicy {
+   using distribution_type = std::unordered_map< Action, double >;
+
+   /// custom fixed-profile selector; empty => uniform over the infostate's legal actions
+   std::function< distribution_type(const InfoState&, const std::vector< Action >&) >
+      distribution{};
+};
+
+/// resolves the warm-start policy selector type of an environment
+template < typename Env >
+using warm_start_policy_selector_t = WarmStartPolicy<
+   auto_info_state_type< Env >,
+   auto_action_type< Env > >;
 
 /**
  * A (Vanilla) Counterfactual Regret Minimization algorithm class following the
@@ -158,6 +185,18 @@ class VanillaCFR:
    {
    }
 
+   /// attaches a custom fixed warm-start policy (see WarmStartPolicy). Only participates when
+   /// the configuration actually enables the warm-start pre-play phase; with
+   /// warm_start_iterations == 0 a passed selector is a hard compile error instead of being
+   /// silently ignored. The selector is forwarded as the FIRST constructor argument, ahead of
+   /// all base-class arguments.
+   template < typename... Args >
+      requires(config.warm_start_iterations > 0)
+   VanillaCFR(tag::internal_construct, warm_start_policy_selector_t< Env > selector, Args&&... args)
+       : base(std::forward< Args >(args)...), m_warm_start_policy(std::move(selector))
+   {
+   }
+
    ////////////////////////////////////
    /// API: public member functions ///
    ////////////////////////////////////
@@ -217,6 +256,15 @@ class VanillaCFR:
       requires(config.update_mode == UpdateMode::alternating);
 
    StateValueMap game_value() { return _iterate< false, false >(std::nullopt); }
+
+   /// true iff global iteration 'iteration' lies inside the warm-start pre-play phase
+   /// (see rm::CFRConfig::warm_start_iterations). Always false when the phase is disabled.
+   [[nodiscard]] static constexpr bool warm_start_active(size_t iteration)
+   {
+      return config.warm_start_iterations > 0 and iteration < config.warm_start_iterations;
+   }
+   /// whether THIS solver currently runs inside the warm-start pre-play phase
+   [[nodiscard]] bool in_warm_start() const { return warm_start_active(iteration()); }
 
    /// activity counters of the pruning engine (regret-based / dynamic-thresholding modes):
    /// windows armed at recommendation time, subtree descents avoided by the traversal gate,
@@ -290,6 +338,14 @@ class VanillaCFR:
       m_expcfr_params;
    /// the actual regret minimizing method we will apply on the infostates
    [[no_unique_address]] minimizer_type m_regret_minimizer{};
+
+   /// fixed-policy carrier of the warm-start pre-play phase (empty cost when
+   /// config.warm_start_iterations == 0)
+   [[no_unique_address]] std::conditional_t<
+      (config.warm_start_iterations > 0),
+      WarmStartPolicy< info_state_type, action_type >,
+      utils::empty >
+      m_warm_start_policy{};
 
    /// ---- pruning engine state (empty cost when pruning_mode == none) ----------------------
    PruningStats m_pruning_stats{};
@@ -384,6 +440,18 @@ class VanillaCFR:
 
    /// performs the end-of-traversal regret minimization step for one infostate
    void _invoke_regret_minimizer(const info_state_type& infostate);
+
+   /// WARM START pre-play phase worker: overwrites the CURRENT policy table 'action_policy'
+   /// of 'infostate' with the fixed warm-start distribution (uniform by default, else as
+   /// reported by the attached WarmStartPolicy selector). Invoked at every traversal visit
+   /// while warm_start_active(_iteration()) holds, so all players play the fixed profile
+   /// during the phase while their regret/average updates stay unmodified.
+   template < typename ActionPolicyTable >
+   void _force_warm_start_policy(
+      const info_state_type& infostate,
+      const std::vector< action_type >& actions,
+      ActionPolicyTable& action_policy
+   );
 
    ///////////////////////////////////////////////////////////////////////////////////////////
    ////////////////////// regret-based pruning / dynamic thresholding ////////////////////////
@@ -488,12 +556,13 @@ class VanillaCFR:
    );
 };
 
-template < typename Env, typename Policy, typename AveragePolicy >
+template < CFRPlusConfig config, typename Env, typename Policy, typename AveragePolicy >
 using CFRPlus = VanillaCFR<
    CFRConfig{
-      .update_mode = UpdateMode::alternating,
+      .update_mode = config.update_mode,
       .regret_minimizing_mode = RegretMinimizingMode::regret_matching_plus,
-      .weighting_mode = CFRWeightingMode::uniform},
+      .weighting_mode = CFRWeightingMode::uniform,
+      .warm_start_iterations = config.warm_start_iterations},
    Env,
    Policy,
    AveragePolicy >;
