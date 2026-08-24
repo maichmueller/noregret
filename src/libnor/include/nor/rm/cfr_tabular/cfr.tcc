@@ -650,15 +650,21 @@ consteval bool sanity_check_cfr_config()
       config.regret_minimizing_mode == RegretMinimizingMode::predictive_regret_matching_plus
       or config.regret_minimizing_mode
          == RegretMinimizingMode::sap_predictive_regret_matching_plus
+      or config.regret_minimizing_mode == RegretMinimizingMode::discounted_regret_matching_plus
+      or config.regret_minimizing_mode
+         == RegretMinimizingMode::discounted_predictive_regret_matching_plus
    ) {
       // the predictive regret minimizers (PCFR+/SAPCFR+) pair the strategy
       // snapshot of the previous recommendation with the instantaneous regrets
       // of exactly one full iteration. This pairing is only well-defined for
       // alternating updates over unpruned traversals (in simultaneous updates
-      // and under pruning the rho/sigma_snap correspondence breaks). The
-      // discounted weighting mode is REQUIRED as carrier of the quadratic
-      // average-policy accumulation (gamma = 2); its alpha/beta regret
-      // discounts are compiled out by the minimizer selection
+      // and under pruning the rho/sigma_snap correspondence breaks). The DCFR+/PDCFR+
+      // kernels (arXiv:2404.13891) share the same one-phase-per-recommend contract
+      // (their deferred fold consumes exactly one fully observed instantaneous
+      // regret vector per recommend) and the paper prescribes alternating updates.
+      // The discounted weighting mode is REQUIRED as carrier of the gamma-side
+      // average-policy accumulation; its own alpha/beta regret discounts are
+      // compiled out by the minimizer selection for these modes
       if constexpr(
          config.update_mode != UpdateMode::alternating
          or config.pruning_mode != CFRPruningMode::none

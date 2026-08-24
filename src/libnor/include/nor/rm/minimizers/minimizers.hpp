@@ -452,6 +452,9 @@ class DiscountedCFR {
 
 #include "predictive.hpp"
 
+// the DCFR+/PDCFR+ kernels + HS schedule factories follow the same pattern
+#include "discounted_predictive.hpp"
+
 namespace nor::rm {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -477,6 +480,14 @@ consteval auto select_vanilla_minimizer()
       return std::type_identity< DiscountedCFR<
          SAPPredictiveRegretMatchingPlus< Action >,
          /*discount_regrets=*/false > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::discounted_regret_matching_plus) {
+      // DCFR+ (arXiv:2404.13891): the kernel owns the alpha-side discounting
+      // (fold-time, discount-before-add) AND the gamma-side averaging; it must be
+      // selected directly -- a DiscountedCFR wrapper would double the gamma weight
+      return std::type_identity< DiscountedRegretMatchingPlus< Action > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::discounted_predictive_regret_matching_plus) {
+      // PDCFR+ (arXiv:2404.13891): DCFR+ with persistence-prediction recommendations
+      return std::type_identity< DiscountedPredictiveRegretMatchingPlus< Action > >{};
    } else if constexpr(weighting == CFRWeightingMode::exponential) {
       return std::type_identity< ExponentialCFR< Action > >{};
    } else if constexpr(weighting == CFRWeightingMode::discounted) {
