@@ -1014,20 +1014,14 @@ bool VanillaCFR< config, Env, Policy, AveragePolicy >::_rbp_gate(
       auto& since_refresh = rbp.visits_since_refresh[action_idx];
       if(since_refresh % config.rbp_br_refresh_period == 0) {
          // periodic best-response traversal of D(h,a) against the opponents' AVERAGE strategies
-         rbp.cached_br_value[action_idx] = std::invoke([&] {
-            player_hashmap< sptr< info_state_type > > ist_copy = infostates.get();
-            player_hashmap< std::vector< std::pair< observation_type, observation_type > > >
-               obs_copy = observation_buffer.get();
-            world_state_type& child =
-               _br_advance(action_of_index(node_data, action_idx), state, depth, ist_copy, obs_copy);
-            return _br_expectimax(
-               active_player,
-               child,
-               depth + 1,
-               std::move(ist_copy),
-               std::move(obs_copy)
-            );
-         });
+         rbp.cached_br_value[action_idx] = _br_expectimax_from_edge(
+            active_player,
+            action_of_index(node_data, action_idx),
+            state,
+            depth,
+            infostates.get(),
+            observation_buffer.get()
+         );
          ++m_pruning_stats.br_refreshes;
       }
       ++since_refresh;
@@ -1184,74 +1178,159 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_br_advance(
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax(
+template < typename ActionOrOutcome >
+double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax_from_edge(
    Player br_player,
-   world_state_type& state,
+   const ActionOrOutcome& action_or_outcome,
+   const world_state_type& state,
    size_t depth,
-   player_hashmap< sptr< info_state_type > > infostates,
-   player_hashmap< std::vector< std::pair< observation_type, observation_type > > >
+   player_hashmap< sptr< info_state_type > >& infostates,
+   player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
       observation_buffers
 )
 {
-   if(_env().is_terminal(state)) {
-      // pass the ROOT participant set explicitly (see _traverse's terminal note);
-      // collect_rewards returns a plain player->value map
-      return collect_rewards(_env(), state, _env().players(root_state())).at(br_player);
-   }
-   const Player active_player = _env().active_player(state);
+   // ---- edge application (in place) -------------------------------------------------------
+   world_state_type& next_wstate = _arena_state(depth + 1, state);
+   _env().transition(next_wstate, action_or_outcome);
+   const auto public_obs = _env().public_observation(state, action_or_outcome, next_wstate);
+   const Player next_active_player = _env().active_player(next_wstate);
 
-   if constexpr(concepts::stochastic_env< env_type >) {
+   // targeted snapshots for restoration after the recursion (cheap: one shared_ptr per
+   // player plus buffer size bookkeeping -- no container copies)
+   const bool flushes =
+      next_active_player != Player::chance and infostates.contains(next_active_player);
+   sptr< info_state_type > saved_entry{};
+   std::vector< std::pair< observation_type, observation_type > > saved_flush_buffer;
+   std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
+   if(flushes) {
+      saved_entry = infostates.at(next_active_player);
+      saved_flush_buffer = observation_buffers.at(next_active_player);
+   }
+   for(const auto& [player, buffer] : observation_buffers) {
+      saved_buffer_sizes.emplace_back(player, buffer.size());
+   }
+
+   if(flushes) {
+      auto child_infostate = std::make_shared< info_state_type >(*saved_entry);
+      auto& obs_history = observation_buffers[next_active_player];
+      for(auto& obs : obs_history) {
+         ::nor::detail::update_infostate(
+            child_infostate, std::move(obs.first), std::move(obs.second)
+         );
+      }
+      obs_history.clear();
+      ::nor::detail::update_infostate(
+         child_infostate,
+         public_obs,
+         _env().private_observation(next_active_player, state, action_or_outcome, next_wstate)
+      );
+      infostates.at(next_active_player) = child_infostate;
+   } else if(next_active_player != Player::chance) {
+      // player without an infostate entry yet: buffer only
+   }
+   for(auto player : _env().players(next_wstate)) {
+      if(player == Player::chance or player == next_active_player) {
+         continue;
+      }
+      observation_buffers[player].emplace_back(
+         public_obs, _env().private_observation(player, state, action_or_outcome, next_wstate)
+      );
+   }
+
+   // ---- expectimax step -------------------------------------------------------------------
+   double value = 0.;
+   if(_env().is_terminal(next_wstate)) {
+      // pass the ROOT participant set explicitly (see _traverse's terminal note)
+      value = collect_rewards(_env(), next_wstate, _env().players(root_state()))
+                 .at(br_player);
+   } else if constexpr(concepts::stochastic_env< env_type >) {
+      const Player active_player = _env().active_player(next_wstate);
       if(active_player == Player::chance) {
-         double value = 0.;
-         for(auto&& outcome : _env().chance_actions(state)) {
-            const double prob = _env().chance_probability(state, outcome);
+         for(auto&& outcome : _env().chance_actions(next_wstate)) {
+            const double prob = _env().chance_probability(next_wstate, outcome);
             if(prob <= 0.) {
                continue;
             }
-            auto ist_child = infostates;
-            auto obs_child = observation_buffers;
-            world_state_type& next =
-               _br_advance(outcome, state, depth, ist_child, obs_child);
             value += prob
-                     * _br_expectimax(
-                        br_player, next, depth + 1, std::move(ist_child), std::move(obs_child)
+                     * _br_expectimax_from_edge(
+                        br_player, outcome, next_wstate, depth + 1, infostates,
+                        observation_buffers
                      );
          }
-         return value;
+         // restore happens below (shared epilogue)
+      } else {
+         value = std::invoke([&] {
+            const auto& actions = _env().actions(active_player, next_wstate);
+            if(active_player == br_player) {
+               // best response: greedy max over the subtree values
+               double best = std::numeric_limits< double >::lowest();
+               for(const auto& action : actions) {
+                  best = std::max(
+                     best,
+                     _br_expectimax_from_edge(
+                        br_player, action, next_wstate, depth + 1, infostates,
+                        observation_buffers
+                     )
+                  );
+               }
+               return best;
+            }
+            // opponent: expectation under their CURRENT AVERAGE strategy
+            const auto& active_infostate = *infostates.at(active_player);
+            const std::vector< double > avg_probs =
+               _normalized_average_policy(active_infostate, actions);
+            double expected = 0.;
+            for(auto [idx, action] : std::views::enumerate(actions)) {
+               if(avg_probs[idx] <= 0.) {
+                  continue;
+               }
+               expected += avg_probs[idx]
+                           * _br_expectimax_from_edge(
+                              br_player, action, next_wstate, depth + 1, infostates,
+                              observation_buffers
+                           );
+            }
+            return expected;
+         });
+      }
+   } else {
+      const Player active_player = _env().active_player(next_wstate);
+      const auto& actions = _env().actions(active_player, next_wstate);
+      if(active_player == br_player) {
+         // best response: greedy max over the subtree values
+         value = std::numeric_limits< double >::lowest();
+         for(const auto& action : actions) {
+            value = std::max(
+               value,
+               _br_expectimax_from_edge(
+                  br_player, action, next_wstate, depth + 1, infostates, observation_buffers
+               )
+            );
+         }
+      } else {
+         // opponent: expectation under their CURRENT AVERAGE strategy (fetch_policy<average>)
+         const auto& active_infostate = *infostates.at(active_player);
+         const std::vector< double > avg_probs =
+            _normalized_average_policy(active_infostate, actions);
+         for(auto [idx, action] : std::views::enumerate(actions)) {
+            if(avg_probs[idx] <= 0.) {
+               continue;
+            }
+            value += avg_probs[idx]
+                     * _br_expectimax_from_edge(
+                        br_player, action, next_wstate, depth + 1, infostates, observation_buffers
+                     );
+         }
       }
    }
 
-   const auto& actions = _env().actions(active_player, state);
-   if(active_player == br_player) {
-      // best response: greedy max over the subtree values
-      double best = std::numeric_limits< double >::lowest();
-      for(const auto& action : actions) {
-         auto ist_child = infostates;
-         auto obs_child = observation_buffers;
-         world_state_type& next = _br_advance(action, state, depth, ist_child, obs_child);
-         best = std::max(
-            best,
-            _br_expectimax(br_player, next, depth + 1, std::move(ist_child), std::move(obs_child))
-         );
-      }
-      return best;
+   // ---- restore ---------------------------------------------------------------------------
+   if(flushes) {
+      infostates.at(next_active_player) = std::move(saved_entry);
+      observation_buffers.at(next_active_player) = std::move(saved_flush_buffer);
    }
-
-   // opponent: expectation under their CURRENT AVERAGE strategy (fetch_policy<average>)
-   const auto& active_infostate = *infostates.at(active_player);
-   const std::vector< double > avg_probs = _normalized_average_policy(active_infostate, actions);
-   double value = 0.;
-   for(auto [idx, action] : std::views::enumerate(actions)) {
-      if(avg_probs[idx] <= 0.) {
-         continue;
-      }
-      auto ist_child = infostates;
-      auto obs_child = observation_buffers;
-      world_state_type& next = _br_advance(action, state, depth, ist_child, obs_child);
-      value += avg_probs[idx]
-               * _br_expectimax(
-                  br_player, next, depth + 1, std::move(ist_child), std::move(obs_child)
-               );
+   for(const auto& [player, size] : saved_buffer_sizes) {
+      observation_buffers.at(player).resize(size);
    }
    return value;
 }

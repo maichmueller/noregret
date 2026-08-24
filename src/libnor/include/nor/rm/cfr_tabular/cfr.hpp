@@ -452,10 +452,9 @@ class VanillaCFR:
    template < typename NodeData >
    void _rbp_fold(NodeData& node_data, size_t action_idx, const action_type& action);
 
-   /// value of D(state,action_or_outcome) for 'br_player' when br_player plays a best response
-   /// against the OPPONENTS' AVERAGE strategies (greedy maxima at own nodes, average-policy
-   /// expectation at opponent nodes, chance-probability expectation at chance nodes). Runs on
-   /// copies of the infostate/observation containers so no restoration is needed.
+   /// one-edge advancement shared by the best-response walk and the bounds probe: transitions
+   /// into the arena slot of depth+1 and applies the observation flush/buffering IN PLACE on
+   /// the passed containers (callers needing restoration snapshot beforehand)
    template < typename ActionOrOutcome >
    world_state_type& _br_advance(
       const ActionOrOutcome& action_or_outcome,
@@ -466,12 +465,18 @@ class VanillaCFR:
          observation_buffers
    );
 
-   double _br_expectimax(
+   /// value of D(state, action_or_outcome) for 'br_player': best response against the
+   /// OPPONENTS' AVERAGE strategies (greedy maxima at own nodes, average-policy expectation at
+   /// opponent nodes, chance-probability expectation at chance nodes). Mutates the containers
+   /// along each descent but restores them per edge (cheap targeted snapshots, no map copies).
+   template < typename ActionOrOutcome >
+   double _br_expectimax_from_edge(
       Player br_player,
-      world_state_type& state,
+      const ActionOrOutcome& action_or_outcome,
+      const world_state_type& state,
       size_t depth,
-      player_hashmap< sptr< info_state_type > > infostates,
-      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >
+      player_hashmap< sptr< info_state_type > >& infostates,
+      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
          observation_buffers
    );
 
