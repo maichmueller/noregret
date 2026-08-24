@@ -237,7 +237,7 @@ TEST(KuhnPoker, RBP_CFRPlus_TrajectoryEquivalence)
 namespace {
 
 template < auto config >
-double timed_leduc_iterations(size_t n_iters)
+std::pair< double, RunCounters > timed_leduc_iterations(size_t n_iters)
 {
    using LeducEnv = games::leduc::Environment;
    using LeducState = games::leduc::State;
@@ -253,7 +253,8 @@ double timed_leduc_iterations(size_t n_iters)
    const auto start = std::chrono::steady_clock::now();
    solver.iterate(n_iters);
    const auto stop = std::chrono::steady_clock::now();
-   return std::chrono::duration< double, std::milli >(stop - start).count();
+   const double ms = std::chrono::duration< double, std::milli >(stop - start).count();
+   return {ms, RunCounters::of(solver)};
 }
 
 }  // namespace
