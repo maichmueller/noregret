@@ -877,16 +877,20 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_edge_bounds()
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 std::vector< pruning::PayoffBound >
 VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
-   world_state_type& state,
+   world_state_type& next_wstate,
    size_t depth,
    player_hashmap< sptr< info_state_type > >& infostates,
    player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
       observation_buffers
 )
 {
+   // NOTE: this worker assumes the EDGE ALREADY APPLIED by the caller (next_wstate
+   // transitioned and its observations flushed/buffered); it restores nothing itself -- the
+   // caller snapshots/restores around each expansion. Returns the {lo,hi} interval of every
+   // ROOT player's terminal reward below next_wstate (order = m_root_player_order).
    const size_t n = m_root_player_order.size();
-   if(_env().is_terminal(state)) {
-      auto rewards = collect_rewards(_env(), state, _env().players(root_state()));
+   if(_env().is_terminal(next_wstate)) {
+      auto rewards = collect_rewards(_env(), next_wstate, _env().players(root_state()));
       std::vector< pruning::PayoffBound > out(n);
       for(auto idx : std::views::iota(size_t{0}, n)) {
          const double r = rewards.at(m_root_player_order[idx]);
@@ -895,7 +899,6 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
       return out;
    }
 
-   // merge helper: elementwise interval hull
    auto hull = [&](std::vector< pruning::PayoffBound >& acc,
                    const std::vector< pruning::PayoffBound >& sub) {
       for(auto idx : std::views::iota(size_t{0}, n)) {
@@ -905,46 +908,94 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
    };
 
    std::vector< pruning::PayoffBound > ranges(
-      n, pruning::PayoffBound{.lower = std::numeric_limits< double >::infinity(),
-                              .upper = -std::numeric_limits< double >::infinity()}
+      n,
+      pruning::PayoffBound{.lower = std::numeric_limits< double >::infinity(),
+                           .upper = -std::numeric_limits< double >::infinity()}
    );
 
-   Player active = _env().active_player(state);
+   const Player active = _env().active_player(next_wstate);
+
+   auto expand = [&](const auto& action_or_outcome) -> std::vector< pruning::PayoffBound > {
+      world_state_type& child = _arena_state(depth + 1, next_wstate);
+      _env().transition(child, action_or_outcome);
+      const auto pub_obs = _env().public_observation(next_wstate, action_or_outcome, child);
+      const Player na = _env().active_player(child);
+      const bool flushes = na != Player::chance and infostates.contains(na);
+      sptr< info_state_type > saved_entry{};
+      std::vector< std::pair< observation_type, observation_type > > saved_flush_buffer;
+      std::vector< std::pair< Player, size_t > > saved_sizes;
+      if(flushes) {
+         saved_entry = infostates.at(na);
+         saved_flush_buffer = observation_buffers.at(na);
+      }
+      for(const auto& [player, buffer] : observation_buffers) {
+         saved_sizes.emplace_back(player, buffer.size());
+      }
+      if(flushes) {
+         auto child_ist = std::make_shared< info_state_type >(*saved_entry);
+         auto& history = observation_buffers[na];
+         for(auto& obs : history) {
+            ::nor::detail::update_infostate(child_ist, std::move(obs.first), std::move(obs.second));
+         }
+         history.clear();
+         ::nor::detail::update_infostate(
+            child_ist,
+            pub_obs,
+            _env().private_observation(na, next_wstate, action_or_outcome, child)
+         );
+         infostates.at(na) = std::move(child_ist);
+      }
+      for(auto player : _env().players(child)) {
+         if(player == Player::chance or player == na) {
+            continue;
+         }
+         observation_buffers[player].emplace_back(
+            pub_obs, _env().private_observation(player, next_wstate, action_or_outcome, child)
+         );
+      }
+      auto sub = _probe_dfs(child, depth + 1, infostates, observation_buffers);
+      if(flushes) {
+         infostates.at(na) = std::move(saved_entry);
+         observation_buffers.at(na) = std::move(saved_flush_buffer);
+      }
+      for(const auto& [player, size] : saved_sizes) {
+         observation_buffers.at(player).resize(size);
+      }
+      return sub;
+   };
+
    if constexpr(concepts::stochastic_env< env_type >) {
       if(active == Player::chance) {
-         for(auto&& outcome : _env().chance_actions(state)) {
-            auto ist_child = infostates;
-            auto buf_child = observation_buffers;
-            world_state_type& next = _br_advance(outcome, state, depth, ist_child, buf_child);
-            hull(ranges, _probe_dfs(next, depth + 1, ist_child, buf_child));
+         for(auto&& outcome : _env().chance_actions(next_wstate)) {
+            hull(ranges, expand(outcome));
          }
          return ranges;
       }
    }
 
-   for(const auto& action : _env().actions(active, state)) {
-      auto ist_child = infostates;
-      auto buf_child = observation_buffers;
-      world_state_type& next = _br_advance(action, state, depth, ist_child, buf_child);
-      auto sub = _probe_dfs(next, depth + 1, ist_child, buf_child);
-      hull(ranges, sub);
-      // record the raw range of u_active reachable through THIS edge from the ACTIVE
-      // player's current infostate
-      const auto& active_infostate = *ist_child.at(active);
-      const auto owner_idx = static_cast< size_t >(
+   for(const auto& action : _env().actions(active, next_wstate)) {
+      // record BEFORE expanding: the edge's key is this node's CURRENT infostate and the
+      // subtree range is returned by the expansion itself
+      auto owner_idx = static_cast< size_t >(
          std::ranges::find(m_root_player_order, active) - m_root_player_order.begin()
       );
-      auto& edges = m_edge_bounds[active][active_infostate];
+      auto sub = expand(action);
+      auto& edges = m_edge_bounds[active][*infostates.at(active)];
       auto& bound =
          edges
-            .try_emplace(action, pruning::PayoffBound{
-                                    .lower = std::numeric_limits< double >::infinity(),
-                                    .upper = -std::numeric_limits< double >::infinity()})
+            .try_emplace(
+               action,
+               pruning::PayoffBound{
+                  .lower = std::numeric_limits< double >::infinity(),
+                  .upper = -std::numeric_limits< double >::infinity()}
+            )
             .first->second;
       bound.lower = std::min(bound.lower, sub[owner_idx].lower);
       bound.upper = std::max(bound.upper, sub[owner_idx].upper);
+      hull(ranges, sub);
    }
    return ranges;
+}
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -1093,8 +1144,15 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_normalized_average_policy(
    double sum = 0.;
    if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
       // exponential weighting keeps an unnormalized numerator plus a separate denominator
-      // table; normalize against the denominators exactly like average_policy() does
-      const auto& node_data = _infonode(infostate).data();
+      // table; normalize against the denominators exactly like average_policy() does.
+      // Infostates never visited by the exponential update path have no node data yet --
+      // fall back to uniform for them.
+      const auto node_it = m_infonode.find(infostate);
+      if(node_it == m_infonode.end()) {
+         std::vector< double > uniform(actions.size(), 1. / static_cast< double >(actions.size()));
+         return uniform;
+      }
+      const auto& node_data = node_it->second.data();
       auto& raw = this->template fetch_policy< PolicyLabel::average >(infostate, actions);
       for(const auto& action : actions) {
          // NOTE: 'actions' here comes from the environment and need not share the infostate
