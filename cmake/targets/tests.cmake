@@ -146,4 +146,12 @@ if(ENABLE_GAMES)
         centipede
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        colonel_blotto
+        INCLUDE_DIR
+        colonel_blotto
+        LINK_LIBRARY
+        colonel_blotto
+        SOURCE_FILES
+        test_state.cpp)
 endif()
