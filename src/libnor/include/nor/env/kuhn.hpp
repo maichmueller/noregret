@@ -185,14 +185,16 @@ class Environment {
 };
 
 /// string rendering of an observation; reproduces the legacy string encoding
-/// ("-", "check"/"bet", card name, "<seat>:?") so debug output stays stable
+/// ("-", "check"/"bet", card name, "<seat>:?" with NOR player names) so debug
+/// output stays byte-identical to the pre-compaction implementation
 [[nodiscard]] inline std::string to_string(const Observation& obs)
 {
    switch(obs.kind) {
       case Observation::Kind::none: return "-";
       case Observation::Kind::action: return common::to_string(obs.action);
       case Observation::Kind::private_deal: return common::to_string(obs.card);
-      case Observation::Kind::public_deal: return common::to_string(obs.player) + ":?";
+      case Observation::Kind::public_deal:
+         return common::to_string(to_nor_player(obs.player)) + ":?";
    }
    return "-";
 }

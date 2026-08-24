@@ -220,6 +220,70 @@ constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_b
    std::pair{Stochasticity::choice, "choice"}};
 #endif
 
+/// a fixed-storage single-object slot that can be repeatedly (re)constructed
+/// from a prototype without heap traffic. Unlike copy assignment this only
+/// requires a copy constructor, so types with deleted copy assignment (e.g.
+/// world states holding const members) are supported. Used by the tabular
+/// solvers' depth-indexed traversal arenas.
+template < typename T >
+class ReusableSlot {
+  public:
+   constexpr ReusableSlot() = default;
+
+   ~ReusableSlot()
+   {
+      if(m_engaged) {
+         value().~T();
+      }
+   }
+
+   ReusableSlot(const ReusableSlot&) = delete;
+   ReusableSlot& operator=(const ReusableSlot&) = delete;
+
+   ReusableSlot(ReusableSlot&& other) noexcept : m_engaged(other.m_engaged)
+   {
+      if(other.m_engaged) {
+         ::new(static_cast< void* >(m_storage)) T(std::move(other.value()));
+         other.value().~T();
+         other.m_engaged = false;
+      }
+   }
+
+   ReusableSlot& operator=(ReusableSlot&& other) noexcept
+   {
+      if(this != &other) {
+         if(m_engaged) {
+            value().~T();
+            m_engaged = false;
+         }
+         if(other.m_engaged) {
+            ::new(static_cast< void* >(m_storage)) T(std::move(other.value()));
+            m_engaged = true;
+            other.value().~T();
+            other.m_engaged = false;
+         }
+      }
+      return *this;
+   }
+
+   /// (re)constructs the held object as a copy of 'source' and returns it
+   T& construct_from(const T& source)
+   {
+      if(m_engaged) {
+         value().~T();
+      }
+      ::new(static_cast< void* >(m_storage)) T(source);
+      m_engaged = true;
+      return value();
+   }
+
+  private:
+   [[nodiscard]] T& value() { return *std::launder(reinterpret_cast< T* >(m_storage)); }
+
+   alignas(T) std::byte m_storage[sizeof(T)];
+   bool m_engaged = false;
+};
+
 }  // namespace nor::utils
 
 namespace common {

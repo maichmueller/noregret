@@ -279,24 +279,31 @@ class VanillaCFR:
 
    /**
     * @brief traverses the game tree and fills the nodes with policy weighted regret updates.
+    *
+    * The world state lives in a depth-indexed arena slot owned by the solver and is
+    * reused across the whole recursion of an iteration; reach probabilities,
+    * observation buffers and infostate maps are passed by reference and restored
+    * at every recursion boundary (save/restore instead of per-edge copies).
     */
    template < bool initialize_infonodes, bool use_current_policy = true >
    StateValueMap _traverse(
       std::optional< Player > player_to_update,
-      uptr< world_state_type > curr_worldstate,
-      ReachProbabilityMap reach_probability,
-      ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostate_map
+      world_state_type& state,
+      size_t depth,
+      ReachProbabilityMap& reach_probability,
+      ObservationbufferMap& observation_buffer,
+      InfostateSptrMap& infostates
    );
 
    template < bool initialize_infonodes, bool use_current_policy = true >
    void _traverse_player_actions(
       std::optional< Player > player_to_update,
       Player active_player,
-      uptr< world_state_type > state,
-      const ReachProbabilityMap& reach_probability,
-      const ObservationbufferMap& observation_buffer,
-      InfostateSptrMap infostate_map,
+      world_state_type& state,
+      size_t depth,
+      ReachProbabilityMap& reach_probability,
+      ObservationbufferMap& observation_buffer,
+      InfostateSptrMap& infostates,
       StateValueMap& state_value,
       std::unordered_map< action_variant_type, StateValueMap >& action_value
    );
@@ -305,13 +312,28 @@ class VanillaCFR:
    void _traverse_chance_actions(
       std::optional< Player > player_to_update,
       Player active_player,
-      uptr< world_state_type > state,
-      const ReachProbabilityMap& reach_probability,
-      const ObservationbufferMap& observation_buffer,
-      InfostateSptrMap infostate_map,
+      world_state_type& state,
+      size_t depth,
+      ReachProbabilityMap& reach_probability,
+      ObservationbufferMap& observation_buffer,
+      InfostateSptrMap& infostates,
       StateValueMap& state_value,
       std::unordered_map< action_variant_type, StateValueMap >& action_value
    );
+
+   /// returns the arena slot for recursion 'depth', copy-assigned from 'source'.
+   /// Slots are allocated on first use and then reused for the remainder of
+   /// the solver's lifetime (one live clone per active path position).
+   world_state_type& _arena_state(size_t depth, const world_state_type& source);
+
+   /// depth-indexed world-state clones reused across the recursion within one
+   /// iteration (and across iterations); slot d holds the state reached after
+   /// d transitions along the currently active traversal path. Slots are
+   /// reconstructed in place per edge (no heap traffic, no copy-assignment
+   /// requirement on the state type).
+   /// NOTE: a deque on purpose -- growing it never moves existing slots, so
+   /// references into deeper slots held by active recursion frames stay valid
+   std::deque< utils::ReusableSlot< world_state_type > > m_traversal_state_arena;
 
    void _initiate_regret_minimization(const std::optional< Player >& player_to_update);
 

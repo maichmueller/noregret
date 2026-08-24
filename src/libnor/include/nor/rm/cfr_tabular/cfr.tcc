@@ -62,39 +62,64 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
 )
 {
    auto root_players = _env().players(root_state());
+
+   // the traversal containers are created once per iteration here (cheap) and
+   // then mutated in place down the recursion with explicit save/restore at
+   // every recursion boundary; no per-edge container copies happen anymore.
+   auto rp_map = std::invoke([&] {
+      ReachProbabilityMap rp{{}};
+      for(auto player : root_players) {
+         rp.get().emplace(player, 1.);
+      }
+      return rp;
+   });
+   auto obs_map = std::invoke([&] {
+      ObservationbufferMap obs{{}};
+      for(auto player : root_players | utils::is_actual_player_filter) {
+         obs.get().emplace(
+            player, std::vector< std::pair< observation_type, observation_type > >{}
+         );
+      }
+      return obs;
+   });
+   auto infostates = std::invoke([&] {
+      InfostateSptrMap istates{{}};
+      for(auto player : root_players | utils::is_actual_player_filter) {
+         istates.get().emplace(player, std::make_shared< info_state_type >(player));
+      }
+      return istates;
+   });
+
+   // copy-assign the root state into arena slot 0 (reused across iterations)
+   world_state_type& root_arena_state = _arena_state(0, *_root_state_uptr());
+
    auto root_game_value = _traverse< initializing_run, use_current_policy >(
       player_to_update,
-      utils::static_unique_ptr_downcast< world_state_type >(utils::clone_any_way(_root_state_uptr())
-      ),
-      std::invoke([&] {
-         ReachProbabilityMap rp_map{{}};
-         for(auto player : root_players) {
-            rp_map.get().emplace(player, 1.);
-         }
-         return rp_map;
-      }),
-      std::invoke([&] {
-         ObservationbufferMap obs_map{{}};
-         for(auto player : root_players | utils::is_actual_player_filter) {
-            obs_map.get().emplace(
-               player, std::vector< std::pair< observation_type, observation_type > >{}
-            );
-         }
-         return ObservationbufferMap{std::move(obs_map)};
-      }),
-      std::invoke([&] {
-         InfostateSptrMap infostates{{}};
-         for(auto player : root_players | utils::is_actual_player_filter) {
-            infostates.get().emplace(player, std::make_shared< info_state_type >(player));
-         }
-         return infostates;
-      })
+      root_arena_state,
+      /*depth=*/0,
+      rp_map,
+      obs_map,
+      infostates
    );
 
    if constexpr(use_current_policy) {
       _initiate_regret_minimization(player_to_update);
    }
    return root_game_value;
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+auto VanillaCFR< config, Env, Policy, AveragePolicy >::_arena_state(
+   size_t depth,
+   const world_state_type& source
+) -> world_state_type&
+{
+   if(m_traversal_state_arena.size() <= depth) {
+      m_traversal_state_arena.resize(depth + 1);
+   }
+   // reconstruct the slot from 'source' in place: no allocation after the
+   // first visit to this depth and no requirement on copy assignment
+   return m_traversal_state_arena[depth].construct_from(source);
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -172,13 +197,14 @@ template < CFRConfig config, typename Env, typename Policy, typename AveragePoli
 template < bool initialize_infonodes, bool use_current_policy >
 StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    std::optional< Player > player_to_update,
-   uptr< world_state_type > state,
-   ReachProbabilityMap reach_probability,
-   ObservationbufferMap observation_buffer,
-   InfostateSptrMap infostates
+   world_state_type& state,
+   size_t depth,
+   ReachProbabilityMap& reach_probability,
+   ObservationbufferMap& observation_buffer,
+   InfostateSptrMap& infostates
 )
 {
-    if(_env().is_terminal(*state)) {
+    if(_env().is_terminal(state)) {
        // NOTE: pass the ROOT participant set explicitly. The default of
        // collect_rewards derives the player set from env.players(terminal
        // state), which excludes players that have folded out of poker-like
@@ -187,7 +213,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
        // such subtrees. Environments must support reward() for all initial
        // participants (e.g. leduc pays folded players their sunk stakes).
        return StateValueMap{
-          collect_rewards(_env(), *state, _env().players(root_state()))};
+          collect_rewards(_env(), state, _env().players(root_state()))};
     }
 
    if constexpr(config.pruning_mode == CFRPruningMode::partial) {
@@ -196,7 +222,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
          // each player
          return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
-            for(auto player : _env().players(*state) | utils::is_actual_player_pred) {
+            for(auto player : _env().players(state) | utils::is_actual_player_pred) {
                map[player] = 0.;
             }
             return map;
@@ -204,7 +230,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   Player active_player = _env().active_player(*state);
+   Player active_player = _env().active_player(state);
    // the state's value for each player. To be filled by the action traversal functions.
    StateValueMap state_value{{}};
    // each action's value for each player. To be filled by the action traversal functions.
@@ -217,10 +243,11 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
          _traverse_chance_actions< initialize_infonodes, use_current_policy >(
             player_to_update,
             active_player,
-            std::move(state),
+            state,
+            depth,
             reach_probability,
-            std::move(observation_buffer),
-            std::move(infostates),
+            observation_buffer,
+            infostates,
             state_value,
             action_value
          );
@@ -235,10 +262,11 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    _traverse_player_actions< initialize_infonodes, use_current_policy >(
       player_to_update,
       active_player,
-      std::move(state),
+      state,
+      depth,
       reach_probability,
-      std::move(observation_buffer),
-      std::move(infostates),
+      observation_buffer,
+      infostates,
       state_value,
       action_value
    );
@@ -267,18 +295,19 @@ template < bool initialize_infonodes, bool use_current_policy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    std::optional< Player > player_to_update,
    Player active_player,
-   uptr< world_state_type > state,
-   const ReachProbabilityMap& reach_probability,
-   const ObservationbufferMap& observation_buffer,
-   InfostateSptrMap infostate_map,
+   world_state_type& state,
+   size_t depth,
+   ReachProbabilityMap& reach_probability,
+   ObservationbufferMap& observation_buffer,
+   InfostateSptrMap& infostates,
    StateValueMap& state_value,
    std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
 {
-   const auto& this_infostate = infostate_map.get().at(active_player);
+   const auto& this_infostate = infostates.get().at(active_player);
    if constexpr(initialize_infonodes) {
       _infonodes().emplace(
-         this_infostate, infostate_data_type{_env().actions(active_player, *state)}
+         this_infostate, infostate_data_type{_env().actions(active_player, state)}
       );
    }
    const auto& actions = _infonode(this_infostate).actions();
@@ -304,21 +333,101 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    for(const action_type& action : actions) {
       auto action_prob = action_policy[action] / normalizing_factor;
 
-      auto child_reach_prob = reach_probability.get();
-      child_reach_prob[active_player] *= action_prob;
+      // ---- save/restore bookkeeping for the recursion boundary --------------
+      // reach probability: only the acting player's entry is scaled
+      double& player_reach_entry = reach_probability.get()[active_player];
+      const double saved_reach_prob = player_reach_entry;
+      // scale in place instead of copying the whole reach map per edge
+      player_reach_entry *= action_prob;
 
-      uptr< world_state_type > next_wstate_uptr = child_state(_env(), *state, action);
-      auto [child_observation_buffer, child_infostate_map] = next_infostate_and_obs_buffers(
-         _env(), observation_buffer.get(), infostate_map.get(), *state, action, *next_wstate_uptr
-      );
+      // advance the arena slot of the next depth: copy-assign + transition
+      // (no allocation after the first visit to this depth)
+      world_state_type& next_wstate = _arena_state(depth + 1, state);
+      _env().transition(next_wstate, action);
+
+      // fold the transition's observations into the buffers / the cloned
+      // infostate exactly like next_infostate_and_obs_buffers_inplace would --
+      // but on the live containers, with restoration after the recursion.
+      // NOTE: a transition may leave the chance player in charge (multi-draw
+      // deals); like the inplace helper we never buffer/flush FOR chance and
+      // never touch the infostate table then.
+      auto& obs_buffer = observation_buffer.get();
+      const auto public_obs = _env().public_observation(state, action, next_wstate);
+      const Player next_active_player = _env().active_player(next_wstate);
+      // the infostate that advances across this edge belongs to the player who
+      // is active in the CHILD state (exactly like the inplace helper): when
+      // that player takes over, his buffered observations are flushed into a
+      // clone of his infostate while every other player's sptr stays untouched
+      const auto infostate_entry_it = infostates.get().find(next_active_player);
+      const bool flushes =
+         next_active_player != Player::chance and infostate_entry_it != infostates.get().end();
+
+      sptr< info_state_type > saved_infostate{};
+      auto child_infostate = flushes ?
+                                std::make_shared< info_state_type >(*infostate_entry_it->second) :
+                                nullptr;
+      std::optional< std::vector< std::pair< observation_type, observation_type > > >
+         saved_flush_target_buffer{};
+      if(flushes) {
+         // remember the pre-edge infostate and buffer so they can be restored
+         // verbatim once the recursion returns
+         saved_infostate = infostate_entry_it->second;
+         // snapshot of the flush-target's buffer (it is drained into the clone)
+         saved_flush_target_buffer = obs_buffer.at(next_active_player);
+      }
+      // sizes of all non-flush-target buffers (they receive appended pairs)
+      std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
+      for(const auto& [player, buffer] : obs_buffer) {
+         if(not flushes or player != next_active_player) {
+            saved_buffer_sizes.emplace_back(player, buffer.size());
+         }
+      }
+      for(auto player : _env().players(next_wstate)) {
+         if(player == Player::chance) {
+            continue;
+         }
+         if(flushes and player == next_active_player) {
+            auto& obs_history = obs_buffer[player];
+            for(auto& obs : obs_history) {
+               ::nor::detail::update_infostate(
+                  child_infostate, std::move(obs.first), std::move(obs.second)
+               );
+            }
+            obs_history.clear();
+            ::nor::detail::update_infostate(
+               child_infostate,
+               public_obs,
+               _env().private_observation(player, state, action, next_wstate)
+            );
+         } else {
+            obs_buffer[player].emplace_back(
+               public_obs, _env().private_observation(player, state, action, next_wstate)
+            );
+         }
+      }
+      if(flushes) {
+         infostate_entry_it->second = std::move(child_infostate);
+      }
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
          player_to_update,
-         std::move(next_wstate_uptr),
-         ReachProbabilityMap{std::move(child_reach_prob)},
-         ObservationbufferMap{std::move(child_observation_buffer)},
-         InfostateSptrMap{std::move(child_infostate_map)}
+         next_wstate,
+         depth + 1,
+         reach_probability,
+         observation_buffer,
+         infostates
       );
+
+      // ---- restore everything the recursion mutated -------------------------
+      if(flushes) {
+         infostate_entry_it->second = std::move(saved_infostate);
+         obs_buffer.at(next_active_player) = std::move(*saved_flush_target_buffer);
+      }
+      for(const auto& [player, size] : saved_buffer_sizes) {
+         obs_buffer.at(player).resize(size);
+      }
+      player_reach_entry = saved_reach_prob;
+
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action
       for(auto [player, child_value] : child_rewards_map.get()) {
@@ -333,42 +442,111 @@ template < bool initialize_infonodes, bool use_current_policy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
    std::optional< Player > player_to_update,
    Player active_player,
-   uptr< world_state_type > state,
-   const ReachProbabilityMap& reach_probability,
-   const ObservationbufferMap& observation_buffer,
-   InfostateSptrMap infostate_map,
+   world_state_type& state,
+   size_t depth,
+   ReachProbabilityMap& reach_probability,
+   ObservationbufferMap& observation_buffer,
+   InfostateSptrMap& infostates,
    StateValueMap& state_value,
    std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
 {
-   for(auto&& outcome : _env().chance_actions(*state)) {
-      uptr< world_state_type > next_wstate_uptr = child_state(_env(), *state, outcome);
+   for(auto&& outcome : _env().chance_actions(state)) {
+      auto outcome_prob = _env().chance_probability(state, outcome);
 
-      auto child_reach_prob = reach_probability.get();
-      auto outcome_prob = _env().chance_probability(*state, outcome);
       // NOTE: environments differ in whether 'Player::chance' is part of
       // env.players(root_state) (kuhn: yes, leduc: no). Default-initializing
       // the entry via operator[] here would multiply 0 by the outcome
       // probability and permanently zero out the counterfactual reach of every
       // descendant infostate, silently disabling all regret updates. Seed the
-      // entry with the outcome probability when absent.
+      // entry with the outcome probability when absent. Save/restore keeps the
+      // caller's map intact across sibling edges without per-edge map copies.
       auto [chance_reach_entry, inserted] =
-         child_reach_prob.try_emplace(active_player, outcome_prob);
+         reach_probability.get().try_emplace(active_player, outcome_prob);
+      const double saved_chance_reach = chance_reach_entry->second;
       if(not inserted) {
          chance_reach_entry->second *= outcome_prob;
       }
 
-      auto [child_observation_buffer, child_infostate_map] = next_infostate_and_obs_buffers(
-         _env(), observation_buffer.get(), infostate_map.get(), *state, outcome, *next_wstate_uptr
-      );
+      world_state_type& next_wstate = _arena_state(depth + 1, state);
+      _env().transition(next_wstate, outcome);
+
+      // chance transitions fold into the buffers/infostates exactly like the
+      // inplace helper: observations are buffered for every actual player and a
+      // flush only happens once an ACTUAL player becomes active (multi-draw
+      // deals chain several chance edges with buffering only).
+      auto& obs_buffer = observation_buffer.get();
+      const auto public_obs = _env().public_observation(state, outcome, next_wstate);
+      const Player next_active_player = _env().active_player(next_wstate);
+      const auto infostate_entry_it = infostates.get().find(next_active_player);
+      const bool flushes =
+         next_active_player != Player::chance and infostate_entry_it != infostates.get().end();
+
+      sptr< info_state_type > saved_infostate{};
+      auto child_infostate = flushes ?
+                                std::make_shared< info_state_type >(*infostate_entry_it->second) :
+                                nullptr;
+      std::optional< std::vector< std::pair< observation_type, observation_type > > >
+         saved_flush_target_buffer{};
+      if(flushes) {
+         saved_infostate = infostate_entry_it->second;
+         saved_flush_target_buffer = obs_buffer.at(next_active_player);
+      }
+      std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
+      for(const auto& [player, buffer] : obs_buffer) {
+         if(not flushes or player != next_active_player) {
+            saved_buffer_sizes.emplace_back(player, buffer.size());
+         }
+      }
+      for(auto player : _env().players(next_wstate)) {
+         if(player == Player::chance) {
+            continue;
+         }
+         if(flushes and player == next_active_player) {
+            auto& obs_history = obs_buffer[player];
+            for(auto& obs : obs_history) {
+               ::nor::detail::update_infostate(
+                  child_infostate, std::move(obs.first), std::move(obs.second)
+               );
+            }
+            obs_history.clear();
+            ::nor::detail::update_infostate(
+               child_infostate,
+               public_obs,
+               _env().private_observation(player, state, outcome, next_wstate)
+            );
+         } else {
+            obs_buffer[player].emplace_back(
+               public_obs, _env().private_observation(player, state, outcome, next_wstate)
+            );
+         }
+      }
+      if(flushes) {
+         infostate_entry_it->second = std::move(child_infostate);
+      }
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
          player_to_update,
-         std::move(next_wstate_uptr),
-         ReachProbabilityMap{std::move(child_reach_prob)},
-         ObservationbufferMap{std::move(child_observation_buffer)},
-         InfostateSptrMap{std::move(child_infostate_map)}
+         next_wstate,
+         depth + 1,
+         reach_probability,
+         observation_buffer,
+         infostates
       );
+
+      if(flushes) {
+         infostate_entry_it->second = std::move(saved_infostate);
+         obs_buffer.at(next_active_player) = std::move(*saved_flush_target_buffer);
+      }
+      for(const auto& [player, size] : saved_buffer_sizes) {
+         obs_buffer.at(player).resize(size);
+      }
+      if(inserted) {
+         reach_probability.get().erase(active_player);
+      } else {
+         chance_reach_entry->second = saved_chance_reach;
+      }
+
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action
       for(auto [player, child_value] : child_rewards_map.get()) {
