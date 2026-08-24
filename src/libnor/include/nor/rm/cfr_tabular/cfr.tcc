@@ -30,7 +30,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
             }
          }
       });
-      root_values_per_iteration.emplace_back(std::move(value.get()));
+      root_values_per_iteration.emplace_back(std::move(value.get().to_hashmap()));
       _iteration()++;
    }
    return root_values_per_iteration;
@@ -52,7 +52,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(
    }();
    // and increment our iteration counter
    _iteration()++;
-   return std::vector{std::move(values.get())};
+   return std::vector{std::move(values.get().to_hashmap())};
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -232,7 +232,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
    Player active_player = _env().active_player(state);
    // the state's value for each player. To be filled by the action traversal functions.
-   StateValueMap state_value{{}};
+   StateValueMap state_value{};
    // each action's value for each player. To be filled by the action traversal functions.
    std::unordered_map< action_variant_type, StateValueMap > action_value;
    // traverse all child states from this state. The constexpr check for determinism in the env

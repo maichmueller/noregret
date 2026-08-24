@@ -2,9 +2,14 @@
 #ifndef NOR_RM_UTILS_HPP
 #define NOR_RM_UTILS_HPP
 
+#include <algorithm>
+#include <array>
+#include <cassert>
 #include <named_type.hpp>
 #include <numeric>
 #include <ranges>
+#include <unordered_map>
+#include <vector>
 
 #include "common/common.hpp"
 #include "node.hpp"
@@ -27,10 +32,252 @@ enum class PolicyLabel { current = 0, average = 1 };
 using Probability = fluent::NamedType< double, struct prob_tag >;
 using Weight = fluent::NamedType< double, struct weight_tag >;
 using StateValue = fluent::NamedType< double, struct state_value_tag >;
-using StateValueMap = fluent::
-   NamedType< std::unordered_map< Player, double >, struct value_map_tag >;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// player value tables ////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief small fixed-size player-indexed double table.
+ *
+ * Replaces the previous std::unordered_map<Player, double> churn inside the
+ * solvers' traversals: the root participant roster is known at the root call,
+ * so per-recursion-level value maps never need hashing or node allocations.
+ * The class mimics the subset of the map API its former users rely on
+ * (operator[], at, emplace/try_emplace, iteration over (Player, double)
+ * pairs) and converts to/from player_hashmap<double> at API boundaries.
+ */
+class PlayerValueTable {
+  public:
+   using key_type = Player;
+   using mapped_type = double;
+   using UnderlyingType = PlayerValueTable;
+
+   using value_type = std::pair< Player, double >;
+
+   template < bool Const >
+   struct iterator_t {
+      using difference_type = std::ptrdiff_t;
+      using value_type = std::pair< Player, double >;
+      using reference = value_type;
+      using pointer = void;
+      using iterator_concept = std::random_access_iterator_tag;
+
+      std::conditional_t< Const, const PlayerValueTable*, PlayerValueTable* > table{};
+      size_t index = 0;
+
+      constexpr value_type operator*() const
+      {
+         return {table->m_players[index], table->m_values[index]};
+      }
+      constexpr iterator_t& operator++()
+      {
+         ++index;
+         return *this;
+      }
+      constexpr iterator_t operator++(int)
+      {
+         auto tmp = *this;
+         ++index;
+         return tmp;
+      }
+      constexpr iterator_t& operator--()
+      {
+         --index;
+         return *this;
+      }
+      constexpr iterator_t operator--(int)
+      {
+         auto tmp = *this;
+         --index;
+         return tmp;
+      }
+      constexpr iterator_t& operator+=(difference_type n)
+      {
+         index += static_cast< size_t >(n);
+         return *this;
+      }
+      constexpr iterator_t& operator-=(difference_type n)
+      {
+         index -= static_cast< size_t >(n);
+         return *this;
+      }
+      constexpr iterator_t operator+(difference_type n) const
+      {
+         return iterator_t{table, index + static_cast< size_t >(n)};
+      }
+      constexpr iterator_t operator-(difference_type n) const
+      {
+         return iterator_t{table, index - static_cast< size_t >(n)};
+      }
+      constexpr difference_type operator-(const iterator_t& other) const
+      {
+         return static_cast< difference_type >(index - other.index);
+      }
+      constexpr bool operator==(const iterator_t&) const = default;
+      constexpr auto operator<=>(const iterator_t&) const = default;
+   };
+
+  public:
+   using iterator = iterator_t< false >;
+   using const_iterator = iterator_t< true >;
+
+   PlayerValueTable() = default;
+
+   /// conversion from a classic player hashmap (API boundary helper)
+   PlayerValueTable(const std::unordered_map< Player, double >& map)
+   {
+      reserve(map.size());
+      for(const auto& [player, value] : map) {
+         emplace(player, value);
+      }
+   }
+
+   /// conversion from a classic player hashmap (moving variant)
+   explicit PlayerValueTable(std::unordered_map< Player, double >&& map)
+   {
+      reserve(map.size());
+      for(auto&& [player, value] : map) {
+         emplace(player, std::move(value));
+      }
+   }
+
+   /// conversion back into a classic player hashmap (API boundary helper)
+   [[nodiscard]] std::unordered_map< Player, double > to_hashmap() const
+   {
+      std::unordered_map< Player, double > map;
+      map.reserve(m_players.size());
+      for(size_t i : std::views::iota(size_t{0}, m_size)) {
+         map.emplace(m_players[i], m_values[i]);
+      }
+      return map;
+   }
+
+   // ---- map-like interface -------------------------------------------------------------
+
+   [[nodiscard]] double& operator[](Player player)
+   {
+      const auto idx = find_slot(player);
+      if(idx < m_size and m_players[idx] == player) {
+         return m_values[idx];
+      }
+      return insert_at(idx, player, 0.);
+   }
+
+   [[nodiscard]] const double& at(Player player) const
+   {
+      for(size_t i : std::views::iota(size_t{0}, m_size)) {
+         if(m_players[i] == player) {
+            return m_values[i];
+         }
+      }
+      throw std::out_of_range("PlayerValueTable: player not present");
+   }
+
+   [[nodiscard]] double& at(Player player)
+   {
+      return const_cast< double& >(std::as_const(*this).at(player));
+   }
+
+   std::pair< iterator, bool > emplace(Player player, double value)
+   {
+      const auto idx = find_slot(player);
+      if(idx < m_size and m_players[idx] == player) {
+         return std::pair{iterator{this, idx}, false};
+      }
+      insert_at(idx, player, value);
+      return std::pair{iterator{this, idx}, true};
+   }
+
+   std::pair< iterator, bool > try_emplace(Player player, double value = 0.)
+   {
+      const auto idx = find_slot(player);
+      if(idx < m_size and m_players[idx] == player) {
+         return std::pair{iterator{this, idx}, false};
+      }
+      insert_at(idx, player, value);
+      return std::pair{iterator{this, idx}, true};
+   }
+
+   [[nodiscard]] size_t count(Player player) const
+   {
+      const auto idx = find_slot(player);
+      return (idx < m_size and m_players[idx] == player) ? size_t{1} : size_t{0};
+   }
+
+   [[nodiscard]] size_t size() const { return m_size; }
+   [[nodiscard]] bool empty() const { return m_size == 0; }
+   void clear() { m_size = 0; }
+   void reserve(size_t n)
+   {
+      m_players.reserve(n);
+      m_values.reserve(n);
+   }
+
+   iterator begin() { return iterator{this, 0}; }
+   iterator end() { return iterator{this, m_size}; }
+   const_iterator begin() const { return const_iterator{this, 0}; }
+   const_iterator end() const { return const_iterator{this, m_size}; }
+   const_iterator cbegin() const { return begin(); }
+   const_iterator cend() const { return end(); }
+
+  private:
+   /// insertion position that keeps players sorted ascending (binary search)
+   [[nodiscard]] size_t find_slot(Player player) const
+   {
+      return static_cast< size_t >(
+         std::lower_bound(m_players.begin(), m_players.begin() + m_size, player) - m_players.begin()
+      );
+   }
+
+   double& insert_at(size_t idx, Player player, double value)
+   {
+      assert(idx <= m_size and m_size <= max_player_slots);
+      if(idx == m_size) {
+         m_players.emplace_back(player);
+         m_values.emplace_back(value);
+      } else {
+         m_players.insert(m_players.begin() + static_cast< long >(idx), player);
+         m_values.insert(m_values.begin() + static_cast< long >(idx), value);
+      }
+      ++m_size;
+      return m_values[idx];
+   }
+
+   static constexpr size_t max_player_slots = 64;  ///< far beyond any real roster
+   /// compacted storage: [0, m_size) holds the entries in ascending player order
+   std::vector< Player > m_players;
+   std::vector< double > m_values;
+   size_t m_size = 0;
+};
+
+/// strong-type wrapper kept API-compatible with the former NamedType over
+/// unordered_map (incl. the 'get()' accessor and 'UnderlyingType' alias)
+class StateValueMap {
+  public:
+   using UnderlyingType = PlayerValueTable;
+
+   /// NOTE: deliberately no initializer-list constructor -- 'StateValueMap
+   /// m{{}}' must construct an EMPTY table exactly like the former
+   /// NamedType-over-unordered_map did.
+   StateValueMap(UnderlyingType underlying = {}) : m_table(std::move(underlying)) {}
+   explicit StateValueMap(const std::unordered_map< Player, double >& map) : m_table(map) {}
+
+   [[nodiscard]] UnderlyingType& get() { return m_table; }
+   [[nodiscard]] const UnderlyingType& get() const { return m_table; }
+
+   friend bool operator==(const StateValueMap&, const StateValueMap&) = default;
+
+  private:
+   UnderlyingType m_table;
+};
+
 using ReachProbabilityMap = fluent::
    NamedType< std::unordered_map< Player, double >, struct reach_prob_map_tag >;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////// kernels ///////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * @brief computes the reach probability of the node.

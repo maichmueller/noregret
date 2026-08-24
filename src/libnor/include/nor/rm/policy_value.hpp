@@ -61,7 +61,7 @@ struct policy_value_impl {
 
       Player active_player = env.active_player(*state);
       // the state's value for each player. To be filled by the action traversal functions.
-      StateValueMap state_value{{}};
+      StateValueMap state_value{};
       // each action's value for each player. To be filled by the action traversal functions.
       std::unordered_map< auto_action_variant_type< env_type >, StateValueMap > action_value;
       // traverse all child states from this state. The constexpr check for determinism in the env

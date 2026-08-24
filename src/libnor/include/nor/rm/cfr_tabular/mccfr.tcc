@@ -60,7 +60,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
       }
       root_values_per_iteration.emplace_back(std::invoke([&] {
          if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-            return _iterate(player_to_update).first.get();
+            return _iterate(player_to_update).first.get().to_hashmap();
          }
          if constexpr(  // clang-format off
             (config.algorithm == MCCFRAlgorithmMode::chance_sampling)
@@ -69,7 +69,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
                and config.update_mode == UpdateMode::simultaneous
             )  // clang-format on
          ) {
-            return _iterate(player_to_update).get();
+            return _iterate(player_to_update).get().to_hashmap();
          }
          if constexpr(  // clang-format off
             (config.algorithm == MCCFRAlgorithmMode::external_sampling)
@@ -1070,7 +1070,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 
    Player active_player = _env().active_player(curr_worldstate);
    // the state's value for each player. To be filled by the action traversal functions.
-   StateValueMap state_value{{}};
+   StateValueMap state_value{};
    // each action's value for each player. To be filled by the action traversal functions.
    std::unordered_map< action_variant_type, StateValueMap > action_value;
    // traverse all child states from this state. The constexpr check for determinism in the env
