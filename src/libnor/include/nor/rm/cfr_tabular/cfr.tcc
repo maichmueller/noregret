@@ -1062,8 +1062,13 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_br_advance(
    }
    auto infostate_entry_it = infostates.find(next_active_player);
    if(infostate_entry_it == infostates.end()) {
-      infostate_entry_it =
-         infostates.emplace(next_active_player, std::make_shared< info_state_type >()).first;
+      // NOTE: game infostates are generally NOT default-constructible -- seed with the player
+      infostate_entry_it = infostates
+                              .emplace(
+                                 next_active_player,
+                                 std::make_shared< info_state_type >(next_active_player)
+                              )
+                              .first;
    }
    auto child_infostate = std::make_shared< info_state_type >(*infostate_entry_it->second);
    auto& obs_history = observation_buffers[next_active_player];

@@ -143,6 +143,21 @@ class VanillaCFR:
    {
    }
 
+   /// exponential weighting WITHOUT explicit parameters (purely additive): lets generic
+   /// CFRConfig-driven factories construct exponential-weighted solvers -- including the
+   /// dynamic-thresholding combinations -- with default beta
+   template < typename T1, typename... Args >
+      requires(config.weighting_mode == CFRWeightingMode::exponential)
+                 and common::is_none_v<
+                    std::remove_cvref_t< T1 >,
+                    tag::internal_construct,
+                    VanillaCFR,
+                    CFRExponentialParameters >
+   VanillaCFR(tag::internal_construct, T1&& t, Args&&... args)
+       : base(std::forward< T1 >(t), std::forward< Args >(args)...), m_expcfr_params{}
+   {
+   }
+
    ////////////////////////////////////
    /// API: public member functions ///
    ////////////////////////////////////
