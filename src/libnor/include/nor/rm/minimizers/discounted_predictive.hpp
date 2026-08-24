@@ -212,7 +212,10 @@ hs_pdcfrplus_parameters(size_t n_iters, HSVariant variant = HSVariant::gamma30)
  *       (at iteration = 0, (t-1) = 0 and 0^alpha = 0 for alpha > 0, so the very
  *        first fold degenerates gracefully to R^1 = [r^1]^+),
  *    d_t     uses exponent alpha evaluated at raw index 'iteration + 1'.
- * With constant alpha (null schedule) both lookups coincide.
+ * With constant alpha (null schedule) both lookups coincide. Negative scheduled
+ * exponents at raw index 0 -- undefined in the papers and NaN-producing under
+ * naive pow evaluation -- are neutralized by 'discount_factor' (CFRDiscounted-
+ * Parameters-adjacent helper) to the no-discount factor 1/2.
  *
  * AVERAGING SIDE: this class ALSO owns the gamma-side average-policy weighting
  * (it plays the role the DiscountedCFR<Inner, false> decorator plays for PCFR+),
@@ -283,14 +286,13 @@ class DiscountedPlusRegretMatching {
    {
       const auto n_actions = data.regret.size();
 
-      const double t = double(iteration) + 1.;  ///< logical (1-based) iteration number
-      const double exponent_prev = m_params.alpha_at(iteration);
-      const double disc_prev = std::pow(t - 1., exponent_prev)
-                               / (std::pow(t - 1., exponent_prev) + 1.);
+      // d_{t-1}: exponent evaluated at the raw index; at raw index 0 the fold
+      // degenerates to [r^1]^+ for every alpha > 0 (0^a = 0). 'discount_factor'
+      // additionally guards exotic negative scheduled exponents (NaN safety)
+      const double disc_prev = discount_factor(iteration, m_params.alpha_at(iteration));
       const double disc_curr = [&] {
          if constexpr(predictive) {
-            const double exponent_curr = m_params.alpha_at(iteration + 1);
-            return std::pow(t, exponent_curr) / (std::pow(t, exponent_curr) + 1.);
+            return discount_factor(iteration + 1, m_params.alpha_at(iteration + 1));
          } else {
             return 0.;  // unused
          }

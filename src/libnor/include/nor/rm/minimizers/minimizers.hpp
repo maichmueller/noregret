@@ -410,11 +410,14 @@ class DiscountedCFR {
       // note: the regret scaling uses the raw iteration counter (no +1 offset)
       // while the policy weight below uses the logical iteration number. This
       // mirrors the historical behavior which empirically converged faster.
+      // 'discount_factor' reproduces the historical arithmetic bit-for-bit for
+      // the constant exponents and additionally defines the raw-index-0 /
+      // negative-exponent corner (NaN guard, see its documentation).
       if constexpr(discount_regrets) {
-         double t_alpha = std::pow(double(iteration), m_params.alpha_at(iteration));
-         double t_beta = std::pow(double(iteration), m_params.beta_at(iteration));
+         const double factor_positive = discount_factor(iteration, m_params.alpha_at(iteration));
+         const double factor_negative = discount_factor(iteration, m_params.beta_at(iteration));
          for(double& cumul_regret : data.regret) {
-            cumul_regret *= cumul_regret > 0. ? t_alpha / (t_alpha + 1.) : t_beta / (t_beta + 1.);
+            cumul_regret *= cumul_regret > 0. ? factor_positive : factor_negative;
          }
       }
       Inner::recommend(data, policy_out, iteration);

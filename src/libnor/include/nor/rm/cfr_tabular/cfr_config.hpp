@@ -2,6 +2,7 @@
 #ifndef NOR_CFR_CONFIG_HPP
 #define NOR_CFR_CONFIG_HPP
 
+#include <cmath>
 #include <functional>
 
 namespace nor::rm {
@@ -192,6 +193,24 @@ struct CFRDiscountedParameters {
    /// Default false keeps the historical indexing bit-for-bit.
    bool weight_by_cycle = false;
 };
+
+/// discount factor d(t; e) = t^e / (t^e + 1) of the DCFR family, with the raw
+/// (0-based) index made well-defined for NEGATIVE exponents: the papers index
+/// discounts by COMPLETED iterations t >= 1, so raw index 0 has no counterpart
+/// there. For e >= 0 the historical convention 0^e = 0 is preserved bit-for-bit
+/// (factor 0 for e > 0, factor 1/2 for e == 0); for e < 0 -- where pow(0, e)
+/// evaluates to +inf and the naive factor becomes NaN, silently poisoning every
+/// non-positive regret entry (observed with scheduled HS_beta starting at -1) --
+/// the neutral limit 1/2 is substituted.
+[[nodiscard]] inline double discount_factor(size_t raw_index, double exponent)
+{
+   if(raw_index == 0 and exponent < 0.) {
+      return 0.5;
+   }
+   const double base = static_cast< double >(raw_index);
+   const double p = std::pow(base, exponent);
+   return p / (p + 1.);
+}
 
 namespace detail {
 
