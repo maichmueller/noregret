@@ -39,7 +39,7 @@ enum class RegretMinimizingMode {
    // restart -- whenever every cumulative-regret entry is <= R0 = 1, the table
    // resets to R0 * 1 and the next prediction is suppressed.
    // Same configuration constraints as PCFR+
-   stable_predictive_regret_matching_plus = 7
+   stable_predictive_regret_matching_plus = 7,
    // DCFR+ (Xu et al., "Minimizing Weighted Counterfactual Regret with Optimistic
    // Online Mirror Descent", IJCAI 2024, arXiv:2404.13891, sec. 4):
    //    R^t = [ R^{t-1} * (t-1)^alpha / ((t-1)^alpha + 1) + r^t ]^+
