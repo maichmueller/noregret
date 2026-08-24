@@ -148,7 +148,7 @@ std::pair< std::vector< double >, RunCounters > kuhn_exploitability_trajectory(s
 /// silent n-iteration run returning the final iteration's root values (crash/finiteness probe)
 template < auto config, typename Env, typename State >
 std::pair< std::vector< player_hashmap< double > >, RunCounters >
-run_iterations(const Env& env, State root_state, size_t n_iters)
+run_iterations(const Env& env, std::unique_ptr< State > root_state, size_t n_iters)
 {
    auto avg_policy = factory::make_tabular_policy(std::unordered_map<
                                                   auto_info_state_type< Env >,
@@ -160,10 +160,7 @@ run_iterations(const Env& env, State root_state, size_t n_iters)
          HashmapActionPolicy< auto_action_type< Env > > >{}
    );
    auto solver = factory::make_cfr< config, true >(
-      Env{env},
-      std::make_unique< State >(std::move(root_state)),
-      std::move(curr_policy),
-      std::move(avg_policy)
+      Env{env}, std::move(root_state), std::move(curr_policy), std::move(avg_policy)
    );
    auto values_per_iter = solver.iterate(n_iters);
    return {std::move(values_per_iter), RunCounters::of(solver)};
@@ -400,12 +397,12 @@ TEST(CFRPruningSanityMatrix, KuhnPoker2P_PruningModes)
       .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching,
       .weighting_mode = rm::CFRWeightingMode::uniform,
       .pruning_mode = rm::CFRPruningMode::dynamic_thresholding};
-   expect_finite_values(std::get< 0 >(
-      run_iterations< rbp_rmplus_uniform >(games::kuhn::Environment{}, games::kuhn::State{}, 100)
-   ));
-   expect_finite_values(std::get< 0 >(
-      run_iterations< uniform_rm_dt >(games::kuhn::Environment{}, games::kuhn::State{}, 100)
-   ));
+   expect_finite_values(std::get< 0 >(run_iterations< rbp_rmplus_uniform >(
+      games::kuhn::Environment{}, std::make_unique< games::kuhn::State >(), 100
+   )));
+   expect_finite_values(std::get< 0 >(run_iterations< uniform_rm_dt >(
+      games::kuhn::Environment{}, std::make_unique< games::kuhn::State >(), 100
+   )));
 }
 
 TEST(CFRPruningSanityMatrix, KuhnPoker3P_RegretBased)
@@ -426,9 +423,9 @@ TEST(CFRPruningSanityMatrix, RockPaperScissors_DynamicThresholdingSimultaneous)
       .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching,
       .weighting_mode = rm::CFRWeightingMode::uniform,
       .pruning_mode = rm::CFRPruningMode::dynamic_thresholding};
-   expect_finite_values(std::get< 0 >(
-      run_iterations< rps_dt_simultaneous >(games::rps::Environment{}, games::rps::State{}, 100)
-   ));
+   expect_finite_values(std::get< 0 >(run_iterations< rps_dt_simultaneous >(
+      games::rps::Environment{}, std::make_unique< games::rps::State >(), 100
+   )));
 }
 
 TEST(CFRPruningSanityMatrix, Goofspiel_K4Reveal_RegretBasedAndThresholded)
@@ -441,12 +438,12 @@ TEST(CFRPruningSanityMatrix, Goofspiel_K4Reveal_RegretBasedAndThresholded)
       .weighting_mode = rm::CFRWeightingMode::uniform,
       .pruning_mode = rm::CFRPruningMode::dynamic_thresholding};
    const games::goofspiel::GoofspielConfig gs_config{.deck_size = 4, .imp_info = false};
+   expect_finite_values(std::get< 0 >(run_iterations< rbp_rmplus_uniform >(
+      GoofEnv{gs_config}, std::make_unique< GoofState >(gs_config), 100
+   )));
    expect_finite_values(std::get< 0 >(
-      run_iterations< rbp_rmplus_uniform >(GoofEnv{gs_config}, GoofState{gs_config}, 100)
+      run_iterations< gs_dt >(GoofEnv{gs_config}, std::make_unique< GoofState >(gs_config), 100)
    ));
-   expect_finite_values(
-      std::get< 0 >(run_iterations< gs_dt >(GoofEnv{gs_config}, GoofState{gs_config}, 100))
-   );
 }
 
 TEST(CFRPruningSanityMatrix, OshiZumo_Size2Coins6_RegretBased)
