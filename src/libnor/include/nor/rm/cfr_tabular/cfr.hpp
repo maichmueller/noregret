@@ -388,6 +388,70 @@ using SAPCFRPlus = VanillaCFR<
    Policy,
    AveragePolicy >;
 
+/**
+ * APCFR+ (Meng et al., arXiv:2503.12770v2, "Faster Game Solving via Asymmetry
+ * of Step Sizes"): PCFR+ with an adaptive per-infostate asymmetry between the
+ * prediction-carrying implicit update and the explicit accumulated regret
+ * update; the asymmetry coefficient is learned from running squared-L2-norm
+ * sums (their Eq. (10), alpha_max = 5). Same construction constraints as
+ * PCFRPlus.
+ */
+template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+using APCFRPlus = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = RegretMinimizingMode::ap_predictive_regret_matching_plus,
+      .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/**
+ * P2PCFR+ ("Pessimistic PCFR+", ICLR'25 submission, OpenReview njyZgDDeY4):
+ * PCFR+ with a fixed pessimistic prediction damping 1/(1 + alpha), alpha = 5.
+ * Same construction constraints as PCFRPlus.
+ */
+template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+using P2PCFRPlus = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = RegretMinimizingMode::p2p_predictive_regret_matching_plus,
+      .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/**
+ * Smooth PCFR+ / Smooth PRM+ (Farina, Grand-Clément, Kroer, Lee, Luo, NeurIPS
+ * 2023, arXiv:2305.14709, Algorithm 2): PCFR+ whose predicted-regret vector is
+ * kept at 1-norm >= 1 before normalization. Same construction constraints as
+ * PCFRPlus.
+ */
+template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+using SmoothPCFRPlus = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = RegretMinimizingMode::smooth_predictive_regret_matching_plus,
+      .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/**
+ * Stable PCFR+ / Stable PRM+ (arXiv:2305.14709, Algorithm 1): PCFR+ with
+ * componentwise restart of the cumulative regret table at the R0 = 1 floor.
+ * Same construction constraints as PCFRPlus.
+ */
+template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+using StablePCFRPlus = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = RegretMinimizingMode::stable_predictive_regret_matching_plus,
+      .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
 template < CFRExponentialConfig config, typename Env, typename Policy, typename AveragePolicy >
 using CFRExponential = VanillaCFR<
    CFRConfig{

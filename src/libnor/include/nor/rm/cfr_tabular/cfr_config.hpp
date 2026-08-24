@@ -17,7 +17,28 @@ enum class RegretMinimizingMode {
    predictive_regret_matching_plus = 2,
    // SAPCFR+ (arXiv:2503.12770): PCFR+ with the prediction shift term damped by
    // 1/(1 + alpha), alpha = 2. Same configuration constraints as PCFR+
-   sap_predictive_regret_matching_plus = 3
+   sap_predictive_regret_matching_plus = 3,
+   // APCFR+ (Meng et al., arXiv:2503.12770v2): PCFR+ with an ADAPTIVE per-infostate
+   // asymmetry of step sizes between the implicit (prediction-carrying) and
+   // explicit accumulated regret updates; alpha^t_I is learned from running sums
+   // of squared L2 norms (their Eq. (10)), clamped by alpha_max = 5.
+   // Same configuration constraints as PCFR+
+   ap_predictive_regret_matching_plus = 4,
+   // P2PCFR+ ("Pessimistic PCFR+", ICLR'25 submission, OpenReview njyZgDDeY4):
+   // fixed prediction damping 1/(1 + alpha) with alpha = 5 (their experimental
+   // choice; theory covers alpha in [0,1]). Same configuration constraints as
+   // PCFR+; see rm::P2PPredictionShift for provenance caveats
+   p2p_predictive_regret_matching_plus = 5,
+   // Smooth PRM+ (Farina, Grand-Clément, Kroer, Lee, Luo, NeurIPS 2023,
+   // arXiv:2305.14709, Algorithm 2): PCFR+ whose predicted-regret vector is kept
+   // at 1-norm >= epsilon (= 1) before normalization, "chopping off" the origin.
+   // Same configuration constraints as PCFR+
+   smooth_predictive_regret_matching_plus = 6,
+   // Stable PRM+ (arXiv:2305.14709, Algorithm 1): PCFR+ with componentwise
+   // restart -- whenever every cumulative-regret entry is <= R0 = 1, the table
+   // resets to R0 * 1 and the next prediction is suppressed.
+   // Same configuration constraints as PCFR+
+   stable_predictive_regret_matching_plus = 7
 };
 
 enum class UpdateMode { simultaneous = 0, alternating = 1 };

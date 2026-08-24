@@ -477,6 +477,30 @@ consteval auto select_vanilla_minimizer()
       return std::type_identity< DiscountedCFR<
          SAPPredictiveRegretMatchingPlus< Action >,
          /*discount_regrets=*/false > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::ap_predictive_regret_matching_plus) {
+      // APCFR+: adaptive per-infostate asymmetry of step sizes
+      // (arXiv:2503.12770, Eq. (4) + adaptive rule Eq. (10))
+      return std::type_identity< DiscountedCFR<
+         APPredictiveRegretMatchingPlus< Action >,
+         /*discount_regrets=*/false > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::p2p_predictive_regret_matching_plus) {
+      // P2PCFR+ ("Pessimistic PCFR+", OpenReview njyZgDDeY4): fixed prediction
+      // damping with alpha = 5
+      return std::type_identity< DiscountedCFR<
+         P2PPredictiveRegretMatchingPlus< Action >,
+         /*discount_regrets=*/false > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::smooth_predictive_regret_matching_plus) {
+      // Smooth PRM+: chop off the origin via the norm floor
+      // (arXiv:2305.14709, Algorithm 2)
+      return std::type_identity< DiscountedCFR<
+         SmoothPredictiveRegretMatchingPlus< Action >,
+         /*discount_regrets=*/false > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::stable_predictive_regret_matching_plus) {
+      // Stable PRM+: componentwise restart schedule
+      // (arXiv:2305.14709, Algorithm 1)
+      return std::type_identity< DiscountedCFR<
+         StablePredictiveRegretMatchingPlus< Action >,
+         /*discount_regrets=*/false > >{};
    } else if constexpr(weighting == CFRWeightingMode::exponential) {
       return std::type_identity< ExponentialCFR< Action > >{};
    } else if constexpr(weighting == CFRWeightingMode::discounted) {

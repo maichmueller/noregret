@@ -650,8 +650,16 @@ consteval bool sanity_check_cfr_config()
       config.regret_minimizing_mode == RegretMinimizingMode::predictive_regret_matching_plus
       or config.regret_minimizing_mode
          == RegretMinimizingMode::sap_predictive_regret_matching_plus
+      or config.regret_minimizing_mode == RegretMinimizingMode::ap_predictive_regret_matching_plus
+      or config.regret_minimizing_mode
+         == RegretMinimizingMode::p2p_predictive_regret_matching_plus
+      or config.regret_minimizing_mode
+         == RegretMinimizingMode::smooth_predictive_regret_matching_plus
+      or config.regret_minimizing_mode
+         == RegretMinimizingMode::stable_predictive_regret_matching_plus
    ) {
-      // the predictive regret minimizers (PCFR+/SAPCFR+) pair the strategy
+      // the predictive regret minimizers (PCFR+/SAPCFR+/APCFR+/P2PCFR+ and the
+      // Smooth/Stable-PRM+ robustifications) pair the strategy
       // snapshot of the previous recommendation with the instantaneous regrets
       // of exactly one full iteration. This pairing is only well-defined for
       // alternating updates over unpruned traversals (in simultaneous updates
