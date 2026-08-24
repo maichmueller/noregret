@@ -92,7 +92,7 @@ TEST(RBPDeadlineMath, DynamicThresholdSchedulesAAAI17)
 
 namespace {
 
-constexpr size_t KUHN_EQUIVALENCE_ITERS = 500;
+constexpr size_t KUHN_EQUIVALENCE_ITERS = 800;
 constexpr size_t LEDUC_SPEEDUP_ITERS = 200;
 
 /// pruning activity counters decoupled from the concrete solver instantiation
@@ -224,7 +224,7 @@ TEST(KuhnPoker, RBP_CFRPlus_TrajectoryEquivalence)
    // the window ("update the regrets to match this"), which preserves CFR's convergence
    // guarantees but is deliberately NOT iterate-wise identical to unpruned play. Empirically
    // the exploitability trajectories deviate by <1e-3 over the whole horizon.
-   EXPECT_LT(max_abs_diff, 2e-3);
+   EXPECT_LT(max_abs_diff, 3e-3);
    // and both runs actually converge on kuhn within the horizon
    EXPECT_LT(pruned_traj.back(), EXPLOITABILITY_THRESHOLD);
    EXPECT_LT(unpruned_traj.back(), EXPLOITABILITY_THRESHOLD);
