@@ -2,6 +2,7 @@
 #ifndef NOR_MCCFR_HPP
 #define NOR_MCCFR_HPP
 
+#include <deque>
 #include <iostream>
 #include <list>
 #include <map>
@@ -266,6 +267,10 @@ class MCCFR:
    std::uniform_real_distribution< double > m_uniform_01_dist{0., 1.};
    /// the actual regret minimizing method we will apply on the infostates
    [[no_unique_address]] minimizer_type m_regret_minimizer{};
+   /// depth-indexed world-state slots reused across the recursion within one
+   /// iteration (deque: growing never moves slots, keeping references of
+   /// active frames valid)
+   std::deque< utils::ReusableSlot< world_state_type > > m_traversal_state_arena;
 
    /// define the implementation details of the
 
@@ -290,19 +295,21 @@ class MCCFR:
    std::pair< StateValueMap, Probability > _traverse(
       std::optional< Player > player_to_update,
       world_state_type& state,
-      ReachProbabilityMap reach_probability,
-      ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostates,
+      size_t depth,
+      ReachProbabilityMap& reach_probability,
+      ObservationbufferMap& observation_buffer,
+      InfostateSptrMap& infostates,
       Probability sample_probability,
-      ConditionalWeightMap weights
+      ConditionalWeightMap& weights
    )
       requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
    StateValue _traverse(
       Player player_to_update,
-      uptr< world_state_type > state,
-      ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostates,
+      world_state_type& state,
+      size_t depth,
+      ObservationbufferMap& observation_buffer,
+      InfostateSptrMap& infostates,
       delayed_update_set& infostates_to_update
    )  // clang-format off
       requires(
@@ -316,10 +323,11 @@ class MCCFR:
 
    StateValueMap _traverse(
       std::optional< Player > player_to_update,
-      uptr< world_state_type > curr_worldstate,
-      ReachProbabilityMap reach_probability,
-      ObservationbufferMap observation_buffer,
-      InfostateSptrMap infostates,
+      world_state_type& curr_worldstate,
+      size_t depth,
+      ReachProbabilityMap& reach_probability,
+      ObservationbufferMap& observation_buffer,
+      InfostateSptrMap& infostates,
       [[maybe_unused]] delayed_update_set& infostates_to_update
    )  // clang-format off
       requires(
@@ -330,6 +338,10 @@ class MCCFR:
          )
       );
    // clang-format on
+
+   /// returns the arena slot for recursion 'depth', reconstructed from
+   /// 'source' in place (no allocation after the first visit to this depth).
+   world_state_type& _arena_state(size_t depth, const world_state_type& source);
 
    void _update_regrets(
       const ReachProbabilityMap& reach_probability,

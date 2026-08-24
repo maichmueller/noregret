@@ -102,6 +102,20 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::iterate(std::optional< Player 
 }
 
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+auto MCCFR< config, Env, Policy, AveragePolicy >::_arena_state(
+   size_t depth,
+   const world_state_type& source
+) -> world_state_type&
+{
+   if(m_traversal_state_arena.size() <= depth) {
+      m_traversal_state_arena.resize(depth + 1);
+   }
+   // reconstruct the slot from 'source' in place: no allocation after the
+   // first visit to this depth and no requirement on copy assignment
+   return m_traversal_state_arena[depth].construct_from(source);
+}
+
+template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player > player_to_update)
 {
    auto players = _env().players(*_root_state_uptr());
@@ -128,32 +142,29 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
       return ObservationbufferMap{std::move(obs_map)};
    };
 
-   if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-      // in outcome-sampling we only have a single trajectory to traverse in the tree. Hence, we
-      // can maintain the lifetime of that world state in this upstream function call and merely
-      // pass in the state as reference
-      auto init_world_state = utils::static_unique_ptr_downcast< world_state_type >(
-         utils::clone_any_way(_root_state_uptr())
-      );
+   // the traversal containers are created once per iteration here and then
+   // shared down the recursion by reference; world states live in the
+   // depth-indexed arena (slot 0 holds the root copy).
+   world_state_type& root_arena_state = _arena_state(0, *_root_state_uptr());
 
-      return _traverse(
-         player_to_update,
-         *init_world_state,
-         init_reach_probs(),
-         init_obs_buffer(),
-         init_infostates(),
-         Probability{1.},
-         std::invoke([&] {
-            if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
-               std::unordered_map< Player, double > weights;
-               for(auto player : players | utils::is_actual_player_filter) {
-                  weights.emplace(player, 0.);
-               }
-               return WeightMap{std::move(weights)};
-            } else {
-               return utils::empty{};
+   if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
+      auto weights = std::invoke([&] {
+         if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
+            std::unordered_map< Player, double > w;
+            for(auto player : players | utils::is_actual_player_filter) {
+               w.emplace(player, 0.);
             }
-         })
+            return WeightMap{std::move(w)};
+         } else {
+            return utils::empty{};
+         }
+      });
+      auto reach_probs = init_reach_probs();
+      auto obs_buffer = init_obs_buffer();
+      auto infostates = init_infostates();
+      return _traverse(
+         player_to_update, root_arena_state, /*depth=*/0, reach_probs, obs_buffer, infostates,
+         Probability{1.}, weights
       );
    }
 
@@ -165,14 +176,10 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
       )
    ) { // clang-format on
       delayed_update_set update_set{};
+      auto obs_buffer = init_obs_buffer();
+      auto infostates = init_infostates();
       auto value = _traverse(
-         player_to_update.value(),
-         utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(_root_state_uptr())
-         ),
-         init_obs_buffer(),
-         init_infostates(),
-         update_set
+         player_to_update.value(), root_arena_state, /*depth=*/0, obs_buffer, infostates, update_set
       );
       if constexpr(config.algorithm != MCCFRAlgorithmMode::external_sampling) {
          // external sampling is able to minimize the regret on the fly during the traversal, since
@@ -191,14 +198,11 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_iterate(std::optional< Player
       )
    ) { // clang-format on
       delayed_update_set update_set{};
+      auto reach_probs = init_reach_probs();
+      auto obs_buffer = init_obs_buffer();
+      auto infostates = init_infostates();
       auto values = _traverse(
-         player_to_update,
-         utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(_root_state_uptr())
-         ),
-         init_reach_probs(),
-         init_obs_buffer(),
-         init_infostates(),
+         player_to_update, root_arena_state, /*depth=*/0, reach_probs, obs_buffer, infostates,
          update_set
       );
       _initiate_regret_minimization(update_set);
@@ -263,11 +267,12 @@ template < MCCFRConfig config, typename Env, typename Policy, typename AveragePo
 std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    std::optional< Player > player_to_update,
    world_state_type& state,
-   ReachProbabilityMap reach_probability,
-   ObservationbufferMap observation_buffer,
-   InfostateSptrMap infostates,
+   size_t depth,
+   ReachProbabilityMap& reach_probability,
+   ObservationbufferMap& observation_buffer,
+   InfostateSptrMap& infostates,
    Probability sample_probability,
-   ConditionalWeightMap weights
+   ConditionalWeightMap& weights
 )
    requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
 {
@@ -284,44 +289,47 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       if(active_player == Player::chance) {
          auto [chosen_outcome, chance_prob] = _sample_outcome(state);
 
-         reach_probability.get()[Player::chance] *= chance_prob;
+         // single-trajectory descent: containers mutate in place; the chance
+         // reach entry is restored after the recursive call returns because the
+         // post-traversal updates read node-entry values
+         double& chance_reach_entry = reach_probability.get()[Player::chance];
+         const double saved_chance_reach = chance_reach_entry;
+         chance_reach_entry *= chance_prob;
 
-         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(state)
-         );
-         _env().transition(state, chosen_outcome);
+         world_state_type& next_state = _arena_state(depth + 1, state);
+         _env().transition(next_state, chosen_outcome);
 
          next_infostate_and_obs_buffers_inplace(
-            _env(),
-            observation_buffer.get(),
-            infostates.get(),
-            *state_before_transition,
-            chosen_outcome,
-            state
+            _env(), observation_buffer.get(), infostates.get(), state, chosen_outcome, next_state
          );
 
-         return _traverse(
+         auto [action_value_map, tail_prob] = _traverse(
             player_to_update,
-            state,
-            std::move(reach_probability),
-            std::move(observation_buffer),
-            std::move(infostates),
+            next_state,
+            depth + 1,
+            reach_probability,
+            observation_buffer,
+            infostates,
             Probability{sample_probability.get() * chance_prob},
-            std::move(weights)
+            weights
          );
+         chance_reach_entry = saved_chance_reach;
+         return {std::move(action_value_map), tail_prob};
       }
    }
 
-   // we have to clone the infostate to ensure that it is not written to upon further traversal
-   // (we need this state after traversal to update policy and regrets)
-   auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      // NOTE: materialize the key as the exact key type of the node table. Handing a
-      // unique_ptr to try_emplace compiles under C++20 (implicit shared_ptr conversion)
-      // but selects libstdc++'s C++26 heterogeneous-insertion overload whose lookup path
-      // cannot convert from a unique_ptr lvalue.
-      sptr< info_state_type >{utils::clone_any_way(infostates.get().at(active_player))},
-      infostate_data_type{}
-   );
+   // fetch (or create) this infostate's node without cloning the infostate for
+   // every visit: heterogeneous value lookup finds existing entries directly.
+   // (The infostate object itself advances along the single trajectory via the
+   // inplace observation fold above, exactly like before.)
+   const auto& live_infostate_sptr = infostates.get().at(active_player);
+   auto infostate_and_data_iter = m_infonode.find(*live_infostate_sptr);
+   bool success = false;
+   if(infostate_and_data_iter == m_infonode.end()) {
+      std::tie(infostate_and_data_iter, success) = _infonodes().emplace(
+         sptr< info_state_type >{utils::clone_any_way(live_infostate_sptr)}, infostate_data_type{}
+      );
+   }
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
    if(success) {
@@ -346,42 +354,51 @@ std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolic
       active_player, player_to_update, actions, action_policy
    );
 
-   auto next_reach_prob = reach_probability.get();
-   next_reach_prob[active_player] *= action_policy_prob;
+   // snapshot the path bookkeeping BEFORE mutating it: the deeper traversal
+   // works on the mutated values while the post-traversal updates below need
+   // their NODE-ENTRY values back; observation buffers and infostates flow
+   // permanently downward (single linear trajectory)
+   const auto saved_reach_probs = reach_probability.get();
+   [[maybe_unused]] WeightMap saved_weights{{}};
+   if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
+      saved_weights.get() = weights.get();
+   }
 
-    auto next_weights = weights;
-    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
-       auto& active_weight = next_weights.get()[active_player];
-       active_weight = active_weight * action_policy_prob
-                       + infonode_data.data()
-                            .extras.pending_avg_accumulator[infonode_data.data().index_of(
-                               sampled_action
-                            )];
-    }
-   auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
-      utils::clone_any_way(state)
-   );
+   // scale the acting player's reach entry / lazy weight in place
+   double& actor_reach_entry = reach_probability.get()[active_player];
+   actor_reach_entry *= action_policy_prob;
 
-   _env().transition(state, sampled_action);
+   if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
+      auto& active_weight = weights.get()[active_player];
+      active_weight = active_weight * action_policy_prob
+                      + infonode_data.data()
+                           .extras.pending_avg_accumulator[infonode_data.data().index_of(
+                              sampled_action
+                           )];
+   }
+
+   // advance along the single trajectory via the arena slot of the next depth
+   world_state_type& next_state = _arena_state(depth + 1, state);
+   _env().transition(next_state, sampled_action);
 
    next_infostate_and_obs_buffers_inplace(
-      _env(),
-      observation_buffer.get(),
-      infostates.get(),
-      *state_before_transition,
-      sampled_action,
-      state
+      _env(), observation_buffer.get(), infostates.get(), state, sampled_action, next_state
    );
 
    auto [action_value_map, tail_prob] = _traverse(
       player_to_update,
-      state,
-      ReachProbabilityMap{std::move(next_reach_prob)},
-      std::move(observation_buffer),
-      std::move(infostates),
+      next_state,
+      depth + 1,
+      reach_probability,
+      observation_buffer,
+      infostates,
       Probability{sample_probability.get() * action_sampling_prob},
-      std::move(next_weights)
+      weights
    );
+   reach_probability.get() = std::move(saved_reach_probs);
+   if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
+      weights.get() = std::move(saved_weights.get());
+   }
 
    // ---- VR-MCCFR quantities (Schmid et al., AAAI 2019, eqs (7)-(11)) ----
    // Applied at the updating player's infosets only (the configuration is
@@ -790,9 +807,10 @@ auto MCCFR< config, Env, Policy, AveragePolicy >::_sample_outcome(const world_st
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    Player player_to_update,
-   uptr< world_state_type > state,
-   ObservationbufferMap observation_buffer,
-   InfostateSptrMap infostates,
+   world_state_type& state,
+   size_t depth,
+   ObservationbufferMap& observation_buffer,
+   InfostateSptrMap& infostates,
    delayed_update_set& infostates_to_update
 )
    // clang-format off
@@ -805,10 +823,10 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    )
 // clang-format on
 {
-   Player active_player = _env().active_player(*state);
+   Player active_player = _env().active_player(state);
 
-   if(_env().is_terminal(*state)) {
-      return StateValue{_env().reward(player_to_update, *state)};
+   if(_env().is_terminal(state)) {
+      return StateValue{_env().reward(player_to_update, state)};
    }
 
    // now we check first if we even need to consider a chance player, as the env could be
@@ -816,46 +834,38 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    // or an active player's actions
    if constexpr(not concepts::deterministic_fosg< env_type >) {
       if(active_player == Player::chance) {
-         auto chosen_outcome = _sample_outcome< false >(*state);
+         auto chosen_outcome = _sample_outcome< false >(state);
 
-         auto state_before_transition = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(*state)
-         );
-         _env().transition(*state, chosen_outcome);
+         world_state_type& next_state = _arena_state(depth + 1, state);
+         _env().transition(next_state, chosen_outcome);
 
          next_infostate_and_obs_buffers_inplace(
-            _env(),
-            observation_buffer.get(),
-            infostates.get(),
-            *state_before_transition,
-            chosen_outcome,
-            *state
+            _env(), observation_buffer.get(), infostates.get(), state, chosen_outcome, next_state
          );
 
+         // single sampled outcome: buffers/infostates flow permanently downward
          return _traverse(
-            player_to_update,
-            std::move(state),
-            std::move(observation_buffer),
-            std::move(infostates),
-            infostates_to_update
+            player_to_update, next_state, depth + 1, observation_buffer, infostates, infostates_to_update
          );
       }
    }
 
-   auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      // NOTE: materialize the key as the exact key type of the node table. Handing a
-      // unique_ptr to try_emplace compiles under C++20 (implicit shared_ptr conversion)
-      // but selects libstdc++'s C++26 heterogeneous-insertion overload whose lookup path
-      // cannot convert from a unique_ptr lvalue.
-      sptr< info_state_type >{utils::clone_any_way(infostates.get().at(active_player))},
-      infostate_data_type{}
-   );
+   // fetch (or create) this infostate's node without cloning the infostate on
+   // every visit: heterogeneous value lookup finds existing entries directly
+   const auto& live_infostate_sptr = infostates.get().at(active_player);
+   auto infostate_and_data_iter = m_infonode.find(*live_infostate_sptr);
+   bool success = false;
+   if(infostate_and_data_iter == m_infonode.end()) {
+      std::tie(infostate_and_data_iter, success) = _infonodes().emplace(
+         sptr< info_state_type >{utils::clone_any_way(live_infostate_sptr)}, infostate_data_type{}
+      );
+   }
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
    if(success) {
       // success means we have indeed emplaced a new data node, instead of simply fetching an
       // existing one. We thus need to fill it with the legal actions at this node.
-      infonode_data.emplace(_env().actions(active_player, *state));
+      infonode_data.emplace(_env().actions(active_player, state));
    }
    if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
       infostates_to_update.emplace(infostate.get(), &infonode_data);
@@ -866,30 +876,82 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    const auto& actions = infonode_data.actions();
    auto& action_policy = this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
 
-   auto traverse_for_action_value = [&](const auto& action, bool inplace = false) {
-      auto next_state = child_state(_env(), *state, action);
+   auto traverse_for_action_value = [&](const auto& action) {
+      // advance the arena slot of the next depth: in-place reconstruction + transition
+      world_state_type& next_state = _arena_state(depth + 1, state);
+      _env().transition(next_state, action);
 
-      auto [next_observation_buffer, next_infostates] = std::invoke([&] {
-         if(inplace) {
-            next_infostate_and_obs_buffers_inplace(
-               _env(), observation_buffer.get(), infostates.get(), *state, action, *next_state
+      // fold this edge's observations into the live containers exactly like the
+      // inplace helper would -- and restore everything after the recursion so
+      // sibling edges start from identical pre-edge container states.
+      auto& obs_buffer = observation_buffer.get();
+      const auto public_obs = _env().public_observation(state, action, next_state);
+      const Player next_active_player = _env().active_player(next_state);
+      const bool flushes =
+         next_active_player != Player::chance and infostates.get().contains(next_active_player);
+      std::optional< std::vector< std::pair< observation_type, observation_type > > >
+         saved_flush_target_buffer{};
+      sptr< info_state_type > saved_flush_target{};
+      sptr< info_state_type > child_infostate{};
+      if(flushes) {
+         // advance a CLONE of the next-active player's infostate so the live
+         // entry can be restored verbatim after the recursion
+         saved_flush_target = infostates.get().at(next_active_player);
+         child_infostate = std::make_shared< info_state_type >(*saved_flush_target);
+         saved_flush_target_buffer = obs_buffer.at(next_active_player);
+      }
+      std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
+      for(const auto& [player, buffer] : obs_buffer) {
+         if(not flushes or player != next_active_player) {
+            saved_buffer_sizes.emplace_back(player, buffer.size());
+         }
+      }
+      for(auto player : _env().players(next_state)) {
+         if(player == Player::chance) {
+            continue;
+         }
+         if(flushes and player == next_active_player) {
+            auto& obs_history = obs_buffer[player];
+            for(auto& obs : obs_history) {
+               ::nor::detail::update_infostate(
+                  child_infostate, std::move(obs.first), std::move(obs.second)
+               );
+            }
+            obs_history.clear();
+            ::nor::detail::update_infostate(
+               child_infostate,
+               public_obs,
+               _env().private_observation(player, state, action, next_state)
             );
-            return std::tuple{std::move(observation_buffer.get()), std::move(infostates.get())};
          } else {
-            return next_infostate_and_obs_buffers(
-               _env(), observation_buffer.get(), infostates.get(), *state, action, *next_state
+            obs_buffer[player].emplace_back(
+               public_obs, _env().private_observation(player, state, action, next_state)
             );
          }
-      });
+      }
 
-      return _traverse(
-                player_to_update,
-                std::move(next_state),
-                ObservationbufferMap{std::move(next_observation_buffer)},
-                InfostateSptrMap{std::move(next_infostates)},
-                infostates_to_update
+      if(flushes) {
+         infostates.get().at(next_active_player) = std::move(child_infostate);
+      }
+
+      double value = _traverse(
+                        player_to_update,
+                        next_state,
+                        depth + 1,
+                        observation_buffer,
+                        infostates,
+                        infostates_to_update
       )
-         .get();
+                        .get();
+
+      if(flushes) {
+         infostates.get().at(next_active_player) = std::move(saved_flush_target);
+         obs_buffer.at(next_active_player) = std::move(*saved_flush_target_buffer);
+      }
+      for(const auto& [player, size] : saved_buffer_sizes) {
+         obs_buffer.at(player).resize(size);
+      }
+      return value;
    };
 
    auto sample_or_fetch_action = [&]() -> decltype(auto) {
@@ -961,7 +1023,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
             }
          }
       }
-      return StateValue{traverse_for_action_value(sampled_action, true)};
+      return StateValue{traverse_for_action_value(sampled_action)};
    }
 }
 
@@ -972,10 +1034,11 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
 template < MCCFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    std::optional< Player > player_to_update,
-   uptr< world_state_type > curr_worldstate,
-   ReachProbabilityMap reach_probability,
-   ObservationbufferMap observation_buffer,
-   InfostateSptrMap infostates,
+   world_state_type& curr_worldstate,
+   size_t depth,
+   ReachProbabilityMap& reach_probability,
+   ObservationbufferMap& observation_buffer,
+   InfostateSptrMap& infostates,
    delayed_update_set& infostates_to_update
 )  // clang-format off
       requires(
@@ -987,8 +1050,8 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       )
 // clang-format on
 {
-   if(_env().is_terminal(*curr_worldstate)) {
-      return StateValueMap{collect_rewards(_env(), *curr_worldstate)};
+   if(_env().is_terminal(curr_worldstate)) {
+      return StateValueMap{collect_rewards(_env(), curr_worldstate)};
    }
 
    if constexpr(config.algorithm != MCCFRAlgorithmMode::pure_cfr and config.pruning_mode == CFRPruningMode::partial) {
@@ -997,7 +1060,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
          // each player
          return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
-            for(auto player : _env().players(*curr_worldstate) | utils::is_actual_player_pred) {
+            for(auto player : _env().players(curr_worldstate) | utils::is_actual_player_pred) {
                map[player] = 0.;
             }
             return map;
@@ -1005,7 +1068,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   Player active_player = _env().active_player(*curr_worldstate);
+   Player active_player = _env().active_player(curr_worldstate);
    // the state's value for each player. To be filled by the action traversal functions.
    StateValueMap state_value{{}};
    // each action's value for each player. To be filled by the action traversal functions.
@@ -1015,40 +1078,34 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
    // stochastic case.
    if constexpr(concepts::stochastic_env< env_type >) {
       if(active_player == Player::chance) {
-         auto [chosen_outcome, _] = _sample_outcome(*curr_worldstate);
+         auto [chosen_outcome, _] = _sample_outcome(curr_worldstate);
+world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
+          _env().transition(next_state, chosen_outcome);
 
-         auto next_state = utils::static_unique_ptr_downcast< world_state_type >(
-            utils::clone_any_way(curr_worldstate)
-         );
-         _env().transition(*next_state, chosen_outcome);
+          next_infostate_and_obs_buffers_inplace(
+             _env(), observation_buffer.get(), infostates.get(), curr_worldstate, chosen_outcome, next_state
+          );
 
-         next_infostate_and_obs_buffers_inplace(
-            _env(),
-            observation_buffer.get(),
-            infostates.get(),
-            *curr_worldstate,
-            chosen_outcome,
-            *next_state
-         );
-
-         return _traverse(
-            player_to_update,
-            std::move(next_state),
-            std::move(reach_probability),
-            std::move(observation_buffer),
-            std::move(infostates),
-            infostates_to_update
-         );
+          // single sampled outcome: containers flow permanently downward
+          return _traverse(
+             player_to_update,
+             next_state,
+             depth + 1,
+             reach_probability,
+             observation_buffer,
+             infostates,
+             infostates_to_update
+          );
       }
    }
-   auto [infostate_and_data_iter, success] = _infonodes().try_emplace(
-      // NOTE: materialize the key as the exact key type of the node table. Handing a
-      // unique_ptr to try_emplace compiles under C++20 (implicit shared_ptr conversion)
-      // but selects libstdc++'s C++26 heterogeneous-insertion overload whose lookup path
-      // cannot convert from a unique_ptr lvalue.
-      sptr< info_state_type >{utils::clone_any_way(infostates.get().at(active_player))},
-      infostate_data_type{}
-   );
+   const auto& live_infostate_sptr = infostates.get().at(active_player);
+   auto infostate_and_data_iter = m_infonode.find(*live_infostate_sptr);
+   bool success = false;
+   if(infostate_and_data_iter == m_infonode.end()) {
+      std::tie(infostate_and_data_iter, success) = _infonodes().emplace(
+         sptr< info_state_type >{utils::clone_any_way(live_infostate_sptr)}, infostate_data_type{}
+      );
+   }
    const auto& infostate = infostate_and_data_iter->first;
    auto& infonode_data = infostate_and_data_iter->second;
    infostates_to_update.emplace(infostate.get(), &infonode_data);
@@ -1056,7 +1113,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       // success means we have indeed emplaced a new data node, instead of simply fetching an
       // existing one.
       // We thus need to fill it with the legal actions at this node.
-      infonode_data.emplace(_env().actions(active_player, *curr_worldstate));
+      infonode_data.emplace(_env().actions(active_player, curr_worldstate));
    }
    const auto& actions = infonode_data.actions();
    auto& curr_action_policy = this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
@@ -1068,24 +1125,80 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy >::_traverse(
       auto child_reach_prob = reach_probability.get();
       child_reach_prob[active_player] *= action_prob;
 
-      uptr< world_state_type > next_wstate_uptr = child_state(_env(), *curr_worldstate, action);
-      auto [child_observation_buffer, child_infostate_map] = next_infostate_and_obs_buffers(
-         _env(),
-         observation_buffer.get(),
-         infostates.get(),
-         *curr_worldstate,
-         action,
-         *next_wstate_uptr
-      );
+      // advance the arena slot of the next depth: in-place reconstruction + transition
+      world_state_type& next_wstate = _arena_state(depth + 1, curr_worldstate);
+      _env().transition(next_wstate, action);
+      // fold this edge's observations into the live containers exactly like the
+      // inplace helper would -- restoring everything after the recursion so
+      // sibling edges start from identical pre-edge container states.
+      auto& obs_buffer = observation_buffer.get();
+      const auto public_obs = _env().public_observation(curr_worldstate, action, next_wstate);
+      const Player next_active_player = _env().active_player(next_wstate);
+      const bool flushes =
+         next_active_player != Player::chance and infostates.get().contains(next_active_player);
+      sptr< info_state_type > saved_flush_target{};
+      sptr< info_state_type > child_infostate{};
+      std::optional< std::vector< std::pair< observation_type, observation_type > > >
+         saved_flush_target_buffer{};
+      if(flushes) {
+         saved_flush_target = infostates.get().at(next_active_player);
+         child_infostate = std::make_shared< info_state_type >(*saved_flush_target);
+         saved_flush_target_buffer = obs_buffer.at(next_active_player);
+      }
+      std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
+      for(const auto& [player, buffer] : obs_buffer) {
+         if(not flushes or player != next_active_player) {
+            saved_buffer_sizes.emplace_back(player, buffer.size());
+         }
+      }
+      for(auto player : _env().players(next_wstate)) {
+         if(player == Player::chance) {
+            continue;
+         }
+         if(flushes and player == next_active_player) {
+            auto& obs_history = obs_buffer[player];
+            for(auto& obs : obs_history) {
+               ::nor::detail::update_infostate(child_infostate, std::move(obs.first), std::move(obs.second));
+            }
+            obs_history.clear();
+            ::nor::detail::update_infostate(
+               child_infostate,
+               public_obs,
+               _env().private_observation(player, curr_worldstate, action, next_wstate)
+            );
+         } else {
+            obs_buffer[player].emplace_back(
+               public_obs, _env().private_observation(player, curr_worldstate, action, next_wstate)
+            );
+         }
+      }
+      if(flushes) {
+         infostates.get().at(next_active_player) = std::move(child_infostate);
+      }
+
+      // scale the acting player's reach entry in place (restored post-recursion)
+      double& actor_reach_entry = reach_probability.get()[active_player];
+      const double saved_actor_reach = actor_reach_entry;
+      actor_reach_entry *= action_prob;
 
       StateValueMap child_rewards_map = _traverse(
          player_to_update,
-         std::move(next_wstate_uptr),
-         ReachProbabilityMap{std::move(child_reach_prob)},
-         ObservationbufferMap{std::move(child_observation_buffer)},
-         InfostateSptrMap{std::move(child_infostate_map)},
+         next_wstate,
+         depth + 1,
+         reach_probability,
+         observation_buffer,
+         infostates,
          infostates_to_update
       );
+
+      if(flushes) {
+         infostates.get().at(next_active_player) = std::move(saved_flush_target);
+         obs_buffer.at(next_active_player) = std::move(*saved_flush_target_buffer);
+      }
+      for(const auto& [player, size] : saved_buffer_sizes) {
+         obs_buffer.at(player).resize(size);
+      }
+      actor_reach_entry = saved_actor_reach;
 
       if constexpr(config.algorithm == MCCFRAlgorithmMode::chance_sampling) {
          // add the child state's value to the respective player's value table, multiplied by the

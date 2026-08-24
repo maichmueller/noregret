@@ -11,8 +11,9 @@
 constexpr double EXPLOITABILITY_THRESHOLD = 3e-3;
 constexpr double KUHN_POKER_GAME_VALUE_ALEX = -1. / 18.;
 
+/// returns true iff the exploitability threshold was reached within 'max_iters'
 template < auto config, typename... ExtraFactoryParams >
-void run_cfr_on_kuhn_poker(
+bool run_cfr_on_kuhn_poker_checked(
    size_t max_iters = 1e5,
    size_t update_freq = 10,
    ExtraFactoryParams&&... extra_args
@@ -80,11 +81,27 @@ void run_cfr_on_kuhn_poker(
    evaluate_policies< false >(
       solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"
    );
-   EXPECT_TRUE(expl <= EXPLOITABILITY_THRESHOLD);
+   return expl <= EXPLOITABILITY_THRESHOLD;
 }
 
 template < auto config, typename... ExtraFactoryParams >
-void run_cfr_on_rps(
+void run_cfr_on_kuhn_poker(
+   size_t max_iters = 1e5,
+   size_t update_freq = 10,
+   ExtraFactoryParams&&... extra_args
+)
+{
+   const bool converged = run_cfr_on_kuhn_poker_checked< config >(
+      max_iters, update_freq, std::forward< ExtraFactoryParams >(extra_args)...
+   );
+   if(not converged) {
+      ADD_FAILURE() << "exploitability above threshold after " << max_iters << " iterations";
+   }
+}
+
+/// returns true iff the exploitability threshold was reached within 'max_iters'
+template < auto config, typename... ExtraFactoryParams >
+bool run_cfr_on_rps_checked(
    size_t max_iters = 1e5,
    size_t update_freq = 10,
    ExtraFactoryParams... extra_args
@@ -156,7 +173,20 @@ void run_cfr_on_rps(
    evaluate_policies< false >(
       solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"
    );
-   EXPECT_TRUE(expl <= EXPLOITABILITY_THRESHOLD);
+   return expl <= EXPLOITABILITY_THRESHOLD;
+}
+
+template < auto config, typename... ExtraFactoryParams >
+void run_cfr_on_rps(
+   size_t max_iters = 1e5,
+   size_t update_freq = 10,
+   ExtraFactoryParams... extra_args
+)
+{
+   const bool converged = run_cfr_on_rps_checked< config >(max_iters, update_freq, extra_args...);
+   if(not converged) {
+      ADD_FAILURE() << "exploitability above threshold after " << max_iters << " iterations";
+   }
 }
 
 #endif  // NOR_CFR_RUN_FUNCS_HPP
