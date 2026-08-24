@@ -735,6 +735,25 @@ consteval bool sanity_check_cfr_config()
          return false;
       }
    }
+   if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::internal_regret_matching) {
+      // the swap-basis phi-regret kernel buffers instantaneous regrets during
+      // the traversal and folds them against its own recommendation snapshot
+      // inside 'recommend'. The discounted weighting decorator would re-scale
+      // the already-folded transformed-regret table and the exponential kernel
+      // routes updates through a deferred L1 machinery this minimizer does not
+      // implement, so both are statically rejected (the selection pins the mode
+      // to InternalRegretMatching regardless of the weighting axis).
+      // Regret-based pruning prescribes the RM+-style replace-if-positive fold
+      // contract on a 'cumulative_instant_regret' layout this kernel does not
+      // carry; dynamic thresholding stays composable since it only reshapes the
+      // derived recommendation.
+      if constexpr(
+         config.weighting_mode != CFRWeightingMode::uniform
+         or config.pruning_mode == CFRPruningMode::regret_based
+      ) {
+         return false;
+      }
+   }
    if constexpr(
       (config.weighting_mode == CFRWeightingMode::exponential)
       and (config.pruning_mode == CFRPruningMode::regret_based)

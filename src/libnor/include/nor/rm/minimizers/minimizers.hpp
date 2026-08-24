@@ -382,6 +382,127 @@ struct ExponentialCFR {
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// internal (phi-) regret matching /////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief Internal ("phi-") regret matching over the canonical swap basis
+ * ("RM-X" style; Hart & Mas-Colell "Simple Adaptive Strategies", 2000).
+ *
+ * Where RegretMatching accumulates the plain counterfactual value offset, this
+ * kernel maintains one accumulator per action of the CANONICAL SWAP BASIS: the
+ * transformation phi_a that moves ALL strategy mass onto action a. The
+ * cumulative transformed regret of iteration t is
+ *
+ *    R^t(I, phi_a) = sum_tau <r^tau(I), phi_a(sigma^tau(I)) - sigma^tau(I)>
+ *                  = sum_tau [ r^tau(I, a) - <sigma^tau(I), r^tau(I)> ]
+ *
+ * i.e. the target-a column aggregate of the full pairwise (i -> a)
+ * internal-regret matrix in its mixed-strategy form -- summing the pairwise
+ * regrets over their SOURCE index collapses the |A|^2 matrix onto these |A|
+ * basis accumulators. The recommendation is regret matching on the positive
+ * parts of R(phi_a).
+ *
+ * MECHANICS. Counterfactual increments r(h, a) arrive through 'observe' (as for
+ * every minimizer) and are buffered into an instantaneous table; 'recommend'
+ * folds the whole buffer against a snapshot sigma^tau(I) of the recommendation
+ * under which it was incurred (before the very first recommendation the played
+ * strategy is the solver's uniform initialization), derives the new policy and
+ * refreshes the snapshot so that the next fold pairs with the actually played
+ * strategy.
+ *
+ * COMPLEXITY. O(|A|) time per observe and per recommend-fold (the fold is two
+ * |A|-sized dot-product/addition passes), O(|A|) extra memory per infostate
+ * beyond vanilla RM's table: three aligned |A| tables total (swap regret,
+ * instantaneous buffer, policy snapshot). The full pairwise internal-regret
+ * matrix is never materialized.
+ */
+template < concepts::action Action >
+struct InternalRegretMatching {
+   struct node_data_type {
+      detail::action_registry< Action > registry;
+      /// cumulative transformed regret R^t(I, phi_a); entry i belongs to
+      /// registry.actions[i]. Named 'regret' as required by the
+      /// InfostateNodeData protocol (and accurate: it IS the cumulative
+      /// phi-regret table)
+      per_action_table< Action > regret;
+      /// instantaneous counterfactual regret buffer r^t(I, a) = sum_h pi_{-i}(h)(v(h,a) - v(h))
+      /// of the current iteration; consumed (reset to zero) by the next fold
+      per_action_table< Action > instant_regret;
+      /// sigma^t(I): snapshot of the last recommendation, refreshed by every
+      /// 'recommend' call; the pairing partner of the buffered increments
+      per_action_table< Action > policy_snapshot;
+      /// false until the first 'recommend' has populated 'policy_snapshot';
+      /// beforehand the played strategy is the solver's uniform initialization
+      bool snapshot_live = false;
+
+      void register_action(const Action& action)
+      {
+         registry.register_action(action);
+         regret.emplace_back(0.);
+         instant_regret.emplace_back(0.);
+         policy_snapshot.emplace_back(0.);
+      }
+
+      [[nodiscard]] size_t index_of(const Action& action) const
+      {
+         return registry.index_of(action);
+      }
+   };
+
+   static void register_action(node_data_type& data, const auto& action)
+   {
+      data.register_action(action);
+   }
+
+   static void observe(node_data_type& data, const Action& action, double increment)
+   {
+      data.instant_regret[data.registry.index_of(action)] += increment;
+   }
+
+   template < typename PolicyOut >
+   static void recommend(node_data_type& data, PolicyOut& policy_out, size_t /*iteration*/)
+   {
+      const auto n_actions = data.regret.size();
+
+      // fold the buffered instantaneous regret against the strategy that generated it:
+      //    v = <sigma^t, r^t>   and   R(phi_a) += <r^t, phi_a(sigma^t) - sigma^t> = r^t(a) - v
+      // (linear in the per-history increments, so buffering + one fold reproduces
+      // the exact per-iteration inner products)
+      double expected_strategy_value{0.};
+      if(data.snapshot_live) {
+         for(auto&& [sigma_a, instant_regret] :
+             std::views::zip(data.policy_snapshot, data.instant_regret)) {
+            expected_strategy_value += sigma_a * instant_regret;
+         }
+      } else {
+         const double uniform_prob = 1. / static_cast< double >(n_actions);
+         for(double instant_regret : data.instant_regret) {
+            expected_strategy_value += uniform_prob * instant_regret;
+         }
+      }
+      for(auto idx : std::views::iota(size_t{0}, n_actions)) {
+         data.regret[idx] += data.instant_regret[idx] - expected_strategy_value;
+         data.instant_regret[idx] = 0.;
+      }
+
+      // regret-match on the positive parts of the transformed-regret table ...
+      detail::_recommend_from_regret(data.registry.actions, data.regret, policy_out);
+
+      // ... and refresh the play-snapshot so the next iteration's fold pairs
+      // with the strategy actually recommended now ('policy_out' is keyed by
+      // action, hence the registry-ordered read-back instead of a zip)
+      for(auto&& [action, snapshot] :
+          std::views::zip(data.registry.actions, data.policy_snapshot)) {
+         snapshot = policy_out[action];
+      }
+      data.snapshot_live = true;
+   }
+
+   static constexpr double policy_weight(size_t /*iteration*/) { return 1.; }
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////// weighting decorators //////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -615,7 +736,12 @@ template <
    RegretMinimizingMode rm_mode >
 consteval auto select_vanilla_minimizer()
 {
-   if constexpr(rm_mode == RegretMinimizingMode::predictive_regret_matching_plus) {
+   if constexpr(rm_mode == RegretMinimizingMode::internal_regret_matching) {
+      // swap-basis phi-regret kernel (Hart-Mas-Colell style internal-regret
+      // matching); selected ahead of the weighting-mode branches because it is
+      // statically pinned to the uniform weighting mode by the config check
+      return std::type_identity< InternalRegretMatching< Action > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::predictive_regret_matching_plus) {
       // PCFR+ needs the quadratic average-policy accumulation of the discounted
       // weighting machinery (gamma = 2) but NOT the alpha/beta regret discounts
       return std::type_identity< DiscountedCFR<
