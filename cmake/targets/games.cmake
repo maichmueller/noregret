@@ -141,3 +141,13 @@ add_library(oshi_zumo INTERFACE)
 target_include_directories(oshi_zumo INTERFACE ${PROJECT_GAMES_DIR}/oshi_zumo/include)
 
 target_link_libraries(oshi_zumo INTERFACE required_min_libs common)
+
+# ######################################################################################################################
+# Shapley's game (header-only)
+# ######################################################################################################################
+
+add_library(shapley INTERFACE)
+
+target_include_directories(shapley INTERFACE ${PROJECT_GAMES_DIR}/shapley/include)
+
+target_link_libraries(shapley INTERFACE required_min_libs common)

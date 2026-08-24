@@ -130,4 +130,12 @@ if(ENABLE_GAMES)
         oshi_zumo
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        shapley
+        INCLUDE_DIR
+        shapley
+        LINK_LIBRARY
+        shapley
+        SOURCE_FILES
+        test_state.cpp)
 endif()
