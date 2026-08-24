@@ -996,7 +996,6 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
    }
    return ranges;
 }
-}
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 template < typename NodeData >
