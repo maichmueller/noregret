@@ -61,6 +61,27 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sanit
       "3/Theorem 1); with per-infoset action baselines the resulting estimator loses its "
       "unbiasedness guarantee. Select variance_reduction = history_value."
    );
+   // B7 sanity guards: both new rule families are defined on (and hooked only
+   // into) the outcome-sampling traversal.
+   static_assert(
+      not public_chance_sampling_rule< SamplingRule >
+         or config.algorithm == MCCFRAlgorithmMode::outcome_sampling,
+      "PublicChanceSamplingRule reroutes chance resolution of the outcome-sampling "
+      "traversal and therefore requires MCCFRAlgorithmMode::outcome_sampling."
+   );
+   static_assert(
+      not average_strategy_sampling_rule< SamplingRule >
+         or config.algorithm == MCCFRAlgorithmMode::outcome_sampling,
+      "AverageStrategySamplingRule requires MCCFRAlgorithmMode::outcome_sampling: ASS "
+      "(Gibson et al., NIPS 2012) is formulated on outcome sampling, and only that "
+      "traversal consumes an injectable action-sampling rule."
+   );
+   static_assert(
+      not average_strategy_sampling_rule< SamplingRule >
+         or config.exploration == MCCFRExplorationMode::custom_sampling_policy,
+      "AverageStrategySamplingRule is injected through the sampling-rule slot and "
+      "therefore requires MCCFRExplorationMode::custom_sampling_policy."
+   );
 };
 
 template <
@@ -340,7 +361,15 @@ _traverse(
    // or an active player's actions
    if constexpr(not concepts::deterministic_fosg< env_type >) {
       if(active_player == Player::chance) {
-         auto [chosen_outcome, chance_prob] = _sample_outcome(state);
+         // B7 (PCS): an injected PublicChanceSamplingRule reroutes chance-outcome
+         // resolution; the default remains the vanilla distribution draw.
+         auto [chosen_outcome, chance_prob] = [&] {
+            if constexpr(public_chance_sampling_rule< SamplingRule >) {
+               return _sample_outcome_pcs(state);
+            } else {
+               return _sample_outcome(state);
+            }
+         }();
 
          // single-trajectory descent: containers mutate in place; the chance
          // reach entry is restored after the recursive call returns because the
@@ -425,7 +454,7 @@ _traverse(
    m_regret_minimizer.recommend(infonode_data.data(), action_policy, _iteration());
 
    auto [sampled_action, action_sampling_prob, action_policy_prob] = _sample_action(
-      active_player, player_to_update, actions, action_policy
+      active_player, player_to_update, actions, action_policy, *infostate
    );
 
    // snapshot the path bookkeeping BEFORE mutating it: the deeper traversal
@@ -951,7 +980,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action(
    Player active_player,
    std::optional< Player > player_to_update,
    const std::vector< action_type >& actions,
-   auto& action_policy
+   auto& action_policy,
+   const info_state_type& infostate
 )
 {
    // we first define the sampling schemes:
@@ -1000,15 +1030,44 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action(
       }
    };
 
-    // B6: an injectable custom sampling rule (ESCHER/bandit agents) takes
-    // precedence whenever the config selects it. The rule reports the action
-    // and its SAMPLING probability; the policy probability is derived here so
-    // downstream importance weights stay unchanged.
-    if constexpr(config.exploration == MCCFRExplorationMode::custom_sampling_policy) {
-       const auto [chosen_action, sample_prob] =
-          m_sampling_rule(m_rng, actions, [&](const action_type& act) { return action_policy[act]; });
-       return std::tuple{chosen_action, sample_prob, action_policy[chosen_action]};
-    }
+   // B6: an injectable custom sampling rule (ESCHER/bandit agents) takes
+   // precedence whenever the config selects it. The rule reports the action
+   // and its SAMPLING probability; the policy probability is derived here so
+   // downstream importance weights stay unchanged.
+   // B7: average-strategy rules (ASS, Gibson et al., NIPS 2012) are a tagged
+   // special case reading the ACCUMULATED AVERAGE strategy table instead of
+   // the current policy (protocol change documented in sampling_rules.hpp).
+   if constexpr(config.exploration == MCCFRExplorationMode::custom_sampling_policy) {
+      if constexpr(average_strategy_sampling_rule< SamplingRule >) {
+         // placement mirrors the epsilon-on-policy scheme: the rule acts at the
+         // updating player's infosets (every actual player's under simultaneous
+         // updates); opponent infosets stay on-policy over the CURRENT strategy.
+         if(_epsilon_mixed_sampling_active(player_to_update, active_player)) {
+            auto& average_action_policy =
+               this->template fetch_policy< PolicyLabel::average >(infostate, actions);
+            const auto [chosen_action, sample_prob] = m_sampling_rule(
+               m_rng,
+               actions,
+               [&average_action_policy](const action_type& act) {
+                  return average_action_policy[act];
+               }
+            );
+            return std::tuple{chosen_action, sample_prob, action_policy[chosen_action]};
+         }
+         return on_policy_sampling();
+      } else {
+         // untagged rules replace the epsilon-mixture wherever that mixture
+         // would apply; pure on-policy sampling applies elsewhere. This makes an
+         // injected EpsilonOnPolicySamplingRule draw-for-draw identical to the
+         // built-in epsilon_on_policy exploration.
+         if(_epsilon_mixed_sampling_active(player_to_update, active_player)) {
+            const auto [chosen_action, sample_prob] =
+               m_sampling_rule(m_rng, actions, [&](const action_type& act) { return action_policy[act]; });
+            return std::tuple{chosen_action, sample_prob, action_policy[chosen_action]};
+         }
+         return on_policy_sampling();
+      }
+   }
 
     // ESCHER (McAleer et al., ICLR 2023, sec. 3): the UPDATING player samples
     // from a FIXED uniform distribution over legal actions -- iteration-
@@ -1063,6 +1122,43 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_outcome(
    if constexpr(return_likelihood) {
       double chance_prob = chance_probabilities[chosen_outcome];
       return std::tuple{std::move(chosen_outcome), chance_prob};
+   } else {
+      return chosen_outcome;
+   }
+}
+
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+template < bool return_likelihood >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_outcome_pcs(
+   const world_state_type& state
+)
+{
+   auto chance_actions = _env().chance_actions(state);
+   if(chance_actions.empty()) {
+      throw std::logic_error("PCS chance resolution invoked on a state without legal outcomes.");
+   }
+   // the classification of the EVENT uses its first legal outcome as
+   // representative; every provided game-side trait classifies per event, not
+   // per individual outcome identity.
+   if(concepts::has::public_chance_event(_env(), state, chance_actions.front())) {
+      // public chance event: sample from the distribution exactly like vanilla OS
+      return _sample_outcome< return_likelihood >(state);
+   }
+   // PRIVATE chance event (single-trajectory PCS): resolve deterministically to
+   // the FIRST legal outcome without consuming RNG. The importance-weight
+   // correction is threaded through the sample-probability accumulator by the
+   // caller via the returned TRUE probability of the chosen outcome; reach
+   // bookkeeping is untouched. See rm::PublicChanceSamplingRule for what this
+   // deviates from Gibson's multi-view formulation.
+   const auto& chosen_outcome = chance_actions.front();
+   const double chance_prob = _env().chance_probability(state, chosen_outcome);
+   if constexpr(return_likelihood) {
+      return std::tuple{chosen_outcome, chance_prob};
    } else {
       return chosen_outcome;
    }

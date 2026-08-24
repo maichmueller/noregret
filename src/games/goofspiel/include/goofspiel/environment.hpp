@@ -177,6 +177,15 @@ class Environment {
       return wstate.chance_probability(outcome);
    }
 
+   /// B7 (PCS) chance classification: EVERY goofspiel chance event is public.
+   /// Prize reveals are observed by both players, and the resolve confirmation
+   /// (sentinel PrizeCard{0}) publishes the round result (revealed bids and/or
+   /// the announced winner). The outcome argument is irrelevant for the class.
+   static bool public_chance_event(const world_state_type&, const chance_outcome_type&) noexcept
+   {
+      return true;
+   }
+
    void transition(world_state_type& worldstate, const action_type& action) const
    {
       worldstate.apply_action(action);

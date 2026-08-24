@@ -512,7 +512,8 @@ class MCCFR:
       Player active_player,
       std::optional< Player > player_to_update,
       const std::vector< action_type >& actions,
-      auto& action_policy
+      auto& action_policy,
+      const info_state_type& infostate
    );
 
    /**
@@ -535,6 +536,20 @@ class MCCFR:
 
    template < bool return_likelihood = true >
    auto _sample_outcome(const world_state_type& state);
+
+   /**
+    * @brief B7 (PCS): chance-outcome resolution under an injected
+    * rm::PublicChanceSamplingRule.
+    *
+    * Public chance events are drawn exactly like @see _sample_outcome;
+    * private events are resolved deterministically to their FIRST legal
+    * outcome without consuming RNG, reporting that outcome's true chance
+    * probability as the sampling likelihood (IS correction threaded into the
+    * sample-probability accumulator by the caller). See
+    * rm::PublicChanceSamplingRule for the single-trajectory deviation note.
+    */
+   template < bool return_likelihood = true >
+   auto _sample_outcome_pcs(const world_state_type& state);
 
    void _initiate_regret_minimization(const delayed_update_set& update_set);
 

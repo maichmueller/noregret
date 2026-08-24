@@ -204,6 +204,15 @@ class Environment {
       return wstate.chance_probability(outcome);
    }
 
+   /// B7 (PCS) chance classification: dice rolls are PRIVATE chance events --
+   /// only the recipient observes the face while the public observation carries
+   /// merely the recipient's identity. The outcome argument is irrelevant for
+   /// the class (every roll at every state is private).
+   static bool public_chance_event(const world_state_type&, const chance_outcome_type&) noexcept
+   {
+      return false;
+   }
+
    template < typename ActionT >
       requires common::is_any_v< ActionT, action_type, chance_outcome_type >
    void transition(world_state_type& worldstate, const ActionT& action) const
