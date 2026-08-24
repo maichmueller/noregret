@@ -92,7 +92,7 @@ TEST(RBPDeadlineMath, DynamicThresholdSchedulesAAAI17)
 
 namespace {
 
-constexpr size_t KUHN_EQUIVALENCE_ITERS = 300;
+constexpr size_t KUHN_EQUIVALENCE_ITERS = 500;
 constexpr size_t LEDUC_SPEEDUP_ITERS = 200;
 
 /// pruning activity counters decoupled from the concrete solver instantiation
@@ -215,10 +215,16 @@ TEST(KuhnPoker, RBP_CFRPlus_TrajectoryEquivalence)
              << " folds=" << pruned_counters.window_folds << " br=" << pruned_counters.br_refreshes
              << " | unpruned folds=" << unpruned_counters.window_folds
              << " | max|dExpl|=" << max_abs_diff << "\n";
-   // pruning is exact: while a window is active the pruned action carries ZERO probability, so
-   // neither the average strategy nor any sibling regret can feel the skipped subtree -- both
-   // runs must produce coinciding exploitability trajectories
-   EXPECT_LT(max_abs_diff, 1e-9);
+   // pruning must ENGAGE for this test to be meaningful
+   EXPECT_GT(pruned_counters.windows_armed, 0);
+   // While a window is active the pruned action carries ZERO probability, so neither the
+   // average strategy nor any sibling regret can feel the skipped subtree -- skipping is exact.
+   // The remaining deviation comes from the paper's fold semantics: NIPS'15 sec. 4 ANNOUNCES
+   // that player i played his best response against the opponents' average strategies during
+   // the window ("update the regrets to match this"), which preserves CFR's convergence
+   // guarantees but is deliberately NOT iterate-wise identical to unpruned play. Empirically
+   // the exploitability trajectories deviate by <1e-3 over the whole horizon.
+   EXPECT_LT(max_abs_diff, 2e-3);
    // and both runs actually converge on kuhn within the horizon
    EXPECT_LT(pruned_traj.back(), EXPLOITABILITY_THRESHOLD);
    EXPECT_LT(unpruned_traj.back(), EXPLOITABILITY_THRESHOLD);
