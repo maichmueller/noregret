@@ -2,6 +2,7 @@
 #ifndef NOR_CFR_CONFIG_HPP
 #define NOR_CFR_CONFIG_HPP
 
+#include <cmath>
 #include <functional>
 
 namespace nor::rm {
@@ -39,6 +40,21 @@ enum class RegretMinimizingMode {
    // resets to R0 * 1 and the next prediction is suppressed.
    // Same configuration constraints as PCFR+
    stable_predictive_regret_matching_plus = 7
+   // DCFR+ (Xu et al., "Minimizing Weighted Counterfactual Regret with Optimistic
+   // Online Mirror Descent", IJCAI 2024, arXiv:2404.13891, sec. 4):
+   //    R^t = [ R^{t-1} * (t-1)^alpha / ((t-1)^alpha + 1) + r^t ]^+
+   // i.e. RM+-style folding WITH the positive-part alpha discount applied BEFORE
+   // the instantaneous regret is added and the sum is clipped. Because the stored
+   // table is clamped at every fold, the beta branch of plain DCFR is vacuous.
+   // Requires alternating updates, no pruning, the discounted weighting mode
+   // (used solely for its gamma-side average-policy accumulation)
+   discounted_regret_matching_plus = 8,
+   // PDCFR+ (arXiv:2404.13891, sec. 4): DCFR+ whose recommendation is computed
+   // from the predicted next cumulative regret
+   //    R~^{t+1} = [ R^t * t^alpha / (t^alpha + 1) + v^{t+1} ]^+
+   // with the persistence prediction v^{t+1} = r^t. Paper defaults alpha = 2.3,
+   // gamma = 5 (sec. 5.2). Same configuration constraints as DCFR+
+   discounted_predictive_regret_matching_plus = 9
 };
 
 enum class UpdateMode { simultaneous = 0, alternating = 1 };
@@ -198,6 +214,24 @@ struct CFRDiscountedParameters {
    /// Default false keeps the historical indexing bit-for-bit.
    bool weight_by_cycle = false;
 };
+
+/// discount factor d(t; e) = t^e / (t^e + 1) of the DCFR family, with the raw
+/// (0-based) index made well-defined for NEGATIVE exponents: the papers index
+/// discounts by COMPLETED iterations t >= 1, so raw index 0 has no counterpart
+/// there. For e >= 0 the historical convention 0^e = 0 is preserved bit-for-bit
+/// (factor 0 for e > 0, factor 1/2 for e == 0); for e < 0 -- where pow(0, e)
+/// evaluates to +inf and the naive factor becomes NaN, silently poisoning every
+/// non-positive regret entry (observed with scheduled HS_beta starting at -1) --
+/// the neutral limit 1/2 is substituted.
+[[nodiscard]] inline double discount_factor(size_t raw_index, double exponent)
+{
+   if(raw_index == 0 and exponent < 0.) {
+      return 0.5;
+   }
+   const double base = static_cast< double >(raw_index);
+   const double p = std::pow(base, exponent);
+   return p / (p + 1.);
+}
 
 namespace detail {
 

@@ -410,11 +410,14 @@ class DiscountedCFR {
       // note: the regret scaling uses the raw iteration counter (no +1 offset)
       // while the policy weight below uses the logical iteration number. This
       // mirrors the historical behavior which empirically converged faster.
+      // 'discount_factor' reproduces the historical arithmetic bit-for-bit for
+      // the constant exponents and additionally defines the raw-index-0 /
+      // negative-exponent corner (NaN guard, see its documentation).
       if constexpr(discount_regrets) {
-         double t_alpha = std::pow(double(iteration), m_params.alpha_at(iteration));
-         double t_beta = std::pow(double(iteration), m_params.beta_at(iteration));
+         const double factor_positive = discount_factor(iteration, m_params.alpha_at(iteration));
+         const double factor_negative = discount_factor(iteration, m_params.beta_at(iteration));
          for(double& cumul_regret : data.regret) {
-            cumul_regret *= cumul_regret > 0. ? t_alpha / (t_alpha + 1.) : t_beta / (t_beta + 1.);
+            cumul_regret *= cumul_regret > 0. ? factor_positive : factor_negative;
          }
       }
       Inner::recommend(data, policy_out, iteration);
@@ -451,6 +454,9 @@ class DiscountedCFR {
 }  // namespace nor::rm
 
 #include "predictive.hpp"
+
+// the DCFR+/PDCFR+ kernels + HS schedule factories follow the same pattern
+#include "discounted_predictive.hpp"
 
 namespace nor::rm {
 
@@ -501,6 +507,14 @@ consteval auto select_vanilla_minimizer()
       return std::type_identity< DiscountedCFR<
          StablePredictiveRegretMatchingPlus< Action >,
          /*discount_regrets=*/false > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::discounted_regret_matching_plus) {
+      // DCFR+ (arXiv:2404.13891): the kernel owns the alpha-side discounting
+      // (fold-time, discount-before-add) AND the gamma-side averaging; it must be
+      // selected directly -- a DiscountedCFR wrapper would double the gamma weight
+      return std::type_identity< DiscountedRegretMatchingPlus< Action > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::discounted_predictive_regret_matching_plus) {
+      // PDCFR+ (arXiv:2404.13891): DCFR+ with persistence-prediction recommendations
+      return std::type_identity< DiscountedPredictiveRegretMatchingPlus< Action > >{};
    } else if constexpr(weighting == CFRWeightingMode::exponential) {
       return std::type_identity< ExponentialCFR< Action > >{};
    } else if constexpr(weighting == CFRWeightingMode::discounted) {

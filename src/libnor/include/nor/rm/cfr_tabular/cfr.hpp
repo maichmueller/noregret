@@ -397,92 +397,158 @@ using SAPCFRPlus = VanillaCFR<
  * PCFRPlus.
  */
 template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
-using APCFRPlus = VanillaCFR<
+using APCFRPlus = VanillaCFR < CFRConfig
+{
+   .update_mode = config.update_mode,
+   .regret_minimizing_mode = RegretMinimizingMode::ap_predictive_regret_matching_plus,
+   *DCFR
+         + (Xu et al., IJCAI 2024, arXiv : 2404.13891, sec .4)
+       : RM + folding with the* positive
+         - part alpha discount applied BEFORE adding the instantaneous regret and* clipping the
+            sum: * R
+      ^ t = [R ^ {t - 1} * (t - 1) ^ alpha / ((t - 1) ^ alpha + 1) + r ^ t]
+            ^ +*Constructed like CFRDiscounted,
+   i.e.with a leading(possibly default) * rm::CFRDiscountedParameters argument;
+   the paper defaults are available via
+ * rm::dcfrplus_default_parameters() (alpha = 1.5, gamma = 4).
+ */
+template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+using DCFRPlus = VanillaCFR<
    CFRConfig{
       .update_mode = config.update_mode,
-      .regret_minimizing_mode = RegretMinimizingMode::ap_predictive_regret_matching_plus,
+      .regret_minimizing_mode = RegretMinimizingMode::discounted_regret_matching_plus,
       .weighting_mode = CFRWeightingMode::discounted},
    Env,
    Policy,
    AveragePolicy >;
 
-/**
- * P2PCFR+ ("Pessimistic PCFR+", ICLR'25 submission, OpenReview njyZgDDeY4):
- * PCFR+ with a fixed pessimistic prediction damping 1/(1 + alpha), alpha = 5.
- * Same construction constraints as PCFRPlus.
- */
-template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
-using P2PCFRPlus = VanillaCFR<
-   CFRConfig{
+   /**
+    * P2PCFR+ ("Pessimistic PCFR+", ICLR'25 submission, OpenReview njyZgDDeY4):
+    * PCFR+ with a fixed pessimistic prediction damping 1/(1 + alpha), alpha = 5.
+    * Same construction constraints as PCFRPlus.
+    */
+   template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+   using P2PCFRPlus = VanillaCFR < CFRConfig
+   {
       .update_mode = config.update_mode,
       .regret_minimizing_mode = RegretMinimizingMode::p2p_predictive_regret_matching_plus,
-      .weighting_mode = CFRWeightingMode::discounted},
-   Env,
-   Policy,
-   AveragePolicy >;
+      *PDCFR
+         + (arXiv : 2404.13891, sec .4)
+          : DCFR + whose recommendations are computed * from the persistence
+            - predicted next cumulative regret
+                 * R ~^{ t + 1 } = [R ^ t * t ^ alpha / (t ^ alpha + 1) + v ^ {t + 1}] ^ +,
+      v ^ { t + 1 } = r
+                      ^ t.
+                           * Paper defaults via rm::pcfrplus_default_parameters()(
+                                alpha = 2.3, gamma = 5
+                           )
+                                .
+                           *
+                           / template <
+                              CFRDiscountedConfig config,
+                              typename Env,
+                              typename Policy,
+                              typename AveragePolicy >
+                           using PDCFRPlus = VanillaCFR<
+         CFRConfig{
+            .update_mode = config.update_mode,
+            .regret_minimizing_mode = RegretMinimizingMode::
+               discounted_predictive_regret_matching_plus,
+            .weighting_mode = CFRWeightingMode::discounted},
+         Env,
+         Policy,
+         AveragePolicy >;
 
-/**
- * Smooth PCFR+ / Smooth PRM+ (Farina, Grand-Clément, Kroer, Lee, Luo, NeurIPS
- * 2023, arXiv:2305.14709, Algorithm 2): PCFR+ whose predicted-regret vector is
- * kept at 1-norm >= 1 before normalization. Same construction constraints as
- * PCFRPlus.
- */
-template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
-using SmoothPCFRPlus = VanillaCFR<
-   CFRConfig{
-      .update_mode = config.update_mode,
-      .regret_minimizing_mode = RegretMinimizingMode::smooth_predictive_regret_matching_plus,
-      .weighting_mode = CFRWeightingMode::discounted},
-   Env,
-   Policy,
-   AveragePolicy >;
+      /**
+       * Smooth PCFR+ / Smooth PRM+ (Farina, Grand-Clément, Kroer, Lee, Luo, NeurIPS
+       * 2023, arXiv:2305.14709, Algorithm 2): PCFR+ whose predicted-regret vector is
+       * kept at 1-norm >= 1 before normalization. Same construction constraints as
+       * PCFRPlus.
+       */
+      template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+      using SmoothPCFRPlus = VanillaCFR<
+         CFRConfig{
+            .update_mode = config.update_mode,
+            .regret_minimizing_mode = RegretMinimizingMode::smooth_predictive_regret_matching_plus,
+            .weighting_mode = CFRWeightingMode::discounted},
+         Env,
+         Policy,
+         AveragePolicy >;
 
-/**
- * Stable PCFR+ / Stable PRM+ (arXiv:2305.14709, Algorithm 1): PCFR+ with
- * componentwise restart of the cumulative regret table at the R0 = 1 floor.
- * Same construction constraints as PCFRPlus.
- */
-template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
-using StablePCFRPlus = VanillaCFR<
-   CFRConfig{
-      .update_mode = config.update_mode,
-      .regret_minimizing_mode = RegretMinimizingMode::stable_predictive_regret_matching_plus,
-      .weighting_mode = CFRWeightingMode::discounted},
-   Env,
-   Policy,
-   AveragePolicy >;
+      /**
+       * Stable PCFR+ / Stable PRM+ (arXiv:2305.14709, Algorithm 1): PCFR+ with
+       * componentwise restart of the cumulative regret table at the R0 = 1 floor.
+       * Same construction constraints as PCFRPlus.
+       */
+      template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+      using StablePCFRPlus = VanillaCFR<
+         CFRConfig{
+            .update_mode = config.update_mode,
+            .regret_minimizing_mode = RegretMinimizingMode::stable_predictive_regret_matching_plus,
+            .weighting_mode = CFRWeightingMode::discounted},
+         Env,
+         Policy,
+         AveragePolicy >;
+      *HS - DCFR / HS - DCFRPlus / HS - PDCFRPlus / HS
+            - PCFRPlus(Zhang, McAleer, Sandholm, *AAAI 2026, arXiv : 2404.09097)
+          : these are NOT distinct solver types-- a
+            * hyperparameter schedule is a runtime property of rm::CFRDiscountedParameters.
+            * Build them by passing one of the assembled bundles to make_cfr
+            / make_cfr_discounted: *HS
+            - DCFR(n)->rm::hs_dcfr_parameters(n, variant) with
+                 * RegretMinimizingMode::regret_matching * HS
+            - PCFR
+            + (n)->rm::hs_pcfrplus_parameters(n, variant) with
+                 * RegretMinimizingMode::predictive_regret_matching_plus * HS
+            - DCFR
+            + (n)->rm::hs_dcfrplus_parameters(n, variant) with
+                 * RegretMinimizingMode::discounted_regret_matching_plus * HS
+            - PDCFR
+            + (n)->rm::hs_pdcfrplus_parameters(n, variant) with
+                 * RegretMinimizingMode::discounted_predictive_regret_matching_plus
+                 * where 'variant' selects HSVariant::gamma30(paper - recommended default)
+         or *HSVariant::gamma15
+               and 'n' is the total planned iteration count(bound into the
+                                                               * schedule callables at construction;
+                                                            see discounted_predictive.hpp)
+                         .
+                      * /
 
-template < CFRExponentialConfig config, typename Env, typename Policy, typename AveragePolicy >
-using CFRExponential = VanillaCFR<
-   CFRConfig{
-      .update_mode = config.update_mode,
-      .regret_minimizing_mode = config.regret_minimizing_mode,
-      .weighting_mode = CFRWeightingMode::exponential},
-   Env,
-   Policy,
-   AveragePolicy >;
+                      template <
+                         CFRExponentialConfig config,
+                         typename Env,
+                         typename Policy,
+                         typename AveragePolicy >
+                      using CFRExponential = VanillaCFR<
+         CFRConfig{
+            .update_mode = config.update_mode,
+            .regret_minimizing_mode = config.regret_minimizing_mode,
+            .weighting_mode = CFRWeightingMode::exponential},
+         Env,
+         Policy,
+         AveragePolicy >;
 
-template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
-using CFRDiscounted = VanillaCFR<
-   CFRConfig{
-      .update_mode = config.update_mode,
-      .regret_minimizing_mode = config.regret_minimizing_mode,
-      .weighting_mode = CFRWeightingMode::discounted},
-   Env,
-   Policy,
-   AveragePolicy >;
+      template < CFRDiscountedConfig config, typename Env, typename Policy, typename AveragePolicy >
+      using CFRDiscounted = VanillaCFR<
+         CFRConfig{
+            .update_mode = config.update_mode,
+            .regret_minimizing_mode = config.regret_minimizing_mode,
+            .weighting_mode = CFRWeightingMode::discounted},
+         Env,
+         Policy,
+         AveragePolicy >;
 
-template < CFRLinearConfig config, typename Env, typename Policy, typename AveragePolicy >
-using CFRLinear = VanillaCFR<
-   CFRConfig{
-      .update_mode = config.update_mode,
-      .regret_minimizing_mode = config.regret_minimizing_mode,
-      .weighting_mode = CFRWeightingMode::discounted},
-   Env,
-   Policy,
-   AveragePolicy >;
+      template < CFRLinearConfig config, typename Env, typename Policy, typename AveragePolicy >
+      using CFRLinear = VanillaCFR<
+         CFRConfig{
+            .update_mode = config.update_mode,
+            .regret_minimizing_mode = config.regret_minimizing_mode,
+            .weighting_mode = CFRWeightingMode::discounted},
+         Env,
+         Policy,
+         AveragePolicy >;
 
-}  // namespace nor::rm
+   }  // namespace nor::rm
 
 // include the actual template implementations of this class
 #include "cfr.tcc"
