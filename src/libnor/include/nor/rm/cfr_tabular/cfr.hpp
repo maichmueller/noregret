@@ -20,6 +20,7 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/rm/forest.hpp"
+#include "nor/rm/lazy.hpp"
 #include "nor/rm/minimizers/minimizers.hpp"
 #include "nor/rm/node.hpp"
 #include "nor/rm/pruning.hpp"
@@ -231,6 +232,17 @@ class VanillaCFR:
 
    [[nodiscard]] PruningStats pruning_stats() const { return m_pruning_stats; }
 
+   /// activity counters of the lazy-update engine (lazy_update_mode != off): closed segments
+   /// (buffered folds + re-recommendation executed) and end-of-iteration recommendations
+   /// avoided while an infostate's strategy stayed FROZEN. Always available; only ever
+   /// non-zero under CFRLazyUpdateMode::reach_threshold.
+   struct LazyStats {
+      size_t segment_refreshes = 0;
+      size_t skipped_refreshes = 0;
+   };
+
+   [[nodiscard]] LazyStats lazy_stats() const { return m_lazy_stats; }
+
    /**
     * @brief updates the regret and policy tables of the infostate with the state-values.
     */
@@ -293,6 +305,19 @@ class VanillaCFR:
 
    /// ---- pruning engine state (empty cost when pruning_mode == none) ----------------------
    PruningStats m_pruning_stats{};
+   /// ---- lazy-update engine state (empty cost when lazy_update_mode == off) ---------------
+   /// per-player maps of per-infostate open-segment bookkeeping, keyed by infostate VALUE
+   /// (mirrors m_edge_bounds)
+   [[no_unique_address]] std::conditional_t<
+      config.lazy_update_mode != CFRLazyUpdateMode::off,
+      player_hashmap< std::unordered_map<
+         info_state_type,
+         lazy::SegmentState,
+         common::value_hasher< info_state_type >,
+         common::value_comparator< info_state_type > > >,
+      utils::empty >
+      m_lazy_segments{};
+   LazyStats m_lazy_stats{};
    /// memoized GLOBAL per-player bounds (B4 trait path, or degenerate fallback)
    player_hashmap< pruning::PayoffBound > m_payoff_bounds{};
    /// per-(infostate,action) probed ranges: lower = L(I) (min payoff below I), upper = U(I,a)
@@ -384,6 +409,26 @@ class VanillaCFR:
 
    /// performs the end-of-traversal regret minimization step for one infostate
    void _invoke_regret_minimizer(const info_state_type& infostate);
+
+   ///////////////////////////////////////////////////////////////////////////////////////////
+   ////////////////////// lazy-update segmentation engine (Lazy-CFR) /////////////////////////
+   ///////////////////////////////////////////////////////////////////////////////////////////
+
+   /// resolves (creating/resizing on demand) the OPEN-segment state of 'infostate'; the
+   /// buffered-regret table is kept index-aligned with 'actions' (the infostate's registry)
+   lazy::SegmentState&
+   _lazy_segment(const info_state_type& infostate, const std::vector< action_type >& actions);
+
+   /// closes the OPEN segment of 'infostate': folds its buffered counterfactual regret
+   /// increments into the minimizer tables via observe(), applies the segment's accumulated
+   /// own-reach-weighted average-strategy mass in one deferred step (exact under the frozen
+   /// strategy) and flags the end-of-iteration sweep to recompute the recommendation
+   void _lazy_fold_segment(const info_state_type& infostate, lazy::SegmentState& seg);
+
+   /// consumes (reads AND clears) the pending-refresh flag of 'infostate's segment; false
+   /// when the infostate has no segment state or its open segment was never closed, i.e.
+   /// when its strategy must stay frozen for this iteration
+   bool _lazy_consume_refresh(const info_state_type& infostate);
 
    ///////////////////////////////////////////////////////////////////////////////////////////
    ////////////////////// regret-based pruning / dynamic thresholding ////////////////////////
@@ -494,6 +539,44 @@ using CFRPlus = VanillaCFR<
       .update_mode = UpdateMode::alternating,
       .regret_minimizing_mode = RegretMinimizingMode::regret_matching_plus,
       .weighting_mode = CFRWeightingMode::uniform},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/**
+ * Lazy-CFR (Zhou et al., "Lazy-CFR: fast and near-optimal regret minimization for extensive
+ * games", ICLR 2020, arXiv:1810.04433): vanilla CFR whose per-infoset recommendation step is
+ * amortized through reach-budget segmentation -- an infoset's strategy stays FROZEN while its
+ * accumulated opponent reach since the last refresh is below 'config.threshold_b'; the
+ * buffered counterfactual contributions fold and the regret-matching recommendation is
+ * recomputed only at segment close (see CFRLazyUpdateMode::reach_threshold).
+ */
+template < CFRLazyConfig config, typename Env, typename Policy, typename AveragePolicy >
+using LazyCFR = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = config.regret_minimizing_mode,
+      .weighting_mode = CFRWeightingMode::uniform,
+      .pruning_mode = CFRPruningMode::none,
+      .lazy_update_mode = CFRLazyUpdateMode::reach_threshold,
+      .lazy_update_threshold_b = config.threshold_b},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/**
+ * Lazy-CFR+ (Zhou et al., ICLR 2020, arXiv:1810.04433): the same lazy-update segmentation as
+ * rm::LazyCFR riding the RegretMatchingPlus (CFR+) kernel.
+ */
+template < CFRLazyConfig config, typename Env, typename Policy, typename AveragePolicy >
+using LazyCFRPlus = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = RegretMinimizingMode::regret_matching_plus,
+      .weighting_mode = CFRWeightingMode::uniform,
+      .pruning_mode = CFRPruningMode::none,
+      .lazy_update_mode = CFRLazyUpdateMode::reach_threshold,
+      .lazy_update_threshold_b = config.threshold_b},
    Env,
    Policy,
    AveragePolicy >;

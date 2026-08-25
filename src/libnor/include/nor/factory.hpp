@@ -151,6 +151,132 @@ struct factory {
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
+   ////////////////////// LAZY Counterfactual Regret Minimizer Factory /////////////////////////
+   /////////////////////////////////////////////////////////////////////////////////////////////
+
+   template <
+      rm::CFRLazyConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
+   static rm::LazyCFR<
+      cfg,
+      std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
+      std::remove_cvref_t< Policy >,
+      std::remove_cvref_t< AveragePolicy > >
+   make_cfr_lazy(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      Policy&& policy,
+      AveragePolicy&& avg_policy
+   )
+   {
+      if constexpr(as_map) {
+         auto players = env.players(*root_state);
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            to_map(players, std::forward< Policy >(policy)),
+            to_map(players, std::forward< AveragePolicy >(avg_policy))};
+      } else {
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::forward< Policy >(policy),
+            std::forward< AveragePolicy >(avg_policy)};
+      }
+   }
+
+   template < rm::CFRLazyConfig cfg, typename Env, typename Policy, typename AveragePolicy >
+   static rm::LazyCFR< cfg, Env, Policy, AveragePolicy > make_cfr_lazy(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map
+   )
+   {
+      return {
+         std::forward< Env >(env),
+         std::move(root_state),
+         std::move(policy_map),
+         std::move(avg_policy_map)};
+   }
+
+   template < rm::CFRLazyConfig cfg, bool as_map, typename Env, typename Policy >
+   static rm::LazyCFR< cfg, Env, Policy, Policy > make_cfr_lazy(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const Policy& policy
+   )
+   {
+      return make_cfr_lazy< cfg, as_map >(
+         std::forward< Env >(env), std::move(root_state), policy, policy
+      );
+   }
+
+   template <
+      rm::CFRLazyConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
+   static rm::LazyCFRPlus<
+      cfg,
+      std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
+      std::remove_cvref_t< Policy >,
+      std::remove_cvref_t< AveragePolicy > >
+   make_cfr_lazy_plus(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      Policy&& policy,
+      AveragePolicy&& avg_policy
+   )
+   {
+      if constexpr(as_map) {
+         auto players = env.players(*root_state);
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            to_map(players, std::forward< Policy >(policy)),
+            to_map(players, std::forward< AveragePolicy >(avg_policy))};
+      } else {
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::forward< Policy >(policy),
+            std::forward< AveragePolicy >(avg_policy)};
+      }
+   }
+
+   template < rm::CFRLazyConfig cfg, typename Env, typename Policy, typename AveragePolicy >
+   static rm::LazyCFRPlus< cfg, Env, Policy, AveragePolicy > make_cfr_lazy_plus(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map
+   )
+   {
+      return {
+         std::forward< Env >(env),
+         std::move(root_state),
+         std::move(policy_map),
+         std::move(avg_policy_map)};
+   }
+
+   template < rm::CFRLazyConfig cfg, bool as_map, typename Env, typename Policy >
+   static rm::LazyCFRPlus< cfg, Env, Policy, Policy > make_cfr_lazy_plus(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const Policy& policy
+   )
+   {
+      return make_cfr_lazy_plus< cfg, as_map >(
+         std::forward< Env >(env), std::move(root_state), policy, policy
+      );
+   }
+
+   /////////////////////////////////////////////////////////////////////////////////////////////
    /////////////////// DISCOUNTED Counterfactual Regret Minimizer Factory //////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -457,6 +583,8 @@ struct factory {
       using ConfigType = std::decay_t< decltype(config) >;
       if constexpr(std::same_as< ConfigType, rm::CFRConfig >) {
          return factory::make_cfr_vanilla< config, as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRLazyConfig >) {
+         return factory::make_cfr_lazy< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRDiscountedConfig >) {
          return factory::make_cfr_discounted< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
@@ -479,6 +607,8 @@ struct factory {
       using ConfigType = std::decay_t< decltype(config) >;
       if constexpr(std::same_as< ConfigType, rm::CFRConfig >) {
          return factory::make_cfr_vanilla< config >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRLazyConfig >) {
+         return factory::make_cfr_lazy< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRDiscountedConfig >) {
          return factory::make_cfr_discounted< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {

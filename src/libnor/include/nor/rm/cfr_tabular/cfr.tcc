@@ -179,22 +179,34 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
    } else {
       auto& current_policy =
          this->template fetch_policy< PolicyLabel::current >(infostate, istate_data.actions());
-      // derive the recommendation from the (possibly weighted) stored regret
-      m_regret_minimizer.recommend(istate_data.data(), current_policy, _iteration());
+      // Lazy-CFR (Zhou et al., ICLR 2020): the recommendation is recomputed ONLY when the
+      // latest traversal closed this infostate's open segment (opponent-reach budget
+      // exhausted and its buffers folded); otherwise the strategy stays FROZEN and the whole
+      // sweep pass collapses to a skipped-refresh counter increment
+      bool refresh_strategy = true;
+      if constexpr(config.lazy_update_mode != CFRLazyUpdateMode::off) {
+         refresh_strategy = _lazy_consume_refresh(infostate);
+      }
+      if(refresh_strategy) {
+         // derive the recommendation from the (possibly weighted) stored regret
+         m_regret_minimizer.recommend(istate_data.data(), current_policy, _iteration());
 
-      // scale the accumulated average policy by this iteration's weight.
-      // B3: with 'weight_by_cycle' the gamma exponentiation indexes by the
-      // cycle number (iteration / num_players) instead of the raw iteration.
-      if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
-         const size_t weight_index =
-            m_regret_minimizer.discounted_parameters().weight_by_cycle ? this->cycle()
+         // scale the accumulated average policy by this iteration's weight.
+         // B3: with 'weight_by_cycle' the gamma exponentiation indexes by the
+         // cycle number (iteration / num_players) instead of the raw iteration.
+         if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
+            const size_t weight_index =
+               m_regret_minimizer.discounted_parameters().weight_by_cycle ? this->cycle()
                                                                           : _iteration();
-         const double policy_weight = m_regret_minimizer.policy_weight(weight_index);
-         for(auto& policy_prob :
-             this->template fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())
-                | std::views::values) {
-            policy_prob *= policy_weight;
+            const double policy_weight = m_regret_minimizer.policy_weight(weight_index);
+            for(auto& policy_prob :
+                this->template fetch_policy< PolicyLabel::average >(infostate, istate_data.actions())
+                   | std::views::values) {
+               policy_prob *= policy_weight;
+            }
          }
+      } else {
+         ++m_lazy_stats.skipped_refreshes;
       }
    }
    if constexpr(
@@ -642,6 +654,37 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    double player_reach_prob = reach_probability.get().at(player);
    double player_state_value = state_value.get().at(player);
 
+   if constexpr(config.lazy_update_mode != CFRLazyUpdateMode::off) {
+      // ------------------- Lazy-CFR (Zhou et al., ICLR 2020) buffering path ------------------
+      // The infostate's strategy is FROZEN inside an open segment: instead of the eager
+      // observe()/average-policy increments below, this visit's contributions are buffered
+      // and attributed when the segment closes. A close is triggered BEFORE attributing the
+      // current visit once the accumulated opponent reach has exhausted the budget B; the
+      // closing fold applies both buffers at once and flags the end-of-iteration sweep to
+      // recompute the recommendation. Deferral of the average-strategy mass is exact because
+      // sum_t pi_i^t * sigma collapses to (sum_t pi_i^t) * sigma for the frozen sigma.
+      // NOTE (documented deviation from the paper's immediate refresh): the recommendation
+      // is recomputed at the END of the closing iteration rather than inside the traversal,
+      // preserving this codebase's one-sweep-per-iteration recommendation discipline. Visits
+      // to this infostate LATER within the closing iteration therefore play the old strategy
+      // but are attributed to the new segment -- an O(single-traversal) own-reach mass
+      // ascribed one segment late, vanishing in the T -> infinity limit.
+      auto& seg = _lazy_segment(infostate, actions);
+      if(seg.pending_cf_reach >= config.lazy_update_threshold_b) {
+         _lazy_fold_segment(infostate, seg);
+      }
+      for(const auto& [action_variant, action_value] : action_value_map) {
+         // we only call this function with action values from a non-chance player, so we can
+         // safely assume that the action is of action_type
+         const auto& action = std::get< 0 >(action_variant);
+         seg.regret_buffer[istate_data.index_of(action)] +=
+            cf_reach_prob * (action_value.get().at(player) - player_state_value);
+      }
+      seg.pending_cf_reach += cf_reach_prob;
+      seg.pending_player_reach += player_reach_prob;
+      return;
+   }
+
    for(const auto& [action_variant, action_value] : action_value_map) {
       // we only call this function with action values from a non-chance player, so we can safely
       // assume that the action is of action_type
@@ -694,6 +737,73 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       istate_data.data().reach_prob_snapshot = player_reach_prob;
    }
 }
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+lazy::SegmentState& VanillaCFR< config, Env, Policy, AveragePolicy >::_lazy_segment(
+   const info_state_type& infostate,
+   const std::vector< action_type >& actions
+)
+{
+   auto& table = m_lazy_segments[infostate.player()];
+   auto& seg = table.try_emplace(infostate).first->second;
+   if(seg.regret_buffer.size() != actions.size()) {
+      // first touch (or defensive resync): keep the buffer index-aligned with the registry
+      seg.regret_buffer.assign(actions.size(), 0.);
+   }
+   return seg;
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_lazy_fold_segment(
+   const info_state_type& infostate,
+   lazy::SegmentState& seg
+)
+{
+   static_assert(config.lazy_update_mode != CFRLazyUpdateMode::off);
+   auto& istate_data = _infonode(infostate);
+   const auto& actions = istate_data.actions();
+   auto& curr_action_policy =
+      this->template fetch_policy< PolicyLabel::current >(infostate, actions);
+   auto& avg_action_policy =
+      this->template fetch_policy< PolicyLabel::average >(infostate, actions);
+   for(auto idx : std::views::iota(size_t{0}, seg.regret_buffer.size())) {
+      if(seg.regret_buffer[idx] != 0.) {
+         // fold the segment's buffered counterfactual regret increments into the minimizer's
+         // own cumulative update rule ("R <- R + sum r~"; CFR+ clamps at its recommend step)
+         m_regret_minimizer.observe(istate_data.data(), actions[idx], seg.regret_buffer[idx]);
+      }
+   }
+   // one deferred average-strategy increment for the WHOLE closed segment: exact because the
+   // frozen strategy makes sum_t pi_i^t * sigma equal (sum_t pi_i^t) * sigma. Must run BEFORE
+   // the sweep recomputes the recommendation from the freshly folded regrets.
+   if(seg.pending_player_reach != 0.) {
+      for(auto idx : std::views::iota(size_t{0}, seg.regret_buffer.size())) {
+         avg_action_policy[actions[idx]] +=
+            seg.pending_player_reach * curr_action_policy[actions[idx]];
+      }
+   }
+   std::ranges::fill(seg.regret_buffer, 0.);
+   seg.pending_cf_reach = 0.;
+   seg.pending_player_reach = 0.;
+   seg.refresh_pending = true;
+   ++m_lazy_stats.segment_refreshes;
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+bool VanillaCFR< config, Env, Policy, AveragePolicy >::_lazy_consume_refresh(
+   const info_state_type& infostate
+)
+{
+   auto& table = m_lazy_segments[infostate.player()];
+   const auto seg_it = table.find(infostate);
+   if(seg_it == table.end()) {
+      // never visited (or never buffered): nothing can have closed -> strategy stays frozen
+      return false;
+   }
+   const bool pending = seg_it->second.refresh_pending;
+   seg_it->second.refresh_pending = false;
+   return pending;
+}
 namespace detail {
 
 /// @brief a verification of the correctness of the chosen configuration
@@ -732,6 +842,49 @@ consteval bool sanity_check_cfr_config()
          or config.pruning_mode != CFRPruningMode::none
          or config.weighting_mode != CFRWeightingMode::discounted
       ) {
+         return false;
+      }
+   }
+   if constexpr(config.lazy_update_mode != CFRLazyUpdateMode::off) {
+      // Lazy-CFR (Zhou et al., ICLR 2020) freezes recommendations across iterations, so any
+      // kernel whose update rule pairs ONE recommendation with EXACTLY ONE fully observed
+      // iteration's regret vector breaks: the predictive family's rho/sigma_snap
+      // correspondence and the DCFR+/PDCFR+ deferred folds (arXiv:2404.13891, sec. 4)
+      // both assume a refresh every iteration.
+      if constexpr(
+         config.regret_minimizing_mode == RegretMinimizingMode::predictive_regret_matching_plus
+         or config.regret_minimizing_mode
+            == RegretMinimizingMode::sap_predictive_regret_matching_plus
+         or config.regret_minimizing_mode
+            == RegretMinimizingMode::ap_predictive_regret_matching_plus
+         or config.regret_minimizing_mode
+            == RegretMinimizingMode::p2p_predictive_regret_matching_plus
+         or config.regret_minimizing_mode
+            == RegretMinimizingMode::smooth_predictive_regret_matching_plus
+         or config.regret_minimizing_mode
+            == RegretMinimizingMode::stable_predictive_regret_matching_plus
+         or config.regret_minimizing_mode == RegretMinimizingMode::discounted_regret_matching_plus
+         or config.regret_minimizing_mode
+            == RegretMinimizingMode::discounted_predictive_regret_matching_plus
+      ) {
+         return false;
+      }
+      // the deferred average-strategy accumulation assumes UNIFORM weighting: the
+      // discounted/linear gamma-side rescaling multiplies the accumulated policy EVERY
+      // iteration, which would also hit mass still sitting in the lazy buffers; the
+      // exponential family defers its own updates to finalize_iteration and was not analyzed
+      if constexpr(config.weighting_mode != CFRWeightingMode::uniform) {
+         return false;
+      }
+      // pruning windows are armed/consumed on a per-iteration cadence tied to the recommend
+      // step; freezing recommendations across iterations breaks that contract. Kept out of
+      // scope initially.
+      if constexpr(config.pruning_mode != CFRPruningMode::none) {
+         return false;
+      }
+      // a non-positive opponent-reach budget would close segments before any visit's
+      // contributions are buffered
+      if constexpr(not(config.lazy_update_threshold_b > 0.)) {
          return false;
       }
    }

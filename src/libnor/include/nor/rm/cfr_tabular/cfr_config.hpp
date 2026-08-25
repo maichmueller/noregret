@@ -96,11 +96,37 @@ enum class CFRPruningMode {
    dynamic_thresholding = 3
 };
 
+enum class CFRLazyUpdateMode {
+   // Eager CFR: every visited infostate's recommendation is refreshed by regret matching at
+   // the end of EVERY iteration (classical behavior)
+   off = 0,
+   // Lazy-CFR / Lazy-CFR+ (Zhou et al., "Lazy-CFR: fast and near-optimal regret minimization
+   // for extensive games", ICLR 2020, arXiv:1810.04433): time is segmented PER INFOSET. Inside
+   // a segment the infoset's strategy stays FROZEN -- counterfactual regret increments and
+   // own-reach-weighted average-strategy mass arriving during the segment are buffered instead
+   // of being applied eagerly. A segment CLOSES once its accumulated opponent reach
+   // pi_{-i}(I) exhausts the threshold B ('lazy_update_threshold_b'); the closing fold applies
+   // both buffers at once (exact, because the frozen strategy makes sum_t pi_i^t sigma equal
+   // (sum_t pi_i^t) sigma) and only THEN is the regret-matching recommendation recomputed.
+   // Composes with the plain RM and RM+ kernels (=> Lazy-CFR and Lazy-CFR+); statically
+   // incompatible with the predictive/discounted kernels, weighted averaging and pruning.
+   reach_threshold = 1
+};
+
 struct CFRConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
    CFRWeightingMode weighting_mode = CFRWeightingMode::uniform;
    CFRPruningMode pruning_mode = CFRPruningMode::none;
+
+   /// ---- lazy-update segmentation knobs (only meaningful when lazy_update_mode != off) -------
+   /// see CFRLazyUpdateMode::reach_threshold for the mechanism (Zhou et al., ICLR 2020)
+   CFRLazyUpdateMode lazy_update_mode = CFRLazyUpdateMode::off;
+   /// opponent-reach budget B of the per-infoset segmentation: a segment closes once the
+   /// counterfactual (opponent) reach accumulated since the last refresh reaches B. The paper
+   /// prescribes a fixed budget; B == 1 degenerates to at-most-one frozen iteration between
+   /// refreshes for fully-reachable infostates.
+   double lazy_update_threshold_b = 1.;
 
    /// ---- regret-based pruning knobs (only meaningful when pruning_mode == regret_based or
    /// dynamic_thresholding) -------------------------------------------------------------
@@ -127,6 +153,17 @@ struct CFRConfig {
 
 struct CFRPlusConfig {
    UpdateMode update_mode = UpdateMode::alternating;
+};
+
+/// configuration carrier of the Lazy-CFR family (see CFRLazyUpdateMode::reach_threshold).
+/// Consumed by the rm::LazyCFR / rm::LazyCFRPlus aliases and the factory's make_cfr_lazy /
+/// make_cfr_lazy_plus methods; the same knobs are reachable directly through rm::CFRConfig.
+struct CFRLazyConfig {
+   UpdateMode update_mode = UpdateMode::alternating;
+   /// regret_matching => Lazy-CFR, regret_matching_plus => Lazy-CFR+
+   RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
+   /// opponent-reach budget B per infoset segment
+   double threshold_b = 1.;
 };
 
 struct CFRDiscountedConfig {
