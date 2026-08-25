@@ -80,7 +80,11 @@ struct best_response_impl {
    template < typename StatePolicy >
    void _run(
       Env& env,
-      player_hashmap< StatePolicy > player_policies,
+      // taken by const&: the BR walk only READS the opponent policies
+      // (.at(player).at(infostate).at(action)); no local copies are made, so
+      // passing the (potentially very large) strategy stores by value would
+      // deep-copy them on every best-response computation for no reason.
+      const player_hashmap< StatePolicy >& player_policies,
       const world_state_type& root_state,
       player_hashmap< std::unordered_map< info_state_type, mapped_type > >&
          best_response_map_to_fill,
@@ -101,7 +105,7 @@ template < BRConfig config, concepts::fosg Env >
 template < typename StatePolicy >
 void best_response_impl< config, Env >::_run(
    Env& env,
-   player_hashmap< StatePolicy > player_policies,
+   const player_hashmap< StatePolicy >& player_policies,
    const world_state_type& root_state,
    player_hashmap< std::unordered_map< info_state_type, mapped_type > >& best_response_map_to_fill,
    player_hashmap< info_state_type > root_infostates

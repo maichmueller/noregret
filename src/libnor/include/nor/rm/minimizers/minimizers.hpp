@@ -342,19 +342,22 @@ struct ExponentialCFR {
    {
       const auto n_actions = data.regret.size();
       auto& instant_table = data.instant_regret;
-      // L1(I, a) = exp(r(I, a) - mean_r(I)); computed before mutating anything
-      auto l1_weights = std::invoke([&] {
-         per_action_table< Action > l1;
-         l1.reserve(n_actions);
-         double average_instant_regret = std::ranges::fold_left(
-                                            instant_table, double(0.), std::plus{}
-                                         )
-                                         / double(n_actions);
-         for(double instant_regret : instant_table) {
-            l1.push_back(std::exp(instant_regret - average_instant_regret));
-         }
-         return l1;
-      });
+      // L1(I, a) = exp(r(I, a) - mean_r(I)); computed before mutating anything.
+      // The scratch buffer is HOISTED out of the per-infostate sweep: minimizers
+      // are stateless shared objects, so the reuse storage lives here as a
+      // thread-local static (the end-of-iteration sweep is intentionally serial
+      // -- see the determinism note in rm_utils.hpp -- and finalize_iteration
+      // is never reentered recursively). Reuse is result-neutral: the buffer is
+      // cleared and refilled with exactly the same values in exactly the same
+      // order on every call.
+      static thread_local per_action_table< Action > l1_weights;
+      l1_weights.clear();
+      l1_weights.reserve(n_actions);
+      double average_instant_regret = std::ranges::fold_left(instant_table, double(0.), std::plus{})
+                                      / double(n_actions);
+      for(double instant_regret : instant_table) {
+         l1_weights.push_back(std::exp(instant_regret - average_instant_regret));
+      }
 
       for(auto idx : std::views::iota(size_t{0}, n_actions)) {
          double& cumul_regret = data.regret[idx];

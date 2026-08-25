@@ -20,6 +20,7 @@
 #include "common/common.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/rm/action_value_table.hpp"
 #include "nor/rm/forest.hpp"
 #include "nor/rm/minimizers/minimizers.hpp"
 #include "nor/rm/node.hpp"
@@ -411,7 +412,8 @@ class MCCFR:
       ReachProbabilityMap& reach_probability,
       ObservationbufferMap& observation_buffer,
       InfostateSptrMap& infostates,
-      [[maybe_unused]] delayed_update_set& infostates_to_update
+      [[maybe_unused]] delayed_update_set& infostates_to_update,
+      ActionValueArena< action_variant_type >& action_value_arena
    )  // clang-format off
       requires(
          config.algorithm == MCCFRAlgorithmMode::chance_sampling
@@ -490,7 +492,7 @@ class MCCFR:
       const info_state_type& infostate,
       const ReachProbabilityMap& reach_probability,
       const StateValueMap& state_value,
-      const std::unordered_map< action_variant_type, StateValueMap >& action_value_map,
+      const ActionValueTable< action_variant_type >& action_value_map,
       auto& avg_action_policy,
       [[maybe_unused]] auto& curr_action_policy
    )
