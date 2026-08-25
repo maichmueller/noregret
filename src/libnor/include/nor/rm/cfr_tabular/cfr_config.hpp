@@ -54,7 +54,19 @@ enum class RegretMinimizingMode {
    //    R~^{t+1} = [ R^t * t^alpha / (t^alpha + 1) + v^{t+1} ]^+
    // with the persistence prediction v^{t+1} = r^t. Paper defaults alpha = 2.3,
    // gamma = 5 (sec. 5.2). Same configuration constraints as DCFR+
-   discounted_predictive_regret_matching_plus = 9
+   discounted_predictive_regret_matching_plus = 9,
+   // Internal ("phi-") regret matching of the Hart-Mas-Colell style ("RM-X"
+   // family): instead of the raw counterfactual value offset, every action a
+   // carries the cumulative transformed regret of the canonical swap basis
+   // transformation phi_a that moves ALL strategy mass onto a,
+   //    R^t(I, phi_a) = sum_tau <r^tau(I), phi_a(sigma^tau(I)) - sigma^tau(I)>
+   //                  = sum_tau [r^tau(I, a) - <sigma^tau(I), r^tau(I)>],
+   // i.e. the target-a column aggregate of the full pairwise internal-regret
+   // matrix; recommendations are proportional to its positive part. Requires
+   // uniform weighting and non-RBP pruning (statically enforced); the
+   // instantaneous increments are buffered per iteration and folded inside
+   // 'recommend' against a snapshot of the recommendation that generated them
+   internal_regret_matching = 10
 };
 
 enum class UpdateMode { simultaneous = 0, alternating = 1 };

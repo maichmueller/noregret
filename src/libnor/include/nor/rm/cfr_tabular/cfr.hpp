@@ -582,6 +582,25 @@ using LazyCFRPlus = VanillaCFR<
    AveragePolicy >;
 
 /**
+ * @brief InternalRegretCFR: vanilla CFR driven by the swap-basis phi-regret
+ * kernel (rm::InternalRegretMatching; Hart-Mas-Colell style internal-regret
+ * matching, "RM-X" family). Alternating updates over the uniform weighting
+ * mode; see rm::RegretMinimizingMode::internal_regret_matching for the
+ * statically enforced configuration constraints. Constructed like
+ * factory::make_cfr_vanilla (the generic factory::make_cfr dispatches any
+ * rm::CFRConfig carrying RegretMinimizingMode::internal_regret_matching here).
+ */
+template < typename Env, typename Policy, typename AveragePolicy >
+using InternalRegretCFR = VanillaCFR<
+   CFRConfig{
+      .update_mode = UpdateMode::alternating,
+      .regret_minimizing_mode = RegretMinimizingMode::internal_regret_matching,
+      .weighting_mode = CFRWeightingMode::uniform},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/**
  * PCFR+ (Farina, Kroer, Sandholm — "Faster Game Solving via Predictive
  * Blackwell Approachability", AAAI 2021): CFR+ whose regret-matching step is
  * conditioned on a persistence prediction of the next instantaneous regret.

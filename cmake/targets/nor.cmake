@@ -50,5 +50,6 @@ if(ENABLE_GAMES)
                stratego
                kuhn_poker
                leduc_poker
-               rock_paper_scissors)
+               rock_paper_scissors
+               shapley)
 endif()
