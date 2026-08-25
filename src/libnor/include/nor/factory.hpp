@@ -41,22 +41,44 @@ struct factory {
       Env&& env,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       Policy&& policy,
-      AveragePolicy&& avg_policy
+      AveragePolicy&& avg_policy,
+      rm::warm_start_policy_selector_t< std::remove_cvref_t< Env > > warm_start_policy = {}
    )
    {
-      if constexpr(as_map) {
-         auto players = env.players(*root_state);
-         return {
-            std::forward< Env >(env),
-            std::move(root_state),
-            to_map(players, std::forward< Policy >(policy)),
-            to_map(players, std::forward< AveragePolicy >(avg_policy))};
+      if constexpr(cfg.warm_start_iterations > 0) {
+         // forward the fixed-policy selector as the FIRST constructor argument (see
+         // VanillaCFR's selector-first constructor overload)
+         if constexpr(as_map) {
+            auto players = env.players(*root_state);
+            return {
+               std::move(warm_start_policy),
+               std::forward< Env >(env),
+               std::move(root_state),
+               to_map(players, std::forward< Policy >(policy)),
+               to_map(players, std::forward< AveragePolicy >(avg_policy))};
+         } else {
+            return {
+               std::move(warm_start_policy),
+               std::forward< Env >(env),
+               std::move(root_state),
+               std::forward< Policy >(policy),
+               std::forward< AveragePolicy >(avg_policy)};
+         }
       } else {
-         return {
-            std::forward< Env >(env),
-            std::move(root_state),
-            std::forward< Policy >(policy),
-            std::forward< AveragePolicy >(avg_policy)};
+         if constexpr(as_map) {
+            auto players = env.players(*root_state);
+            return {
+               std::forward< Env >(env),
+               std::move(root_state),
+               to_map(players, std::forward< Policy >(policy)),
+               to_map(players, std::forward< AveragePolicy >(avg_policy))};
+         } else {
+            return {
+               std::forward< Env >(env),
+               std::move(root_state),
+               std::forward< Policy >(policy),
+               std::forward< AveragePolicy >(avg_policy)};
+         }
       }
    }
 
@@ -65,25 +87,40 @@ struct factory {
       Env&& env,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       std::unordered_map< Player, Policy > policy_map,
-      std::unordered_map< Player, AveragePolicy > avg_policy_map
+      std::unordered_map< Player, AveragePolicy > avg_policy_map,
+      rm::warm_start_policy_selector_t< std::remove_cvref_t< Env > > warm_start_policy = {}
    )
    {
-      return {
-         std::forward< Env >(env),
-         std::move(root_state),
-         std::move(policy_map),
-         std::move(avg_policy_map)};
+      if constexpr(cfg.warm_start_iterations > 0) {
+         return {
+            std::move(warm_start_policy),
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::move(policy_map),
+            std::move(avg_policy_map)};
+      } else {
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::move(policy_map),
+            std::move(avg_policy_map)};
+      }
    }
 
    template < rm::CFRConfig cfg, bool as_map, typename Env, typename Policy >
    static rm::VanillaCFR< cfg, Env, Policy, Policy > make_cfr_vanilla(
       Env&& env,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
-      const Policy& policy
+      const Policy& policy,
+      rm::warm_start_policy_selector_t< std::remove_cvref_t< Env > > warm_start_policy = {}
    )
    {
       return make_cfr_vanilla< cfg, as_map >(
-         std::forward< Env >(env), std::move(root_state), policy, policy
+         std::forward< Env >(env),
+         std::move(root_state),
+         policy,
+         policy,
+         std::move(warm_start_policy)
       );
    }
 
@@ -92,11 +129,13 @@ struct factory {
    /////////////////////////////////////////////////////////////////////////////////////////////
 
    template <
+      rm::CFRPlusConfig cfg,
       bool as_map,
       typename Env,
       typename Policy,
       typename AveragePolicy >
    static rm::CFRPlus<
+      cfg,
       std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
       std::remove_cvref_t< Policy >,
       std::remove_cvref_t< AveragePolicy > >
@@ -104,49 +143,86 @@ struct factory {
       Env&& env,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
       Policy&& policy,
-      AveragePolicy&& avg_policy
+      AveragePolicy&& avg_policy,
+      rm::warm_start_policy_selector_t< std::remove_cvref_t< Env > > warm_start_policy = {}
    )
    {
-      if constexpr(as_map) {
-         auto players = env.players(*root_state);
+      if constexpr(cfg.warm_start_iterations > 0) {
+         // forward the fixed-policy selector as the FIRST constructor argument (see
+         // VanillaCFR's selector-first constructor overload)
+         if constexpr(as_map) {
+            auto players = env.players(*root_state);
+            return {
+               std::move(warm_start_policy),
+               std::forward< Env >(env),
+               std::move(root_state),
+               to_map(players, std::forward< Policy >(policy)),
+               to_map(players, std::forward< AveragePolicy >(avg_policy))};
+         } else {
+            return {
+               std::move(warm_start_policy),
+               std::forward< Env >(env),
+               std::move(root_state),
+               std::forward< Policy >(policy),
+               std::forward< AveragePolicy >(avg_policy)};
+         }
+      } else {
+         if constexpr(as_map) {
+            auto players = env.players(*root_state);
+            return {
+               std::forward< Env >(env),
+               std::move(root_state),
+               to_map(players, std::forward< Policy >(policy)),
+               to_map(players, std::forward< AveragePolicy >(avg_policy))};
+         } else {
+            return {
+               std::forward< Env >(env),
+               std::move(root_state),
+               std::forward< Policy >(policy),
+               std::forward< AveragePolicy >(avg_policy)};
+         }
+      }
+   }
+
+   template < rm::CFRPlusConfig cfg, typename Env, typename Policy, typename AveragePolicy >
+   static rm::CFRPlus< cfg, Env, Policy, AveragePolicy > make_cfr_plus(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map,
+      rm::warm_start_policy_selector_t< std::remove_cvref_t< Env > > warm_start_policy = {}
+   )
+   {
+      if constexpr(cfg.warm_start_iterations > 0) {
          return {
+            std::move(warm_start_policy),
             std::forward< Env >(env),
             std::move(root_state),
-            to_map(players, std::forward< Policy >(policy)),
-            to_map(players, std::forward< AveragePolicy >(avg_policy))};
+            std::move(policy_map),
+            std::move(avg_policy_map)};
       } else {
          return {
             std::forward< Env >(env),
             std::move(root_state),
-            std::forward< Policy >(policy),
-            std::forward< AveragePolicy >(avg_policy)};
+            std::move(policy_map),
+            std::move(avg_policy_map)};
       }
    }
 
-   template < typename Env, typename Policy, typename AveragePolicy >
-   static rm::CFRPlus< Env, Policy, AveragePolicy > make_cfr_plus(
+   template < rm::CFRPlusConfig cfg, bool as_map, typename Env, typename Policy >
+   static rm::CFRPlus< cfg, Env, Policy, Policy > make_cfr_plus(
       Env&& env,
       uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
-      std::unordered_map< Player, Policy > policy_map,
-      std::unordered_map< Player, AveragePolicy > avg_policy_map
+      const Policy& policy,
+      rm::warm_start_policy_selector_t< std::remove_cvref_t< Env > > warm_start_policy = {}
    )
    {
-      return {
+      return make_cfr_plus< cfg, as_map >(
          std::forward< Env >(env),
          std::move(root_state),
-         std::move(policy_map),
-         std::move(avg_policy_map)};
-   }
-
-   template < bool as_map, typename Env, typename Policy >
-   static rm::CFRPlus< Env, Policy, Policy > make_cfr_plus(
-      Env&& env,
-      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
-      const Policy& policy
-   )
-   {
-      return make_cfr_plus< as_map >(
-         std::forward< Env >(env), std::move(root_state), policy, policy
+         policy,
+         policy,
+         std::move(warm_start_policy)
       );
    }
 
@@ -590,11 +666,9 @@ struct factory {
       } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
          return factory::make_cfr_linear< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
-         return factory::make_cfr_plus< as_map >(std::forward< Args >(args)...);
+         return factory::make_cfr_plus< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRExponentialConfig >) {
          return factory::make_cfr_exponential< config, as_map >(std::forward< Args >(args)...);
-      } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
-         return factory::make_cfr_plus< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::MCCFRConfig >) {
          return factory::make_mccfr< config, as_map >(std::forward< Args >(args)...);
       }
@@ -614,11 +688,9 @@ struct factory {
       } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
          return factory::make_cfr_linear< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
-         return factory::make_cfr_plus(std::forward< Args >(args)...);
+         return factory::make_cfr_plus< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRExponentialConfig >) {
          return factory::make_cfr_exponential< config >(std::forward< Args >(args)...);
-      } else if constexpr(std::same_as< ConfigType, rm::CFRPlusConfig >) {
-         return factory::make_cfr_plus< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::MCCFRConfig >) {
          return factory::make_mccfr< config >(std::forward< Args >(args)...);
       }

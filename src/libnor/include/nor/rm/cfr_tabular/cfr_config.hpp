@@ -161,10 +161,42 @@ struct CFRConfig {
    /// with t the logical iteration number. Their experiments show insensitivity to C; C == 1
    /// disables thresholding entirely (tau_t collapses to 0).
    double dynamic_threshold_c = 3.;
+
+   /// ---- warm-start pre-play initialization ---------------------------------------------
+   ///
+   /// Number of initial GLOBAL iterations forming the warm-start pre-play phase (0 = off).
+   /// During iterations t < warm_start_iterations EVERY player's PLAYED strategy is forced
+   /// to the fixed warm-start policy (uniform by default; see rm::WarmStartPolicy for a
+   /// custom profile) while counterfactual regret accumulation runs completely unmodified,
+   /// seeding the cumulative regret tables away from zero with best-response information
+   /// about a stationary opposition. The pre-play rounds contribute NOTHING to the average
+   /// strategy (they are 'before play'), so after the phase regular CFR proceeds from
+   /// regret-seeded recommendations without uniform-round pollution -- literature reports
+   /// this to speed up EARLY exploitability descent.
+   ///
+   /// Terminology note: this is NOT Brown & Sandholm's "Strategy-Based Warm Starting" (AAAI
+   /// 2016, DOI 10.1609/aaai.v30i1.10056), which provably substitutes regret-table values
+   /// from a substitute value assignment in a single traversal -- their paper even shows
+   /// that merely FORCING play toward a target profile for early iterations does not warm
+   /// start CFR in their sense. This knob implements that 'naive' fixed-opposition pre-play
+   /// regime instead (described e.g. as the "warm-start form" in DeepStack, Moravčík et al.,
+   /// Science 2017, and referenced around DDCFR, Xu et al., ICLR 2024): an EMPIRICAL device
+   /// without a dedicated convergence analysis; its benefit is faster EARLY exploitability
+   /// descent (verified by test/libnor/test_cfr_warm_start.cpp).
+   ///
+   /// SCOPE: implemented for the tabular VanillaCFR engine only (plain RM / RM+, incl. the
+   /// discounted-carrier modes via a raw rm::CFRConfig). MCCFR variants sample actions along
+   /// a single trajectory, so holding sampled opponents fixed changes the sampling
+   /// distribution itself and would require its own importance-weight / unbiasedness
+   /// treatment.
+   size_t warm_start_iterations = 0;
 };
 
 struct CFRPlusConfig {
    UpdateMode update_mode = UpdateMode::alternating;
+   /// passthrough of rm::CFRConfig::warm_start_iterations (composed into the underlying
+   /// VanillaCFR config by the rm::CFRPlus alias)
+   size_t warm_start_iterations = 0;
 };
 
 /// configuration carrier of the Lazy-CFR family (see CFRLazyUpdateMode::reach_threshold).
