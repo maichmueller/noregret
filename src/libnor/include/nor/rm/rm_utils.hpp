@@ -8,6 +8,7 @@
 #include <named_type.hpp>
 #include <numeric>
 #include <ranges>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -63,6 +64,14 @@ class PlayerValueTable {
       using pointer = void;
       using iterator_concept = std::random_access_iterator_tag;
 
+      /// proxy returned by operator-> so that 'it->first'/'it->second' keep
+      /// working like on the former map iterators (elements are yielded by value)
+      struct arrow_proxy {
+         value_type entry;
+         value_type* operator->() { return &entry; }
+         const value_type* operator->() const { return &entry; }
+      };
+
       std::conditional_t< Const, const PlayerValueTable*, PlayerValueTable* > table{};
       size_t index = 0;
 
@@ -70,6 +79,7 @@ class PlayerValueTable {
       {
          return {table->m_players[index], table->m_values[index]};
       }
+      constexpr arrow_proxy operator->() const { return arrow_proxy{**this}; }
       constexpr iterator_t& operator++()
       {
          ++index;
@@ -205,6 +215,21 @@ class PlayerValueTable {
       return (idx < m_size and m_players[idx] == player) ? size_t{1} : size_t{0};
    }
 
+   /// removes 'player's entry if present; returns the number of erased entries
+   /// (0 or 1). Replicates unordered_map::erase's mid-traversal reset semantics
+   /// formerly used by the chance-node reach-probability bookkeeping.
+   size_t erase(Player player)
+   {
+      const auto idx = find_slot(player);
+      if(idx < m_size and m_players[idx] == player) {
+         m_players.erase(m_players.begin() + static_cast< long >(idx));
+         m_values.erase(m_values.begin() + static_cast< long >(idx));
+         --m_size;
+         return size_t{1};
+      }
+      return size_t{0};
+   }
+
    [[nodiscard]] size_t size() const { return m_size; }
    [[nodiscard]] bool empty() const { return m_size == 0; }
    void clear() { m_size = 0; }
@@ -212,6 +237,25 @@ class PlayerValueTable {
    {
       m_players.reserve(n);
       m_values.reserve(n);
+   }
+
+   /// direct views over the compacted storage ([0, size()) is the live range,
+   /// ascending player order). These back allocation-free kernels/reductions.
+   [[nodiscard]] std::span< double > values()
+   {
+      return std::span< double >(m_values.data(), m_size);
+   }
+   [[nodiscard]] std::span< const double > values() const
+   {
+      return std::span< const double >(m_values.data(), m_size);
+   }
+   [[nodiscard]] std::span< Player > players()
+   {
+      return std::span< Player >(m_players.data(), m_size);
+   }
+   [[nodiscard]] std::span< const Player > players() const
+   {
+      return std::span< const Player >(m_players.data(), m_size);
    }
 
    iterator begin() { return iterator{this, 0}; }
@@ -272,8 +316,31 @@ class StateValueMap {
    UnderlyingType m_table;
 };
 
-using ReachProbabilityMap = fluent::
-   NamedType< std::unordered_map< Player, double >, struct reach_prob_map_tag >;
+/// strong-type wrapper kept API-compatible with the former NamedType over
+/// unordered_map (incl. the 'get()' accessor and 'UnderlyingType' alias).
+/// Backed by PlayerValueTable: reach probabilities are seat-indexed without
+/// hashing. NOTE (reduction-order-only numeric change): reductions over this
+/// table run in ascending player order instead of unordered_map's hash order.
+class ReachProbabilityMap {
+  public:
+   using UnderlyingType = PlayerValueTable;
+   using key_type = Player;
+   using mapped_type = double;
+
+   /// NOTE: deliberately no initializer-list constructor -- 'ReachProbabilityMap
+   /// rp{{}}' must construct an EMPTY table exactly like the former
+   /// NamedType-over-unordered_map did.
+   ReachProbabilityMap(UnderlyingType underlying = {}) : m_table(std::move(underlying)) {}
+   explicit ReachProbabilityMap(const std::unordered_map< Player, double >& map) : m_table(map) {}
+
+   [[nodiscard]] UnderlyingType& get() { return m_table; }
+   [[nodiscard]] const UnderlyingType& get() const { return m_table; }
+
+   friend bool operator==(const ReachProbabilityMap&, const ReachProbabilityMap&) = default;
+
+  private:
+   UnderlyingType m_table;
+};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////// kernels ///////////////////////////////////////////////
@@ -289,11 +356,12 @@ using ReachProbabilityMap = fluent::
  * this node
  * @return the reach probability of the nde
  */
-template < concepts::mapping_of< double > KVdouble >
-[[nodiscard]] inline double reach_probability(const KVdouble& reach_probability_contributions)
+[[nodiscard]] inline double reach_probability(
+   const PlayerValueTable& reach_probability_contributions
+)
 {
-   auto values_view = reach_probability_contributions | std::views::values;
-   return std::reduce(values_view.begin(), values_view.end(), double(1.), std::multiplies{});
+   const auto vals = reach_probability_contributions.values();
+   return std::reduce(vals.begin(), vals.end(), double(1.), std::multiplies{});
 }
 /**
  * @brief computes the counterfactual reach probability of the player for this node.
@@ -304,20 +372,18 @@ template < concepts::mapping_of< double > KVdouble >
  * @param player the player for which the value is computed
  * @return the counterfactual reach probability
  */
-template < concepts::mapping_of< double > KVdouble >
-   requires requires(KVdouble m) {
-      // the keys have to of type 'Player' as well
-      std::is_convertible_v< decltype(*(std::views::keys(m).begin())), Player >;
-   }
-inline double
-cf_reach_probability(const Player& player, const KVdouble& reach_probability_contributions)
+[[nodiscard]] inline double
+cf_reach_probability(const Player& player, const PlayerValueTable& reach_probability_contributions)
 {
-   auto values_view = reach_probability_contributions
-                      | std::views::filter([&](const auto& player_rp_pair) {
-                           return std::get< 0 >(player_rp_pair) != player;
-                        })
-                      | std::views::values;
-   return std::reduce(values_view.begin(), values_view.end(), double(1.), std::multiplies{});
+   const auto players = reach_probability_contributions.players();
+   const auto vals = reach_probability_contributions.values();
+   double product{1.};
+   for(auto idx : std::views::iota(size_t{0}, players.size())) {
+      if(players[idx] != player) {
+         product *= vals[idx];
+      }
+   }
+   return product;
 }
 
 /**
@@ -329,12 +395,16 @@ cf_reach_probability(const Player& player, const KVdouble& reach_probability_con
 template < concepts::action Action, concepts::action_policy< Action > Policy >
 void regret_matching(Policy& policy_map, const std::unordered_map< Action, double >& cumul_regret)
 {
-   // sum up the positivized regrets and store them in a new vector
-   std::unordered_map< Action, double > pos_regrets;
+   // sum up the positivized regrets into a flat buffer aligned with the input
+   // container's own iteration order -- no per-call hashmap allocation, and
+   // the normalizer accumulates in EXACTLY the same sequence as before
+   // (bit-identical numerics)
+   std::vector< double > pos_regrets;
+   pos_regrets.reserve(cumul_regret.size());
    double pos_regret_sum{0.};
    for(const auto& [action, regret] : cumul_regret) {
       double pos_regret = std::max(0., regret);
-      pos_regrets.emplace(action, pos_regret);
+      pos_regrets.push_back(pos_regret);
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy
@@ -381,12 +451,17 @@ void regret_matching(
    ActionWrapper action_wrapper = [](const Action& action) { return action; }
 )
 {
-   // sum up the positivized regrets and store them in a new vector
-   RegretMap pos_regrets;
+   // sum up the positivized regrets into a flat buffer aligned with the input
+   // container's own iteration order -- no per-call hashmap allocation, and
+   // the normalizer accumulates in EXACTLY the same sequence as before
+   // (bit-identical numerics). The buffer is intentionally kept (instead of
+   // dropping it outright) to preserve the kernel's shape for profiling parity.
+   std::vector< double > pos_regrets;
+   pos_regrets.reserve(cumul_regret.size());
    double pos_regret_sum{0.};
    for(const auto& [action, regret] : cumul_regret) {
       double pos_regret = std::max(0., regret);
-      pos_regrets.emplace(action, pos_regret);
+      pos_regrets.push_back(pos_regret);
       pos_regret_sum += pos_regret;
    }
    // apply the new policy to the vector policy
@@ -578,7 +653,7 @@ auto collect_rewards(
    // erase non-actual player elements (e.g. chance or unknown)
    std::erase_if(players, common::not_pred(utils::is_actual_player_pred));
 
-   std::unordered_map< Player, double > rewards;
+   PlayerValueTable rewards;
    rewards.reserve(players.size());
 
    if constexpr(nor::concepts::has::method::reward_multi< env_type >) {

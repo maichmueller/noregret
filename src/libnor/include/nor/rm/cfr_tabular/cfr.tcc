@@ -1,6 +1,7 @@
 #pragma once
 
 #include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <limits>
 
@@ -11,7 +12,7 @@ namespace nor::rm {
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
 {
-   std::vector< player_hashmap< double > > root_values_per_iteration;
+   std::vector< StateValueMap > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
    for([[maybe_unused]] auto _ : std::views::iota(size_t(0), n_iters)) {
       SPDLOG_DEBUG("Iteration number: {}", _iteration());
@@ -31,7 +32,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
             }
          }
       });
-      root_values_per_iteration.emplace_back(std::move(value.get().to_hashmap()));
+      root_values_per_iteration.emplace_back(std::move(value));
       _iteration()++;
    }
    return root_values_per_iteration;
@@ -53,7 +54,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(
    }();
    // and increment our iteration counter
    _iteration()++;
-   return std::vector{std::move(values.get().to_hashmap())};
+   return std::vector< StateValueMap >{std::move(values)};
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -68,25 +69,23 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
    // then mutated in place down the recursion with explicit save/restore at
    // every recursion boundary; no per-edge container copies happen anymore.
    auto rp_map = std::invoke([&] {
-      ReachProbabilityMap rp{{}};
+      ReachProbabilityMap rp{};
       for(auto player : root_players) {
          rp.get().emplace(player, 1.);
       }
       return rp;
    });
    auto obs_map = std::invoke([&] {
-      ObservationbufferMap obs{{}};
+      ObservationbufferMap obs{};
       for(auto player : root_players | utils::is_actual_player_filter) {
-         obs.get().emplace(
-            player, std::vector< std::pair< observation_type, observation_type > >{}
-         );
+         obs.emplace(player);
       }
       return obs;
    });
    auto infostates = std::invoke([&] {
-      InfostateSptrMap istates{{}};
+      InfostateSptrMap istates{};
       for(auto player : root_players | utils::is_actual_player_filter) {
-         istates.get().emplace(player, std::make_shared< info_state_type >(player));
+         istates.emplace(player, std::make_shared< info_state_type >(player));
       }
       return istates;
    });
@@ -367,10 +366,12 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
       // iteration: the L1-weighted regret increments are applied here, the
       // average policy numerator/denominator pair is updated and finally the
       // current policy is refreshed through regular regret matching.
-      auto& current_policy =
-         this->template fetch_policy< PolicyLabel::current >(infostate, istate_data.actions());
-      auto& average_policy =
-         this->template fetch_policy< PolicyLabel::average >(infostate, istate_data.actions());
+      auto& current_policy = this->template fetch_policy< PolicyLabel::current >(
+         infostate, istate_data.actions()
+      );
+      auto& average_policy = this->template fetch_policy< PolicyLabel::average >(
+         infostate, istate_data.actions()
+      );
       m_regret_minimizer.finalize_iteration(
          istate_data.data(),
          current_policy,
@@ -413,10 +414,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          ++m_lazy_stats.skipped_refreshes;
       }
    }
-   if constexpr(
-      config.pruning_mode == CFRPruningMode::regret_based
-      or config.pruning_mode == CFRPruningMode::dynamic_thresholding
-   ) {
+   if constexpr(config.pruning_mode == CFRPruningMode::regret_based or config.pruning_mode == CFRPruningMode::dynamic_thresholding) {
       // the regret tables are now in their post-iteration state (RM+RBP has folded its
       // instantaneous buffer via the replace-if-positive rule); scan for entries negative
       // enough to open a pruning window for the NEXT iterations
@@ -460,17 +458,16 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    InfostateSptrMap& infostates
 )
 {
-    if(_env().is_terminal(state)) {
-       // NOTE: pass the ROOT participant set explicitly. The default of
-       // collect_rewards derives the player set from env.players(terminal
-       // state), which excludes players that have folded out of poker-like
-       // games. Downstream, update_regret_and_policy looks up every actual
-       // player in each action's value map and would throw out_of_range for
-       // such subtrees. Environments must support reward() for all initial
-       // participants (e.g. leduc pays folded players their sunk stakes).
-       return StateValueMap{
-          collect_rewards(_env(), state, _env().players(root_state()))};
-    }
+   if(_env().is_terminal(state)) {
+      // NOTE: pass the ROOT participant set explicitly. The default of
+      // collect_rewards derives the player set from env.players(terminal
+      // state), which excludes players that have folded out of poker-like
+      // games. Downstream, update_regret_and_policy looks up every actual
+      // player in each action's value map and would throw out_of_range for
+      // such subtrees. Environments must support reward() for all initial
+      // participants (e.g. leduc pays folded players their sunk stakes).
+      return StateValueMap{collect_rewards(_env(), state, _env().players(root_state()))};
+   }
 
    if constexpr(config.pruning_mode == CFRPruningMode::partial) {
       if(_partial_pruning_condition(player_to_update, reach_probability)) {
@@ -513,7 +510,7 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       }
    }
 
-   sptr< info_state_type > this_infostate = infostates.get().at(active_player);
+   sptr< info_state_type > this_infostate = infostates.at(active_player);
 
    _traverse_player_actions< initialize_infonodes, use_current_policy >(
       player_to_update,
@@ -560,7 +557,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    std::unordered_map< action_variant_type, StateValueMap >& action_value
 )
 {
-   const auto& this_infostate = infostates.get().at(active_player);
+   const auto& this_infostate = infostates.at(active_player);
    if constexpr(initialize_infonodes) {
       _infonodes().emplace(
          this_infostate, infostate_data_type{_env().actions(active_player, state)}
@@ -599,8 +596,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          // we try to normalize only for the average policy, since iterations with the current
          // policy are for the express purpose of updating the average strategy. As such, we
          // should not intervene to change these values, as that may alter the values incorrectly
-         double normalization =
-            std::ranges::fold_left(action_policy | std::views::values, double(0.), std::plus{});
+         double normalization = std::ranges::fold_left(
+            action_policy | std::views::values, double(0.), std::plus{}
+         );
          if(std::abs(normalization) < 1e-20) {
             throw std::invalid_argument(
                "Average policy likelihoods accumulate to 0. Such values cannot be normalized."
@@ -615,10 +613,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    // needs the final v(I), which includes all sibling actions)
    [[maybe_unused]] std::vector< std::pair< size_t, double > > pending_window_visits{};
    for(auto [action_idx, action] : std::views::enumerate(actions)) {
-      if constexpr(
-         config.pruning_mode == CFRPruningMode::regret_based
-         or config.pruning_mode == CFRPruningMode::dynamic_thresholding
-      ) {
+      if constexpr(config.pruning_mode == CFRPruningMode::regret_based or config.pruning_mode == CFRPruningMode::dynamic_thresholding) {
          if constexpr(use_current_policy) {
             if(_rbp_gate(
                   player_to_update,
@@ -630,8 +625,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
                   observation_buffer,
                   state,
                   depth
-               ))
-            {
+               )) {
                // the pruned action's current probability is exactly zero, so its contribution
                // to v(I) and its average-strategy increment would both vanish anyway; skipping
                // the recursion leaves state_value and action_value untouched for this action
@@ -646,6 +640,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
 
       // ---- save/restore bookkeeping for the recursion boundary --------------
       // reach probability: only the acting player's entry is scaled
+      // NOTE: no reference is held across the recursion -- deeper frames may
+      // insert new keys into the compacted table (vector storage shifts), so
+      // the entry is re-resolved via operator[] for the restore.
       double& player_reach_entry = reach_probability.get()[active_player];
       const double saved_reach_prob = player_reach_entry;
       // scale in place instead of copying the whole reach map per edge
@@ -656,41 +653,56 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       world_state_type& next_wstate = _arena_state(depth + 1, state);
       _env().transition(next_wstate, action);
 
-      // fold the transition's observations into the buffers / the cloned
+      // fold the transition's observations into the buffers / the advanced
       // infostate exactly like next_infostate_and_obs_buffers_inplace would --
-      // but on the live containers, with restoration after the recursion.
+      // but on the live seat-indexed containers, with restoration after the
+      // recursion.
       // NOTE: a transition may leave the chance player in charge (multi-draw
       // deals); like the inplace helper we never buffer/flush FOR chance and
       // never touch the infostate table then.
-      auto& obs_buffer = observation_buffer.get();
+      auto& obs_table = observation_buffer;
       const auto public_obs = _env().public_observation(state, action, next_wstate);
       const Player next_active_player = _env().active_player(next_wstate);
       // the infostate that advances across this edge belongs to the player who
       // is active in the CHILD state (exactly like the inplace helper): when
       // that player takes over, his buffered observations are flushed into a
-      // clone of his infostate while every other player's sptr stays untouched
-      const auto infostate_entry_it = infostates.get().find(next_active_player);
-      const bool flushes =
-         next_active_player != Player::chance and infostate_entry_it != infostates.get().end();
+      // clone of his infostate while every other player's sptr stays untouched.
+      // A null pointer stands in for the former find()==end().
+      const auto infostate_slot = next_active_player == Player::chance
+                                     ? nullptr
+                                     : infostates.find(next_active_player);
+      const bool flushes = infostate_slot != nullptr;
 
       sptr< info_state_type > saved_infostate{};
-      auto child_infostate = flushes ?
-                                std::make_shared< info_state_type >(*infostate_entry_it->second) :
-                                nullptr;
-      std::optional< std::vector< std::pair< observation_type, observation_type > > >
-         saved_flush_target_buffer{};
+      sptr< info_state_type > child_infostate{};
+      // fixed-size STACK bookkeeping (bounded by max_player_seats): sizes of
+      // exactly the buffers this edge appends to; restoring is an O(1)-each
+      // resize afterwards. Replaces the former heap vector<pair<Player,size_t>>.
+      std::array< size_t, max_player_seats > saved_buffer_sizes{};
+      std::array< size_t, max_player_seats > saved_seats{};
+      size_t saved_size_count = 0;
       if(flushes) {
-         // remember the pre-edge infostate and buffer so they can be restored
-         // verbatim once the recursion returns
-         saved_infostate = infostate_entry_it->second;
-         // snapshot of the flush-target's buffer (it is drained into the clone)
-         saved_flush_target_buffer = obs_buffer.at(next_active_player);
+         // remember the pre-edge infostate so it can be restored verbatim once
+         // the recursion returns; the flush-target's buffer is SWAPPED into
+         // this frame's reusable scratch slot instead of being copied
+         saved_infostate = *infostate_slot;
+         child_infostate = std::make_shared< info_state_type >(*saved_infostate);
+         auto& obs_scratch = this->_obs_scratch_slot(depth);
+         // drop dead residue a previous sibling edge left in the scratch slot
+         // so that the flush target's live buffer is EMPTY during the recursion
+         // below (the swap keeps capacities on both sides)
+         obs_scratch.clear();
+         obs_scratch.swap(obs_table[next_active_player]);
       }
-      // sizes of all non-flush-target buffers (they receive appended pairs)
-      std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
-      for(const auto& [player, buffer] : obs_buffer) {
-         if(not flushes or player != next_active_player) {
-            saved_buffer_sizes.emplace_back(player, buffer.size());
+      for(auto player : _env().players(next_wstate)) {
+         if(player == Player::chance) {
+            continue;
+         }
+         if(not (flushes and player == next_active_player)) {
+            const auto seat_idx = static_cast< size_t >(player);
+            saved_seats[saved_size_count] = seat_idx;
+            saved_buffer_sizes[seat_idx] = obs_table[player].size();
+            ++saved_size_count;
          }
       }
       for(auto player : _env().players(next_wstate)) {
@@ -698,46 +710,47 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
             continue;
          }
          if(flushes and player == next_active_player) {
-            auto& obs_history = obs_buffer[player];
-            for(auto& obs : obs_history) {
-               ::nor::detail::update_infostate(
-                  child_infostate, std::move(obs.first), std::move(obs.second)
-               );
+            // after the swap the pre-edge history lives in the scratch slot:
+            // drain it into the clone, clear the scratch for reuse; the live
+            // buffer stays empty for the recursion below
+            auto& scratch_history = this->_obs_scratch_slot(depth);
+            // NOTE: the scratch slot now OWNS the pre-edge buffer contents
+            // (acquired via the swap above); they are the restoration source
+            // for sibling edges. Drain them by COPY -- moving out or clearing
+            // here would destroy the saved state.
+            for(auto& obs : scratch_history) {
+               ::nor::detail::update_infostate(child_infostate, obs.first, obs.second);
             }
-            obs_history.clear();
             ::nor::detail::update_infostate(
                child_infostate,
                public_obs,
                _env().private_observation(player, state, action, next_wstate)
             );
          } else {
-            obs_buffer[player].emplace_back(
+            obs_table[player].emplace_back(
                public_obs, _env().private_observation(player, state, action, next_wstate)
             );
          }
       }
       if(flushes) {
-         infostate_entry_it->second = std::move(child_infostate);
+         *infostate_slot = std::move(child_infostate);
       }
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
-         player_to_update,
-         next_wstate,
-         depth + 1,
-         reach_probability,
-         observation_buffer,
-         infostates
+         player_to_update, next_wstate, depth + 1, reach_probability, observation_buffer, infostates
       );
 
       // ---- restore everything the recursion mutated -------------------------
       if(flushes) {
-         infostate_entry_it->second = std::move(saved_infostate);
-         obs_buffer.at(next_active_player) = std::move(*saved_flush_target_buffer);
+         *infostate_slot = std::move(saved_infostate);
+         // swap the pre-edge buffer back out of the scratch slot
+         this->_obs_scratch_slot(depth).swap(obs_table[next_active_player]);
       }
-      for(const auto& [player, size] : saved_buffer_sizes) {
-         obs_buffer.at(player).resize(size);
+      for(auto idx : std::views::iota(size_t{0}, saved_size_count)) {
+         const auto seat_idx = saved_seats[idx];
+         obs_table[static_cast< Player >(seat_idx)].resize(saved_buffer_sizes[seat_idx]);
       }
-      player_reach_entry = saved_reach_prob;
+      reach_probability.get()[active_player] = saved_reach_prob;
 
       // add the child state's value to the respective player's value table, multiplied by the
       // policies likelihood of playing this action
@@ -747,15 +760,14 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       action_value.emplace(action, std::move(child_rewards_map));
    }
 
-   if constexpr(
-      config.pruning_mode == CFRPruningMode::regret_based
-      or config.pruning_mode == CFRPruningMode::dynamic_thresholding
-   ) {
+   if constexpr(config.pruning_mode == CFRPruningMode::regret_based or config.pruning_mode == CFRPruningMode::dynamic_thresholding) {
       if(not pending_window_visits.empty()) {
          auto& node_data = _infonode(this_infostate).data();
          const double v_I = state_value.get().at(active_player);
          for(auto [action_idx, cf_reach] : pending_window_visits) {
-            _push_window_visit(node_data, active_player, *this_infostate, action_idx, cf_reach, v_I);
+            _push_window_visit(
+               node_data, active_player, *this_infostate, action_idx, cf_reach, v_I
+            );
          }
       }
    }
@@ -784,12 +796,15 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
       // probability and permanently zero out the counterfactual reach of every
       // descendant infostate, silently disabling all regret updates. Seed the
       // entry with the outcome probability when absent. Save/restore keeps the
-      // caller's map intact across sibling edges without per-edge map copies.
-      auto [chance_reach_entry, inserted] =
-         reach_probability.get().try_emplace(active_player, outcome_prob);
-      const double saved_chance_reach = chance_reach_entry->second;
+      // caller's table intact across sibling edges without per-edge copies.
+      auto& rp_table = reach_probability.get();
+      const bool inserted = rp_table.try_emplace(active_player, outcome_prob).second;
+      // NOTE: as above, no reference is held across the recursion (deeper
+      // inserts may reallocate); every access re-resolves through operator[].
+      double& chance_reach_entry = rp_table[active_player];
+      const double saved_chance_reach = chance_reach_entry;
       if(not inserted) {
-         chance_reach_entry->second *= outcome_prob;
+         chance_reach_entry *= outcome_prob;
       }
 
       world_state_type& next_wstate = _arena_state(depth + 1, state);
@@ -799,27 +814,40 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
       // inplace helper: observations are buffered for every actual player and a
       // flush only happens once an ACTUAL player becomes active (multi-draw
       // deals chain several chance edges with buffering only).
-      auto& obs_buffer = observation_buffer.get();
+      auto& obs_table = observation_buffer;
       const auto public_obs = _env().public_observation(state, outcome, next_wstate);
       const Player next_active_player = _env().active_player(next_wstate);
-      const auto infostate_entry_it = infostates.get().find(next_active_player);
-      const bool flushes =
-         next_active_player != Player::chance and infostate_entry_it != infostates.get().end();
+      // null pointer stands in for the former find()==end()
+      const auto infostate_slot = next_active_player == Player::chance
+                                     ? nullptr
+                                     : infostates.find(next_active_player);
+      const bool flushes = infostate_slot != nullptr;
 
       sptr< info_state_type > saved_infostate{};
-      auto child_infostate = flushes ?
-                                std::make_shared< info_state_type >(*infostate_entry_it->second) :
-                                nullptr;
-      std::optional< std::vector< std::pair< observation_type, observation_type > > >
-         saved_flush_target_buffer{};
+      sptr< info_state_type > child_infostate{};
+      // fixed-size STACK bookkeeping bounded by max_player_seats (see the
+      // player-actions traversal for the full rationale)
+      std::array< size_t, max_player_seats > saved_buffer_sizes{};
+      std::array< size_t, max_player_seats > saved_seats{};
+      size_t saved_size_count = 0;
       if(flushes) {
-         saved_infostate = infostate_entry_it->second;
-         saved_flush_target_buffer = obs_buffer.at(next_active_player);
+         saved_infostate = *infostate_slot;
+         child_infostate = std::make_shared< info_state_type >(*saved_infostate);
+         auto& obs_scratch = this->_obs_scratch_slot(depth);
+         // drop dead residue a previous sibling edge left in the scratch slot
+         // (see the player-actions traversal for the full rationale)
+         obs_scratch.clear();
+         obs_scratch.swap(obs_table[next_active_player]);
       }
-      std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
-      for(const auto& [player, buffer] : obs_buffer) {
-         if(not flushes or player != next_active_player) {
-            saved_buffer_sizes.emplace_back(player, buffer.size());
+      for(auto player : _env().players(next_wstate)) {
+         if(player == Player::chance) {
+            continue;
+         }
+         if(not (flushes and player == next_active_player)) {
+            const auto seat_idx = static_cast< size_t >(player);
+            saved_seats[saved_size_count] = seat_idx;
+            saved_buffer_sizes[seat_idx] = obs_table[player].size();
+            ++saved_size_count;
          }
       }
       for(auto player : _env().players(next_wstate)) {
@@ -827,48 +855,48 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
             continue;
          }
          if(flushes and player == next_active_player) {
-            auto& obs_history = obs_buffer[player];
-            for(auto& obs : obs_history) {
-               ::nor::detail::update_infostate(
-                  child_infostate, std::move(obs.first), std::move(obs.second)
-               );
+            auto& scratch_history = this->_obs_scratch_slot(depth);
+            // NOTE: the scratch slot now OWNS the pre-edge buffer contents
+            // (acquired via the swap above); they are the restoration source
+            // for sibling edges. Drain them by COPY -- moving out or clearing
+            // here would destroy the saved state.
+            for(auto& obs : scratch_history) {
+               ::nor::detail::update_infostate(child_infostate, obs.first, obs.second);
             }
-            obs_history.clear();
             ::nor::detail::update_infostate(
                child_infostate,
                public_obs,
                _env().private_observation(player, state, outcome, next_wstate)
             );
          } else {
-            obs_buffer[player].emplace_back(
+            obs_table[player].emplace_back(
                public_obs, _env().private_observation(player, state, outcome, next_wstate)
             );
          }
       }
       if(flushes) {
-         infostate_entry_it->second = std::move(child_infostate);
+         *infostate_slot = std::move(child_infostate);
       }
 
       StateValueMap child_rewards_map = _traverse< initialize_infonodes, use_current_policy >(
-         player_to_update,
-         next_wstate,
-         depth + 1,
-         reach_probability,
-         observation_buffer,
-         infostates
+         player_to_update, next_wstate, depth + 1, reach_probability, observation_buffer, infostates
       );
 
       if(flushes) {
-         infostate_entry_it->second = std::move(saved_infostate);
-         obs_buffer.at(next_active_player) = std::move(*saved_flush_target_buffer);
+         *infostate_slot = std::move(saved_infostate);
+         this->_obs_scratch_slot(depth).swap(obs_table[next_active_player]);
       }
-      for(const auto& [player, size] : saved_buffer_sizes) {
-         obs_buffer.at(player).resize(size);
+      for(auto idx : std::views::iota(size_t{0}, saved_size_count)) {
+         const auto seat_idx = saved_seats[idx];
+         obs_table[static_cast< Player >(seat_idx)].resize(saved_buffer_sizes[seat_idx]);
       }
+      // replicate the former unordered_map insert/erase reset semantics:
+      // a mid-traversal-inserted chance entry is removed again, an existing
+      // entry is restored verbatim
       if(inserted) {
-         reach_probability.get().erase(active_player);
+         rp_table.erase(active_player);
       } else {
-         chance_reach_entry->second = saved_chance_reach;
+         rp_table[active_player] = saved_chance_reach;
       }
 
       // add the child state's value to the respective player's value table, multiplied by the
@@ -1096,21 +1124,7 @@ namespace detail {
 template < CFRConfig config >
 consteval bool sanity_check_cfr_config()
 {
-   if constexpr(
-      config.regret_minimizing_mode == RegretMinimizingMode::predictive_regret_matching_plus
-      or config.regret_minimizing_mode
-         == RegretMinimizingMode::sap_predictive_regret_matching_plus
-      or config.regret_minimizing_mode == RegretMinimizingMode::ap_predictive_regret_matching_plus
-      or config.regret_minimizing_mode
-         == RegretMinimizingMode::p2p_predictive_regret_matching_plus
-      or config.regret_minimizing_mode
-         == RegretMinimizingMode::smooth_predictive_regret_matching_plus
-      or config.regret_minimizing_mode
-         == RegretMinimizingMode::stable_predictive_regret_matching_plus
-      or config.regret_minimizing_mode == RegretMinimizingMode::discounted_regret_matching_plus
-      or config.regret_minimizing_mode
-         == RegretMinimizingMode::discounted_predictive_regret_matching_plus
-   ) {
+   if constexpr(config.regret_minimizing_mode == RegretMinimizingMode::predictive_regret_matching_plus or config.regret_minimizing_mode == RegretMinimizingMode::sap_predictive_regret_matching_plus or config.regret_minimizing_mode == RegretMinimizingMode::ap_predictive_regret_matching_plus or config.regret_minimizing_mode == RegretMinimizingMode::p2p_predictive_regret_matching_plus or config.regret_minimizing_mode == RegretMinimizingMode::smooth_predictive_regret_matching_plus or config.regret_minimizing_mode == RegretMinimizingMode::stable_predictive_regret_matching_plus or config.regret_minimizing_mode == RegretMinimizingMode::discounted_regret_matching_plus or config.regret_minimizing_mode == RegretMinimizingMode::discounted_predictive_regret_matching_plus) {
       // the predictive regret minimizers (PCFR+/SAPCFR+/APCFR+/P2PCFR+ and the
       // Smooth/Stable-PRM+ robustifications) pair the strategy
       // snapshot of the previous recommendation with the instantaneous regrets
@@ -1123,11 +1137,7 @@ consteval bool sanity_check_cfr_config()
       // The discounted weighting mode is REQUIRED as carrier of the gamma-side
       // average-policy accumulation; its own alpha/beta regret discounts are
       // compiled out by the minimizer selection for these modes
-      if constexpr(
-         config.update_mode != UpdateMode::alternating
-         or config.pruning_mode != CFRPruningMode::none
-         or config.weighting_mode != CFRWeightingMode::discounted
-      ) {
+      if constexpr(config.update_mode != UpdateMode::alternating or config.pruning_mode != CFRPruningMode::none or config.weighting_mode != CFRWeightingMode::discounted) {
          return false;
       }
    }
@@ -1243,11 +1253,7 @@ consteval bool sanity_check_cfr_config()
       // increments a pruned window buffers and were not analyzed; simultaneous updates traverse
       // every player in one pass so skipped windows would have to be folded per-player.
       // CHOICE: statically reject instead of implementing an unanalyzed safe variant.
-      if constexpr(
-         config.regret_minimizing_mode != RegretMinimizingMode::regret_matching_plus
-         or config.update_mode != UpdateMode::alternating
-         or config.weighting_mode != CFRWeightingMode::uniform
-      ) {
+      if constexpr(config.regret_minimizing_mode != RegretMinimizingMode::regret_matching_plus or config.update_mode != UpdateMode::alternating or config.weighting_mode != CFRWeightingMode::uniform) {
          return false;
       }
    }
@@ -1277,7 +1283,6 @@ consteval bool sanity_check_cfr_config()
 ////////////////////// regret-based pruning / dynamic thresholding engine /////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-
 /// resolves the registered action at 'action_idx' (gate/fold helpers speak in table indices)
 template < typename NodeData >
 decltype(auto) action_of_index(NodeData& node_data, size_t action_idx)
@@ -1291,10 +1296,7 @@ pruning::PayoffBound VanillaCFR< config, Env, Policy, AveragePolicy >::_edge_bou
    const action_type& action
 )
 {
-   if constexpr(
-      config.pruning_mode == CFRPruningMode::regret_based
-      or config.pruning_mode == CFRPruningMode::dynamic_thresholding
-   ) {
+   if constexpr(config.pruning_mode == CFRPruningMode::regret_based or config.pruning_mode == CFRPruningMode::dynamic_thresholding) {
       if(m_payoff_bounds.empty() and m_edge_bounds.empty()) {
          auto root_players = _env().players(root_state());
          for(auto p : root_players) {
@@ -1344,9 +1346,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_edge_bounds()
    player_hashmap< std::vector< std::pair< observation_type, observation_type > > > buffers{};
    for(auto p : m_root_player_order) {
       infostates.emplace(p, std::make_shared< info_state_type >(p));
-      buffers.emplace(
-         p, std::vector< std::pair< observation_type, observation_type > >{}
-      );
+      buffers.emplace(p, std::vector< std::pair< observation_type, observation_type > >{});
    }
    world_state_type& root_ref = *_root_state_uptr();
    world_state_type& arena_root = _arena_state(0, root_ref);
@@ -1363,11 +1363,11 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_edge_bounds()
       for(auto& [istate, edges] : table) {
          double l_of_I = std::numeric_limits< double >::infinity();
          for(auto& [action, bound] : edges) {
-            (void)action;
+            (void) action;
             l_of_I = std::min(l_of_I, bound.lower);  // still raw min here
          }
          for(auto& [action, bound] : edges) {
-            (void)action;
+            (void) action;
             bound.lower = l_of_I;
          }
       }
@@ -1375,8 +1375,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_edge_bounds()
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-std::vector< pruning::PayoffBound >
-VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
+std::vector< pruning::PayoffBound > VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
    world_state_type& next_wstate,
    size_t depth,
    player_hashmap< sptr< info_state_type > >& infostates,
@@ -1399,8 +1398,10 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
       return out;
    }
 
-   auto hull = [&](std::vector< pruning::PayoffBound >& acc,
-                   const std::vector< pruning::PayoffBound >& sub) {
+   auto hull = [&](
+                  std::vector< pruning::PayoffBound >& acc,
+                  const std::vector< pruning::PayoffBound >& sub
+               ) {
       for(auto idx : std::views::iota(size_t{0}, n)) {
          acc[idx].lower = std::min(acc[idx].lower, sub[idx].lower);
          acc[idx].upper = std::max(acc[idx].upper, sub[idx].upper);
@@ -1409,8 +1410,9 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
 
    std::vector< pruning::PayoffBound > ranges(
       n,
-      pruning::PayoffBound{.lower = std::numeric_limits< double >::infinity(),
-                           .upper = -std::numeric_limits< double >::infinity()}
+      pruning::PayoffBound{
+         .lower = std::numeric_limits< double >::infinity(),
+         .upper = -std::numeric_limits< double >::infinity()}
    );
 
    const Player active = _env().active_player(next_wstate);
@@ -1481,15 +1483,14 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_probe_dfs(
       );
       auto sub = expand(action);
       auto& edges = m_edge_bounds[active][*infostates.at(active)];
-      auto& bound =
-         edges
-            .try_emplace(
-               action,
-               pruning::PayoffBound{
-                  .lower = std::numeric_limits< double >::infinity(),
-                  .upper = -std::numeric_limits< double >::infinity()}
-            )
-            .first->second;
+      auto& bound = edges
+                       .try_emplace(
+                          action,
+                          pruning::PayoffBound{
+                             .lower = std::numeric_limits< double >::infinity(),
+                             .upper = -std::numeric_limits< double >::infinity()}
+                       )
+                       .first->second;
       bound.lower = std::min(bound.lower, sub[owner_idx].lower);
       bound.upper = std::max(bound.upper, sub[owner_idx].upper);
       hull(ranges, sub);
@@ -1516,8 +1517,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_arm_pruning_windows(
       const double bound_range = _edge_bound(infostate, action).range();
       // conservative per-iteration regret growth bound r^t(I,a) <= increment_bound; exponential
       // weighting inflates by e^range because its L1 factors rescale increments (pruning.hpp)
-      const double inc_bound =
-         pruning::window_increment_bound(config.weighting_mode, bound_range);
+      const double inc_bound = pruning::window_increment_bound(config.weighting_mode, bound_range);
       const double R = node_data.regret[idx];
       // Appendix-B minimum-skip filter (NIPS'15): only open a window when even the WORST-CASE
       // window length floor(|R| / inc-bound) clears the configured minimum
@@ -1563,14 +1563,19 @@ bool VanillaCFR< config, Env, Policy, AveragePolicy >::_rbp_gate(
    if(current_iteration < rbp.pruned_until[action_idx]) {
       auto& since_refresh = rbp.visits_since_refresh[action_idx];
       if(since_refresh % config.rbp_br_refresh_period == 0) {
-         // periodic best-response traversal of D(h,a) against the opponents' AVERAGE strategies
+         // periodic best-response traversal of D(h,a) against the opponents' AVERAGE strategies.
+         // The BR walk still operates on classic player hashmaps (cold path), so the live
+         // seat-indexed containers are materialized through named lvalue views; the walk
+         // restores every mutation per edge, making the copies observationally equivalent
+         auto raw_istates = raw_infostate_view(infostates);
+         auto raw_buffers = raw_observation_buffer_view(observation_buffer);
          rbp.cached_br_value[action_idx] = _br_expectimax_from_edge(
             active_player,
             action_of_index(node_data, action_idx),
             state,
             depth,
-            infostates.get(),
-            observation_buffer.get()
+            raw_istates,
+            raw_buffers
          );
          ++m_pruning_stats.br_refreshes;
       }
@@ -1601,8 +1606,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_push_window_visit(
    rbp.pessimistic_regret[action_idx] += cf_reach_prob * (u_upper - state_value_for_player);
    // best-response buffer: the missing true increments pi_{-i}(v(I->a) - v(I)) are replaced by
    // pi_{-i}(v_BR - v(I)); folded into the regret table at unfold time
-   rbp.br_regret_buffer[action_idx] +=
-      cf_reach_prob * (rbp.cached_br_value[action_idx] - state_value_for_player);
+   rbp.br_regret_buffer[action_idx] += cf_reach_prob
+                                       * (rbp.cached_br_value[action_idx] - state_value_for_player);
    if(pruning::pessimistic_unfold_required(rbp.pessimistic_regret[action_idx])) {
       _rbp_fold(node_data, action_idx, node_data.registry.actions[action_idx]);
    }
@@ -1632,8 +1637,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_rbp_fold(
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-std::vector< double >
-VanillaCFR< config, Env, Policy, AveragePolicy >::_normalized_average_policy(
+std::vector< double > VanillaCFR< config, Env, Policy, AveragePolicy >::_normalized_average_policy(
    const info_state_type& infostate,
    const std::vector< action_type >& actions
 )
@@ -1656,8 +1660,9 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_normalized_average_policy(
       for(const auto& action : actions) {
          // NOTE: 'actions' here comes from the environment and need not share the infostate
          // registry's registration order -- resolve each action's table slot explicitly
-         const double denominator =
-            std::max(node_data.avg_policy_denominator[node_data.index_of(action)], 1e-20);
+         const double denominator = std::max(
+            node_data.avg_policy_denominator[node_data.index_of(action)], 1e-20
+         );
          const double p = raw[action] / denominator;
          probs.push_back(p);
          sum += p;
@@ -1706,8 +1711,7 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_br_advance(
    if(next_active_player != Player::chance) {
       auto infostate_entry_it = infostates.find(next_active_player);
       if(infostate_entry_it != infostates.end()) {
-         auto child_infostate =
-            std::make_shared< info_state_type >(*infostate_entry_it->second);
+         auto child_infostate = std::make_shared< info_state_type >(*infostate_entry_it->second);
          auto& obs_history = observation_buffers[next_active_player];
          for(auto& obs : obs_history) {
             ::nor::detail::update_infostate(
@@ -1754,8 +1758,8 @@ double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax_from_edg
 
    // targeted snapshots for restoration after the recursion (cheap: one shared_ptr per
    // player plus buffer size bookkeeping -- no container copies)
-   const bool flushes =
-      next_active_player != Player::chance and infostates.contains(next_active_player);
+   const bool flushes = next_active_player != Player::chance
+                        and infostates.contains(next_active_player);
    sptr< info_state_type > saved_entry{};
    std::vector< std::pair< observation_type, observation_type > > saved_flush_buffer;
    std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
@@ -1798,8 +1802,7 @@ double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax_from_edg
    double value = 0.;
    if(_env().is_terminal(next_wstate)) {
       // pass the ROOT participant set explicitly (see _traverse's terminal note)
-      value = collect_rewards(_env(), next_wstate, _env().players(root_state()))
-                 .at(br_player);
+      value = collect_rewards(_env(), next_wstate, _env().players(root_state())).at(br_player);
    } else if constexpr(concepts::stochastic_env< env_type >) {
       const Player active_player = _env().active_player(next_wstate);
       if(active_player == Player::chance) {
@@ -1810,8 +1813,7 @@ double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax_from_edg
             }
             value += prob
                      * _br_expectimax_from_edge(
-                        br_player, outcome, next_wstate, depth + 1, infostates,
-                        observation_buffers
+                        br_player, outcome, next_wstate, depth + 1, infostates, observation_buffers
                      );
          }
          // restore happens below (shared epilogue)
@@ -1825,8 +1827,7 @@ double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax_from_edg
                   best = std::max(
                      best,
                      _br_expectimax_from_edge(
-                        br_player, action, next_wstate, depth + 1, infostates,
-                        observation_buffers
+                        br_player, action, next_wstate, depth + 1, infostates, observation_buffers
                      )
                   );
                }
@@ -1834,8 +1835,9 @@ double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax_from_edg
             }
             // opponent: expectation under their CURRENT AVERAGE strategy
             const auto& active_infostate = *infostates.at(active_player);
-            const std::vector< double > avg_probs =
-               _normalized_average_policy(active_infostate, actions);
+            const std::vector< double > avg_probs = _normalized_average_policy(
+               active_infostate, actions
+            );
             double expected = 0.;
             for(auto [idx, action] : std::views::enumerate(actions)) {
                if(avg_probs[idx] <= 0.) {
@@ -1843,7 +1845,11 @@ double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax_from_edg
                }
                expected += avg_probs[idx]
                            * _br_expectimax_from_edge(
-                              br_player, action, next_wstate, depth + 1, infostates,
+                              br_player,
+                              action,
+                              next_wstate,
+                              depth + 1,
+                              infostates,
                               observation_buffers
                            );
             }
@@ -1867,8 +1873,9 @@ double VanillaCFR< config, Env, Policy, AveragePolicy >::_br_expectimax_from_edg
       } else {
          // opponent: expectation under their CURRENT AVERAGE strategy (fetch_policy<average>)
          const auto& active_infostate = *infostates.at(active_player);
-         const std::vector< double > avg_probs =
-            _normalized_average_policy(active_infostate, actions);
+         const std::vector< double > avg_probs = _normalized_average_policy(
+            active_infostate, actions
+         );
          for(auto [idx, action] : std::views::enumerate(actions)) {
             if(avg_probs[idx] <= 0.) {
                continue;

@@ -254,7 +254,7 @@ StateValueMap policy_value(
          utils::clone_any_way(root_state)
       ),
       std::invoke([&] {
-         ReachProbabilityMap rp_map{{}};
+         ReachProbabilityMap rp_map{};
          for(auto player : root_players) {
             rp_map.get().emplace(player, 1.);
          }

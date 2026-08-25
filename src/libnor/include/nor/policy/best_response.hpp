@@ -214,11 +214,13 @@ void best_response_impl< config, Env >::_run(
                             .try_emplace(
                                *curr_action,
                                std::make_unique< WorldNode >(WorldNode{
-                                  .state_value_map = env.is_terminal(*next_state)
-                                                        ? std::optional(rm::collect_rewards(
+                                  .state_value_map = env.is_terminal(*next_state) ? std::optional(
+                                                        rm::collect_rewards(
                                                            env, *next_state, m_br_players
-                                                        ))
-                                                        : std::nullopt,
+                                                        )
+                                                           .to_hashmap()
+                                                     )
+                                                                                  : std::nullopt,
                                   .opp_reach_prob = child_reach_prob,
                                   .is_br_node = common::isin(next_player, m_br_players),
                                   .active_player = next_player})

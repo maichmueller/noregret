@@ -163,7 +163,7 @@ std::pair< std::vector< double >, RunCounters > kuhn_exploitability_trajectory(s
 
 /// silent n-iteration run returning the final iteration's root values (crash/finiteness probe)
 template < auto config, typename Env, typename State >
-std::pair< std::vector< player_hashmap< double > >, RunCounters >
+std::pair< std::vector< nor::rm::StateValueMap >, RunCounters >
 run_iterations(const Env& env, std::unique_ptr< State > root_state, size_t n_iters)
 {
    auto avg_policy = factory::make_tabular_policy(std::unordered_map<
@@ -453,11 +453,11 @@ TEST(CFRPruningConfigSanity, RegretBasedRequiresAlternatingUniformRMPlus)
 
 namespace {
 
-void expect_finite_values(const std::vector< player_hashmap< double > >& values)
+void expect_finite_values(const std::vector< nor::rm::StateValueMap >& values)
 {
    ASSERT_FALSE(values.empty());
    for(const auto& iteration_values : values) {
-      for(auto [player, value] : iteration_values) {
+      for(auto [player, value] : iteration_values.get()) {
          (void) player;
          EXPECT_TRUE(std::isfinite(value)) << "non-finite game value encountered";
       }

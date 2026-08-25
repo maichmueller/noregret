@@ -102,8 +102,7 @@ class MCCFR:
       std::unordered_map< size_t, double > edge_values{};
    };
    /// strong-types for player based maps
-   using WeightMap = fluent::
-      NamedType< std::unordered_map< Player, double >, struct weight_map_tag >;
+   using WeightMap = fluent::NamedType< PlayerValueTable, struct weight_map_tag >;
 
    using ConditionalWeightMap = std::
       conditional_t< config.weighting == MCCFRWeightingMode::lazy, WeightMap, utils::empty >;
