@@ -23,8 +23,9 @@ namespace {
 using namespace nor;
 using namespace nor::games::leduc;
 
-using avg_table_type = typename TabularPolicy< Infostate, HashmapActionPolicy< Action > >::
-   table_type;
+// NOTE: typed to the table type the solvers below are actually seeded with
+// (make_tabular_policies passes explicit std::unordered_map tables)
+using avg_table_type = std::unordered_map< Infostate, HashmapActionPolicy< Action > >;
 
 /// A read-only view on an average-policy table that falls back to an equal-probability answer
 /// for any infostate the (sampling-based) trainer has never visited. Best-response computation
