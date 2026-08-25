@@ -149,6 +149,23 @@ enum class CFRLazyUpdateMode {
    reach_threshold = 1
 };
 
+enum class CFRExtragradientMode {
+   // standard single-traversal iterations
+   off = 0,
+   // Extragradient RM+ / Clairvoyant CFR (Farina, Grand-Clément, Kroer, Lee,
+   // Luo, NeurIPS 2023, arXiv:2305.14709, Algorithm 5): TWO traversals per
+   // global iteration -- a values-only ANCHOR PROBE under the current
+   // recommendation g(z^{t-1}) measures the counterfactual gradient there,
+   // the intermediate strategy g(w^t) = g([z^{t-1} + eta r_anchor]^+) is
+   // derived without mutating z, and the REAL traversal under g(w^t) provides
+   // the anchored fold z^t = [z^{t-1} + eta r_real]^+. The averaged strategy
+   // is the intermediate one (Algorithm 5 line 6). Statically restricted to
+   // alternating updates over the plain RM+ kernel with uniform weighting,
+   // no pruning/lazy segmentation and no warm start (see
+   // sanity_check_cfr_config); see rm/extragradient.hpp for the full mapping.
+   anchor_probe = 1
+};
+
 struct CFRConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
@@ -215,6 +232,32 @@ struct CFRConfig {
    /// treatment.
    size_t warm_start_iterations = 0;
 
+   /// ---- extragradient knobs (only meaningful when extragradient_mode != off) -----------------
+
+   /// step size eta of the ExRM+ prox applications (Algorithm 5 of
+   /// arXiv:2305.14709): scales BOTH the anchor-probe regrets that build the
+   /// intermediate strategy w^t and the real-traversal regrets folded into the
+   /// anchored update. The theory-optimal eta = (sqrt(2) L_F)^{-1} is
+   /// prohibitively small in extensive-form games (the paper's own sec. 6
+   /// finding), so this is a free hyperparameter; 1.0 recovers the plain RM+
+   /// prox arithmetic per phase.
+   double extragradient_stepsize = 1.;
+
+   /// 1-norm floor epsilon of the ExRM+ DECISION SET: Algorithm 5 operates on
+   /// the chopped-off orthant X_>= = {R >= 0, ||R||_1 >= epsilon}, i.e. BOTH
+   /// prox outputs (the intermediate w^t and the folded z^t) are lifted to
+   /// 1-norm >= epsilon by spreading any deficit uniformly ("chopping off" the
+   /// origin, the paper's Smooth-PRM+ device). The floor is ESSENTIAL in
+   /// practice: without it the cumulative table can stay pinned at the origin
+   /// whenever the realized regrets at the intermediate point are all
+   /// non-positive (observed immediately on kuhn poker -- the exact
+   /// instability-at-the-origin phenomenon the paper introduces the floor
+   /// for). epsilon = 1 is the paper's WLOG normalization; 0 compiles the
+   /// floor away (plain orthant, prone to the described deadlock).
+   double extragradient_norm_floor_epsilon = 1.;
+
+   CFRExtragradientMode extragradient_mode = CFRExtragradientMode::off;
+
    /// ---- greedy weighting knobs (only meaningful when weighting_mode == greedy) -------------
 
    /// Lower bound on each iteration's greedy weight, expressed as a FRACTION of the average
@@ -244,6 +287,20 @@ struct CFRLazyConfig {
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
    /// opponent-reach budget B per infoset segment
    double threshold_b = 1.;
+};
+
+/// configuration carrier of the Extragradient-RM+ family (ExRM+ / Clairvoyant
+/// CFR, arXiv:2305.14709 Algorithm 5; see rm/extragradient.hpp). Consumed by
+/// the rm::ExtragradientCFR alias and the factory's make_cfr_extragradient
+/// method; the same knobs are reachable directly through rm::CFRConfig.
+/// The regret-minimizing kernel is pinned to plain RM+: ExRM+ is built on the
+/// RM+ prox, and the Smooth/Stable compositions are not provided initially.
+struct CFRExtragradientConfig {
+   UpdateMode update_mode = UpdateMode::alternating;
+   /// pinned to regret_matching_plus by sanity_check_cfr_config
+   RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching_plus;
+   /// prox step size eta (scales the probe-derived and real-traversal regrets)
+   double stepsize = 1.;
 };
 
 struct CFRDiscountedConfig {
