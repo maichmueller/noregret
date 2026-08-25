@@ -1,6 +1,7 @@
 #pragma once
 
 #include <spdlog/spdlog.h>
+
 #include <algorithm>
 
 #include "mccfr.hpp"
@@ -36,13 +37,15 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sanit
             or config.weighting != MCCFRWeightingMode::stochastic
          );
          // clang-format on
-      return pruning_in_non_full_traversal_modes or ext_sampling_bad_combo;
-   }),
+         return pruning_in_non_full_traversal_modes or ext_sampling_bad_combo;
+      }),
       "Config did not pass the check for correctness."
    );
    static_assert(
-      not(effective_variance_reduction(config) != VarianceReductionMode::none
-          and config.update_mode != UpdateMode::alternating),
+      not (
+         effective_variance_reduction(config) != VarianceReductionMode::none
+         and config.update_mode != UpdateMode::alternating
+      ),
       "VR-MCCFR/ESCHER baselines are currently restricted to alternating updates. Under "
       "simultaneous updates the baseline-corrected low-variance increments make both "
       "players' current policies chase each other within a single trajectory, and "
@@ -52,8 +55,10 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sanit
       "Alternating updates damp the chase and converge fast."
    );
    static_assert(
-      not(config.updater_sampling == UpdaterSamplingMode::fixed_uniform
-          and vr_mode != VarianceReductionMode::history_value),
+      not (
+         config.updater_sampling == UpdaterSamplingMode::fixed_uniform
+         and vr_mode != VarianceReductionMode::history_value
+      ),
       "UpdaterSamplingMode::fixed_uniform (ESCHER's fixed sampling policy) drops ALL "
       "importance-sampling corrections -- both the 1/xi deviation factor of the sampled "
       "branch and the pi_-i/q(h) reach weighting. Dropping them is only sound when the "
@@ -92,7 +97,7 @@ template <
    typename SamplingRule >
 auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(size_t n_iters)
 {
-   std::vector< std::unordered_map< Player, double > > root_values_per_iteration;
+   std::vector< StateValueMap > root_values_per_iteration;
    root_values_per_iteration.reserve(n_iters);
    for([[maybe_unused]] auto _ : std::views::iota(size_t(0), n_iters)) {
       SPDLOG_DEBUG("Iteration number: {}", _iteration());
@@ -102,27 +107,26 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(size_t n
       }
       root_values_per_iteration.emplace_back(std::invoke([&] {
          if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-            return _iterate(player_to_update).first.get().to_hashmap();
+            return std::move(_iterate(player_to_update).first);
          }
          if constexpr(  // clang-format off
-            (config.algorithm == MCCFRAlgorithmMode::chance_sampling)
-            or (
-               config.algorithm == MCCFRAlgorithmMode::pure_cfr
-               and config.update_mode == UpdateMode::simultaneous
-            )  // clang-format on
+             (config.algorithm == MCCFRAlgorithmMode::chance_sampling)
+             or (
+                config.algorithm == MCCFRAlgorithmMode::pure_cfr
+                and config.update_mode == UpdateMode::simultaneous
+             )  // clang-format on
          ) {
-            return _iterate(player_to_update).get().to_hashmap();
+            return std::move(_iterate(player_to_update).get());
          }
          if constexpr(  // clang-format off
-            (config.algorithm == MCCFRAlgorithmMode::external_sampling)
-            or (
-               config.algorithm == MCCFRAlgorithmMode::pure_cfr
-               and config.update_mode == UpdateMode::alternating
-            )  // clang-format on
+             (config.algorithm == MCCFRAlgorithmMode::external_sampling)
+             or (
+                config.algorithm == MCCFRAlgorithmMode::pure_cfr
+                and config.update_mode == UpdateMode::alternating
+             )  // clang-format on
          ) {
-            return std::unordered_map< Player, double >{
-               {*player_to_update, _iterate(*player_to_update).get()}
-            };
+            return StateValueMap{std::unordered_map< Player, double >{
+               {*player_to_update, _iterate(*player_to_update).get()}}};
          }
       }));
       _iteration()++;
@@ -136,7 +140,9 @@ template <
    typename Policy,
    typename AveragePolicy,
    typename SamplingRule >
-auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(std::optional< Player > player_to_update)
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(
+   std::optional< Player > player_to_update
+)
    requires(config.update_mode == UpdateMode::alternating)
 {
    SPDLOG_DEBUG("Iteration number: {}", _iteration());
@@ -173,30 +179,31 @@ template <
    typename Policy,
    typename AveragePolicy,
    typename SamplingRule >
-auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(std::optional< Player > player_to_update)
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(
+   std::optional< Player > player_to_update
+)
 {
    auto players = _env().players(*_root_state_uptr());
    auto init_infostates = [&] {
-      std::unordered_map< Player, sptr< info_state_type > > infostates;
+      InfostateSptrMap infostates{};
       for(auto player : players | utils::is_actual_player_filter) {
          infostates.emplace(player, std::make_shared< info_state_type >(player));
       }
-      return InfostateSptrMap{std::move(infostates)};
+      return infostates;
    };
    auto init_reach_probs = [&] {
-      std::unordered_map< Player, double > rp_map;
+      ReachProbabilityMap rp_map{};
       for(auto player : players) {
-         rp_map.emplace(player, 1.);
+         rp_map.get().emplace(player, 1.);
       }
-      return ReachProbabilityMap{std::move(rp_map)};
+      return rp_map;
    };
    auto init_obs_buffer = [&] {
-      std::unordered_map< Player, std::vector< std::pair< observation_type, observation_type > > >
-         obs_map;
+      ObservationbufferMap obs_map{};
       for(auto player : players | utils::is_actual_player_filter) {
-         obs_map[player];
+         obs_map.emplace(player);
       }
-      return ObservationbufferMap{std::move(obs_map)};
+      return obs_map;
    };
 
    // the traversal containers are created once per iteration here and then
@@ -207,7 +214,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(std::op
    if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
       auto weights = std::invoke([&] {
          if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
-            std::unordered_map< Player, double > w;
+            PlayerValueTable w;
             for(auto player : players | utils::is_actual_player_filter) {
                w.emplace(player, 0.);
             }
@@ -220,8 +227,15 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(std::op
       auto obs_buffer = init_obs_buffer();
       auto infostates = init_infostates();
       return _traverse(
-         player_to_update, root_arena_state, /*depth=*/0, reach_probs, obs_buffer, infostates,
-         Probability{1.}, weights, /*path_hash=*/0ul
+         player_to_update,
+         root_arena_state,
+         /*depth=*/0,
+         reach_probs,
+         obs_buffer,
+         infostates,
+         Probability{1.},
+         weights,
+         /*path_hash=*/0ul
       );
    }
 
@@ -259,7 +273,12 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(std::op
       auto obs_buffer = init_obs_buffer();
       auto infostates = init_infostates();
       auto values = _traverse(
-         player_to_update, root_arena_state, /*depth=*/0, reach_probs, obs_buffer, infostates,
+         player_to_update,
+         root_arena_state,
+         /*depth=*/0,
+         reach_probs,
+         obs_buffer,
+         infostates,
          update_set
       );
       _initiate_regret_minimization(update_set);
@@ -298,10 +317,9 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_initiate_regret
          data.data().extras.sampled_action.reset();
          if(not (  // for alternating pure-cfr we have to check if this
                    // infostate was meant to be updated as well
-                   config.update_mode == UpdateMode::alternating
-                )
-            or update_set.find({infostate_sptr.get(), &data}) != update_set.end()
-         ) {
+               config.update_mode == UpdateMode::alternating
+            )
+            or update_set.find({infostate_sptr.get(), &data}) != update_set.end()) {
             _invoke_regret_minimizer(common::deref(infostate_sptr), data);
          }
       } else {
@@ -321,8 +339,9 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_invoke_regret_m
    infostate_data_type& data
 )
 {
-   auto& current_policy =
-      this->template fetch_policy< PolicyLabel::current >(infostate, data.actions());
+   auto& current_policy = this->template fetch_policy< PolicyLabel::current >(
+      infostate, data.actions()
+   );
    m_regret_minimizer.recommend(data.data(), current_policy, _iteration());
 }
 
@@ -336,8 +355,8 @@ template <
    typename Policy,
    typename AveragePolicy,
    typename SamplingRule >
-std::pair< StateValueMap, Probability > MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::
-_traverse(
+std::pair< StateValueMap, Probability >
+MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
    std::optional< Player > player_to_update,
    world_state_type& state,
    size_t depth,
@@ -374,6 +393,9 @@ _traverse(
          // single-trajectory descent: containers mutate in place; the chance
          // reach entry is restored after the recursive call returns because the
          // post-traversal updates read node-entry values
+         // NOTE: no reference held across the recursion -- deeper frames may
+         // insert keys and shift the compacted table's storage; restored via
+         // operator[] re-lookup below.
          double& chance_reach_entry = reach_probability.get()[Player::chance];
          const double saved_chance_reach = chance_reach_entry;
          chance_reach_entry *= chance_prob;
@@ -381,8 +403,8 @@ _traverse(
          world_state_type& next_state = _arena_state(depth + 1, state);
          _env().transition(next_state, chosen_outcome);
 
-         next_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer.get(), infostates.get(), state, chosen_outcome, next_state
+         next_infostate_and_obs_buffers_seated(
+            _env(), observation_buffer, infostates, state, chosen_outcome, next_state
          );
 
          // the edge identity of a chance move enters the rolling path hash via
@@ -412,7 +434,7 @@ _traverse(
             weights,
             child_path_hash
          );
-         chance_reach_entry = saved_chance_reach;
+         reach_probability.get()[Player::chance] = saved_chance_reach;
          // predictive baseline: value streams pass through non-updating frames unchanged
          if constexpr(vr_predictive_active) {
             _vr_secondary_slot(depth) = _vr_secondary_slot(depth + 1);
@@ -425,7 +447,7 @@ _traverse(
    // every visit: heterogeneous value lookup finds existing entries directly.
    // (The infostate object itself advances along the single trajectory via the
    // inplace observation fold above, exactly like before.)
-   const auto& live_infostate_sptr = infostates.get().at(active_player);
+   const auto& live_infostate_sptr = infostates.at(active_player);
    auto infostate_and_data_iter = m_infonode.find(*live_infostate_sptr);
    bool success = false;
    if(infostate_and_data_iter == m_infonode.end()) {
@@ -460,32 +482,36 @@ _traverse(
    // snapshot the path bookkeeping BEFORE mutating it: the deeper traversal
    // works on the mutated values while the post-traversal updates below need
    // their NODE-ENTRY values back; observation buffers and infostates flow
-   // permanently downward (single linear trajectory)
-   const auto saved_reach_probs = reach_probability.get();
-   [[maybe_unused]] WeightMap saved_weights{{}};
+   // permanently downward (single linear trajectory). Only the acting
+   // player's entries are mutated below, so scalar save/restore suffices
+   // (formerly full-table copies).
+   // NOTE: no reference is held across the recursion -- deeper frames may
+   // insert new keys into the compacted table (storage shifts); the entry is
+   // re-resolved via operator[] after the recursive call returns.
+   double& actor_reach_entry = reach_probability.get()[active_player];
+   const double saved_actor_reach = actor_reach_entry;
+   [[maybe_unused]] double saved_actor_weight = 0.;
    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
-      saved_weights.get() = weights.get();
+      saved_actor_weight = weights.get()[active_player];
    }
 
    // scale the acting player's reach entry / lazy weight in place
-   double& actor_reach_entry = reach_probability.get()[active_player];
    actor_reach_entry *= action_policy_prob;
 
    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
       auto& active_weight = weights.get()[active_player];
       active_weight = active_weight * action_policy_prob
                       + infonode_data.data()
-                           .extras.pending_avg_accumulator[infonode_data.data().index_of(
-                              sampled_action
-                           )];
+                           .extras
+                           .pending_avg_accumulator[infonode_data.data().index_of(sampled_action)];
    }
 
    // advance along the single trajectory via the arena slot of the next depth
    world_state_type& next_state = _arena_state(depth + 1, state);
    _env().transition(next_state, sampled_action);
 
-   next_infostate_and_obs_buffers_inplace(
-      _env(), observation_buffer.get(), infostates.get(), state, sampled_action, next_state
+   next_infostate_and_obs_buffers_seated(
+      _env(), observation_buffer, infostates, state, sampled_action, next_state
    );
 
    // rolling world-state-edge identity for the ESCHER history-value store: the
@@ -508,9 +534,9 @@ _traverse(
       weights,
       child_path_hash
    );
-   reach_probability.get() = std::move(saved_reach_probs);
+   reach_probability.get()[active_player] = saved_actor_reach;
    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
-      weights.get() = std::move(saved_weights.get());
+      weights.get()[active_player] = saved_actor_weight;
    }
 
    // ---- VR-MCCFR quantities (Schmid et al., AAAI 2019, eqs (7)-(11)) and ----
@@ -520,7 +546,7 @@ _traverse(
    // exactly the nodes where this implementation materializes the updater's
    // own value stream.
    [[maybe_unused]] double vr_sampled_value = 0.;  // eq (9) sampled branch
-   [[maybe_unused]] double vr_cf_weight = 0.;      // eq (11) factor pi_-i(h)/q(h)
+   [[maybe_unused]] double vr_cf_weight = 0.;  // eq (11) factor pi_-i(h)/q(h)
    [[maybe_unused]] bool vr_active = false;
    [[maybe_unused]] size_t vr_sampled_idx = 0;
    [[maybe_unused]] double vr_sampled_baseline_snapshot = 0.;
@@ -551,8 +577,8 @@ _traverse(
          m_vr_history_store.edge_values[key] = target;
       } else {
          // mode none: no baseline storage exists; never invoked
-         (void)s_idx;
-         (void)target;
+         (void) s_idx;
+         (void) target;
       }
    };
    if constexpr(vr_mode != VarianceReductionMode::none) {
@@ -566,8 +592,7 @@ _traverse(
          // sampling rule is iteration-invariant, so no unbiasedness factor is
          // needed; visit frequencies supply Theorem 1's positive w(s) scaling).
          // The static config check guarantees eschew_is => history_value mode.
-         const bool eschew_is =
-            config.updater_sampling == UpdaterSamplingMode::fixed_uniform;
+         const bool eschew_is = config.updater_sampling == UpdaterSamplingMode::fixed_uniform;
          const double deviation_factor = eschew_is ? 1. : 1. / action_sampling_prob;
 
          vr_sampled_baseline_snapshot = vr_baseline_at(vr_sampled_idx);
@@ -578,15 +603,14 @@ _traverse(
          // cancels between the sampled branch and the off-trajectory branch
          // (both enter with weight ξ·(1/ξ) resp. (1-ξ) against the same
          // baseline).
-         vr_sampled_value =
-            vr_sampled_baseline_snapshot
-            + (stream - vr_sampled_baseline_snapshot) * deviation_factor;
+         vr_sampled_value = vr_sampled_baseline_snapshot
+                            + (stream - vr_sampled_baseline_snapshot) * deviation_factor;
          // eq (10): propagate the σ_t-weighted mixture of the sampled-branch
          // value and the off-trajectory baselines up to the parent infoset
          // (bootstrapped propagation; chance nodes pass values unchanged)
          double off_trajectory_mass = 0.;
          for(auto idx : std::views::iota(size_t{0}, actions.size())) {
-            if(!(actions[idx] == sampled_action)) {
+            if(! (actions[idx] == sampled_action)) {
                off_trajectory_mass += action_policy[actions[idx]] * vr_baseline_at(idx);
             }
          }
@@ -594,10 +618,9 @@ _traverse(
          // eq (11) prefactor: counterfactual reach over prefix sampling
          // probability q(h) (everything sampled above this infoset). ESCHER
          // fixed-policy sampling omits it entirely.
-         vr_cf_weight =
-            eschew_is ? 1.
-                      : cf_reach_probability(active_player, reach_probability.get())
-                              / sample_probability.get();
+         vr_cf_weight = eschew_is ? 1.
+                                  : cf_reach_probability(active_player, reach_probability.get())
+                                       / sample_probability.get();
          // NOTE: the baselines are intentionally not mutated here -- the regret
          // update below must read the same baseline snapshot that produced
          // vr_sampled_value (paper order: values -> regrets -> regression).
@@ -646,14 +669,21 @@ _traverse(
             // paper step (d): regret accumulation against the untouched
             // baseline snapshot
             _vr_accumulate_regrets(
-               infonode_data, actions, action_policy, vr_sampled_idx, vr_cf_weight,
-               vr_sampled_value, vr_baseline_at
+               infonode_data,
+               actions,
+               action_policy,
+               vr_sampled_idx,
+               vr_cf_weight,
+               vr_sampled_value,
+               vr_baseline_at
             );
             if constexpr(config.baseline_update_rule == BaselineUpdateRule::running_mean) {
                // paper step (e): running-mean regression of the sampled edge's
                // baseline onto its corrected estimate
                _vr_regress_running_mean(
-                  vr_sampled_idx, vr_sampled_baseline_snapshot, vr_sampled_value,
+                  vr_sampled_idx,
+                  vr_sampled_baseline_snapshot,
+                  vr_sampled_value,
                   vr_regress_sampled_edge
                );
             } else {
@@ -665,31 +695,28 @@ _traverse(
                // updater-infoset has been processed as well).
                std::decay_t< decltype(action_policy) > next_policy{};
                m_regret_minimizer.recommend(infonode_data.data(), next_policy, _iteration());
-               const bool eschew_is =
-                  config.updater_sampling == UpdaterSamplingMode::fixed_uniform;
+               const bool eschew_is = config.updater_sampling == UpdaterSamplingMode::fixed_uniform;
                const double deviation_factor = eschew_is ? 1. : 1. / action_sampling_prob;
                // S2: the sigma^{t+1}-weighted continuation value of the sampled
                // edge (raw terminal reward at the deepest updater infoset)
                const double secondary_in = _vr_secondary_slot(depth + 1);
                const double snapshot = vr_sampled_baseline_snapshot;
-               const double s2_corrected =
-                  snapshot + (secondary_in - snapshot) * deviation_factor;
+               const double s2_corrected = snapshot + (secondary_in - snapshot) * deviation_factor;
                double off_trajectory_mass_next = 0.;
                for(auto idx : std::views::iota(size_t{0}, actions.size())) {
-                  if(!(actions[idx] == sampled_action)) {
-                     off_trajectory_mass_next +=
-                        next_policy[actions[idx]] * vr_baseline_at(idx);
+                  if(! (actions[idx] == sampled_action)) {
+                     off_trajectory_mass_next += next_policy[actions[idx]] * vr_baseline_at(idx);
                   }
                }
                // outgoing second stream: node value under sigma^{t+1}
                // (= eq (8)'s ub(h | sigma^{t+1}, z) consumed by the parent)
-               const double second_stream =
-                  next_policy[sampled_action] * s2_corrected + off_trajectory_mass_next;
+               const double second_stream = next_policy[sampled_action] * s2_corrected
+                                            + off_trajectory_mass_next;
                // eq (8), beta-damped: b <- b + beta*(S2 - b); beta = 1 recovers
                // the paper's direct replacement
-               const double predictive_target =
-                  snapshot
-                  + config.baseline_update_rate * (secondary_in - snapshot);
+               const double predictive_target = snapshot
+                                                + config.baseline_update_rate
+                                                     * (secondary_in - snapshot);
                vr_regress_sampled_edge(vr_sampled_idx, predictive_target);
                _vr_secondary_slot(depth) = second_stream;
             }
@@ -766,10 +793,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_terminal_value(
       if constexpr(config.update_mode == UpdateMode::alternating) {
          return std::pair{
             StateValueMap{std::unordered_map< Player, double >{
-               {player_to_update.value(), _env().reward(player_to_update.value(), state)}
-            }},
-            Probability{1.}
-         };
+               {player_to_update.value(), _env().reward(player_to_update.value(), state)}}},
+            Probability{1.}};
       } else if constexpr(config.update_mode == UpdateMode::simultaneous) {
          return std::pair{StateValueMap{collect_rewards(_env(), state)}, Probability{1.}};
       } else {
@@ -781,21 +806,18 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_terminal_value(
       return std::pair{
          StateValueMap{std::unordered_map< Player, double >{
             {player_to_update.value(),
-             _env().reward(player_to_update.value(), state) / sample_probability.get()}
-         }},
-         Probability{1.}
-      };
+             _env().reward(player_to_update.value(), state) / sample_probability.get()}}},
+         Probability{1.}};
    } else if constexpr(config.update_mode == UpdateMode::simultaneous) {
       return std::pair{
          StateValueMap{[&] {
             auto rewards_map = collect_rewards(_env(), state);
-            for(auto& [player, reward] : rewards_map) {
+            for(double& reward : rewards_map.values()) {
                reward /= sample_probability.get();
             }
             return rewards_map;
          }()},
-         Probability{1.}
-      };
+         Probability{1.}};
    } else {
       static_assert(
          common::always_false_v< Env >, "Update Mode not one of alternating or simultaneous"
@@ -836,8 +858,7 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_vr_accumulate_r
    }
    node_value *= cf_weight;
    for(auto idx : std::views::iota(size_t{0}, actions.size())) {
-      infostate_data.regret(actions[idx]) +=
-         cf_weight * action_value_of(idx) - node_value;
+      infostate_data.regret(actions[idx]) += cf_weight * action_value_of(idx) - node_value;
    }
 }
 
@@ -848,7 +869,10 @@ template <
    typename AveragePolicy,
    typename SamplingRule >
 void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_vr_regress_running_mean(
-   size_t sampled_idx, double snapshot, double target, auto&& regress_sampled_edge
+   size_t sampled_idx,
+   double snapshot,
+   double target,
+   auto&& regress_sampled_edge
 ) const
    requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
 {
@@ -856,9 +880,7 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_vr_regress_runn
    // baseline-corrected estimate b̂ <- b̂ + β(v̂ - b̂). The write goes through
    // the caller-provided sink so both the per-infostate table and the ESCHER
    // history-value store share this rule.
-   regress_sampled_edge(
-      sampled_idx, snapshot + config.baseline_update_rate * (target - snapshot)
-   );
+   regress_sampled_edge(sampled_idx, snapshot + config.baseline_update_rate * (target - snapshot));
 }
 
 template <
@@ -967,7 +989,9 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action_o
    auto& action_policy
 )
 {
-   return common::choose(actions, [&](const auto& act) { return action_policy[act]; }, m_rng);
+   return common::choose(
+      actions, [&](const auto& act) { return action_policy[act]; }, m_rng
+   );
 }
 
 template <
@@ -1014,8 +1038,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action(
          return std::tuple{
             chosen_action,
             m_epsilon * uniform_prob + (1 - m_epsilon) * action_policy[chosen_action],
-            action_policy[chosen_action]
-         };
+            action_policy[chosen_action]};
       } else {
          // if we don't explore, then we simply sample according to the policy.
          // BUT: Since in theory we have done epsilon-on-policy exploration, yet merely in two
@@ -1025,8 +1048,7 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action(
          return std::tuple{
             std::move(chosen_action),
             m_epsilon * uniform_prob + (1 - m_epsilon) * action_prob,
-            action_prob
-         };
+            action_prob};
       }
    };
 
@@ -1043,8 +1065,9 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action(
          // updating player's infosets (every actual player's under simultaneous
          // updates); opponent infosets stay on-policy over the CURRENT strategy.
          if(_epsilon_mixed_sampling_active(player_to_update, active_player)) {
-            auto& average_action_policy =
-               this->template fetch_policy< PolicyLabel::average >(infostate, actions);
+            auto& average_action_policy = this->template fetch_policy< PolicyLabel::average >(
+               infostate, actions
+            );
             const auto [chosen_action, sample_prob] = m_sampling_rule(
                m_rng,
                actions,
@@ -1061,33 +1084,34 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_action(
          // injected EpsilonOnPolicySamplingRule draw-for-draw identical to the
          // built-in epsilon_on_policy exploration.
          if(_epsilon_mixed_sampling_active(player_to_update, active_player)) {
-            const auto [chosen_action, sample_prob] =
-               m_sampling_rule(m_rng, actions, [&](const action_type& act) { return action_policy[act]; });
+            const auto [chosen_action, sample_prob] = m_sampling_rule(
+               m_rng, actions, [&](const action_type& act) { return action_policy[act]; }
+            );
             return std::tuple{chosen_action, sample_prob, action_policy[chosen_action]};
          }
          return on_policy_sampling();
       }
    }
 
-    // ESCHER (McAleer et al., ICLR 2023, sec. 3): the UPDATING player samples
-    // from a FIXED uniform distribution over legal actions -- iteration-
-    // invariant by construction, which is what lets the VR machinery drop all
-    // importance corrections. Opponents keep sampling on-policy from their
-    // current strategy. The returned policy probability remains the current
-    // strategy's so reach tracking / average-policy updates are unaffected;
-    // the sampling probability (uniform) is only consumed by the importance
-    // corrections that fixed_uniform mode disables.
-    if constexpr(config.updater_sampling == UpdaterSamplingMode::fixed_uniform) {
-       if(player_to_update.has_value() and active_player == *player_to_update) {
-          const auto& chosen_action = common::choose(actions, m_rng);
-          const double uniform_prob = 1. / static_cast< double >(actions.size());
-          return std::tuple{chosen_action, uniform_prob, action_policy[chosen_action]};
-       }
-    }
+   // ESCHER (McAleer et al., ICLR 2023, sec. 3): the UPDATING player samples
+   // from a FIXED uniform distribution over legal actions -- iteration-
+   // invariant by construction, which is what lets the VR machinery drop all
+   // importance corrections. Opponents keep sampling on-policy from their
+   // current strategy. The returned policy probability remains the current
+   // strategy's so reach tracking / average-policy updates are unaffected;
+   // the sampling probability (uniform) is only consumed by the importance
+   // corrections that fixed_uniform mode disables.
+   if constexpr(config.updater_sampling == UpdaterSamplingMode::fixed_uniform) {
+      if(player_to_update.has_value() and active_player == *player_to_update) {
+         const auto& chosen_action = common::choose(actions, m_rng);
+         const double uniform_prob = 1. / static_cast< double >(actions.size());
+         return std::tuple{chosen_action, uniform_prob, action_policy[chosen_action]};
+      }
+   }
 
-    // here we now decide what sampling procedure is exactly executed. It depends on the MCCFR
-    // config given and then on the specific algorithm's sampling scheme
-    if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
+   // here we now decide what sampling procedure is exactly executed. It depends on the MCCFR
+   // config given and then on the specific algorithm's sampling scheme
+   if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
       if(_epsilon_mixed_sampling_active(player_to_update, active_player)) {
          // if we do simultaneous updates we need to explore for each player that we update!
          return epsilon_on_policy_sampling();
@@ -1107,7 +1131,9 @@ template <
    typename AveragePolicy,
    typename SamplingRule >
 template < bool return_likelihood >
-auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_outcome(const world_state_type& state)
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_outcome(
+   const world_state_type& state
+)
 {
    auto chance_actions = _env().chance_actions(state);
    auto chance_probabilities = std::ranges::to< std::unordered_map< chance_outcome_type, double > >(
@@ -1208,20 +1234,25 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          world_state_type& next_state = _arena_state(depth + 1, state);
          _env().transition(next_state, chosen_outcome);
 
-         next_infostate_and_obs_buffers_inplace(
-            _env(), observation_buffer.get(), infostates.get(), state, chosen_outcome, next_state
+         next_infostate_and_obs_buffers_seated(
+            _env(), observation_buffer, infostates, state, chosen_outcome, next_state
          );
 
          // single sampled outcome: buffers/infostates flow permanently downward
          return _traverse(
-            player_to_update, next_state, depth + 1, observation_buffer, infostates, infostates_to_update
+            player_to_update,
+            next_state,
+            depth + 1,
+            observation_buffer,
+            infostates,
+            infostates_to_update
          );
       }
    }
 
    // fetch (or create) this infostate's node without cloning the infostate on
    // every visit: heterogeneous value lookup finds existing entries directly
-   const auto& live_infostate_sptr = infostates.get().at(active_player);
+   const auto& live_infostate_sptr = infostates.at(active_player);
    auto infostate_and_data_iter = m_infonode.find(*live_infostate_sptr);
    bool success = false;
    if(infostate_and_data_iter == m_infonode.end()) {
@@ -1250,29 +1281,49 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
       world_state_type& next_state = _arena_state(depth + 1, state);
       _env().transition(next_state, action);
 
-      // fold this edge's observations into the live containers exactly like the
-      // inplace helper would -- and restore everything after the recursion so
-      // sibling edges start from identical pre-edge container states.
-      auto& obs_buffer = observation_buffer.get();
+      // fold this edge's observations into the live seat-indexed containers
+      // exactly like the inplace helper would -- and restore everything after
+      // the recursion so sibling edges start from identical pre-edge container
+      // states.
+      auto& obs_table = observation_buffer;
       const auto public_obs = _env().public_observation(state, action, next_state);
       const Player next_active_player = _env().active_player(next_state);
-      const bool flushes =
-         next_active_player != Player::chance and infostates.get().contains(next_active_player);
-      std::optional< std::vector< std::pair< observation_type, observation_type > > >
-         saved_flush_target_buffer{};
+      // null pointer stands in for the former contains()==false
+      const auto infostate_slot = next_active_player == Player::chance
+                                     ? nullptr
+                                     : infostates.find(next_active_player);
+      const bool flushes = infostate_slot != nullptr;
       sptr< info_state_type > saved_flush_target{};
       sptr< info_state_type > child_infostate{};
       if(flushes) {
          // advance a CLONE of the next-active player's infostate so the live
-         // entry can be restored verbatim after the recursion
-         saved_flush_target = infostates.get().at(next_active_player);
+         // entry can be restored verbatim after the recursion; the flush
+         // target's buffer is SWAPPED into this frame's reusable scratch slot
+         // instead of being heap-copied
+         saved_flush_target = *infostate_slot;
          child_infostate = std::make_shared< info_state_type >(*saved_flush_target);
-         saved_flush_target_buffer = obs_buffer.at(next_active_player);
+         auto& obs_scratch = this->_obs_scratch_slot(depth);
+         // drop dead residue a previous sibling edge left in the scratch slot
+         // so that the flush target's live buffer is EMPTY during the recursion
+         // below (the swap keeps capacities on both sides)
+         obs_scratch.clear();
+         obs_scratch.swap(obs_table[next_active_player]);
       }
-      std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
-      for(const auto& [player, buffer] : obs_buffer) {
-         if(not flushes or player != next_active_player) {
-            saved_buffer_sizes.emplace_back(player, buffer.size());
+      // fixed-size STACK bookkeeping bounded by max_player_seats: sizes of
+      // exactly the buffers this edge appends to (replaces the former heap
+      // vector<pair<Player,size_t>>)
+      std::array< size_t, max_player_seats > saved_buffer_sizes{};
+      std::array< size_t, max_player_seats > saved_seats{};
+      size_t saved_size_count = 0;
+      for(auto player : _env().players(next_state)) {
+         if(player == Player::chance) {
+            continue;
+         }
+         if(not (flushes and player == next_active_player)) {
+            const auto seat_idx = static_cast< size_t >(player);
+            saved_seats[saved_size_count] = seat_idx;
+            saved_buffer_sizes[seat_idx] = obs_table[player].size();
+            ++saved_size_count;
          }
       }
       for(auto player : _env().players(next_state)) {
@@ -1280,27 +1331,31 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
             continue;
          }
          if(flushes and player == next_active_player) {
-            auto& obs_history = obs_buffer[player];
-            for(auto& obs : obs_history) {
-               ::nor::detail::update_infostate(
-                  child_infostate, std::move(obs.first), std::move(obs.second)
-               );
+            // drain the pre-edge history (held by the scratch slot after the
+            // swap) into the clone and clear the scratch for reuse; the live
+            // buffer stays empty during the recursion below
+            auto& scratch_history = this->_obs_scratch_slot(depth);
+            // NOTE: the scratch slot now OWNS the pre-edge buffer contents
+            // (acquired via the swap above); they are the restoration source
+            // for sibling edges. Drain them by COPY -- moving out or clearing
+            // here would destroy the saved state.
+            for(auto& obs : scratch_history) {
+               ::nor::detail::update_infostate(child_infostate, obs.first, obs.second);
             }
-            obs_history.clear();
             ::nor::detail::update_infostate(
                child_infostate,
                public_obs,
                _env().private_observation(player, state, action, next_state)
             );
          } else {
-            obs_buffer[player].emplace_back(
+            obs_table[player].emplace_back(
                public_obs, _env().private_observation(player, state, action, next_state)
             );
          }
       }
 
       if(flushes) {
-         infostates.get().at(next_active_player) = std::move(child_infostate);
+         *infostate_slot = std::move(child_infostate);
       }
 
       double value = _traverse(
@@ -1314,11 +1369,12 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
                         .get();
 
       if(flushes) {
-         infostates.get().at(next_active_player) = std::move(saved_flush_target);
-         obs_buffer.at(next_active_player) = std::move(*saved_flush_target_buffer);
+         *infostate_slot = std::move(saved_flush_target);
+         this->_obs_scratch_slot(depth).swap(obs_table[next_active_player]);
       }
-      for(const auto& [player, size] : saved_buffer_sizes) {
-         obs_buffer.at(player).resize(size);
+      for(auto idx : std::views::iota(size_t{0}, saved_size_count)) {
+         const auto seat_idx = saved_seats[idx];
+         obs_table[static_cast< Player >(seat_idx)].resize(saved_buffer_sizes[seat_idx]);
       }
       return value;
    };
@@ -1453,26 +1509,26 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
    if constexpr(concepts::stochastic_env< env_type >) {
       if(active_player == Player::chance) {
          auto [chosen_outcome, _] = _sample_outcome(curr_worldstate);
-world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
-          _env().transition(next_state, chosen_outcome);
+         world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
+         _env().transition(next_state, chosen_outcome);
 
-          next_infostate_and_obs_buffers_inplace(
-             _env(), observation_buffer.get(), infostates.get(), curr_worldstate, chosen_outcome, next_state
-          );
+         next_infostate_and_obs_buffers_seated(
+            _env(), observation_buffer, infostates, curr_worldstate, chosen_outcome, next_state
+         );
 
-          // single sampled outcome: containers flow permanently downward
-          return _traverse(
-             player_to_update,
-             next_state,
-             depth + 1,
-             reach_probability,
-             observation_buffer,
-             infostates,
-             infostates_to_update
-          );
+         // single sampled outcome: containers flow permanently downward
+         return _traverse(
+            player_to_update,
+            next_state,
+            depth + 1,
+            reach_probability,
+            observation_buffer,
+            infostates,
+            infostates_to_update
+         );
       }
    }
-   const auto& live_infostate_sptr = infostates.get().at(active_player);
+   const auto& live_infostate_sptr = infostates.at(active_player);
    auto infostate_and_data_iter = m_infonode.find(*live_infostate_sptr);
    bool success = false;
    if(infostate_and_data_iter == m_infonode.end()) {
@@ -1490,39 +1546,56 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
       infonode_data.emplace(_env().actions(active_player, curr_worldstate));
    }
    const auto& actions = infonode_data.actions();
-   auto& curr_action_policy = this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
-   auto& avg_action_policy = this->template fetch_policy< PolicyLabel::average >(*infostate, actions);
+   auto& curr_action_policy = this->template fetch_policy< PolicyLabel::current >(
+      *infostate, actions
+   );
+   auto& avg_action_policy = this->template fetch_policy< PolicyLabel::average >(
+      *infostate, actions
+   );
 
    for(const action_type& action : actions) {
       auto action_prob = curr_action_policy[action];
 
-      auto child_reach_prob = reach_probability.get();
-      child_reach_prob[active_player] *= action_prob;
-
       // advance the arena slot of the next depth: in-place reconstruction + transition
       world_state_type& next_wstate = _arena_state(depth + 1, curr_worldstate);
       _env().transition(next_wstate, action);
-      // fold this edge's observations into the live containers exactly like the
-      // inplace helper would -- restoring everything after the recursion so
-      // sibling edges start from identical pre-edge container states.
-      auto& obs_buffer = observation_buffer.get();
+      // fold this edge's observations into the live seat-indexed containers
+      // exactly like the inplace helper would -- restoring everything after the
+      // recursion so sibling edges start from identical pre-edge container states.
+      auto& obs_table = observation_buffer;
       const auto public_obs = _env().public_observation(curr_worldstate, action, next_wstate);
       const Player next_active_player = _env().active_player(next_wstate);
-      const bool flushes =
-         next_active_player != Player::chance and infostates.get().contains(next_active_player);
+      // null pointer stands in for the former contains()==false
+      const auto infostate_slot = next_active_player == Player::chance
+                                     ? nullptr
+                                     : infostates.find(next_active_player);
+      const bool flushes = infostate_slot != nullptr;
       sptr< info_state_type > saved_flush_target{};
       sptr< info_state_type > child_infostate{};
-      std::optional< std::vector< std::pair< observation_type, observation_type > > >
-         saved_flush_target_buffer{};
       if(flushes) {
-         saved_flush_target = infostates.get().at(next_active_player);
+         saved_flush_target = *infostate_slot;
          child_infostate = std::make_shared< info_state_type >(*saved_flush_target);
-         saved_flush_target_buffer = obs_buffer.at(next_active_player);
+         // flush target's buffer swapped into this frame's reusable scratch slot
+         auto& obs_scratch = this->_obs_scratch_slot(depth);
+         // drop dead residue a previous sibling edge left in the scratch slot
+         // (see the chance_sampling traversal for the full rationale)
+         obs_scratch.clear();
+         obs_scratch.swap(obs_table[next_active_player]);
       }
-      std::vector< std::pair< Player, size_t > > saved_buffer_sizes;
-      for(const auto& [player, buffer] : obs_buffer) {
-         if(not flushes or player != next_active_player) {
-            saved_buffer_sizes.emplace_back(player, buffer.size());
+      // fixed-size STACK bookkeeping bounded by max_player_seats (replaces the
+      // former heap vector<pair<Player,size_t>>)
+      std::array< size_t, max_player_seats > saved_buffer_sizes{};
+      std::array< size_t, max_player_seats > saved_seats{};
+      size_t saved_size_count = 0;
+      for(auto player : _env().players(next_wstate)) {
+         if(player == Player::chance) {
+            continue;
+         }
+         if(not (flushes and player == next_active_player)) {
+            const auto seat_idx = static_cast< size_t >(player);
+            saved_seats[saved_size_count] = seat_idx;
+            saved_buffer_sizes[seat_idx] = obs_table[player].size();
+            ++saved_size_count;
          }
       }
       for(auto player : _env().players(next_wstate)) {
@@ -1530,27 +1603,31 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
             continue;
          }
          if(flushes and player == next_active_player) {
-            auto& obs_history = obs_buffer[player];
-            for(auto& obs : obs_history) {
-               ::nor::detail::update_infostate(child_infostate, std::move(obs.first), std::move(obs.second));
+            auto& scratch_history = this->_obs_scratch_slot(depth);
+            // NOTE: the scratch slot now OWNS the pre-edge buffer contents
+            // (acquired via the swap above); they are the restoration source
+            // for sibling edges. Drain them by COPY -- moving out or clearing
+            // here would destroy the saved state.
+            for(auto& obs : scratch_history) {
+               ::nor::detail::update_infostate(child_infostate, obs.first, obs.second);
             }
-            obs_history.clear();
             ::nor::detail::update_infostate(
                child_infostate,
                public_obs,
                _env().private_observation(player, curr_worldstate, action, next_wstate)
             );
          } else {
-            obs_buffer[player].emplace_back(
+            obs_table[player].emplace_back(
                public_obs, _env().private_observation(player, curr_worldstate, action, next_wstate)
             );
          }
       }
       if(flushes) {
-         infostates.get().at(next_active_player) = std::move(child_infostate);
+         *infostate_slot = std::move(child_infostate);
       }
 
-      // scale the acting player's reach entry in place (restored post-recursion)
+      // scale the acting player's reach entry in place (restored post-recursion
+      // via operator[] re-lookup -- deeper inserts may shift the table storage)
       double& actor_reach_entry = reach_probability.get()[active_player];
       const double saved_actor_reach = actor_reach_entry;
       actor_reach_entry *= action_prob;
@@ -1566,13 +1643,14 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
       );
 
       if(flushes) {
-         infostates.get().at(next_active_player) = std::move(saved_flush_target);
-         obs_buffer.at(next_active_player) = std::move(*saved_flush_target_buffer);
+         *infostate_slot = std::move(saved_flush_target);
+         this->_obs_scratch_slot(depth).swap(obs_table[next_active_player]);
       }
-      for(const auto& [player, size] : saved_buffer_sizes) {
-         obs_buffer.at(player).resize(size);
+      for(auto idx : std::views::iota(size_t{0}, saved_size_count)) {
+         const auto seat_idx = saved_seats[idx];
+         obs_table[static_cast< Player >(seat_idx)].resize(saved_buffer_sizes[seat_idx]);
       }
-      actor_reach_entry = saved_actor_reach;
+      reach_probability.get()[active_player] = saved_actor_reach;
 
       if constexpr(config.algorithm == MCCFRAlgorithmMode::chance_sampling) {
          // add the child state's value to the respective player's value table, multiplied by the
