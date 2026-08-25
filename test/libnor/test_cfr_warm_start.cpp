@@ -401,7 +401,7 @@ TEST(KuhnPoker, WARM_START_off_is_deterministic_across_runs)
    ASSERT_EQ(run.size(), run_again.size());
    for(auto [iter_values_a, iter_values_b] : std::views::zip(run, run_again)) {
       for(auto p : {Player::alex, Player::bob}) {
-         ASSERT_EQ(iter_values_a.at(p), iter_values_b.at(p));
+         ASSERT_EQ(iter_values_a.get().at(p), iter_values_b.get().at(p));
       }
    }
 }
@@ -442,7 +442,7 @@ TEST(RockPaperScissors, WARM_START_off_matches_legacy_config_spelling)
    ASSERT_EQ(legacy_trajectory.size(), explicit_zero_trajectory.size());
    for(auto [a, b] : std::views::zip(legacy_trajectory, explicit_zero_trajectory)) {
       for(auto p : {Player::alex, Player::bob}) {
-         ASSERT_EQ(a.at(p), b.at(p));
+         ASSERT_EQ(a.get().at(p), b.get().at(p));
       }
    }
 }
