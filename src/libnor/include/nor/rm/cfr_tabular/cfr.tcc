@@ -90,6 +90,11 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       }
       return istates;
    });
+   // per-depth reusable slots of the insertion-ordered action -> child-values
+   // accumulator consumed by update_regret_and_policy: grown on demand by the
+   // traversal and cleared between successive visitors of a depth -- the same
+   // reuse discipline as the obs buffers above.
+   ActionValueArena< action_variant_type > action_value_arena{};
 
    // copy-assign the root state into arena slot 0 (reused across iterations)
    world_state_type& root_arena_state = _arena_state(0, *_root_state_uptr());
@@ -100,7 +105,8 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate(
       /*depth=*/0,
       rp_map,
       obs_map,
-      infostates
+      infostates,
+      action_value_arena
    );
 
    if constexpr(use_current_policy) {
@@ -216,7 +222,8 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    size_t depth,
    ReachProbabilityMap& reach_probability,
    ObservationbufferMap& observation_buffer,
-   InfostateSptrMap& infostates
+   InfostateSptrMap& infostates,
+   ActionValueArena< action_variant_type >& action_value_arena
 )
 {
     if(_env().is_terminal(state)) {
@@ -249,7 +256,15 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
    // the state's value for each player. To be filled by the action traversal functions.
    StateValueMap state_value{};
    // each action's value for each player. To be filled by the action traversal functions.
-   std::unordered_map< action_variant_type, StateValueMap > action_value;
+   // REUSED STORAGE: this depth's arena slot replaces the former fresh
+   // unordered_map per visit. DFS never interleaves same-depth frames, so
+   // clearing on entry/exit keeps successive visitors of a depth isolated
+   // without any content save/restore.
+   if(action_value_arena.size() <= depth) {
+      action_value_arena.resize(depth + 1);
+   }
+   auto& action_value = action_value_arena[depth];
+   action_value.clear();
    // traverse all child states from this state. The constexpr check for determinism in the env
    // allows deterministic envs to not provide certain functions that are only needed in the
    // stochastic case.
@@ -264,10 +279,12 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
             observation_buffer,
             infostates,
             state_value,
-            action_value
+            action_value,
+            action_value_arena
          );
          // if this is a chance node then we don't need to update any regret or average policy
-         // after the traversal
+         // after the traversal; release the slot for the next visitor of this depth
+         action_value.clear();
          return state_value;
       }
    }
@@ -283,7 +300,8 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
       observation_buffer,
       infostates,
       state_value,
-      action_value
+      action_value,
+      action_value_arena
    );
 
    if constexpr(use_current_policy) {
@@ -302,6 +320,9 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
          update_regret_and_policy(*this_infostate, reach_probability, state_value, action_value);
       }
    }
+   // release the slot for the next visitor of this depth (the child value maps
+   // were consumed above; clearing keeps the slot's heap capacity for reuse)
+   action_value.clear();
    return StateValueMap{std::move(state_value)};
 }
 
@@ -316,7 +337,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    ObservationbufferMap& observation_buffer,
    InfostateSptrMap& infostates,
    StateValueMap& state_value,
-   std::unordered_map< action_variant_type, StateValueMap >& action_value
+   ActionValueTable< action_variant_type >& action_value,
+   ActionValueArena< action_variant_type >& action_value_arena
 )
 {
    const auto& this_infostate = infostates.get().at(active_player);
@@ -461,7 +483,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          depth + 1,
          reach_probability,
          observation_buffer,
-         infostates
+         infostates,
+         action_value_arena
       );
 
       // ---- restore everything the recursion mutated -------------------------
@@ -479,7 +502,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       for(auto [player, child_value] : child_rewards_map.get()) {
          state_value.get()[player] += action_prob * child_value;
       }
-      action_value.emplace(action, std::move(child_rewards_map));
+      detail::emplace_action_value(action_value, action, std::move(child_rewards_map));
    }
 
    if constexpr(
@@ -507,7 +530,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
    ObservationbufferMap& observation_buffer,
    InfostateSptrMap& infostates,
    StateValueMap& state_value,
-   std::unordered_map< action_variant_type, StateValueMap >& action_value
+   ActionValueTable< action_variant_type >& action_value,
+   ActionValueArena< action_variant_type >& action_value_arena
 )
 {
    for(auto&& outcome : _env().chance_actions(state)) {
@@ -590,7 +614,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
          depth + 1,
          reach_probability,
          observation_buffer,
-         infostates
+         infostates,
+         action_value_arena
       );
 
       if(flushes) {
@@ -611,7 +636,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
       for(auto [player, child_value] : child_rewards_map.get()) {
          state_value.get()[player] += outcome_prob * child_value;
       }
-      action_value.emplace(std::move(outcome), std::move(child_rewards_map));
+      detail::emplace_action_value(action_value, std::move(outcome), std::move(child_rewards_map));
    }
 }
 
@@ -620,7 +645,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    const info_state_type& infostate,
    const ReachProbabilityMap& reach_probability,
    const StateValueMap& state_value,
-   const std::unordered_map< action_variant_type, StateValueMap >& action_value_map
+   const ActionValueTable< action_variant_type >& action_value_map
 )
 {
    auto& istate_data = _infonode(infostate);

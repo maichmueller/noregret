@@ -19,6 +19,7 @@
 #include "nor/at_runtime.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/rm/action_value_table.hpp"
 #include "nor/rm/forest.hpp"
 #include "nor/rm/minimizers/minimizers.hpp"
 #include "nor/rm/node.hpp"
@@ -238,7 +239,7 @@ class VanillaCFR:
       const info_state_type& infostate,
       const ReachProbabilityMap& reach_probability,
       const StateValueMap& state_value,
-      const std::unordered_map< action_variant_type, StateValueMap >& action_value_map
+      const ActionValueTable< action_variant_type >& action_value_map
    );
 
   private:
@@ -337,7 +338,8 @@ class VanillaCFR:
       size_t depth,
       ReachProbabilityMap& reach_probability,
       ObservationbufferMap& observation_buffer,
-      InfostateSptrMap& infostates
+      InfostateSptrMap& infostates,
+      ActionValueArena< action_variant_type >& action_value_arena
    );
 
    template < bool initialize_infonodes, bool use_current_policy = true >
@@ -350,7 +352,8 @@ class VanillaCFR:
       ObservationbufferMap& observation_buffer,
       InfostateSptrMap& infostates,
       StateValueMap& state_value,
-      std::unordered_map< action_variant_type, StateValueMap >& action_value
+      ActionValueTable< action_variant_type >& action_value,
+      ActionValueArena< action_variant_type >& action_value_arena
    );
 
    template < bool initialize_infonodes, bool use_current_policy = true >
@@ -363,7 +366,8 @@ class VanillaCFR:
       ObservationbufferMap& observation_buffer,
       InfostateSptrMap& infostates,
       StateValueMap& state_value,
-      std::unordered_map< action_variant_type, StateValueMap >& action_value
+      ActionValueTable< action_variant_type >& action_value,
+      ActionValueArena< action_variant_type >& action_value_arena
    );
 
    /// returns the arena slot for recursion 'depth', copy-assigned from 'source'.
