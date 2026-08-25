@@ -456,6 +456,124 @@ class DiscountedCFR {
 };
 
 /**
+ * @brief Greedy-weights decorator (Zhang, Lerer & Brown, "Equilibrium Finding in
+ * Normal-Form Games Via Greedy Regret Minimization", AAAI 2022,
+ * arXiv:2204.04826) around an inner RM / RM+ minimizer.
+ *
+ * Unlike every other weighting mode, the greedy iteration weight depends on the
+ * instantaneous regrets of a COMPLETED traversal and must be identical for all
+ * infostates of the updating player(s) (arXiv:2204.04826, Appendix F), so the
+ * fold cannot happen incrementally during the descent. This decorator therefore
+ * buffers each iteration's counterfactual regret increments ('observe' writes
+ * only into 'instant_regret', mirroring ExponentialCFR's deferral pattern) and
+ * exposes 'apply_weighted_fold' for the solver's end-of-iteration greedy sweep:
+ *
+ *    1. the solver aggregates the (cumulative regret R_j, buffered regret r_j)
+ *       pairs over all swept infostates and computes the scalar weight w that
+ *       greedily minimizes phi((R + w r)/(w_sum + w)) with
+ *       phi(x_+) = sum_j max(0, x_j)^2  (Algorithm 1; Appendix F: the objective
+ *       is "the sum of all local potential functions at all infosets");
+ *    2. per infostate this decorator then applies the update
+ *          R <- scale * R + w * r,     avg <- scale * avg + w * pi_reach * sigma^t
+ *       with BOTH accumulators discounted by the same 'history_scale' so that the
+ *       weighted-mean invariant between regret tables and average policy is exact.
+ *       Regular iterations use scale = 1 and weight = w directly (like the authors'
+ *       reference implementation, github.com/hughbzhang/greedy-weights); only a
+ *       near-infinite search result -- the objective's infimum at w -> infinity,
+ *       i.e. an iteration that invalidates the accumulated history -- is realized
+ *       as their degenerate-case handling: dilute all previous mass by 1e-6 and
+ *       weigh this iteration by 1;
+ *    3. finally the inner recommendation refreshes sigma^{t+1} from the updated
+ *       cumulative regret (Algorithm 1 derives the next iterate from R + w r).
+ *       For Inner == RegretMatchingPlus this also performs CFR+'s clamping at
+ *       exactly its canonical position (recommendation time).
+ *
+ * The weighting used for all infosets of one iteration is equal by construction,
+ * which is what retains the O(1/sqrt(T)) convergence guarantee (Theorem 1).
+ */
+template < concepts::action Action, typename Inner >
+class GreedyWeights {
+   using inner_node_data_type = typename Inner::node_data_type;
+
+  public:
+   /// inner tables plus the end-of-iteration bookkeeping owned by the greedy sweep
+   struct node_data_type: public inner_node_data_type {
+      /// buffered instantaneous regret increments r(I, a) of the current iteration
+      /// (cleared by 'apply_weighted_fold' once they are folded into 'regret')
+      per_action_table< Action > instant_regret;
+      /// sum of the updating player's own reach probabilities pi^t(h) over every
+      /// history h of this infostate visited during the current iteration; drives
+      /// the deferred average-policy increment. Consumed and reset to zero by
+      /// 'apply_weighted_fold'
+      double reach_prob_snapshot = 0.;
+
+      void register_action(const Action& action)
+      {
+         inner_node_data_type::register_action(action);
+         instant_regret.emplace_back(0.);
+      }
+   };
+
+   static void register_action(node_data_type& data, const auto& action)
+   {
+      data.register_action(action);
+   }
+
+   static void observe(node_data_type& data, const auto& action, double increment)
+   {
+      data.instant_regret[data.registry.index_of(action)] += increment;
+   }
+
+   template < typename PolicyOut >
+   static void recommend(node_data_type& data, PolicyOut& policy_out, size_t iteration)
+   {
+      Inner::recommend(data, policy_out, iteration);
+   }
+
+   static constexpr double policy_weight(size_t /*iteration*/) { return 1.; }
+
+   /// end-of-iteration fold driven by the solver's greedy sweep: discounts the previously
+   /// accumulated mass of BOTH the regret table and the average-policy accumulator by
+   /// 'history_scale' (1.0 on the regular path), folds the buffered instantaneous regrets
+   /// scaled by 'weight', adds the weighted average-policy increment (numerator side only --
+   /// the average policy stays in its unnormalized cumulative representation) and refreshes
+   /// the current policy from the freshly updated regret table. The two-sided discount keeps
+   /// regret tables and average-policy accumulator on a COMMON scale so that the
+   /// weighted-mean invariant pi_bar ∝ sum_t w_t pi^t is preserved exactly.
+   template < typename CurrentPolicy, typename AveragePolicy >
+   static void apply_weighted_fold(
+      node_data_type& data,
+      double history_scale,
+      double weight,
+      CurrentPolicy& current_policy,
+      AveragePolicy& average_policy,
+      size_t iteration
+   )
+   {
+      const auto n_actions = data.regret.size();
+      for(auto idx : std::views::iota(size_t{0}, n_actions)) {
+         // discount previous iterations' mass, then add this iteration's buffered
+         // increment with the effective weight (Algorithm 1: R <- R + w r)
+         double& cumul_regret = data.regret[idx];
+         cumul_regret = history_scale * cumul_regret + weight * data.instant_regret[idx];
+         data.instant_regret[idx] = 0.;
+      }
+      for(const auto& action : data.registry.actions) {
+         // deferred average-policy increment (Algorithm 1: pi_bar <- (w_sum pi_bar + w pi)/(w_sum +
+         // w), realized as scale-history-then-add on the cumulative representation)
+         auto& entry = average_policy[action];
+         entry = history_scale * entry + weight * data.reach_prob_snapshot * current_policy[action];
+      }
+      // consume the snapshot so that unvisited infostates contribute nothing on
+      // their next fold and no stale mass survives into the following iteration
+      data.reach_prob_snapshot = 0.;
+      // derive sigma^{t+1} from the updated regret table (Inner::recommend also
+      // performs RM+'s clamping at its canonical position)
+      Inner::recommend(data, current_policy, iteration);
+   }
+};
+
+/**
  * @brief Dynamic-thresholding decorator (Brown, Kroer, Sandholm, AAAI 2017,
  * DOI 10.1609/aaai.v31i1.10603) around an inner regret minimizer.
  *
@@ -657,6 +775,15 @@ consteval auto select_vanilla_minimizer()
    } else if constexpr(rm_mode == RegretMinimizingMode::discounted_predictive_regret_matching_plus) {
       // PDCFR+ (arXiv:2404.13891): DCFR+ with persistence-prediction recommendations
       return std::type_identity< DiscountedPredictiveRegretMatchingPlus< Action > >{};
+   } else if constexpr(weighting == CFRWeightingMode::greedy) {
+      // greedy weights wraps a plain RM / RM+ kernel; the predictive and
+      // DCFR+-style kernels are statically rejected with this weighting mode by
+      // 'sanity_check_cfr_config' (never analyzed together with dynamic weights)
+      if constexpr(rm_mode == RegretMinimizingMode::regret_matching_plus) {
+         return std::type_identity< GreedyWeights< Action, RegretMatchingPlus< Action > > >{};
+      } else {
+         return std::type_identity< GreedyWeights< Action, RegretMatching< Action > > >{};
+      }
    } else if constexpr(weighting == CFRWeightingMode::exponential) {
       return std::type_identity< ExponentialCFR< Action > >{};
    } else if constexpr(weighting == CFRWeightingMode::discounted) {

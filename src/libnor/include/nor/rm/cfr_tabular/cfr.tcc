@@ -123,6 +123,119 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::_arena_state(
    return m_traversal_state_arena[depth].construct_from(source);
 }
 
+namespace detail {
+
+/// exact argmin over w >= 0 of
+///    f(w) = sum_j max(0, R_j + w r_j)^2 / (w_sum + w)^2
+/// -- the greedy-weights objective (Zhang, Lerer & Brown, AAAI 2022,
+/// arXiv:2204.04826, Algorithm 1: w <- argmin_w phi((R + w r)/(wsum + w)) with
+/// phi(x) = sum_j max(0, x_j)^2; Appendix F: for CFR the sum ranges over all
+/// (infostate, action) pairs, which is exactly what 'regret_pairs' carries).
+///
+/// Each normalized component q_j(w) = (R_j + w r_j)/(w_sum + w) is monotone in w
+/// (its derivative has the constant sign of r_j * w_sum - R_j) and crosses zero
+/// at most once, at w = -R_j/r_j. f is therefore smooth on the finitely many
+/// intervals between those breakpoints and attains its minimum on each interval
+/// either at a boundary or at the unique stationary point of that interval:
+///    0 = d/dw sum_{j in S} q_j(w)^2   =>   w_S = (A0 - A1 w_sum) / (A2 w_sum - A1)
+/// with A0/A1/A2 = sums over the interval's active set S of R^2 / R*r / r^2.
+/// Evaluating all breakpoints plus one clamped stationary point per interval
+/// finds the global minimum exactly -- the O(|P||A|)-points procedure mentioned
+/// in the paper ("computed exactly by checking O(|P||A|) points"); weights above
+/// 1 are later rescaled by the solver anyway, so tail-region precision is moot.
+/// Returns 0 when no component carries signal (all r_j == 0); callers apply the
+/// weight floor in that case.
+[[nodiscard]] inline double greedy_optimal_weight(
+   const std::vector< std::pair< double, double > >& regret_pairs,
+   double w_sum,
+   std::vector< double >& scratch_breakpoints
+)
+{
+   scratch_breakpoints.clear();
+   scratch_breakpoints.emplace_back(0.);
+   bool has_signal = false;
+   for(const auto& [cumul_regret, instant_regret] : regret_pairs) {
+      if(instant_regret != 0.) {
+         has_signal = true;
+         const double crossing = -cumul_regret / instant_regret;
+         if(crossing > 0. and std::isfinite(crossing)) {
+            scratch_breakpoints.emplace_back(crossing);
+         }
+      }
+   }
+   if(not has_signal) {
+      return 0.;
+   }
+   std::ranges::sort(scratch_breakpoints);
+   scratch_breakpoints.erase(
+      std::ranges::unique(scratch_breakpoints).begin(), scratch_breakpoints.end()
+   );
+
+   const auto objective = [&](double w) {
+      const double denom = w_sum + w;
+      double acc = 0.;
+      for(const auto& [cumul_regret, instant_regret] : regret_pairs) {
+         const double value = cumul_regret + w * instant_regret;
+         if(value > 0.) {
+            acc += value * value;
+         }
+      }
+      return acc / (denom * denom);
+   };
+
+   // stationary point of one constant-sign region [lo, hi]; the active set is probed at
+   // the region midpoint since signs only flip at the breakpoints. hi < 0 encodes the
+   // unbounded tail region [lo, infinity)
+   const auto region_stationary = [&](double lo, double hi) -> double {
+      const double probe = hi < 0. ? lo * 2. + 1. : 0.5 * (lo + hi);
+      double sum_rr = 0., sum_rcumr = 0., sum_cumul_sq = 0.;
+      bool any_active = false;
+      for(const auto& [cumul_regret, instant_regret] : regret_pairs) {
+         if(cumul_regret + probe * instant_regret > 0.) {
+            any_active = true;
+            sum_cumul_sq += cumul_regret * cumul_regret;
+            sum_rcumr += cumul_regret * instant_regret;
+            sum_rr += instant_regret * instant_regret;
+         }
+      }
+      if(not any_active or sum_rr * w_sum == sum_rcumr) {
+         return std::numeric_limits< double >::quiet_NaN();
+      }
+      double w_stat = (sum_cumul_sq - sum_rcumr * w_sum) / (sum_rr * w_sum - sum_rcumr);
+      if(hi < 0.) {
+         // tail: clamp into [lo, infinity)
+         w_stat = std::max(w_stat, lo);
+      } else {
+         w_stat = std::clamp(w_stat, lo, hi);
+      }
+      return w_stat;
+   };
+
+   double best_w = 0.;
+   double best_value = objective(best_w);
+   const auto consider = [&](double candidate) {
+      if(std::isfinite(candidate) and candidate >= 0.) {
+         const double value = objective(candidate);
+         if(value < best_value) {
+            best_value = value;
+            best_w = candidate;
+         }
+      }
+   };
+   for(auto idx : std::views::iota(size_t{1}, scratch_breakpoints.size())) {
+      const double lo = scratch_breakpoints[idx - 1];
+      const double hi = scratch_breakpoints[idx];
+      consider(hi);
+      consider(region_stationary(lo, hi));
+   }
+   // unbounded tail beyond the largest breakpoint
+   consider(region_stationary(scratch_breakpoints.back(), -1.));
+
+   return best_w;
+}
+
+}  // namespace detail
+
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimization(
    const std::optional< Player >& player_to_update
@@ -145,10 +258,101 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimiza
       }
    });
 
+   if constexpr(config.weighting_mode == CFRWeightingMode::greedy) {
+      // greedy weights needs the instantaneous regrets of the COMPLETED traversal
+      // aggregated across ALL swept infostates before any table may fold them -- a
+      // single common weight per iteration is what retains the convergence guarantee
+      // of Theorem 1 in Zhang, Lerer & Brown (AAAI 2022), cf. their Appendix F.
+      // (Greedy weights is restricted to simultaneous updates by
+      // 'sanity_check_cfr_config', so this sweep always covers every player.)
+      _finalize_greedy_iteration(node_view);
+      return;
+   }
+
    std::for_each(node_view.begin(), node_view.end(), [&](auto& infostate_ptr_data) {
       auto& [infostate_ptr, data] = infostate_ptr_data;
       _invoke_regret_minimizer(*infostate_ptr);
    });
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename NodeView >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_finalize_greedy_iteration(
+   NodeView&& node_view
+)
+{
+   // ---- pass 1: aggregate the potential line-search inputs over all swept infostates ----
+   auto& regret_pairs = m_greedy_scratch.regret_pairs;
+   regret_pairs.clear();
+   for(auto& infostate_ptr_data : node_view) {
+      auto& node_data = std::get< 1 >(infostate_ptr_data).data();
+      for(auto idx : std::views::iota(size_t{0}, node_data.regret.size())) {
+         regret_pairs.emplace_back(node_data.regret[idx], node_data.instant_regret[idx]);
+      }
+   }
+
+   // ---- raw iteration weight: exact line search, floored per the paper's CFR recipe -----
+   // (arXiv:2204.04826 Appendix F: "a minimum weight floor of 100% of the average weight
+   // accrued thus far" worked best for extensive-form games; the fraction is exposed as
+   // CFRConfig::greedy_weight_floor_fraction. The denominator counts the implicit weight-1
+   // seed iterate, mirroring the reference implementation's loop index.)
+   double raw_weight = std::invoke([&] {
+      if(m_greedy_state.wsum <= 0.) {
+         // first weighted update: no accrued mass to trade off against -- neutral
+         // weight of 1 (the paper seeds its accumulator with wsum = 1 analogously)
+         return 1.;
+      }
+      const double searched = detail::greedy_optimal_weight(
+         regret_pairs, m_greedy_state.wsum, m_greedy_scratch.breakpoints
+      );
+      const double floor = config.greedy_weight_floor_fraction * m_greedy_state.wsum
+                           / double(m_greedy_state.updates + 1);
+      return std::max(searched, floor);
+   });
+   if(not(std::isfinite(raw_weight) and raw_weight > 0.)) {
+      raw_weight = 1.;
+   }
+
+   // A near-infinite search result means the objective's infimum lies at w -> infinity:
+   // this iteration INVALIDATES the accumulated history (its positive-regret potential is
+   // smaller than the running average's). The reference implementation realizes that case
+   // as a 1e-6 dilution of all previous mass plus a weight-1 update; we adopt it verbatim
+   // (with a finite threshold guarding double overflow). Regular iterations are applied
+   // directly with scale 1, exactly like the reference.
+   const bool discards_history = not std::isfinite(raw_weight) or raw_weight > 1e12;
+   const double effective_weight = discards_history ? 1. : raw_weight;
+   const double history_scale = discards_history ? 1e-6 : 1.;
+   if(discards_history) {
+      ++m_greedy_state.stats.history_discards;
+   }
+
+   auto& stats = m_greedy_state.stats;
+   ++stats.weight_draws;
+   stats.total_weight += effective_weight;
+   stats.min_weight = std::min(stats.min_weight, effective_weight);
+   stats.max_weight = std::max(stats.max_weight, effective_weight);
+   stats.last_weight = effective_weight;
+
+   // ---- pass 2: weighted fold + recommendation refresh across all swept infostates ----
+   std::for_each(node_view.begin(), node_view.end(), [&](auto& infostate_ptr_data) {
+      auto& [infostate_ptr, istate_data] = infostate_ptr_data;
+      auto& current_policy =
+         this->template fetch_policy< PolicyLabel::current >(*infostate_ptr, istate_data.actions());
+      auto& average_policy =
+         this->template fetch_policy< PolicyLabel::average >(*infostate_ptr, istate_data.actions());
+      m_regret_minimizer.apply_weighted_fold(
+         istate_data.data(),
+         history_scale,
+         effective_weight,
+         current_policy,
+         average_policy,
+         _iteration()
+      );
+   });
+
+   // bookkeeping advances on the same scale as the tables themselves
+   m_greedy_state.wsum = history_scale * m_greedy_state.wsum + effective_weight;
+   ++m_greedy_state.updates;
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -629,7 +833,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       infostate, actions
    );
    auto& avg_action_policy = [&]() -> auto& {
-      if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
+      if constexpr(
+         config.weighting_mode != CFRWeightingMode::exponential
+         and config.weighting_mode != CFRWeightingMode::greedy
+      ) {
          return this->template fetch_policy< PolicyLabel::average >(infostate, actions);
       } else {
          // this value will be ignored, so we can simply return anything that is cheap to fetch
@@ -649,7 +856,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       // update the cumulative regret according to the formula:
       // let I be the infostate, p be the player, r the cumulative regret
       //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
-      if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
+      if constexpr(
+         config.weighting_mode != CFRWeightingMode::exponential
+         and config.weighting_mode != CFRWeightingMode::greedy
+      ) {
          if(cf_reach_prob > 0) {
             // this if statement effectively introduces partial pruning. But this is such a
             // slight modification (and gain, if any) that it is to be included in all variants
@@ -670,13 +880,19 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
          // t ends we have to delete them again, so that this is only a memory of the current
          // iteration! Each history h that passed through infostate I will increment here the
          // instantaneous regret values r(h,a), in order to accumulate r(I, a) = sum_h r(h, a)
+         //
+         // greedy weights defers for the same structural reason (arXiv:2204.04826): its
+         // iteration weight is only known once the whole traversal's regrets are aggregated
          m_regret_minimizer.observe(
             istate_data.data(),
             action,
             cf_reach_prob * (action_value.get().at(player) - player_state_value)
          );
       }
-      if constexpr(config.weighting_mode != CFRWeightingMode::exponential) {
+      if constexpr(
+         config.weighting_mode != CFRWeightingMode::exponential
+         and config.weighting_mode != CFRWeightingMode::greedy
+      ) {
          // update the cumulative policy according to the formula:
          // let
          //    'I' be the infostate,
@@ -688,7 +904,14 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
          // For exponential CFR we update the average policy after the tree traversal
       }
    }
-   if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
+   if constexpr(config.weighting_mode == CFRWeightingMode::greedy) {
+      // greedy weights accumulates the average-policy mass pi^t(h) of every visited history h
+      // of this infostate; the weighted increment is applied once per iteration by the
+      // end-of-iteration sweep ('_finalize_greedy_iteration'), which also resets the snapshot.
+      // ACCUMULATION (not overwrite) is required because an infostate may be reached through
+      // several histories within one traversal.
+      istate_data.data().reach_prob_snapshot += player_reach_prob;
+   } else if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
       // For exponential CFR we need to store the reach probability of the active player until
       // the end of the iteration
       istate_data.data().reach_prob_snapshot = player_reach_prob;
@@ -731,6 +954,36 @@ consteval bool sanity_check_cfr_config()
          config.update_mode != UpdateMode::alternating
          or config.pruning_mode != CFRPruningMode::none
          or config.weighting_mode != CFRWeightingMode::discounted
+      ) {
+         return false;
+      }
+   }
+   if constexpr(config.weighting_mode == CFRWeightingMode::greedy) {
+      // Greedy weights (Zhang, Lerer & Brown, AAAI 2022) re-weighs WHOLE iterations
+      // dynamically from their observed counterfactual regrets. Combinations that were
+      // never analyzed or are known to break are statically rejected:
+      //  * ALTERNATING UPDATES: the published formulation (Algorithm 1 and the CFR
+      //    extension of their Appendix F) is a SIMULTANEOUS scheme -- one joint weight
+      //    drawn from the potential summed over all players. Running one independent
+      //    greedy instance per player under alternating updates demonstrably destroys
+      //    convergence (the per-player objective prefers near-total replacement of the
+      //    instance's history, turning the average strategy into a short-window moving
+      //    average that oscillates instead of converging -- observed on 2p/3p kuhn).
+      //  * dynamic thresholding reshapes recommendations mid-flight while the greedy fold
+      //    assumes recommendations derived straight from the freshly folded cumulative
+      //    regret table;
+      //  * regret-based pruning is rejected below regardless (its windows buffer UNweighted
+      //    increments and require the uniform mode);
+      //  * the predictive / DCFR+-style kernels pair their strategy snapshots with exactly
+      //    one fully observed instantaneous regret vector per recommend and REQUIRE the
+      //    discounted carrier weighting (first block below), which already rules out
+      //    combining them with greedy weights.
+      // NOTE also that the paper's CFR extension explicitly assumes full-expansion
+      // traversals: chance-sampled settings risk upweighting 'lucky' sampled outcomes
+      // (their Appendix F), hence greedy weights is vanilla-engine only.
+      if constexpr(
+         config.update_mode != UpdateMode::simultaneous
+         or config.pruning_mode == CFRPruningMode::dynamic_thresholding
       ) {
          return false;
       }

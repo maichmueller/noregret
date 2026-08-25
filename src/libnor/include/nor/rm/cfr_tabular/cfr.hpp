@@ -3,6 +3,7 @@
 #define NOR_CFR_HPP
 
 #include <iostream>
+#include <limits>
 #include <list>
 #include <map>
 #include <named_type.hpp>
@@ -34,6 +35,45 @@ namespace detail {
 // a verification of the current config correctness
 template < CFRConfig config >
 consteval bool sanity_check_cfr_config();
+
+/// activity statistics of the greedy weighting engine. 'weight_draws' counts the
+/// computed iteration weights (one per player update under alternating updates,
+/// one per joint iteration under simultaneous updates); 'total_weight'/
+/// 'min_weight'/'max_weight'/'last_weight' aggregate the effective (post-floor,
+/// post-discard-guard) weights. Under uniform averaging all of these would be
+/// identically 1. 'history_discards' counts how often the line search chose a
+/// near-infinite weight -- i.e. an iteration that invalidates the accumulated
+/// history (realized as a 1e-6 dilation + weight-1 update, see
+/// rm::GreedyWeights).
+struct GreedyWeightStats {
+   size_t weight_draws = 0;
+   size_t history_discards = 0;
+   double total_weight = 0.;
+   double min_weight = std::numeric_limits< double >::infinity();
+   double max_weight = 0.;
+   double last_weight = 0.;
+};
+
+/// solver-side bookkeeping of the greedy weighting engine (Zhang, Lerer & Brown,
+/// AAAI 2022). The solver accumulates the total weight w_sum and the number of
+/// completed weighted updates t (the paper's 'wsum' and loop counter). Greedy
+/// weights is restricted to SIMULTANEOUS updates: a single joint instance draws
+/// one weight per iteration from the potential summed over all players -- exactly
+/// the published scheme.
+struct GreedySolverState {
+   GreedyWeightStats stats{};
+   double wsum = 0.;
+   size_t updates = 0;
+};
+
+/// reusable line-search scratch space so that repeated iterations do not reallocate:
+/// 'regret_pairs' holds the (cumulative regret R_j, buffered instantaneous regret r_j)
+/// aggregates of the current sweep, 'breakpoints' the sign-change candidates of the
+/// line search
+struct GreedyScratchBuffers {
+   std::vector< std::pair< double, double > > regret_pairs{};
+   std::vector< double > breakpoints{};
+};
 
 }  // namespace detail
 
@@ -231,6 +271,16 @@ class VanillaCFR:
 
    [[nodiscard]] PruningStats pruning_stats() const { return m_pruning_stats; }
 
+   /// activity statistics of the greedy weighting engine (only available when
+   /// weighting_mode == greedy) -- see rm::detail::GreedyWeightStats
+   using GreedyWeightStats = detail::GreedyWeightStats;
+
+   [[nodiscard]] const GreedyWeightStats& greedy_weight_stats() const
+      requires(config.weighting_mode == CFRWeightingMode::greedy)
+   {
+      return m_greedy_state.stats;
+   }
+
    /**
     * @brief updates the regret and policy tables of the infostate with the state-values.
     */
@@ -288,6 +338,21 @@ class VanillaCFR:
       CFRExponentialParameters,
       utils::empty >
       m_expcfr_params;
+   /// Greedy-weights solver state: accumulated weight sum, update count and the
+   /// weight statistics (single joint instance; greedy weights is
+   /// simultaneous-updates only)
+   [[no_unique_address]] std::conditional_t<
+      config.weighting_mode == CFRWeightingMode::greedy,
+      detail::GreedySolverState,
+      utils::empty >
+      m_greedy_state;
+   /// scratch buffers reused by the greedy line search across iterations (avoids
+   /// per-iteration reallocation)
+   [[no_unique_address]] std::conditional_t<
+      config.weighting_mode == CFRWeightingMode::greedy,
+      detail::GreedyScratchBuffers,
+      utils::empty >
+      m_greedy_scratch;
    /// the actual regret minimizing method we will apply on the infostates
    [[no_unique_address]] minimizer_type m_regret_minimizer{};
 
@@ -384,6 +449,15 @@ class VanillaCFR:
 
    /// performs the end-of-traversal regret minimization step for one infostate
    void _invoke_regret_minimizer(const info_state_type& infostate);
+
+   /// end-of-iteration greedy-weights sweep (weighting_mode == greedy): pass 1 aggregates
+   /// the (cumulative regret, buffered instantaneous regret) pairs of every swept infostate
+   /// and computes the paper's greedy iteration weight by an exact piecewise line search
+   /// over the aggregated potential; pass 2 folds the weighted regret/average-policy updates
+   /// into all swept infostates and refreshes their recommendations. See rm::GreedyWeights
+   /// for references.
+   template < typename NodeView >
+   void _finalize_greedy_iteration(NodeView&& node_view);
 
    ///////////////////////////////////////////////////////////////////////////////////////////
    ////////////////////// regret-based pruning / dynamic thresholding ////////////////////////
@@ -668,6 +742,25 @@ using CFRDiscounted = VanillaCFR<
       .update_mode = config.update_mode,
       .regret_minimizing_mode = config.regret_minimizing_mode,
       .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/**
+ * GreedyWeightedCFR (Zhang, Lerer & Brown, "Equilibrium Finding in Normal-Form
+ * Games Via Greedy Regret Minimization", AAAI 2022, arXiv:2204.04826):
+ * vanilla CFR whose completed iterations are weighed dynamically by greedily
+ * minimizing the aggregated counterfactual-regret potential -- see
+ * rm::CFRWeightingMode::greedy and rm::GreedyWeights for the full formulation.
+ * The floor knob lives on rm::CFRConfig::greedy_weight_floor_fraction (paper
+ * default 1.0 = "100% of the average weight accrued thus far", Appendix F).
+ */
+template < CFRGreedyConfig config, typename Env, typename Policy, typename AveragePolicy >
+using GreedyWeightedCFR = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = config.regret_minimizing_mode,
+      .weighting_mode = CFRWeightingMode::greedy},
    Env,
    Policy,
    AveragePolicy >;
