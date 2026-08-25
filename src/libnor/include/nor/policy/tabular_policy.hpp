@@ -3,17 +3,36 @@
 #define NOR_TABULAR_POLICY_HPP
 
 #include <concepts>
+#include <cstddef>
 #include <ranges>
 
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
+#include "nor/game_defs.hpp"
 
 namespace nor {
 
+/**
+ * @brief infostate-keyed table of per-infostate action policies.
+ *
+ * The default outer table is ankerl::unordered_dense::map (via nor::dense_hashmap) equipped with
+ * the TRANSPARENT common::value_hasher/value_comparator, so keys may be raw infostates,
+ * reference_wrappers or smart-pointer-like handles interchangeably (heterogeneous lookup). The
+ * hashing/equality semantics are identical to the former std::unordered_map default since both
+ * forward to std::hash<Infostate>/operator==.
+ *
+ * NOTE on reference stability: unlike a node-based std::unordered_map, entries live in a
+ * contiguous vector; inserts that exceed the current capacity invalidate references/iterators
+ * into the table. Use reserve() when the number of infostates is known before filling.
+ */
 template <
    typename Infostate,
    typename ActionPolicy,
-   typename Table = std::unordered_map< Infostate, ActionPolicy > >
+   typename Table = dense_hashmap<
+      Infostate,
+      ActionPolicy,
+      common::value_hasher< Infostate >,
+      common::value_comparator< Infostate > > >
 // clang-format off
 requires
    concepts::map< Table >
@@ -34,8 +53,23 @@ class TabularPolicy {
       requires(not common::
                   is_specialization_v< std::remove_cvref_t< OtherTableType >, TabularPolicy >)
               and concepts::map< std::remove_cvref_t< OtherTableType > >
-   TabularPolicy(OtherTableType&& table) : m_table(std::forward< OtherTableType >(table))
+   TabularPolicy(OtherTableType&& table) : m_table()
    {
+      using RawTableType = std::remove_cvref_t< OtherTableType >;
+      if constexpr(std::same_as< table_type, RawTableType >) {
+         m_table = std::forward< OtherTableType >(table);
+      } else {
+         // foreign map types are converted entry-by-entry so that the default (dense) table
+         // can still be seeded from e.g. a std::unordered_map
+         if constexpr(requires(RawTableType t) { t.size(); }) {
+            m_table.reserve(table.size());
+         }
+         for(auto&& [key, mapped] : table) {
+            m_table.emplace(
+               std::forward< decltype(key) >(key), std::forward< decltype(mapped) >(mapped)
+            );
+         }
+      }
    }
 
    auto begin() { return m_table.begin(); }
