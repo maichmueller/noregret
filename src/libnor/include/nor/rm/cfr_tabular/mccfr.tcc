@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <cassert>
 
 #include "mccfr.hpp"
 
@@ -258,9 +259,19 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(std::op
       auto reach_probs = init_reach_probs();
       auto obs_buffer = init_obs_buffer();
       auto infostates = init_infostates();
+      // per-depth reusable slots of the insertion-ordered action -> child-values
+      // accumulator consumed by update_regret_and_policy (same reuse discipline
+      // as in VanillaCFR::iterate)
+      ActionValueArena< action_variant_type > action_value_arena{};
       auto values = _traverse(
-         player_to_update, root_arena_state, /*depth=*/0, reach_probs, obs_buffer, infostates,
-         update_set
+         player_to_update,
+         root_arena_state,
+         /*depth=*/0,
+         reach_probs,
+         obs_buffer,
+         infostates,
+         update_set,
+         action_value_arena
       );
       _initiate_regret_minimization(update_set);
       update_set.clear();
@@ -1110,17 +1121,29 @@ template < bool return_likelihood >
 auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sample_outcome(const world_state_type& state)
 {
    auto chance_actions = _env().chance_actions(state);
-   auto chance_probabilities = std::ranges::to< std::unordered_map< chance_outcome_type, double > >(
-      chance_actions | std::views::transform([this, &state](const auto& outcome) {
-         return std::pair{outcome, _env().chance_probability(state, outcome)};
-      })
-   );
+   // linear-scan probability table over the (few) legal outcomes of a chance
+   // node: replaces the former per-chance-visit unordered_map built through
+   // ranges::to. The weights are materialized here in chance_actions order --
+   // exactly the order in which common::choose queries them below -- so the
+   // discrete distribution (and hence the consumed RNG stream) is identical.
+   std::vector< std::pair< chance_outcome_type, double > > chance_probabilities;
+   chance_probabilities.reserve(chance_actions.size());
+   for(const auto& outcome : chance_actions) {
+      chance_probabilities.emplace_back(outcome, _env().chance_probability(state, outcome));
+   }
+   auto probability_of = [&chance_probabilities](const chance_outcome_type& outcome) -> double {
+      const auto found = std::ranges::find_if(chance_probabilities, [&](const auto& outcome_prob) {
+         return outcome_prob.first == outcome;
+      });
+      assert(found != chance_probabilities.end());
+      return found->second;
+   };
    auto& chosen_outcome = common::choose(
-      chance_actions, [&](const auto& outcome) { return chance_probabilities[outcome]; }, m_rng
+      chance_actions, [&](const auto& outcome) { return probability_of(outcome); }, m_rng
    );
 
    if constexpr(return_likelihood) {
-      double chance_prob = chance_probabilities[chosen_outcome];
+      double chance_prob = probability_of(chosen_outcome);
       return std::tuple{std::move(chosen_outcome), chance_prob};
    } else {
       return chosen_outcome;
@@ -1338,16 +1361,37 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
       // for the traversing player we explore all actions possible
 
       // the first round of action iteration we will traverse the tree further to find all action
-      // values from this node and compute the state value of the current node
-      std::unordered_map< action_type, double > value_estimates;
+      // values from this node and compute the state value of the current node.
+      // insertion-ordered linear-scan table replaces the former unordered_map
+      // (one bucket array + node allocation per legal action, per infoset
+      // visit); lookups stay O(#actions).
+      std::vector< std::pair< action_type, double > > value_estimates;
       value_estimates.reserve(actions.size());
+      // mirrors unordered_map::emplace's keep-the-existing-entry semantics and
+      // returns a reference to the STORED estimate
+      auto emplace_estimate = [&](const action_type& action, double estimate) -> double& {
+         const auto found = std::ranges::find_if(value_estimates, [&](const auto& entry) {
+            return entry.first == action;
+         });
+         if(found != value_estimates.end()) {
+            return found->second;
+         }
+         value_estimates.emplace_back(action, estimate);
+         return value_estimates.back().second;
+      };
+      auto estimate_of = [&](const action_type& action) -> const double& {
+         const auto found = std::ranges::find_if(value_estimates, [&](const auto& entry) {
+            return entry.first == action;
+         });
+         assert(found != value_estimates.end());
+         return found->second;
+      };
 
       auto state_value_estimate = std::invoke([&] {
          if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
             return std::ranges::fold_left(
                actions | std::views::transform([&](const auto& action) {
-                  return value_estimates.emplace(action, traverse_for_action_value(action))
-                            .first->second
+                  return emplace_estimate(action, traverse_for_action_value(action))
                          * action_policy[action];
                }),
                double(0.),
@@ -1358,15 +1402,15 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
             // infoset, collects the value of each action and then updates (in another iteration)
             // the actions with their value difference to the sampled action's value.
             for(const auto& action : actions) {
-               value_estimates.emplace(action, traverse_for_action_value(action));
+               emplace_estimate(action, traverse_for_action_value(action));
             }
-            return value_estimates[sample_or_fetch_action()];
+            return estimate_of(sample_or_fetch_action());
          }
       });
       // in the second round of action iteration we update the regret of each action through the
       // previously found action and state values
       for(const auto& action : actions) {
-         infonode_data.regret(action) += value_estimates[action] - state_value_estimate;
+         infonode_data.regret(action) += estimate_of(action) - state_value_estimate;
       }
 
       return StateValue{state_value_estimate};
@@ -1413,7 +1457,8 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
    ReachProbabilityMap& reach_probability,
    ObservationbufferMap& observation_buffer,
    InfostateSptrMap& infostates,
-   delayed_update_set& infostates_to_update
+   [[maybe_unused]] delayed_update_set& infostates_to_update,
+   ActionValueArena< action_variant_type >& action_value_arena
 )  // clang-format off
       requires(
          config.algorithm == MCCFRAlgorithmMode::chance_sampling
@@ -1446,7 +1491,15 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
    // the state's value for each player. To be filled by the action traversal functions.
    StateValueMap state_value{};
    // each action's value for each player. To be filled by the action traversal functions.
-   std::unordered_map< action_variant_type, StateValueMap > action_value;
+   // REUSED STORAGE: this depth's arena slot replaces the former fresh
+   // unordered_map per visit (see rm/action_value_table.hpp); DFS never
+   // interleaves same-depth frames, so clearing on entry/exit keeps successive
+   // visitors of a depth isolated without any content save/restore.
+   if(action_value_arena.size() <= depth) {
+      action_value_arena.resize(depth + 1);
+   }
+   auto& action_value = action_value_arena[depth];
+   action_value.clear();
    // traverse all child states from this state. The constexpr check for determinism in the env
    // allows deterministic envs to not provide certain functions that are only needed in the
    // stochastic case.
@@ -1468,7 +1521,8 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
              reach_probability,
              observation_buffer,
              infostates,
-             infostates_to_update
+             infostates_to_update,
+             action_value_arena
           );
       }
    }
@@ -1562,7 +1616,8 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
          reach_probability,
          observation_buffer,
          infostates,
-         infostates_to_update
+         infostates_to_update,
+         action_value_arena
       );
 
       if(flushes) {
@@ -1581,7 +1636,7 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
             state_value.get()[player] += action_prob * child_value;
          }
       }
-      action_value.emplace(action, std::move(child_rewards_map));
+      detail::emplace_action_value(action_value, action, std::move(child_rewards_map));
    }
    if constexpr(config.algorithm == MCCFRAlgorithmMode::pure_cfr) {
       // in the pure-cfr case we only need to emplace the value of the sampled action
@@ -1590,7 +1645,8 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
          // emplace sampled action for the pure strategy at this infostate if not already done
          sampled_action_opt = _sample_action_on_policy(actions, curr_action_policy);
       }
-      for(auto [player, child_value] : action_value.at(*sampled_action_opt).get()) {
+      for(auto [player, child_value] :
+          detail::find_action_value(action_value, *sampled_action_opt).get()) {
          state_value.get().emplace(player, child_value);
       }
    }
@@ -1622,6 +1678,9 @@ world_state_type& next_state = _arena_state(depth + 1, curr_worldstate);
          curr_action_policy
       );
    }
+   // release the slot for the next visitor of this depth (the child value maps
+   // were consumed above; clearing keeps the slot's heap capacity for reuse)
+   action_value.clear();
 
    return state_value;
 }
@@ -1636,7 +1695,7 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::update_regret_an
    const info_state_type& infostate,
    const ReachProbabilityMap& reach_probability,
    const StateValueMap& state_value,
-   const std::unordered_map< action_variant_type, StateValueMap >& action_value_map,
+   const ActionValueTable< action_variant_type >& action_value_map,
    auto& avg_action_policy,
    [[maybe_unused]] auto& curr_action_policy
 )
