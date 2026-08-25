@@ -351,7 +351,7 @@ EstimatorSeries collect_kuhn_estimator_series(size_t n_iters, double epsilon, si
    for(size_t iter = 0; iter < n_iters; ++iter) {
       auto result = solver.iterate(1);
       auto exact = evaluator.values(normalize_profile(solver.policy()));
-      for(const auto& [player, value] : result.back()) {
+      for(const auto& [player, value] : result.back().get()) {
          series.estimates[player].push_back(value);
          series.exact_values[player].push_back(exact.at(player));
       }
@@ -382,7 +382,7 @@ collect_dh_estimator_series(size_t n_iters, double epsilon, size_t seed, const d
    for(size_t iter = 0; iter < n_iters; ++iter) {
       auto result = solver.iterate(1);
       auto exact = evaluator.values(normalize_dh_profile(solver.policy()));
-      for(const auto& [player, value] : result.back()) {
+      for(const auto& [player, value] : result.back().get()) {
          series.estimates[player].push_back(value);
          series.exact_values[player].push_back(exact.at(player));
       }
@@ -756,7 +756,7 @@ TEST(ESCHER, deep_tree_evidence_dark_hex_3x3_report_only)
       std::unordered_map< Player, std::vector< double > > streams;
       for(size_t iter = 0; iter < n_iters; ++iter) {
          auto result = solver.iterate(1);
-         for(const auto& [player, value] : result.back()) {
+         for(const auto& [player, value] : result.back().get()) {
             streams[player].push_back(value);
          }
       }

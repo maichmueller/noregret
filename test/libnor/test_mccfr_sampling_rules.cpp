@@ -319,11 +319,11 @@ kuhn_first_iteration_regret_stats(size_t n_seeds, Rule rule)
       auto solver = make_kuhn_solver< config >(seed, rule);
       auto root_values = solver.iterate(1);
       EXPECT_EQ(root_values.size(), size_t{1});
-      if(root_values.size() != 1 or root_values[0].empty()) {
+      if(root_values.size() != 1 or root_values[0].get().empty()) {
          ADD_FAILURE() << "unexpected iterate(1) return shape";
          return {};
       }
-      updater = root_values[0].begin()->first;
+      updater = root_values[0].get().begin()->first;
       // the CURRENT policy table carries an entry for every visited node
       for(const auto& [infostate, action_policy] : solver.policy().at(updater).table()) {
          for(const auto& [action, prob] : action_policy) {
@@ -608,9 +608,9 @@ TEST(SamplingRulesRegression, InjectedDefaultEpsilonRuleIsDrawForDrawIdenticalTo
    ASSERT_EQ(vanilla_values.size(), injected_values.size());
    for(auto [iteration_idx, vanilla_map, injected_map] :
        std::views::zip(std::views::iota(size_t{0}), vanilla_values, injected_values)) {
-      ASSERT_EQ(vanilla_map.size(), injected_map.size());
-      for(const auto& [player, value] : vanilla_map) {
-         EXPECT_DOUBLE_EQ(value, injected_map.at(player))
+      ASSERT_EQ(vanilla_map.get().size(), injected_map.get().size());
+      for(const auto& [player, value] : vanilla_map.get()) {
+         EXPECT_DOUBLE_EQ(value, injected_map.get().at(player))
             << "root estimate diverged at iteration " << iteration_idx;
       }
    }
@@ -628,9 +628,9 @@ TEST(SamplingRulesRegression, PCSFallbackTrajectoriesAreIdenticalToVanillaOutcom
    const auto pcs_values = pcs.iterate(kIters);
    ASSERT_EQ(vanilla_values.size(), pcs_values.size());
    for(const auto& [vanilla_map, pcs_map] : std::views::zip(vanilla_values, pcs_values)) {
-      ASSERT_EQ(vanilla_map.size(), pcs_map.size());
-      for(const auto& [player, value] : vanilla_map) {
-         EXPECT_DOUBLE_EQ(value, pcs_map.at(player));
+      ASSERT_EQ(vanilla_map.get().size(), pcs_map.get().size());
+      for(const auto& [player, value] : vanilla_map.get()) {
+         EXPECT_DOUBLE_EQ(value, pcs_map.get().at(player));
       }
    }
    expect_bit_identical_tables(vanilla, pcs);
@@ -673,8 +673,8 @@ TEST(PublicChanceSampling, GoofspielK4RevealConvergesWithDecreasingExploitabilit
    for(size_t iteration = 1; iteration <= kIters; ++iteration) {
       auto v = vanilla.iterate(1);
       auto p = pcs.iterate(1);
-      vanilla_estimates.emplace_back(v[0].begin()->second);
-      pcs_estimates.emplace_back(p[0].begin()->second);
+      vanilla_estimates.emplace_back(v[0].get().begin()->second);
+      pcs_estimates.emplace_back(p[0].get().begin()->second);
       if(iteration == 100 or iteration == 200 or iteration == 400 or iteration == 500) {
          vanilla_snapshots.emplace(iteration, goofspiel_snapshot_avg(vanilla));
          pcs_snapshots.emplace(iteration, goofspiel_snapshot_avg(pcs));
@@ -814,7 +814,7 @@ TEST(PublicChanceSampling, LiarsDicePrivateRollsRunSmoke)
    auto values = solver.iterate(30);
    ASSERT_EQ(values.size(), size_t{30});
    for(const auto& per_iter : values) {
-      for(const auto& [player, value] : per_iter) {
+      for(const auto& [player, value] : per_iter.get()) {
          EXPECT_TRUE(std::isfinite(value)) << "player " << static_cast< int >(player);
       }
    }
