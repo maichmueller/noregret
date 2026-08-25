@@ -990,6 +990,119 @@ struct vr_baseline_extras {
    void register_action(const Action&) { baseline.emplace_back(0.); }
 };
 
+/// the set of regret-minimizing modes admissible inside MCCFR: plain RM for every
+/// traversal scheme plus the whole PRM+/PCFR+ family of predictive kernels for
+/// OUTCOME SAMPLING (see 'MCCFRMinimizer' for the composition-theory notes).
+/// Deliberately queryable so tests can assert the selection behavior without
+/// instantiating rejecting configurations (the engine-level static_asserts remain
+/// hard errors by design).
+template < RegretMinimizingMode rm_mode >
+inline constexpr bool
+   mccfr_admissible_rm_mode = rm_mode == RegretMinimizingMode::regret_matching
+                              or rm_mode == RegretMinimizingMode::predictive_regret_matching_plus
+                              or rm_mode
+                                    == RegretMinimizingMode::sap_predictive_regret_matching_plus
+                              or rm_mode == RegretMinimizingMode::ap_predictive_regret_matching_plus
+                              or rm_mode
+                                    == RegretMinimizingMode::p2p_predictive_regret_matching_plus
+                              or rm_mode
+                                    == RegretMinimizingMode::smooth_predictive_regret_matching_plus
+                              or rm_mode
+                                    == RegretMinimizingMode::stable_predictive_regret_matching_plus;
+
+/// whether a (traversal scheme, regret-minimizing mode) pair forms an admissible
+/// MCCFR configuration. The predictive kernels require outcome sampling: their
+/// composition theory (and our integration contract) is built on the single-
+/// trajectory importance-weighted increment stream of OS-MCCFR, while the other
+/// traversal schemes fold regrets through different code paths whose interplay
+/// with the prediction buffer is not established.
+template < MCCFRAlgorithmMode algorithm, RegretMinimizingMode rm_mode >
+inline constexpr bool mccfr_rm_mode_compatible =
+   mccfr_admissible_rm_mode< rm_mode >
+   and (rm_mode == RegretMinimizingMode::regret_matching or algorithm == MCCFRAlgorithmMode::outcome_sampling);
+
+/// maps the admissible predictive modes onto their PRM+-family kernel
+/// implementation ('void' for the plain-RM default whose storage stays inline in
+/// 'MCCFRMinimizer' so that historical layouts are preserved bit-for-bit)
+template < concepts::action Action, RegretMinimizingMode rm_mode >
+struct mccfr_predictive_kernel_of {
+   using type = void;
+};
+
+template < concepts::action Action >
+struct mccfr_predictive_kernel_of< Action, RegretMinimizingMode::predictive_regret_matching_plus > {
+   using type = PredictiveRegretMatchingPlus< Action >;
+};
+
+template < concepts::action Action >
+struct mccfr_predictive_kernel_of<
+   Action,
+   RegretMinimizingMode::sap_predictive_regret_matching_plus > {
+   using type = SAPPredictiveRegretMatchingPlus< Action >;
+};
+
+template < concepts::action Action >
+struct mccfr_predictive_kernel_of<
+   Action,
+   RegretMinimizingMode::ap_predictive_regret_matching_plus > {
+   using type = APPredictiveRegretMatchingPlus< Action >;
+};
+
+template < concepts::action Action >
+struct mccfr_predictive_kernel_of<
+   Action,
+   RegretMinimizingMode::p2p_predictive_regret_matching_plus > {
+   using type = P2PPredictiveRegretMatchingPlus< Action >;
+};
+
+template < concepts::action Action >
+struct mccfr_predictive_kernel_of<
+   Action,
+   RegretMinimizingMode::smooth_predictive_regret_matching_plus > {
+   using type = SmoothPredictiveRegretMatchingPlus< Action >;
+};
+
+template < concepts::action Action >
+struct mccfr_predictive_kernel_of<
+   Action,
+   RegretMinimizingMode::stable_predictive_regret_matching_plus > {
+   using type = StablePredictiveRegretMatchingPlus< Action >;
+};
+
+template < concepts::action Action, RegretMinimizingMode rm_mode >
+using mccfr_predictive_kernel_t = typename mccfr_predictive_kernel_of< Action, rm_mode >::type;
+
+/// legacy plain-RM per-infostate storage of 'MCCFRMinimizer' (registry +
+/// cumulative table). Kept as the base of the node data exactly as before so
+/// that existing configs see identical member layout and arithmetic.
+template < concepts::action Action >
+struct mccfr_plain_kernel_data {
+   action_registry< Action > registry;
+   /// cumulative counterfactual regret z(I,a); entry i belongs to registry.actions[i]
+   per_action_table< Action > regret;
+
+   void register_action(const Action& action)
+   {
+      registry.register_action(action);
+      regret.emplace_back(0.);
+   }
+
+   [[nodiscard]] size_t index_of(const Action& action) const { return registry.index_of(action); }
+};
+
+/// resolves the per-infostate table payload of the selected kernel. Specialized
+/// on 'void' (the plain-RM marker) so the fallback never instantiates
+/// 'void::node_data_type' -- plain configs must keep their historical layout.
+template < concepts::action Action, typename KernelOrVoid >
+struct mccfr_kernel_data_of {
+   using type = typename KernelOrVoid::node_data_type;
+};
+
+template < concepts::action Action >
+struct mccfr_kernel_data_of< Action, void > {
+   using type = mccfr_plain_kernel_data< Action >;
+};
+
 template < MCCFRAlgorithmMode algorithm, MCCFRWeightingMode weighting, concepts::action Action >
 using mccfr_extras_t = std::conditional_t<
    algorithm == MCCFRAlgorithmMode::pure_cfr,
@@ -1005,8 +1118,71 @@ using mccfr_extras_t = std::conditional_t<
 }  // namespace detail
 
 /**
- * @brief the MCCFR regret minimizer: plain external regret matching on top of
- * whatever per-config extras the sampling/weighting scheme requires.
+ * @brief the MCCFR regret minimizer: plain external regret matching by default,
+ * or a predictive RM+ kernel of the PRM+/PCFR+ family (Farina, Kroer, Sandholm,
+ * AAAI 2021 and successors) when the config's 'regret_minimizing_mode' selects
+ * one -- in both cases on top of whatever per-config extras the
+ * sampling/weighting scheme requires.
+ *
+ * COMPOSITION THEORY (predictive kernels under outcome sampling)
+ * --------------------------------------------------------------
+ * The kernel consumes the OS-MCCFR increment stream UNCHANGED: 'observe' folds
+ * exactly the importance-weighted sampled counterfactual increments r̂^t(I,a)
+ * that vanilla OS-MCCFR accumulates (Lanctot et al., NIPS 2009). These are
+ * conditionally unbiased, E[r̂^t | F_t] = r^t, where r^t is the true
+ * counterfactual instantaneous regret under the current strategy profile and
+ * F_t is the filtration generated by the sampling randomness up to t. The
+ * recommendation at time t is derived from theta(a) = max(0, clip(z)(a) +
+ * s*rho(a)) with rho = l̂^{t-1} = the last REALIZED sampled instantaneous
+ * regret vector (persistence prediction on samples); rho is measurable w.r.t.
+ * F_{t-1}, as is the recommended strategy sigma^t.
+ *
+ * What survives, precisely:
+ *  1. Unbiasedness of the increment estimator is untouched -- prediction only
+ *     shifts the recommendation source, never the increments.
+ *  2. PRM+'s external-regret guarantee (Farina, Kroer, Sandholm, AAAI 2021,
+ *     thm. 4) is PATHWISE over arbitrary loss sequences with arbitrary
+ *     predictions bounded like the losses; it therefore applies to each single
+ *     realization of the sampled-loss sequence {l̂^t} with predictions
+ *     m^t = l̂^{t-1}. This is exactly the structural requirement of the
+ *     stochastic-CFR framework of Farina, Kroer & Sandholm (ICML 2020), where
+ *     any local minimizer with an expected-regret bound over the ESTIMATED
+ *     loss sequence composes with any conditionally-unbiased gradient
+ *     estimator to yield average-strategy convergence.
+ *  3. Taking expectations over the sampling randomness then transfers the
+ *     bound from estimated to true counterfactual regrets (sigma^t is
+ *     F_{t-1}-measurable, so E[<sigma^t, l̂^t>] = E[<sigma^t, r^t>]).
+ *
+ * What degrades / is NOT claimed (honesty note):
+ *  - The prediction-error term of the pathwise bound now contains SAMPLING
+ *    NOISE: ||l̂^{t+1} - l̂^t|| >= ||r^{t+1} - r^t|| with inflation from the
+ *    heavy-tailed 1/q(a*) factor of the sampled action's component. The
+ *    benefit of prediction therefore shrinks as sampling variance grows;
+ *    epsilon-on-policy exploration (the default) bounds q away from zero and
+ *    plays the same heavy-tail-guarding role it plays for vanilla OS-MCCFR.
+ *    Damped shifts (SAPCFR+/P2PCFR+) are the robustification knobs.
+ *  - Full-information PCFR+'s headline O(1/T)-style behavior additionally
+ *    relies on quadratic average-policy accumulation (gamma = 2). Under MCCFR
+ *    the average strategy must keep its SAMPLING-correct weighting (lazy /
+ *    stochastic / ... modes, orthogonal below), which does not reproduce the
+ *    quadratic scheme; we claim convergence at OS-MCCFR-style rates modulo
+ *    the inflated prediction term, not PCFR+'s constants.
+ *  - Alternating updates visit an infostate several times per update cycle:
+ *    the FIRST recommendation after a regret fold carries the prediction
+ *    shift, subsequent re-recommendations see an already-consumed (empty)
+ *    prediction buffer and degenerate to plain RM+. This is benign -- the
+ *    strategy actually played immediately after the update (whose sampled
+ *    values feed the next fold) includes the prediction -- but it means the
+ *    prediction is not re-applied at every intermediate visit.
+ *
+ * Published precedent for this composition: VR-DeepPDCFR+ / VR-DeepDCFR+
+ * (Xu et al., AAAI 2026, arXiv:2511.08174) drive DCFR+/PDCFR+-style
+ * discount/clip/predict updates with outcome-sampled advantage estimates
+ * (their thms. 1-2 establish the estimator expectations), and ESCHER (McAleer
+ * et al., ICLR 2023) clips cumulative regrets under sampling. We found no
+ * published pathwise analysis of PRM+ specifically inside tabular OS-MCCFR;
+ * the guarantee statement above is our own composition of the two cited
+ * frameworks.
  *
  * The 'variance_reduction' switch additionally attaches the VR-MCCFR
  * state-action baseline table to every node (Schmid et al., AAAI 2019) when
@@ -1017,6 +1193,10 @@ using mccfr_extras_t = std::conditional_t<
  * history-value store lives in the MCCFR engine keyed by world-state-edge
  * hashes -- so the extras collapse to the empty struct as well. 'none' is the
  * plain outcome-sampling layout, identical to the historical flag-off path.
+ * Predictive kernels and VR baselines are currently mutually exclusive (see
+ * the static checks below): the VR machinery re-evaluates recommendations
+ * mid-update for its predictive-baseline rule, which would consume the
+ * prediction buffer off its canonical schedule.
  */
 template <
    concepts::action Action,
@@ -1026,9 +1206,35 @@ template <
    VarianceReductionMode variance_reduction = VarianceReductionMode::none >
 struct MCCFRMinimizer {
    static_assert(
-      rm_mode == RegretMinimizingMode::regret_matching,
-      "MCCFR+ is not yet implemented."
+      detail::mccfr_admissible_rm_mode< rm_mode >,
+      "This regret-minimizing mode is not available inside MCCFR. Admissible: "
+      "regret_matching plus the PRM+/PCFR+-family predictive kernels "
+      "(predictive/sap/ap/p2p/smooth/stable_predictive_regret_matching_plus) under "
+      "outcome sampling. Plain RM+ and internal-regret matching remain CFR-only."
    );
+   static_assert(
+      detail::mccfr_rm_mode_compatible< algorithm, rm_mode >,
+      "Predictive (PRM+/PCFR+-style) regret kernels inside MCCFR currently support "
+      "OUTCOME SAMPLING only: their composition theory rests on the "
+      "importance-weighted single-trajectory increment stream of OS-MCCFR. Use "
+      "MCCFRAlgorithmMode::outcome_sampling."
+   );
+   static_assert(
+      variance_reduction == VarianceReductionMode::none
+         or rm_mode == RegretMinimizingMode::regret_matching,
+      "Predictive kernels and VR-MCCFR/ESCHER baselines are not combinable yet: the "
+      "baseline maintenance rules re-evaluate recommendations mid-update (predictive "
+      "baseline, Davis et al., ICML 2020), consuming the prediction buffer off its "
+      "canonical schedule. Run them separately."
+   );
+
+   /// the selected predictive kernel ('void' for the plain-RM default)
+   using kernel_type = detail::mccfr_predictive_kernel_t< Action, rm_mode >;
+   static constexpr bool predictive_active = not std::is_void_v< kernel_type >;
+
+   /// per-infostate tables of the active kernel (predictive node data carries the
+   /// instantaneous-regret buffer + strategy snapshot + shift context)
+   using kernel_data_type = typename detail::mccfr_kernel_data_of< Action, kernel_type >::type;
 
    using extras_type = detail::mccfr_extras_t< algorithm, weighting, Action >;
    using vr_extras_type = std::conditional_t<
@@ -1036,16 +1242,13 @@ struct MCCFRMinimizer {
       detail::vr_baseline_extras< Action >,
       detail::no_mccfr_extras >;
 
-   struct node_data_type {
-      detail::action_registry< Action > registry;
-      per_action_table< Action > regret;
+   struct node_data_type: public kernel_data_type {
       [[no_unique_address]] extras_type extras;
       [[no_unique_address]] vr_extras_type vr_extras;
 
       void register_action(const Action& action)
       {
-         registry.register_action(action);
-         regret.emplace_back(0.);
+         kernel_data_type::register_action(action);
          if constexpr(not std::is_empty_v< extras_type >) {
             extras.register_action(action);
          }
@@ -1053,22 +1256,28 @@ struct MCCFRMinimizer {
             vr_extras.register_action(action);
          }
       }
-
-      [[nodiscard]] size_t index_of(const Action& action) const
-      {
-         return registry.index_of(action);
-      }
    };
 
    static void observe(node_data_type& data, const Action& action, double increment)
    {
-      data.regret[data.registry.index_of(action)] += increment;
+      if constexpr(predictive_active) {
+         // PRM+ family: clip-at-fold into z AND buffer into rho (the persistence
+         // prediction source of the next recommendation)
+         kernel_type::observe(data, action, increment);
+      } else {
+         data.regret[data.registry.index_of(action)] += increment;
+      }
    }
 
    template < typename PolicyOut >
-   static void recommend(const node_data_type& data, PolicyOut& policy_out, size_t /*iteration*/)
+   static void recommend(node_data_type& data, PolicyOut& policy_out, size_t iteration)
    {
-      detail::_recommend_from_regret(data.registry.actions, data.regret, policy_out);
+      if constexpr(predictive_active) {
+         // theta(a) = max(0, clip(z)(a) + s*rho(a)); consumes rho afterwards
+         kernel_type::recommend(data, policy_out, iteration);
+      } else {
+         detail::_recommend_from_regret(data.registry.actions, data.regret, policy_out);
+      }
    }
 
    static constexpr double policy_weight(size_t /*iteration*/) { return 1.; }

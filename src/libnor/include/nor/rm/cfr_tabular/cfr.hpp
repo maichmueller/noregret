@@ -21,6 +21,7 @@
 #include "nor/at_runtime.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/rm/cfr_tabular/mccfr.hpp"
 #include "nor/rm/forest.hpp"
 #include "nor/rm/lazy.hpp"
 #include "nor/rm/minimizers/minimizers.hpp"
@@ -942,6 +943,58 @@ using CFRLinear = VanillaCFR<
       .update_mode = config.update_mode,
       .regret_minimizing_mode = config.regret_minimizing_mode,
       .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////// MCCFR+ (predictive OS-MCCFR) ///////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief configuration carrier of the MCCFR+ family: OUTCOME-SAMPLING MCCFR
+ * whose per-infoset regret update is driven by a predictive RM+ kernel of the
+ * PCFR+ family instead of plain regret matching.
+ *
+ * The recommendation step derives the strategy from theta(a) =
+ * max(0, clip(z)(a) + s*rho(a)) where rho is the last realized
+ * importance-weighted sampled instantaneous regret vector (persistence
+ * prediction on samples) and s the kernel's prediction scale; the increments
+ * themselves are the UNCHANGED conditionally-unbiased OS-MCCFR estimator.
+ * See rm::MCCFRMinimizer for the precise statement of which guarantees survive
+ * this composition (unbiasedness + pathwise PRM+ external-regret machinery)
+ * and what degrades under sampling (prediction quality, quadratic averaging).
+ *
+ * 'regret_minimizing_mode' selects the kernel:
+ *   predictive_regret_matching_plus            -> PCFR+      (s = 1)
+ *   sap_predictive_regret_matching_plus        -> SAPCFR+    (s = 1/3)
+ *   ap_predictive_regret_matching_plus         -> APCFR+     (adaptive per-infostate s)
+ *   p2p_predictive_regret_matching_plus        -> P2PCFR+    (s = 1/6)
+ *   smooth_predictive_regret_matching_plus     -> Smooth-PRM+ (origin floor)
+ *   stable_predictive_regret_matching_plus     -> Stable-PRM+ (componentwise restart)
+ * All modes statically require MCCFRAlgorithmMode::outcome_sampling.
+ */
+struct MCCFRPlusConfig {
+   UpdateMode update_mode = UpdateMode::alternating;
+   /// average-policy accumulation scheme of the sampling engine (lazy weighting
+   /// reproduces Lanctot's unbiased deferred scheme; kept orthogonal to the
+   /// regret kernel on purpose -- see the composition-theory notes in
+   /// rm::MCCFRMinimizer for why PCFR+'s quadratic averaging is NOT imposed here)
+   MCCFRWeightingMode weighting = MCCFRWeightingMode::lazy;
+   /// the predictive RM+ kernel driving the regret updates (must be one of the
+   /// predictive_* modes above; anything else either falls back to plain RM or
+   /// trips the static admissibility checks)
+   RegretMinimizingMode
+      regret_minimizing_mode = RegretMinimizingMode::predictive_regret_matching_plus;
+};
+
+template < MCCFRPlusConfig config, typename Env, typename Policy, typename AveragePolicy >
+using MCCFRPlus = MCCFR<
+   MCCFRConfig{
+      .update_mode = config.update_mode,
+      .algorithm = MCCFRAlgorithmMode::outcome_sampling,
+      .weighting = config.weighting,
+      .regret_minimizing_mode = config.regret_minimizing_mode},
    Env,
    Policy,
    AveragePolicy >;
