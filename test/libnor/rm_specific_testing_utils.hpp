@@ -377,6 +377,8 @@ inline auto kuhn_optimal(double alpha)
    using namespace games::kuhn;
 
    std::unordered_map< Infostate, HashmapActionPolicy< Action > > alex_policy;
+   // every reachable alex-infostate of kuhn poker is known upfront from the enumeration below
+   alex_policy.reserve(6);
 
    auto env = Environment{};
    auto state = State{};
@@ -415,6 +417,7 @@ inline auto kuhn_optimal(double alpha)
    );
 
    std::unordered_map< Infostate, HashmapActionPolicy< Action > > bob_policy;
+   bob_policy.reserve(6);
    bob_policy.emplace(
       fetch_infostate("?jc", nor::Player::bob),
       HashmapActionPolicy{std::pair{Action::check, 2. / 3.}, std::pair{Action::bet, 1. / 3.}}

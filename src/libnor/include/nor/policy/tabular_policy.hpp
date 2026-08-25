@@ -190,6 +190,13 @@ class TabularPolicy {
       return m_table.size();
    }
 
+   /// pre-sizes the outer table so that subsequent inserts keep references/iterators valid
+   void reserve(size_t n_entries)
+      requires(requires(table_type t, size_t s) { t.reserve(s); })
+   {
+      m_table.reserve(n_entries);
+   }
+
    [[nodiscard]] auto& table() const { return m_table; }
 
   private:
