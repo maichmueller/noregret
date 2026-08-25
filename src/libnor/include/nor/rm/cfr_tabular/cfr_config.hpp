@@ -82,7 +82,31 @@ enum class CFRWeightingMode {
    discounted = 2,
    // The regret and average policy are weighted by an L1 factor: L1(I, a) = r(I,a) - E[v(I)]
    // where r(I,a) is the instantaneous regret and E[v(I)] is the expected value of the infostate
-   exponential = 3
+   exponential = 3,
+   // Greedy weights (Zhang, Lerer & Brown, "Equilibrium Finding in Normal-Form Games Via Greedy
+   // Regret Minimization", AAAI 2022, arXiv:2204.04826): both the cumulative counterfactual
+   // regrets and the average-policy accumulator of a completed iteration are weighted
+   // DYNAMICALLY with the scalar w that greedily minimizes the potential function
+   //    phi(R̄+) = sum over all (infostate, action) pairs of max(0, R̄(I,a))^2
+   // of the resulting AVERAGE regret vector R̄(w) = (R + w·r)/(w_sum + w), where r is the
+   // iteration's instantaneous counterfactual regret aggregated over the whole traversal.
+   // This is the paper's Algorithm 1 lifted to CFR exactly as prescribed by its Appendix F:
+   // one COMMON weight per iteration across ALL infostates (required to retain the O(1/sqrt(T))
+   // bound of their Theorem 1), the objective being the SUM of the local potential functions
+   // over all infostates. The optimal w is found exactly by enumerating the sign-change
+   // breakpoints of the per-component ratios plus the closed-form stationary points between
+   // them (the paper notes this costs O(|P||A|) evaluations; a binary search would also do).
+   // Following the authors' reference implementation (github.com/hughbzhang/greedy-weights),
+   // iterations are folded directly with the searched weight; only a near-infinite result --
+   // an iteration that invalidates the accumulated history -- is realized as their 1e-6
+   // dilution plus a weight-1 update. The scheme is SIMULTANEOUS-updates only: a single
+   // joint weight per iteration is drawn from the potential summed over all players (the
+   // faithful normal-form reading); alternating per-player instances are statically
+   // rejected -- they demonstrably fail to converge (see sanity_check_cfr_config).
+   // NOTE: the paper only analyzes full-expansion traversals: chance-sampled settings risk
+   // upweighting 'lucky' sampled outcomes (Appendix F), hence greedy weights is restricted to
+   // the vanilla (full-tree) engine here.
+   greedy = 4
 };
 
 enum class CFRPruningMode {
@@ -190,6 +214,18 @@ struct CFRConfig {
    /// distribution itself and would require its own importance-weight / unbiasedness
    /// treatment.
    size_t warm_start_iterations = 0;
+
+   /// ---- greedy weighting knobs (only meaningful when weighting_mode == greedy) -------------
+
+   /// Lower bound on each iteration's greedy weight, expressed as a FRACTION of the average
+   /// weight accrued so far: w >= greedy_weight_floor_fraction * (w_sum / t). The paper's main
+   /// text recommends w_sum/(2t) (= fraction 0.5) for two-player zero-sum normal-form games;
+   /// their CFR extension experiments (arXiv:2204.04826, Appendix F, Figure 13) found a floor
+   /// of "100% of the average weight accrued thus far" to work best in extensive-form games,
+   /// hence the default of 1.0. Their general-sum ablations (Appendix G) show performance is
+   /// robust as long as the floor is relatively low; floors that are too high destabilize
+   /// convergence because bad iterates can no longer be discarded.
+   double greedy_weight_floor_fraction = 1.;
 };
 
 struct CFRPlusConfig {
@@ -222,6 +258,11 @@ struct CFRLinearConfig {
 };
 
 struct CFRExponentialConfig {
+   UpdateMode update_mode = UpdateMode::alternating;
+   RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
+};
+
+struct CFRGreedyConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
 };
