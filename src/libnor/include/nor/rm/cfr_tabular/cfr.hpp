@@ -35,6 +35,57 @@ namespace detail {
 template < CFRConfig config >
 consteval bool sanity_check_cfr_config();
 
+/// output buffer standing in for the former TabularPolicy write-target of the
+/// minimizers' recommend()/finalize_iteration hooks (the node records are the
+/// single source of truth; their 'current_strategy' cache is published from
+/// here after each recommendation). Supports both PolicyOut idioms the
+/// minimizer library uses:
+///   - 'out[action] = p' assignments (all recommend kernels)
+///   - pair-style iteration mutating 'entry.second'
+///     (Thresholded::_apply_threshold)
+template < concepts::action Action >
+struct recommendation_scratch {
+   std::vector< std::pair< Action, double > > entries{};
+
+   /// aligns the buffer with the infostate's registry order and zeroes values
+   void prepare(const std::vector< Action >& actions)
+   {
+      entries.clear();
+      entries.reserve(actions.size());
+      for(const auto& action : actions) {
+         entries.emplace_back(action, 0.);
+      }
+   }
+
+   double& operator[](const Action& action)
+   {
+      const auto found = std::ranges::find(entries, action, &std::pair< Action, double >::first);
+      if(found == entries.end()) {
+         throw std::out_of_range("recommendation target is not a registered action");
+      }
+      return found->second;
+   }
+
+   auto begin() { return entries.begin(); }
+   auto end() { return entries.end(); }
+};
+
+/// AveragePolicy write-view for ExponentialCFR::finalize_iteration: routes the
+/// numerator accumulations into the owning node record's strategy-sum table,
+/// creating the uniform baseline on first touch exactly like the former
+/// fetch_policy<average> entry creation did.
+template < typename NodeRecord >
+struct average_strategy_accumulator {
+   NodeRecord* node;
+
+   double& operator[](const auto& action)
+   {
+      node->activate_average();
+      auto& sums = node->strategy_sum();
+      return sums[node->index_of(action)];
+   }
+};
+
 }  // namespace detail
 
 /**
@@ -166,33 +217,61 @@ class VanillaCFR:
    /// import public getters
 
    using base::env;
-   using base::policy;
    using base::iteration;
    using base::cycle;
    using base::root_state;
 
-   auto& average_policy() const
+   /// the CURRENT policy profile, materialized from the infostate node
+   /// records (D1: the records are the single source of truth; this view is
+   /// rebuilt lazily whenever the records changed since the last call)
+   const auto& policy() const
+   {
+      if(m_curr_view_dirty) {
+         _materialize_current_policy();
+         m_curr_view_dirty = false;
+      }
+      return m_curr_policy_view;
+   }
+
+   /// the AVERAGE policy profile, materialized from the node records'
+   /// cumulative strategy sums (raw unnormalized numerators, identical to the
+   /// former table contents)
+   const auto& average_policy() const
       requires(config.weighting_mode != CFRWeightingMode::exponential)
    {
-      return base::average_policy();
+      if(m_avg_view_dirty) {
+         _materialize_average_policy();
+         m_avg_view_dirty = false;
+      }
+      return m_avg_policy_view;
    }
 
    auto average_policy() const
       requires(config.weighting_mode == CFRWeightingMode::exponential)
    {
-      // we need to build the average policy now on demand as the denominator is no longer
-      // attainable via mere normalization, but is stored separately.
-      auto avg_policy_out = base::average_policy();
-      for(auto& [_, avg_player_policy_out] : avg_policy_out) {
-         for(auto& [infostate_ptr, action_policy] : avg_player_policy_out) {
-            const auto& node_data = _infonode(infostate_ptr).data();
-            const auto& action_policy_denominator = node_data.avg_policy_denominator;
-            for(auto& [action, policy_prob] : action_policy) {
-               policy_prob /= action_policy_denominator[node_data.index_of(action)];
-            }
+      // we need to build the average policy on demand as the denominator is no
+      // longer attainable via mere normalization, but is stored separately.
+      // The numerator lives in the node records' strategy sums; dividing by
+      // the per-action denominators reproduces the former table division
+      // entry-by-entry.
+      player_hashmap< AveragePolicy > avg_policy_out;
+      for(auto player : env().players(root_state()) | utils::is_actual_player_filter) {
+         avg_policy_out.emplace(player, AveragePolicy());
+      }
+      for(auto& [infostate_ptr, node] : m_infonode) {
+         if(not node.average_active()) {
+            continue;
+         }
+         const auto& actions = node.actions();
+         const auto& action_policy_denominator = node.data().avg_policy_denominator;
+         auto& action_policy = avg_policy_out[infostate_ptr->player()](
+            *infostate_ptr, actions, typename base::zero_policy_type{}
+         );
+         const auto& sums = node.strategy_sum();
+         for(auto [idx, action] : std::views::enumerate(actions)) {
+            action_policy[action] = sums[idx] / action_policy_denominator[idx];
          }
       }
-
       return avg_policy_out;
    }
 
@@ -295,16 +374,31 @@ class VanillaCFR:
    PruningStats m_pruning_stats{};
    /// memoized GLOBAL per-player bounds (B4 trait path, or degenerate fallback)
    player_hashmap< pruning::PayoffBound > m_payoff_bounds{};
-   /// per-(infostate,action) probed ranges: lower = L(I) (min payoff below I), upper = U(I,a)
-   /// (max payoff below h*a). Filled by the one-shot probe when the env lacks B4 bounds.
-   player_hashmap< std::unordered_map<
-      info_state_type,
-      std::unordered_map< action_type, pruning::PayoffBound, common::value_hasher< action_type > >,
-      common::value_hasher< info_state_type >,
-      common::value_comparator< info_state_type > > >
-      m_edge_bounds{};
+   /// per-(infostate,action) probed ranges (lower = L(I), upper = U(I,a)) live INSIDE the
+   /// infostate node records (InfostateNodeData::edge_bounds), index-aligned with their action
+   /// registries; filled by the one-shot probe when the env lacks B4 bounds.
    /// root participant order backing _probe_dfs's interval vectors (chance excluded)
    std::vector< Player > m_root_player_order{};
+
+   /// ---- touched-infoset sweep state (D3) -------------------------------------------------
+   /// nodes whose update_regret_and_policy ran during the current iteration,
+   /// in pre-order traversal order; consumed by _initiate_regret_minimization
+   /// and cleared every iteration (memory bounded per cycle)
+   std::vector< std::pair< const info_state_type*, infostate_data_type* > > m_touched_infonodes{};
+   /// monotone stamp compared against InfostateNodeData::sweep_stamp to keep
+   /// the touched list free of duplicates within one iteration
+   size_t m_sweep_clock = 0;
+   /// D4: set once the infoset population has been pre-sized after the first
+   /// full traversal
+   bool m_infonode_presized = false;
+
+   /// ---- lazily materialized policy views (D1) --------------------------------------------
+   mutable player_hashmap< Policy > m_curr_policy_view{};
+   mutable player_hashmap< AveragePolicy > m_avg_policy_view{};
+   mutable bool m_curr_view_dirty = true;
+   mutable bool m_avg_view_dirty = true;
+   /// scratch output buffer of the minimizers' recommend/finalize calls
+   detail::recommendation_scratch< action_type > m_recommend_scratch{};
 
    /////////////////////////////////////////////////
    /// private implementation details of the API ///
@@ -383,7 +477,30 @@ class VanillaCFR:
    void _initiate_regret_minimization(const std::optional< Player >& player_to_update);
 
    /// performs the end-of-traversal regret minimization step for one infostate
-   void _invoke_regret_minimizer(const info_state_type& infostate);
+   void _invoke_regret_minimizer(
+      [[maybe_unused]] const info_state_type& infostate,
+      infostate_data_type& istate_data
+   );
+
+   /// publishes the scratch recommendation buffer into the node record's
+   /// current-strategy cache (the traversal-visible current policy)
+   void _publish_recommendation(infostate_data_type& istate_data);
+
+   /// registers 'node' for the end-of-iteration regret-minimization sweep
+   /// (once per iteration; stamp-deduplicated)
+   void _touch(const info_state_type& infostate, infostate_data_type& node);
+
+   /// overlays user-seeded starting strategies from the constructor-time
+   /// policy tables onto a freshly created node record
+   void _seed_node_from_user_tables(
+      Player active_player,
+      const info_state_type& infostate,
+      infostate_data_type& node
+   );
+
+   /// rebuilds the materialized policy views from the node records
+   void _materialize_current_policy() const;
+   void _materialize_average_policy() const;
 
    ///////////////////////////////////////////////////////////////////////////////////////////
    ////////////////////// regret-based pruning / dynamic thresholding ////////////////////////
