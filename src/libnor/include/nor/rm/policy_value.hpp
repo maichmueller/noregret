@@ -62,8 +62,10 @@ struct policy_value_impl {
       Player active_player = env.active_player(*state);
       // the state's value for each player. To be filled by the action traversal functions.
       StateValueMap state_value{};
-      // each action's value for each player. To be filled by the action traversal functions.
-      std::unordered_map< auto_action_variant_type< env_type >, StateValueMap > action_value;
+      // NOTE: unlike the CFR traversals there is no per-action value accumulator
+      // here: this walk only aggregates state values, and the former
+      // unordered_map<action_variant, StateValueMap> was built and destroyed at
+      // every node visit without ever being read.
       // traverse all child states from this state. The constexpr check for determinism in the env
       // allows deterministic envs to not provide certain functions that are only needed in the
       // stochastic case.
@@ -78,8 +80,7 @@ struct policy_value_impl {
             reach_probability,
             std::move(observation_buffer),
             std::move(infostates),
-            state_value,
-            action_value
+            state_value
          );
       };
       // now we check first if we even need to consider a chance player, as the env could be simply
@@ -96,8 +97,7 @@ struct policy_value_impl {
                reach_probability,
                std::move(observation_buffer),
                std::move(infostates),
-               state_value,
-               action_value
+               state_value
             );
             // if this is a chance node then we don't need to update any regret or average policy
             // after the traversal
@@ -123,9 +123,7 @@ struct policy_value_impl {
       const ObservationbufferMap< auto_observation_type< std::remove_cvref_t< Env > > >&
          observation_buffer,
       player_hashmap< auto_info_state_type< std::remove_cvref_t< Env > > > infostate_map,
-      StateValueMap& state_value,
-      std::unordered_map< auto_action_variant_type< std::remove_cvref_t< Env > >, StateValueMap >&
-         action_value
+      StateValueMap& state_value
    )
    {
       using env_type = std::remove_cvref_t< Env >;
@@ -169,7 +167,6 @@ struct policy_value_impl {
          for(auto [player, child_value] : child_rewards_map.get()) {
             state_value.get()[player] += action_prob * child_value;
          }
-         action_value.emplace(action, std::move(child_rewards_map));
       }
    }
 
@@ -184,9 +181,7 @@ struct policy_value_impl {
       const ObservationbufferMap< auto_observation_type< std::remove_cvref_t< Env > > >&
          observation_buffer,
       player_hashmap< auto_info_state_type< std::remove_cvref_t< Env > > > infostate_map,
-      StateValueMap& state_value,
-      std::unordered_map< auto_action_variant_type< std::remove_cvref_t< Env > >, StateValueMap >&
-         action_value
+      StateValueMap& state_value
    )
    {
       using env_type = std::remove_cvref_t< Env >;
@@ -218,7 +213,6 @@ struct policy_value_impl {
          for(auto [player, child_value] : child_rewards_map.get()) {
             state_value.get()[player] += outcome_prob * child_value;
          }
-         action_value.emplace(std::move(outcome), std::move(child_rewards_map));
       }
    }
 };
