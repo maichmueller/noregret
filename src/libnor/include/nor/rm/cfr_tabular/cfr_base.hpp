@@ -1,16 +1,18 @@
-
-
 #ifndef NOR_CFR_BASE_TABULAR_HPP
 #define NOR_CFR_BASE_TABULAR_HPP
 
 #include <algorithm>
+#include <array>
+#include <deque>
 #include <iostream>
 #include <list>
 #include <map>
 #include <named_type.hpp>
 #include <queue>
 #include <ranges>
+#include <span>
 #include <stack>
+#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -25,6 +27,271 @@
 #include "nor/utils/utils.hpp"
 
 namespace nor::rm {
+
+/// hard upper bound of simultaneously participating seats: the Player enum in
+/// game_defs.hpp enumerates exactly 'Player::zoey + 1' actual player slots
+/// (chance/unknown are negative and excluded). Bounds all fixed-size stack
+/// storage of the seat-indexed traversal containers below.
+inline constexpr size_t max_player_seats = static_cast< size_t >(Player::zoey) + 1;
+
+/// validates and converts a player into its raw seat index; players outside
+/// the enumerable seat range (chance, unknown) are rejected
+[[nodiscard]] inline size_t player_seat(Player player)
+{
+   const auto idx = static_cast< size_t >(player);
+   if(player == Player::chance or player == Player::unknown or idx >= max_player_seats) {
+      throw std::invalid_argument("player_seat: player is not a valid seat (chance/unknown?)");
+   }
+   return idx;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// seat-indexed traversal containers ////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief seat-indexed slot table of per-player infostates.
+ *
+ * Replaces the former player_hashmap<sptr<InfoState>> traversal container:
+ * built once per iteration from the root roster, then indexed O(1) by the
+ * player's raw seat -- no hashing, no node allocation on the hot path. A null
+ * slot mirrors the former map's missing key ('find' yields nullptr,
+ * 'at'/'contains' report absence).
+ */
+template < typename InfoState >
+class InfostateSptrTable {
+  public:
+   using mapped_type = sptr< InfoState >;
+   static constexpr size_t seat_count = max_player_seats;
+
+   [[nodiscard]] mapped_type& at(Player player)
+   {
+      auto& slot = m_slots[player_seat(player)];
+      if(not slot) {
+         throw std::out_of_range("InfostateSptrTable: no infostate entry for player");
+      }
+      return slot;
+   }
+   [[nodiscard]] const mapped_type& at(Player player) const
+   {
+      return const_cast< InfostateSptrTable* >(this)->at(player);
+   }
+
+   /// map-'find' equivalent: nullptr stands in for the former end() iterator
+   [[nodiscard]] mapped_type* find(Player player)
+   {
+      if(player == Player::chance or player == Player::unknown) {
+         return nullptr;
+      }
+      const auto idx = static_cast< size_t >(player);
+      if(idx >= seat_count) {
+         return nullptr;
+      }
+      auto& slot = m_slots[idx];
+      return slot ? &slot : nullptr;
+   }
+   [[nodiscard]] const mapped_type* find(Player player) const
+   {
+      return const_cast< InfostateSptrTable* >(this)->find(player);
+   }
+
+   [[nodiscard]] bool contains(Player player) const { return find(player) != nullptr; }
+
+   /// roster-initialization insert (replaces map::emplace during setup only)
+   void emplace(Player player, mapped_type infostate)
+   {
+      m_slots[player_seat(player)] = std::move(infostate);
+   }
+
+   /// calls 'fn(player, sptr&)' for every initialized slot (ascending seats)
+   template < typename F >
+   void for_each_present(F&& fn)
+   {
+      for(auto idx : std::views::iota(size_t{0}, seat_count)) {
+         if(m_slots[idx]) {
+            fn(static_cast< Player >(idx), m_slots[idx]);
+         }
+      }
+   }
+   template < typename F >
+   void for_each_present(F&& fn) const
+   {
+      for(auto idx : std::views::iota(size_t{0}, seat_count)) {
+         if(m_slots[idx]) {
+            fn(static_cast< Player >(idx), std::as_const(m_slots[idx]));
+         }
+      }
+   }
+
+  private:
+   std::array< mapped_type, seat_count > m_slots{};
+};
+
+/**
+ * @brief seat-indexed slot table of per-player observation buffers.
+ *
+ * Replaces the former player_hashmap<vector<pair<Obs, Obs>>> traversal
+ * container: fixed stack storage indexed by raw seat; each occupied seat owns
+ * one reusable heap buffer whose capacity survives across edges/iterations.
+ */
+template < typename Observation >
+class ObservationbufferTable {
+  public:
+   using buffer_type = std::vector< std::pair< Observation, Observation > >;
+   static constexpr size_t seat_count = max_player_seats;
+
+   [[nodiscard]] buffer_type& at(Player player)
+   {
+      const auto idx = player_seat(player);
+      if(not m_present[idx]) {
+         throw std::out_of_range("ObservationbufferTable: no buffer entry for player");
+      }
+      return m_buffers[idx];
+   }
+   [[nodiscard]] const buffer_type& at(Player player) const
+   {
+      return const_cast< ObservationbufferTable* >(this)->at(player);
+   }
+
+   /// map-'operator[]' equivalent: lazily marks a seat present (former map
+   /// semantics inserted an empty buffer on first touch)
+   [[nodiscard]] buffer_type& operator[](Player player)
+   {
+      const auto idx = player_seat(player);
+      m_present[idx] = true;
+      return m_buffers[idx];
+   }
+
+   /// map-'find'-style presence query used by the flush decision
+   [[nodiscard]] bool contains(Player player) const
+   {
+      if(player == Player::chance or player == Player::unknown) {
+         return false;
+      }
+      const auto idx = static_cast< size_t >(player);
+      return idx < seat_count and m_present[idx];
+   }
+
+   /// roster-initialization insert
+   void emplace(Player player, buffer_type buffer = {})
+   {
+      auto& slot = (*this)[player];
+      slot = std::move(buffer);
+   }
+
+   /// calls 'fn(player, buffer&)' for every present slot (ascending seats)
+   template < typename F >
+   void for_each_present(F&& fn)
+   {
+      for(auto idx : std::views::iota(size_t{0}, seat_count)) {
+         if(m_present[idx]) {
+            fn(static_cast< Player >(idx), m_buffers[idx]);
+         }
+      }
+   }
+   template < typename F >
+   void for_each_present(F&& fn) const
+   {
+      for(auto idx : std::views::iota(size_t{0}, seat_count)) {
+         if(m_present[idx]) {
+            fn(static_cast< Player >(idx), std::as_const(m_buffers[idx]));
+         }
+      }
+   }
+
+  private:
+   std::array< buffer_type, seat_count > m_buffers{};
+   std::array< bool, seat_count > m_present{};
+};
+
+/**
+ * @brief cold-path adapters: the best-response / payoff-probe walks (declared
+ * outside this migration's ownership on classic player_hashmaps) materialize
+ * the seat-indexed traversal containers through these views. The walks restore
+ * every mutation per edge, so operating on the materialized copies is
+ * observationally equivalent.
+ */
+template < typename InfoState >
+[[nodiscard]] inline player_hashmap< sptr< InfoState > > raw_infostate_view(
+   const InfostateSptrTable< InfoState >& table
+)
+{
+   player_hashmap< sptr< InfoState > > out;
+   out.reserve(table.seat_count);
+   table.for_each_present([&](Player p, const sptr< InfoState >& istate) { out.emplace(p, istate); }
+   );
+   return out;
+}
+
+template < typename Observation >
+[[nodiscard]] inline player_hashmap< std::vector< std::pair< Observation, Observation > > >
+raw_observation_buffer_view(const ObservationbufferTable< Observation >& table)
+{
+   player_hashmap< std::vector< std::pair< Observation, Observation > > > out;
+   out.reserve(table.seat_count);
+   table.for_each_present([&](Player p, const auto& buffer) { out.emplace(p, buffer); });
+   return out;
+}
+
+/**
+ * @brief single-trajectory counterpart of
+ * utils::next_infostate_and_obs_buffers_inplace over the seat-indexed tables:
+ * folds the edge's observations into the live buffers / advances the next
+ * active player's infostate in place. Mutation order over players matches the
+ * generic helper exactly.
+ */
+template <
+   typename Env,
+   typename ObservationbufferMapT,
+   typename InfostateSptrMapT,
+   typename Worldstate = auto_world_state_type< std::remove_cvref_t< Env > > >
+   requires concepts::fosg< std::remove_cvref_t< Env > >
+void next_infostate_and_obs_buffers_seated(
+   Env&& env,
+   ObservationbufferMapT& observation_buffer,
+   InfostateSptrMapT& infostate_map,
+   const Worldstate& state,
+   const auto& action_or_outcome,
+   const Worldstate& next_state
+)
+{
+   // the public observation will be given to every player, so we can establish it outside the loop
+   auto public_obs = env.public_observation(state, action_or_outcome, next_state);
+
+   auto active_player = env.active_player(next_state);
+   for(auto player : env.players(next_state)) {
+      if(player == Player::chance) {
+         continue;
+      }
+      if(player != active_player) {
+         // for all but the active player we simply append action and state observation to the
+         // buffer. They will be written to an actual infostate once that player becomes the
+         // active player again
+         auto& player_obs_buffer = observation_buffer[player];
+         player_obs_buffer.emplace_back(
+            public_obs, env.private_observation(player, state, action_or_outcome, next_state)
+         );
+      } else {
+         // for the active player we first append all recent actions and state observations to
+         // the info state, and then follow it up by adding the current action and state
+         // observations. We consume these observations by moving them into the appendix of the
+         // infostate. The cleared observation buffer is reused, but is now empty.
+         auto& infostate_holder = infostate_map.at(active_player);
+         auto& obs_history = observation_buffer[active_player];
+         for(auto& obs : obs_history) {
+            ::nor::detail::update_infostate(
+               infostate_holder, std::move(obs.first), std::move(obs.second)
+            );
+         }
+         obs_history.clear();
+         ::nor::detail::update_infostate(
+            infostate_holder,
+            public_obs,
+            env.private_observation(player, state, action_or_outcome, next_state)
+         );
+      }
+   }
+}
 
 /**
  * A Counterfactual Regret Minimization algorithm base class following the
@@ -69,13 +336,13 @@ class TabularCFRBase {
 
    /// the data to store per infostate entry
    using infostate_data_type = InfostateNodeData< action_type >;
-   /// strong-types for argument passing
-   using InfostateSptrMap = fluent::
-      NamedType< player_hashmap< sptr< info_state_type > >, struct reach_prob_tag >;
+   /// seat-indexed traversal containers (B3): built once per iteration from
+   /// the root roster and passed down the recursion by reference -- no player
+   /// hashing or node allocation on the hot path (formerly NamedTypes over
+   /// player_hashmap).
+   using InfostateSptrMap = InfostateSptrTable< info_state_type >;
 
-   using ObservationbufferMap = fluent::NamedType<
-      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >,
-      struct observation_buffer_tag >;
+   using ObservationbufferMap = ObservationbufferTable< observation_type >;
 
    ////////////////////
    /// Constructors ///
@@ -288,6 +555,25 @@ class TabularCFRBase {
    ///////////////////////////////////////////
    /// private member variable definitions ///
    ///////////////////////////////////////////
+
+  protected:
+   /// B3: per-depth reusable scratch buffer for the flush-target observation
+   /// buffer SWAP at recursion boundaries (replaces the former per-edge heap
+   /// copy of the flush target's buffer). A deque on purpose -- growing it
+   /// never moves existing slots, keeping references held by active frames
+   /// valid (same discipline as the derived classes' world-state arena).
+   /// Access through _obs_scratch_slot(depth).
+   std::deque< std::vector< std::pair< observation_type, observation_type > > >
+      m_obs_scratch_arena{};
+
+   /// grows (if needed) and returns the flush-swap scratch slot of 'depth'
+   auto& _obs_scratch_slot(size_t depth)
+   {
+      if(m_obs_scratch_arena.size() <= depth) {
+         m_obs_scratch_arena.resize(depth + 1);
+      }
+      return m_obs_scratch_arena[depth];
+   }
 
   private:
    /// the environment object to maneuver the states with.
