@@ -171,3 +171,15 @@ add_library(colonel_blotto INTERFACE)
 target_include_directories(colonel_blotto INTERFACE ${PROJECT_GAMES_DIR}/colonel_blotto/include)
 
 target_link_libraries(colonel_blotto INTERFACE required_min_libs common)
+
+# ######################################################################################################################
+# Sheriff of Nottingham -- EFCE benchmark of Farina et al., NeurIPS 2019, App. F (header-only)
+# ######################################################################################################################
+
+add_library(sheriff INTERFACE)
+
+target_include_directories(sheriff INTERFACE ${PROJECT_GAMES_DIR}/sheriff/include)
+
+target_link_libraries(sheriff INTERFACE required_min_libs common)
+
+# ######################################################################################################################

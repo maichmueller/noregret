@@ -171,4 +171,12 @@ if(ENABLE_GAMES)
         colonel_blotto
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        sheriff
+        INCLUDE_DIR
+        sheriff
+        LINK_LIBRARY
+        sheriff
+        SOURCE_FILES
+        test_state.cpp)
 endif()
