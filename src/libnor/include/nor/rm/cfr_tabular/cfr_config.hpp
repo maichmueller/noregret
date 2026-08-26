@@ -230,6 +230,12 @@ struct CFRConfig {
    /// regret-seeded recommendations without uniform-round pollution -- literature reports
    /// this to speed up EARLY exploitability descent.
    ///
+   /// Exclusion caveat: the 'contribute NOTHING' clause holds for the EAGER average-strategy
+   /// increment. Two deferred accumulation paths feed pre-play own-reach mass through by
+   /// design (historical/develop arithmetic, kept for golden-trajectory reproducibility):
+   /// LazyCFR's per-segment pending_player_reach and GreedyWeights' reach_prob_snapshot --
+   /// see the WARM-START SEMANTICS notes in cfr.tcc's update_regret_and_policy.
+   ///
    /// Terminology note: this is NOT Brown & Sandholm's "Strategy-Based Warm Starting" (AAAI
    /// 2016, DOI 10.1609/aaai.v30i1.10056), which provably substitutes regret-table values
    /// from a substitute value assignment in a single traversal -- their paper even shows

@@ -140,6 +140,12 @@ struct average_strategy_accumulator {
  * run unmodified, seeding the cumulative regret tables away from zero (the pre-play rounds
  * contribute nothing to the average strategy).
  *
+ * CAVEAT on that last clause: it describes the EAGER average-strategy increment exactly,
+ * but two deferred accumulation paths carry pre-play own-reach mass into their folds --
+ * LazyCFR's segment accumulator and GreedyWeights' reach_prob_snapshot feed
+ * unconditionally by design. This reproduces the historical (develop) arithmetic
+ * bit-for-bit; golden-trajectory reproducibility was chosen over contract purity.
+ *
  * The 'distribution' callable receives an infostate (which carries its owner) and that
  * infostate's registered actions and must return the FULL normalized action distribution for
  * it. An EMPTY callable selects the default uniform distribution over the legal actions.
@@ -178,7 +184,17 @@ class VanillaCFR:
   public:
    static_assert(
       detail::sanity_check_cfr_config< config >(),
-      "The configuration check did not return TRUE."
+      "The configuration check did not return TRUE. This solver was instantiated with a "
+      "config combination that rm::CFRConfig documents as unanalyzed or broken -- see "
+      "the clause comments above each 'return false' in detail::sanity_check_cfr_config "
+      "(rm/cfr_tabular/cfr.tcc). Usual culprits: predictive/discounted kernels outside "
+      "alternating full-tree discounted weighting; extragradient outside its analyzed "
+      "core config; lazy segmentation with non-uniform weighting / pruning / those "
+      "kernels; constrained RM+ with non-uniform weighting, pruning, lazy or warm start; "
+      "the internal-regret kernel with non-uniform weighting, pruning or warm start; "
+      "greedy weights with alternating updates or dynamic thresholding; regret-based "
+      "pruning outside alternating + uniform + RM+; exponential/greedy weighting under "
+      "partial pruning; exponential weighting under warm start."
    );
 
    ////////////////////////////
@@ -327,6 +343,11 @@ class VanillaCFR:
    /// defaults (warm-start forced play happens at the fetch point and does
    /// not create records either). Callers wanting a complete profile must run
    /// at least one iteration first.
+   /// SHARP EDGE: references/iterators taken from a returned view stay valid
+   /// only until the next SOLVER MOVE that dirties the records (iterate(),
+   /// finalize_iteration, ...); the very next accessor call after such a move
+   /// CLEARS AND REBUILDS the whole view in place, dangling everything held
+   /// across the rebuild. Copy out anything you need to keep.
    const auto& policy() const
    {
       if(m_curr_view_dirty) {
@@ -340,7 +361,9 @@ class VanillaCFR:
    /// cumulative strategy sums (raw unnormalized numerators, identical to the
    /// former table contents). Same CONTRACT as policy(): only infosets touched
    /// by at least one completed, average-initializing traversal appear here --
-   /// before the first such iteration the view is empty.
+   /// before the first such iteration the view is empty. Same SHARP EDGE as
+   /// policy(): references into the view invalidate on the rebuild triggered
+   /// by the first accessor call after any solver move.
    const auto& average_policy() const
       requires(config.weighting_mode != CFRWeightingMode::exponential)
    {
@@ -489,13 +512,31 @@ class VanillaCFR:
    ////////////////////////////////
 
    [[nodiscard]] inline auto& _infonodes() { return m_infonode; }
+   /// Throwing lookups (mirroring MCCFR's): node records populate only during the first
+   /// initializing traversal, so a lookup on an untrained solver (e.g. game_value() before
+   /// any iterate()) must fail loudly with std::out_of_range instead of dereferencing an
+   /// end() iterator (UB).
    [[nodiscard]] inline auto& _infonode(const info_state_type& infostate) const
    {
-      return m_infonode.find(infostate)->second;
+      auto found = m_infonode.find(infostate);
+      if(found == m_infonode.end()) {
+         throw std::out_of_range{
+            "VanillaCFR: no infostate record found -- records are populated by the "
+            "first initializing traversal; run at least one iteration before "
+            "querying infoset data."};
+      }
+      return found->second;
    }
    [[nodiscard]] inline auto& _infonode(const info_state_type& infostate)
    {
-      return m_infonode.find(infostate)->second;
+      auto found = m_infonode.find(infostate);
+      if(found == m_infonode.end()) {
+         throw std::out_of_range{
+            "VanillaCFR: no infostate record found -- records are populated by the "
+            "first initializing traversal; run at least one iteration before "
+            "querying infoset data."};
+      }
+      return found->second;
    }
    [[nodiscard]] inline auto& _infonode(const sptr< info_state_type >& infostate) const
    {
