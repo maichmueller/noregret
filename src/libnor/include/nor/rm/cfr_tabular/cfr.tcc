@@ -392,6 +392,15 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          refresh_strategy = _lazy_consume_refresh(infostate);
       }
       if(refresh_strategy) {
+         // behaviorally-constrained kernels consume per-infostate probability floors
+         // resolved from the environment's B8 trait ahead of every recommendation
+         // (uniform-floor configs seed them once at table registration; nothing to do)
+         if constexpr(
+            config.regret_minimizing_mode ==
+            RegretMinimizingMode::constrained_regret_matching_plus
+         ) {
+            _refresh_probability_floors(infostate, istate_data.data());
+         }
          // derive the recommendation from the (possibly weighted) stored regret
          m_regret_minimizer.recommend(istate_data.data(), current_policy, _iteration());
 
@@ -446,6 +455,30 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_force_warm_start_policy(
             action_policy[action] = uniform_prob;
          }
       }
+   }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename NodeData >
+void VanillaCFR< config, Env, Policy, AveragePolicy >::_refresh_probability_floors(
+   const info_state_type& infostate,
+   NodeData& node_data
+)
+{
+   if constexpr(
+      concepts::has::method::action_probability_floors< env_type, info_state_type, action_type >
+   ) {
+      // B8 trait contract: the environment replaces the seeded uniform floor vector of
+      // this infostate wholesale; feasibility (entries in [0,1], sum < 1) is validated
+      // by the kernel's fold step, which throws std::invalid_argument on violation.
+      auto floors = _env().action_probability_floors(infostate, node_data.registry.actions);
+      if(std::ranges::size(floors) != node_data.probability_floors.size()) {
+         throw std::invalid_argument(
+            "action_probability_floors: the environment must report one floor per "
+            "registered action"
+         );
+      }
+      std::ranges::copy(std::move(floors), std::ranges::begin(node_data.probability_floors));
    }
 }
 
@@ -1171,6 +1204,34 @@ consteval bool sanity_check_cfr_config()
       // a non-positive opponent-reach budget would close segments before any visit's
       // contributions are buffered
       if constexpr(not(config.lazy_update_threshold_b > 0.)) {
+         return false;
+      }
+   }
+   if constexpr(config.regret_minimizing_mode ==
+                RegretMinimizingMode::constrained_regret_matching_plus) {
+      // Behaviorally-constrained CFR+ (Farina, Kroer & Sandholm, "Regret
+      // Minimization in Behaviorally-Constrained Zero-Sum Games", ICML 2017):
+      // their Thms. 5/7 + Algorithm 2 analyze the plain CFR traversal whose local
+      // minimizer is RM+ over the linearly constrained (perturbed) simplex with
+      // UNIFORM iteration averaging. The predictive/discounted/exponential/greedy
+      // kernels re-weight or re-shape exactly the increments and recommendations
+      // the polytope-RM+ fold consumes; pruning windows buffer untransformed
+      // best-response increments against an RM+-layout contract and dynamic
+      // thresholding zeroes actions whose floors must stay positive; lazy
+      // segmentation freezes recommendations across iterations while the paper's
+      // fold pairs ONE recommendation with ONE fully observed iteration; the warm-
+      // start pre-play regime is simply not analyzed with perturbed play. All such
+      // combinations are statically rejected initially.
+      if constexpr(
+         config.weighting_mode != CFRWeightingMode::uniform
+         or config.pruning_mode != CFRPruningMode::none
+         or config.lazy_update_mode != CFRLazyUpdateMode::off
+         or config.warm_start_iterations > 0
+      ) {
+         return false;
+      }
+      // negative (or NaN) uniform floors are infeasible
+      if constexpr(not(config.perturbation_floor >= 0.)) {
          return false;
       }
    }

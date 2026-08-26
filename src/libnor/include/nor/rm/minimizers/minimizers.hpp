@@ -839,6 +839,9 @@ class Thresholded {
 // the DCFR+/PDCFR+ kernels + HS schedule factories follow the same pattern
 #include "discounted_predictive.hpp"
 
+// the behaviorally-constrained (perturbed) RM+ kernel follows it as well
+#include "constrained.hpp"
+
 namespace nor::rm {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -851,10 +854,17 @@ template <
    concepts::action Action,
    CFRWeightingMode weighting,
    CFRPruningMode pruning,
-   RegretMinimizingMode rm_mode >
+   RegretMinimizingMode rm_mode,
+   double PerturbationFloor = 0. >
 consteval auto select_vanilla_minimizer()
 {
-   if constexpr(rm_mode == RegretMinimizingMode::internal_regret_matching) {
+   if constexpr(rm_mode == RegretMinimizingMode::constrained_regret_matching_plus) {
+      // behaviorally-constrained (perturbed) RM+ kernel (Farina, Kroer & Sandholm,
+      // ICML 2017): RM+ over the linearly constrained simplex; the uniform floor
+      // comes in as a compile-time value from CFRConfig::perturbation_floor.
+      // Statically pinned to the uniform weighting mode by 'sanity_check_cfr_config'
+      return std::type_identity< ConstrainedRMPlus< Action, PerturbationFloor > >{};
+   } else if constexpr(rm_mode == RegretMinimizingMode::internal_regret_matching) {
       // swap-basis phi-regret kernel (Hart-Mas-Colell style internal-regret
       // matching); selected ahead of the weighting-mode branches because it is
       // statically pinned to the uniform weighting mode by the config check
@@ -936,7 +946,8 @@ using base_minimizer_for_t = typename decltype(detail::select_vanilla_minimizer<
                                                Action,
                                                config.weighting_mode,
                                                config.pruning_mode,
-                                               config.regret_minimizing_mode >())::type;
+                                               config.regret_minimizing_mode,
+                                               config.perturbation_floor >())::type;
 
 /// final minimizer selection: dynamic thresholding wraps whatever base minimizer the rest of
 /// the configuration selects (Brown, Kroer, Sandholm, AAAI 2017 -- thresholding is orthogonal

@@ -66,7 +66,22 @@ enum class RegretMinimizingMode {
    // uniform weighting and non-RBP pruning (statically enforced); the
    // instantaneous increments are buffered per iteration and folded inside
    // 'recommend' against a snapshot of the recommendation that generated them
-   internal_regret_matching = 10
+   internal_regret_matching = 10,
+   // Behaviorally-constrained ("perturbed") RM+ kernel of CFR+ (Farina, Kroer &
+   // Sandholm, "Regret Minimization in Behaviorally-Constrained Zero-Sum Games",
+   // ICML 2017, arXiv:1711.03441): RM+ running over the LINEARLY CONSTRAINED
+   // simplex (their Prop. 6 / Algorithm 2)
+   //    Q^I = { sigma in Delta^{|A(I)|} : sigma(I,a) >= p(I,a) for all a },
+   // so every iterate's recommendation satisfies the probability floors EXACTLY.
+   // A uniform floor is Selten's behavioral trembling; solving the perturbed game
+   // yields an approximate extensive-form-perfect-equilibrium refinement while
+   // retaining CFR+'s O(1/sqrt(T)) rate (their Thms. 5 and 7). The floors are
+   // configured through CFRConfig::perturbation_floor (uniform) and may be
+   // replaced per-infostate by environments exposing the B8 trait
+   // 'action_probability_floors' (concepts/has.hpp). Requires uniform weighting,
+   // no pruning, no lazy segmentation and no warm start -- combinations the paper
+   // does not analyze are statically rejected (see sanity_check_cfr_config).
+   constrained_regret_matching_plus = 11
 };
 
 enum class UpdateMode { simultaneous = 0, alternating = 1 };
@@ -226,6 +241,28 @@ struct CFRConfig {
    /// robust as long as the floor is relatively low; floors that are too high destabilize
    /// convergence because bad iterates can no longer be discarded.
    double greedy_weight_floor_fraction = 1.;
+
+   /// ---- behavioral constraints (perturbed game / equilibrium refinement) -----------------
+   ///
+   /// Uniform per-action lower bound of the behaviorally-constrained simplex
+   ///    sigma(I,a) >= perturbation_floor     at EVERY infoset I of EVERY player,
+   /// active only together with RegretMinimizingMode::constrained_regret_matching_plus
+   /// (Farina, Kroer & Sandholm, ICML 2017 -- see the enumerator documentation). A
+   /// positive value turns the solved profile into an approximate EFPE-style
+   /// equilibrium refinement: off-path/reach-deficient parts of the tree are played
+   /// sensibly because every action keeps at least this trembling probability, while
+   /// on-path convergence matches CFR+ until the constraints bind (their sec. 8).
+   ///
+   /// Feasibility requires perturbation_floor * |A(I)| < 1 per infoset (validated at
+   /// runtime; violations throw). epsilon == 0 degenerates the kernel bit-for-bit to
+   /// plain RM+ (plain CFR+ trajectories), which also makes the limit a useful
+   /// regression baseline.
+   ///
+   /// Environments may REPLACE the uniform vector per infostate through the B8 trait
+   /// 'action_probability_floors' (concepts/has.hpp); such environments must keep
+   /// this value > 0, because only then does the kernel compile its buffered
+   /// (paper-exact) update path that can honor non-uniform floors at all.
+   double perturbation_floor = 0.;
 };
 
 struct CFRPlusConfig {
