@@ -19,28 +19,48 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sanit
 {
    static_assert(
       not std::invoke([&] {
+         // DEAD-KNOB GUARD: of all pruning machinery only PARTIAL pruning is wired anywhere
+         // in MCCFR -- and only in the chance-sampling traversal's zero-reach subtree cut
+         // (_traverse, cf. 'config.pruning_mode == CFRPruningMode::partial' there; the pure-
+         // CFR-simultaneous sibling has it compiled out). Regret-based pruning and dynamic
+         // thresholding are wired NOWHERE under sampling (their window gating / thresholded
+         // recommendations exist only in the VanillaCFR engine), so they are rejected for
+         // every algorithm; partial is allowed only where it actually does something.
          constexpr bool pruning_in_non_full_traversal_modes =
             // clang-format off
-         config.pruning_mode != CFRPruningMode::none
-         and (
-            config.algorithm != MCCFRAlgorithmMode::chance_sampling
-            or (
-               config.algorithm == MCCFRAlgorithmMode::pure_cfr
-               and config.update_mode != UpdateMode::simultaneous
-            )
-         );
-         // clang-format on
+          config.pruning_mode == CFRPruningMode::regret_based
+          or config.pruning_mode == CFRPruningMode::dynamic_thresholding
+          or (
+             config.pruning_mode == CFRPruningMode::partial
+             and config.algorithm != MCCFRAlgorithmMode::chance_sampling
+          );
+          // clang-format on
          constexpr bool ext_sampling_bad_combo =
             // clang-format off
-         config.algorithm == MCCFRAlgorithmMode::external_sampling
-         and (
-            config.update_mode != UpdateMode::alternating
-            or config.weighting != MCCFRWeightingMode::stochastic
-         );
-         // clang-format on
+          config.algorithm == MCCFRAlgorithmMode::external_sampling
+          and (
+             config.update_mode != UpdateMode::alternating
+             or config.weighting != MCCFRWeightingMode::stochastic
+          );
+          // clang-format on
          return pruning_in_non_full_traversal_modes or ext_sampling_bad_combo;
       }),
-      "Config did not pass the check for correctness."
+      "Config did not pass the check for correctness. Pruning modes are only wired for "
+      "chance_sampling (none|partial); regret_based / dynamic_thresholding -- with their "
+      "companion knobs rbp_min_skip_iterations / rbp_br_refresh_period / "
+      "dynamic_threshold_c -- are unwired dead knobs in every sampling traversal."
+   );
+   // VR/ESCHER machinery (baselines, bootstrapping, predictive regression side
+   // channels) is hooked ONLY into the outcome-sampling traversal; under every other
+   // algorithm the knob would be accepted-but-silent while its allocations still tax
+   // memory and diagnostics lie about the active estimator. Reject those combos here.
+   static_assert(
+      effective_variance_reduction(config) == VarianceReductionMode::none
+         or config.algorithm == MCCFRAlgorithmMode::outcome_sampling,
+      "VR-MCCFR/ESCHER baselines are implemented for -- and therefore restricted to -- "
+      "the OUTCOME-SAMPLING traversal: external/pure/chance sampling never consume "
+      "baseline-corrected value estimates, so a non-none variance_reduction there only "
+      "pays allocations for dead code. Use MCCFRAlgorithmMode::outcome_sampling."
    );
    static_assert(
       not (
@@ -66,6 +86,15 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sanit
       "baselines are history values V(h) tracked at world-state granularity (ESCHER sec. "
       "3/Theorem 1); with per-infoset action baselines the resulting estimator loses its "
       "unbiasedness guarantee. Select variance_reduction = history_value."
+   );
+   static_assert(
+      config.baseline_update_rule == BaselineUpdateRule::running_mean
+         or effective_variance_reduction(config) != VarianceReductionMode::none,
+      "BaselineUpdateRule::predictive without any variance-reduction mode is an inert "
+      "knob: the predictive regression (Davis et al., ICML 2020, eq (8)) is conditional on "
+      "a live baseline stream -- see rm::MCCFR::vr_predictive_active, which resolves to "
+      "false when variance_reduction == none, silently compiling the rule away. Select a "
+      "variance_reduction mode first."
    );
    // B7 sanity guards: both new rule families are defined on (and hooked only
    // into) the outcome-sampling traversal.
@@ -94,9 +123,13 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sanit
    static_assert(
       not probing_sampling_rule< SamplingRule > or probing_supported(config),
       "ProbingSamplingRule (Gibson et al., AAAI 2012) requires an outcome-sampling, "
-      "alternating-update MCCFR configuration without VR/ESCHER baselines and with "
-      "current-policy updater sampling (see rm::probing_supported). External/pure/chance "
-      "sampling traversals do not consume probed value estimates."
+      "alternating-update MCCFR configuration without VR/ESCHER baselines, with "
+      "current-policy updater sampling AND the plain regret-matching kernel (the probed "
+      "counterfactual vector is folded through the minimizer's 'observe' protocol, whose "
+      "clip-at-fold / prediction-buffer semantics are only defined for the OS-MCCFR "
+      "increment stream of the PRM+ family -- not for the probing-replaced update path; "
+      "see rm::probing_supported). External/pure/chance sampling traversals do not "
+      "consume probed value estimates."
    );
 };
 
