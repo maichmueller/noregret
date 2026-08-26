@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <concepts>
 #include <iostream>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -530,4 +532,144 @@ TEST(CFRPruningSanityMatrix, OshiZumo_Size2Coins6_RegretBased)
       std::make_unique< games::oshi_zumo::State >(oz_config),
       100
    )));
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////// linear weighting x dynamic thresholding: admission + behavior //////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+/// linear (stateless carrier) x dynamic thresholding -- admitted by the dtp clause of
+/// sanity_check_cfr_config since the LinearCFR decorator satisfies Thresholded's static
+/// call pattern
+constexpr rm::CFRConfig linear_dt{
+   .update_mode = rm::UpdateMode::alternating,
+   .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching,
+   .weighting_mode = rm::CFRWeightingMode::linear,
+   .pruning_mode = rm::CFRPruningMode::dynamic_thresholding};
+
+/// plain unpruned linear run as the parity/convergence reference
+constexpr rm::CFRConfig linear_plain{
+   .update_mode = rm::UpdateMode::alternating,
+   .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching,
+   .weighting_mode = rm::CFRWeightingMode::linear,
+   .pruning_mode = rm::CFRPruningMode::none};
+
+}  // namespace
+
+TEST(CFRLinearConfigSanity, LinearXDynamicThresholdingMatrixPins)
+{
+   using KuhnAction = games::kuhn::Action;
+
+   // (a) compile-time acceptance: the config instantiates end-to-end and resolves to
+   // exactly Thresholded<LinearCFR<RM>>
+   static_assert(is_legal_cfr_config< linear_dt >);
+   static_assert(std::same_as<
+                 rm::minimizer_for_t< linear_dt, KuhnAction >,
+                 rm::Thresholded<
+                    rm::LinearCFR< rm::RegretMatching< KuhnAction > >,
+                    linear_dt.dynamic_threshold_c > >);
+
+   // matrix pins for the dynamic-thresholding axis: the parameter-carrying discounted
+   // carrier still rejects (this pin also covers every runtime-SCHEDULE carrier riding
+   // it -- HS-schedules / DDCFR agents), greedy x dtp stays rejected, internal-regret x
+   // dtp stays rejected, and linear under REGRET-BASED pruning stays rejected (window
+   // buffering requires uniform weighting there)
+   static_assert(not is_legal_cfr_config< rm::CFRConfig{
+                    .update_mode = rm::UpdateMode::alternating,
+                    .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching,
+                    .weighting_mode = rm::CFRWeightingMode::discounted,
+                    .pruning_mode = rm::CFRPruningMode::dynamic_thresholding} >);
+   static_assert(not is_legal_cfr_config< rm::CFRConfig{
+                    .update_mode = rm::UpdateMode::simultaneous,
+                    .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching,
+                    .weighting_mode = rm::CFRWeightingMode::greedy,
+                    .pruning_mode = rm::CFRPruningMode::dynamic_thresholding} >);
+   static_assert(not is_legal_cfr_config< rm::CFRConfig{
+                    .update_mode = rm::UpdateMode::alternating,
+                    .regret_minimizing_mode = rm::RegretMinimizingMode::internal_regret_matching,
+                    .weighting_mode = rm::CFRWeightingMode::uniform,
+                    .pruning_mode = rm::CFRPruningMode::dynamic_thresholding} >);
+   static_assert(not is_legal_cfr_config< rm::CFRConfig{
+                    .update_mode = rm::UpdateMode::alternating,
+                    .regret_minimizing_mode = rm::RegretMinimizingMode::regret_matching_plus,
+                    .weighting_mode = rm::CFRWeightingMode::linear,
+                    .pruning_mode = rm::CFRPruningMode::regret_based} >);
+   SUCCEED();
+}
+
+TEST(KuhnPoker, DynamicThresholded_LinearCFR_ConvergenceParity)
+{
+   auto [unpruned_traj, unpruned_counters] = kuhn_exploitability_trajectory< linear_plain >(
+      KUHN_EQUIVALENCE_ITERS
+   );
+   auto [pruned_traj, pruned_counters] = kuhn_exploitability_trajectory< linear_dt >(
+      KUHN_EQUIVALENCE_ITERS
+   );
+
+   ASSERT_EQ(unpruned_traj.size(), pruned_traj.size());
+   double max_abs_diff = 0.;
+   for(auto [unpruned, pruned] : std::views::zip(unpruned_traj, pruned_traj)) {
+      if(std::isnan(unpruned) or std::isnan(pruned)) {
+         continue;
+      }
+      ASSERT_TRUE(std::isfinite(unpruned));
+      ASSERT_TRUE(std::isfinite(pruned));
+      max_abs_diff = std::max(max_abs_diff, std::abs(unpruned - pruned));
+   }
+   std::cout << "[          ] thresholded LinearCFR: armed=" << pruned_counters.windows_armed
+             << " skips=" << pruned_counters.skipped_edge_visits
+             << " folds=" << pruned_counters.window_folds << " | max|dExpl|=" << max_abs_diff
+             << "\n";
+   // thresholding must ENGAGE for this test to be meaningful
+   EXPECT_GT(pruned_counters.windows_armed + pruned_counters.skipped_edge_visits, size_t{0});
+   // both runs converge on kuhn within the horizon
+   EXPECT_LT(pruned_traj.back(), EXPLOITABILITY_THRESHOLD);
+   EXPECT_LT(unpruned_traj.back(), EXPLOITABILITY_THRESHOLD);
+   // Unlike RBP (whose window skipping is exact w.r.t. the unpruned trajectory),
+   // thresholding RESHAPES recommendations before averaging (entries below tau_t are
+   // zeroed AND survivors renormalized), so trajectories may legitimately deviate more
+   // than the RBP fold-bias allowance; bounded coarsely to catch runaway divergence.
+   EXPECT_LT(max_abs_diff, 5e-2);
+}
+
+TEST(LeducPoker, DTP_LinearCFR_SpeedupOverUnpruned)
+{
+   // same measurement style as LeducPoker.RBP_SpeedupOverUnpruned: interleaved min-of-reps
+   // wall-clock comparison against the unpruned variant. tau-based zeroing makes the
+   // thresholded run skip zero-probability subtrees through the regret-based traversal gate
+   constexpr size_t reps = 3;
+   double unpruned_ms = std::numeric_limits< double >::max();
+   double pruned_ms = std::numeric_limits< double >::max();
+   RunCounters pruned_counters{};
+   for(size_t rep = 0; rep < reps; ++rep) {
+      const auto unpruned = timed_leduc_iterations< linear_plain >(LEDUC_SPEEDUP_ITERS);
+      const auto pruned = timed_leduc_iterations< linear_dt >(LEDUC_SPEEDUP_ITERS);
+      unpruned_ms = std::min(unpruned_ms, unpruned.first);
+      pruned_ms = std::min(pruned_ms, pruned.first);
+      pruned_counters = pruned.second;
+   }
+   const double ratio_200 = unpruned_ms / pruned_ms;
+
+   double unpruned_long = std::numeric_limits< double >::max();
+   double pruned_long = std::numeric_limits< double >::max();
+   for(size_t rep = 0; rep < reps; ++rep) {
+      const auto unpruned = timed_leduc_iterations< linear_plain >(LEDUC_ASSERTION_ITERS);
+      const auto pruned = timed_leduc_iterations< linear_dt >(LEDUC_ASSERTION_ITERS);
+      unpruned_long = std::min(unpruned_long, unpruned.first);
+      pruned_long = std::min(pruned_long, pruned.first);
+      pruned_counters = pruned.second;
+   }
+   const double ratio_long = unpruned_long / pruned_long;
+
+   std::cout << "[          ] leduc " << LEDUC_SPEEDUP_ITERS << " iters: unpruned=" << unpruned_ms
+             << "ms pruned=" << pruned_ms << "ms speedup=" << ratio_200
+             << "x | armed=" << pruned_counters.windows_armed
+             << " skips=" << pruned_counters.skipped_edge_visits << "\n";
+   std::cout << "[          ] leduc " << LEDUC_ASSERTION_ITERS
+             << " iters: unpruned=" << unpruned_long << "ms pruned=" << pruned_long
+             << "ms speedup=" << ratio_long << "x\n";
+   EXPECT_GT(pruned_counters.windows_armed + pruned_counters.skipped_edge_visits, size_t{0});
+   EXPECT_GT(ratio_long, 1.);
 }
