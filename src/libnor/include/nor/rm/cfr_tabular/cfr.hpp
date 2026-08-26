@@ -1246,12 +1246,22 @@ using GreedyWeightedCFR = VanillaCFR<
    Policy,
    AveragePolicy >;
 
+/**
+ * Linear CFR (Brown & Sandholm, "Solving Imperfect-Information Games via
+ * Discounted Regret Minimization", AAAI 2014): the DCFR family member with all
+ * exponents fixed to one (alpha = beta = gamma = 1). Backed by the STATELESS
+ * rm::LinearCFR weighting carrier instead of the parameterized discounted
+ * machinery, which additionally makes this alias composable with
+ * CFRPruningMode::dynamic_thresholding (see sanity_check_cfr_config). The
+ * schedules are bit-for-bit identical to the historical spelling that injected
+ * CFRDiscountedParameters{alpha=1, beta=1, gamma=1} into the discounted carrier.
+ */
 template < CFRLinearConfig config, typename Env, typename Policy, typename AveragePolicy >
 using CFRLinear = VanillaCFR<
    CFRConfig{
       .update_mode = config.update_mode,
       .regret_minimizing_mode = config.regret_minimizing_mode,
-      .weighting_mode = CFRWeightingMode::discounted},
+      .weighting_mode = CFRWeightingMode::linear},
    Env,
    Policy,
    AveragePolicy >;

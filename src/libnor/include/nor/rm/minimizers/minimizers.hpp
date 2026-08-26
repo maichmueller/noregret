@@ -583,6 +583,72 @@ class DiscountedCFR {
 };
 
 /**
+ * @brief Stateless LINEAR weighting decorator around an inner minimizer --
+ * "Linear CFR" (Brown & Sandholm, "Solving Imperfect-Information Games via
+ * Discounted Regret Minimization", AAAI 2014), i.e. exactly the DCFR family
+ * member DiscountedCFR with the exponents frozen at their unit values
+ * alpha = beta = gamma = 1.
+ *
+ * The schedules need no stored parameters in that corner: the cumulative
+ * regrets are scaled by t / (t + 1) at recommendation time (raw 0-based index,
+ * replicating DiscountedCFR's arithmetic call-for-call -- including the
+ * historical evaluation of BOTH discount branches even though they coincide
+ * numerically) and the accumulated average policy is rescaled by the logical
+ * iteration fraction pow(t / (t + 1), 1) after every iteration. Bit-for-bit
+ * parity with historical linear-parameterized DiscountedCFR runs is the design
+ * contract; see the CFRLinear alias and the accompanying regression test.
+ *
+ * Being parameter-free, ALL protocol members are static. That is precisely what
+ * makes this carrier composable with the Thresholded<Inner> dynamic-thresholding
+ * wrapper (whose forwards are qualified static-style calls), whereas the
+ * parameter-carrying DiscountedCFR decorator is not. Runtime-SCHEDULE carriers
+ * (HS-schedules, DDCFR agents) deliberately remain on the instance carrier and
+ * are statically excluded from dynamic thresholding (see
+ * sanity_check_cfr_config).
+ */
+template < typename Inner >
+class LinearCFR {
+  public:
+   using node_data_type = typename Inner::node_data_type;
+
+   static void register_action(node_data_type& data, const auto& action)
+   {
+      Inner::register_action(data, action);
+   }
+
+   static void observe(node_data_type& data, const auto& action, double increment)
+   {
+      Inner::observe(data, action, increment);
+   }
+
+   template < typename PolicyOut >
+   static void recommend(node_data_type& data, PolicyOut& policy_out, size_t iteration)
+   {
+      // bit-for-bit replication of DiscountedCFR<Inner>::recommend at constant
+      // unit exponents: same raw-index convention, same discount_factor calls
+      // and the same scale-then-forward-to-inner operation order (note that
+      // factor_positive == factor_negative here -- alpha == beta == 1 -- but
+      // both are computed separately to preserve the historical FP sequence)
+      const double factor_positive = discount_factor(iteration, 1.);
+      const double factor_negative = discount_factor(iteration, 1.);
+      for(double& cumul_regret : data.regret) {
+         cumul_regret *= cumul_regret > 0. ? factor_positive : factor_negative;
+      }
+      Inner::recommend(data, policy_out, iteration);
+   }
+
+   /// the gamma-side average-policy weight: logical iteration fraction
+   /// pow(t / (t + 1), gamma = 1), mirroring DiscountedCFR::policy_weight
+   /// (which the solver indexes by the raw iteration count here, matching the
+   /// historical linear spelling with weight_by_cycle == false)
+   static double policy_weight(size_t iteration)
+   {
+      double t = double(iteration) + 1.;
+      return std::pow(t / (t + 1.), 1.);
+   }
+};
+
+/**
  * @brief Greedy-weights decorator (Zhang, Lerer & Brown, "Equilibrium Finding in
  * Normal-Form Games Via Greedy Regret Minimization", AAAI 2022,
  * arXiv:2204.04826) around an inner RM / RM+ minimizer.
@@ -928,6 +994,16 @@ consteval auto select_vanilla_minimizer()
       }
    } else if constexpr(weighting == CFRWeightingMode::exponential) {
       return std::type_identity< ExponentialCFR< Action > >{};
+   } else if constexpr(weighting == CFRWeightingMode::linear) {
+      // the STATELESS linear carrier (fixed unit exponents). Unlike the
+      // parameter-carrying DiscountedCFR below, its fully static protocol
+      // satisfies the qualified call pattern of Thresholded<Inner>, which is
+      // what admits linear x dynamic_thresholding (see sanity_check_cfr_config)
+      if constexpr(rm_mode == RegretMinimizingMode::regret_matching_plus) {
+         return std::type_identity< LinearCFR< RegretMatchingPlus< Action > > >{};
+      } else {
+         return std::type_identity< LinearCFR< RegretMatching< Action > > >{};
+      }
    } else if constexpr(weighting == CFRWeightingMode::discounted) {
       if constexpr(rm_mode == RegretMinimizingMode::regret_matching_plus) {
          return std::type_identity< DiscountedCFR< RegretMatchingPlus< Action > > >{};
@@ -956,9 +1032,11 @@ using base_minimizer_for_t = typename decltype(detail::select_vanilla_minimizer<
                                                config.perturbation_floor >())::type;
 
 /// final minimizer selection: dynamic thresholding wraps whatever base minimizer the rest of
-/// the configuration selects (Brown, Kroer, Sandholm, AAAI 2017 -- thresholding is orthogonal
-/// to the local regret minimizer). regret_based pruning needs no wrapper: it selects
-/// RegretMatchingPlusRBP directly inside 'select_vanilla_minimizer'.
+/// the configuration selects (Brown, Kroer, Sandholm, AAAI 2017) -- composable with every
+/// base whose protocol is fully static (RM / RM+, ExponentialCFR, LinearCFR); only the
+/// parameter-carrying DiscountedCFR carrier is statically excluded from thresholded
+/// configurations (see sanity_check_cfr_config). regret_based pruning needs no wrapper: it
+/// selects RegretMatchingPlusRBP directly inside 'select_vanilla_minimizer'.
 template < CFRConfig config, concepts::action Action >
 using minimizer_for_t = std::conditional_t<
    config.pruning_mode == CFRPruningMode::dynamic_thresholding,
