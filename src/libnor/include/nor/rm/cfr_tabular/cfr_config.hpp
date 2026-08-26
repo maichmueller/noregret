@@ -528,13 +528,18 @@ struct MCCFRConfig {
 ///  - no VR/ESCHER baselines (those replace the very importance-weighted value
 ///    stream that probing modifies),
 ///  - current-policy updater sampling (ESCHER's fixed_uniform drops the
-///    importance corrections that the probing divisor participates in).
+///    importance corrections that the probing divisor participates in),
+///  - the plain regret-matching kernel: the probed counterfactual vector is
+///    folded through the minimizer's 'observe' protocol, whose clip-at-fold /
+///    prediction-buffer semantics are only defined for the OS-MCCFR increment
+///    stream of the PRM+ family -- not for the probing-replaced update path.
 [[nodiscard]] inline constexpr bool probing_supported(MCCFRConfig config)
 {
    return config.algorithm == MCCFRAlgorithmMode::outcome_sampling
           and config.update_mode == UpdateMode::alternating
           and effective_variance_reduction(config) == VarianceReductionMode::none
-          and config.updater_sampling == UpdaterSamplingMode::current_policy;
+          and config.updater_sampling == UpdaterSamplingMode::current_policy
+          and config.regret_minimizing_mode == RegretMinimizingMode::regret_matching;
 }
 
 struct CFRDiscountedParameters {

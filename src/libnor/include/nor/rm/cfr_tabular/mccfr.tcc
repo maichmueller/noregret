@@ -159,7 +159,21 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(
    SPDLOG_DEBUG("Iteration number: {}", _iteration());
    // run the iteration
    auto updated_player = _cycle_player_to_update(player_to_update);
-   auto value = std::vector{std::pair{updated_player, std::get< 0 >(_iterate()).get()}};
+   // _iterate's return type differs per algorithm (StateValueMap pair / StateValueMap /
+   // StateValue) -- mirror the per-algorithm extraction of iterate(size_t) to obtain the
+   // updated player's value
+   auto value = std::vector{std::invoke([&] {
+      std::optional< Player > next_player{updated_player};
+      if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
+         return std::pair{updated_player, _iterate(next_player).first.get().at(updated_player)};
+      } else if constexpr(config.algorithm == MCCFRAlgorithmMode::chance_sampling) {
+         return std::pair{updated_player, _iterate(next_player).get().at(updated_player)};
+      } else {
+         // external sampling and pure CFR: the traversal returns the updated player's value
+         // directly
+         return std::pair{updated_player, _iterate(std::move(next_player)).get()};
+      }
+   })};
    // and increment our iteration counter
    _iteration()++;
    return value;
@@ -1107,14 +1121,22 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_update_regrets_
    // per-iteration counterfactual regret vector R(I,.) -- no visit-frequency
    // rescaling and no per-coordinate projection as under vanilla outcome
    // sampling.
-   double node_value = 0.;
-   for(auto idx : std::views::iota(size_t{0}, actions.size())) {
-      node_value += action_policy[actions[idx]] * probed_action_values[idx];
-   }
-   const double cf_reach = cf_reach_probability(active_player, reach_probability.get());
-   for(auto idx : std::views::iota(size_t{0}, actions.size())) {
-      infostate_data.regret(actions[idx]) += cf_reach * (probed_action_values[idx] - node_value);
-   }
+    double node_value = 0.;
+    for(auto idx : std::views::iota(size_t{0}, actions.size())) {
+       node_value += action_policy[actions[idx]] * probed_action_values[idx];
+    }
+    const double cf_reach = cf_reach_probability(active_player, reach_probability.get());
+    for(auto idx : std::views::iota(size_t{0}, actions.size())) {
+       // fold through the minimizer's 'observe': for plain regret matching this is
+       // exactly 'regret[idx] += increment' (bit-identical to the historical direct
+       // table write), while a predictive kernel would apply its clip-at-fold +
+       // prediction-buffer bookkeeping here. Probing itself is statically confined
+       // to plain-RM kernels via rm::probing_supported, but routing every regret
+       // write through the protocol keeps that invariant correct-by-construction.
+       m_regret_minimizer.observe(
+          infostate_data.data(), actions[idx], cf_reach * (probed_action_values[idx] - node_value)
+       );
+    }
 }
 
 template <
@@ -1161,17 +1183,29 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_probe_rollout(
    // materialize new table entries (fetch_policy would insert them), so
    // infostates never recommended before fall back to uniform play here
    const auto& player_policy_table = this->_policy().at(active_player);
-   const auto policy_entry_iter = player_policy_table.find(*live_infostate_sptr);
-   const bool has_policy_entry = policy_entry_iter != player_policy_table.end();
-   const auto& chosen_action =
-      common::choose(
-         actions,
-         [&](const action_type& act) {
-            return has_policy_entry ? policy_entry_iter->second.at(act)
-                                    : 1. / static_cast< double >(actions.size());
-         },
-         m_rng
-      );
+    const auto policy_entry_iter = player_policy_table.find(*live_infostate_sptr);
+    const bool has_policy_entry = policy_entry_iter != player_policy_table.end();
+    const auto& chosen_action =
+       common::choose(
+          actions,
+          [&](const action_type& act) -> double {
+             if(has_policy_entry) {
+                // presence-check the action: stale/narrow cloned-policy entries
+                // may predate an action registration; fall back to the same
+                // uniform default the missing-entry branch uses instead of
+                // letting a narrow lookup throw out_of_range mid-rollout
+                if constexpr(requires { policy_entry_iter->second.contains(act); }) {
+                   if(policy_entry_iter->second.contains(act)) {
+                      return policy_entry_iter->second.at(act);
+                   }
+                } else {
+                   return policy_entry_iter->second.at(act);
+                }
+             }
+             return 1. / static_cast< double >(actions.size());
+          },
+          m_rng
+       );
 
    world_state_type& next_state = _arena_state(depth + 1, state);
    _env().transition(next_state, chosen_action);
@@ -1580,27 +1614,28 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          obs_scratch.clear();
          obs_scratch.swap(obs_table[next_active_player]);
       }
-      // fixed-size STACK bookkeeping bounded by max_player_seats: sizes of
-      // exactly the buffers this edge appends to (replaces the former heap
-      // vector<pair<Player,size_t>>)
-      std::array< size_t, max_player_seats > saved_buffer_sizes{};
-      std::array< size_t, max_player_seats > saved_seats{};
-      size_t saved_size_count = 0;
-      for(auto player : _env().players(next_state)) {
-         if(player == Player::chance) {
-            continue;
-         }
-         if(not (flushes and player == next_active_player)) {
-            const auto seat_idx = static_cast< size_t >(player);
-            saved_seats[saved_size_count] = seat_idx;
-            saved_buffer_sizes[seat_idx] = obs_table[player].size();
-            ++saved_size_count;
-         }
-      }
-      for(auto player : _env().players(next_state)) {
-         if(player == Player::chance) {
-            continue;
-         }
+       // fixed-size STACK bookkeeping bounded by max_player_seats: sizes of
+       // exactly the buffers this edge appends to (replaces the former heap
+       // vector<pair<Player,size_t>>). Non-actual players (chance/unknown) are
+       // skipped explicitly -- the seat-indexed buffer table throws on them.
+       std::array< size_t, max_player_seats > saved_buffer_sizes{};
+       std::array< size_t, max_player_seats > saved_seats{};
+       size_t saved_size_count = 0;
+       for(auto player : _env().players(next_state)) {
+          if(not utils::is_actual_player_pred(player)) {
+             continue;
+          }
+          if(not (flushes and player == next_active_player)) {
+             const auto seat_idx = static_cast< size_t >(player);
+             saved_seats[saved_size_count] = seat_idx;
+             saved_buffer_sizes[seat_idx] = obs_table[player].size();
+             ++saved_size_count;
+          }
+       }
+       for(auto player : _env().players(next_state)) {
+          if(not utils::is_actual_player_pred(player)) {
+             continue;
+          }
          if(flushes and player == next_active_player) {
             // drain the pre-edge history (held by the scratch slot after the
             // swap) into the clone and clear the scratch for reuse; the live
@@ -1714,7 +1749,13 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
       // in the second round of action iteration we update the regret of each action through the
       // previously found action and state values
       for(const auto& action : actions) {
-         infonode_data.regret(action) += estimate_of(action) - state_value_estimate;
+         // fold through the minimizer's 'observe': for plain regret matching this is exactly
+         // 'regret[idx] += increment' (bit-identical arithmetic -- the only kernel admissible
+         // outside outcome sampling), keeping every regret write behind the minimizer protocol
+         // boundary so predictive kernels cannot silently bypass their bookkeeping.
+         m_regret_minimizer.observe(
+            infonode_data.data(), action, estimate_of(action) - state_value_estimate
+         );
       }
 
       return StateValue{state_value_estimate};
@@ -1885,12 +1926,14 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
          obs_scratch.swap(obs_table[next_active_player]);
       }
       // fixed-size STACK bookkeeping bounded by max_player_seats (replaces the
-      // former heap vector<pair<Player,size_t>>)
+      // former heap vector<pair<Player,size_t>>). Non-actual players
+      // (chance/unknown) are skipped explicitly -- the seat-indexed buffer table
+      // throws on them.
       std::array< size_t, max_player_seats > saved_buffer_sizes{};
       std::array< size_t, max_player_seats > saved_seats{};
       size_t saved_size_count = 0;
       for(auto player : _env().players(next_wstate)) {
-         if(player == Player::chance) {
+         if(not utils::is_actual_player_pred(player)) {
             continue;
          }
          if(not (flushes and player == next_active_player)) {
@@ -1901,7 +1944,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
          }
       }
       for(auto player : _env().players(next_wstate)) {
-         if(player == Player::chance) {
+         if(not utils::is_actual_player_pred(player)) {
             continue;
          }
          if(flushes and player == next_active_player) {
@@ -2044,12 +2087,19 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::update_regret_an
       // update the cumulative regret according to the formula:
       // let I be the infostate, p be the player, r the cumulative regret
       //    r = \sum_a counterfactual_reach_prob_{p}(I) * (value_{p}(I-->a) - value_{p}(I))
-      if(cf_reach_prob > 0.) {
-         // this if statement effectively introduces partial pruning. But this is such a slight
-         // modification (and gain, if any) that it is to be included in all variants of CFR
-         istate_data.regret(action) += cf_reach_prob
-                                       * (action_value.get().at(player) - player_state_value);
-      }
+       if(cf_reach_prob > 0.) {
+          // this if statement effectively introduces partial pruning. But this is such a slight
+          // modification (and gain, if any) that it is to be included in all variants of CFR
+          //
+          // fold through the minimizer's 'observe': identical arithmetic for plain RM
+          // ('regret[idx] += increment', the only kernel admissible for this traversal),
+          // keeping every regret write behind the minimizer protocol boundary.
+          m_regret_minimizer.observe(
+             istate_data.data(),
+             action,
+             cf_reach_prob * (action_value.get().at(player) - player_state_value)
+          );
+       }
       if constexpr(config.algorithm == MCCFRAlgorithmMode::chance_sampling) {
          // update the cumulative policy according to the formula:
          // let
