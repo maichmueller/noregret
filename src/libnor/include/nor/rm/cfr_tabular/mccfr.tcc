@@ -836,8 +836,11 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_vr_accumulate_r
    }
    node_value *= cf_weight;
    for(auto idx : std::views::iota(size_t{0}, actions.size())) {
-      infostate_data.regret(actions[idx]) +=
-         cf_weight * action_value_of(idx) - node_value;
+      // fold through the minimizer's 'observe' (bit-for-bit identical to the
+      // historical direct table write for plain regret matching)
+      m_regret_minimizer.observe(
+         infostate_data.data(), actions[idx], cf_weight * action_value_of(idx) - node_value
+      );
    }
 }
 
@@ -879,10 +882,14 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_update_regrets(
    requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
 {
    auto cf_value_weight = action_value.get()
-                          * cf_reach_probability(active_player, reach_probability.get());
+                           * cf_reach_probability(active_player, reach_probability.get());
    for(const auto& action : infostate_data.actions()) {
-      // compute the estimated counterfactual regret and add it to the cumulative regret table
-      infostate_data.regret(action) += [&] {
+      // compute the estimated counterfactual regret increment and fold it into
+      // the minimizer's tables. Routing through 'observe' keeps the plain-RM
+      // arithmetic bit-for-bit identical to the historical direct table write,
+      // while the predictive kernels (MCCFR+) apply their clip-at-fold +
+      // instantaneous-prediction-buffer bookkeeping here.
+      const double increment = [&] {
          if(action == sampled_action) {
             // note that tail_prob = pi(z[I]a, z)
             // the probability pi(z[I]a, z) - pi(z[I], z) can also be expressed as
@@ -897,6 +904,7 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_update_regrets(
             return -cf_value_weight * tail_prob.get() * sampled_action_policy_prob.get();
          }
       }();
+      m_regret_minimizer.observe(infostate_data.data(), action, increment);
    }
 }
 

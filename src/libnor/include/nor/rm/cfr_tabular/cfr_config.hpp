@@ -356,6 +356,13 @@ struct MCCFRConfig {
    MCCFRAlgorithmMode algorithm = MCCFRAlgorithmMode::outcome_sampling;
    MCCFRExplorationMode exploration = MCCFRExplorationMode::epsilon_on_policy;
    MCCFRWeightingMode weighting = MCCFRWeightingMode::lazy;
+   /// minimizer-mode axis (shared with rm::CFRConfig). Inside MCCFR the admissible
+   /// values are 'regret_matching' for every traversal scheme plus the whole
+   /// PRM+/PCFR+-family of predictive kernels --
+   /// predictive/sap/ap/p2p/smooth/stable_predictive_regret_matching_plus --
+   /// restricted to OUTCOME SAMPLING (statically enforced; see
+   /// rm::MCCFRMinimizer's composition-theory notes for which guarantees survive
+   /// under sampling). Plain RM+ and internal-regret matching remain CFR-only.
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
    CFRPruningMode pruning_mode = CFRPruningMode::none;
    /// Variance-reduced outcome sampling through state-action baselines
