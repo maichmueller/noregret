@@ -201,6 +201,83 @@ struct AverageStrategySamplingRule {
    }
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// B8: probing estimator ////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief B8 tag-concept: rules activating the PROBING value estimator of the
+ * outcome-sampling traversal.
+ *
+ * Rules satisfying this concept are recognized by the MCCFR outcome-sampling
+ * traversal and switch it from vanilla importance-weighted single-trajectory
+ * value estimation to Gibson's probing scheme; the ACTION-side sampling remains
+ * governed by 'config.exploration' / the rule protocol itself.
+ */
+template < typename Rule >
+concept probing_sampling_rule = std::copy_constructible< Rule >
+                                and requires { typename Rule::is_probing_sampling_rule; };
+
+/**
+ * @brief B8: Probing estimator rule (Gibson, Lanctot, Burch, Szafron, Bowling,
+ * "Generalized Sampling and Variance in Counterfactual Regret Minimization",
+ * AAAI 2012, DOI 10.1609/aaai.v26i1.8241).
+ *
+ * Injection: pass as the trailing SamplingRule template/ctor parameter of
+ * rm::MCCFR with MCCFRAlgorithmMode::outcome_sampling (enforced by a sanity
+ * guard; see also 'rm::probing_supported'). The tag does NOT change how the
+ * trajectory action is drawn -- this rule delegates its action-sampling
+ * protocol to an embedded EpsilonOnPolicySamplingRule so that injecting it is
+ * draw-for-draw identical to the built-in epsilon-on-policy exploration.
+ * What changes is VALUE ESTIMATION during the traversal (paper Algorithm 1):
+ * at every visited infoset I of the UPDATING player, each UNSAMPLED action
+ * a' in A(I) is "probed" with one on-policy Monte-Carlo rollout (both players
+ * play the current strategy sigma, chance from the true distribution),
+ * replacing the zeroed-out counterfactual values of the non-sampled actions.
+ * The resulting counterfactual-value vector is unbiased (Proposition 1) with
+ * empirically lower variance, which tightens the average-regret bound of
+ * generalized sampling (Theorem 2).
+ *
+ * ENGINE DEVIATION NOTES (single-trajectory OS engine vs paper's block-Q
+ * formulation), documented honestly:
+ *  - The paper derives q_i(I) (the probability of reaching I contributed by
+ *    sampling player i's actions) as the divisor of the estimated
+ *    counterfactual value. In a single-trajectory engine the analogous,
+ *    always-positive quantity is the eps-mixture probability xi(I,a*) of the
+ *    SAMPLED action (>= epsilon/|A(I)| > 0 under epsilon-on-policy
+ *    exploration), which keeps every increment finite where Lanctot-style
+ *    1/xi corrections are finite and preserves the visit-frequency scaling of
+ *    the vanilla engine.
+ *  - With that scaling the probed regret increments satisfy, in expectation,
+ *    E[R_hat(I,a)] = |A(I)| * R_CFR(I,a) -- i.e. the probing estimator targets
+ *    the TRUE per-iteration counterfactual regret vector scaled by a constant
+ *    per-infoset factor (regret-matching invariant), whereas vanilla OS
+ *    targets its own-reach-weighted projection onto the sampled coordinate.
+ *    Both are valid bounded-unbiased generalized-sampling estimators; they do
+ *    NOT share identical per-action expectations, only the same game-value and
+ *    equilibrium guarantees.
+ *  - Probes estimate ON-POLICY continuation values v_sigma(h a'); nested
+ *    probing inside probes is not performed (paper's simple case: exactly one
+ *    on-policy single-trajectory probe per non-sampled action).
+ */
+struct ProbingSamplingRule {
+   using is_probing_sampling_rule = std::true_type;
+
+   /// mixture weight of the trajectory sampler this rule installs (see above:
+   /// pure delegation to the epsilon-on-policy protocol)
+   double epsilon = 0.6;
+
+   template < typename Action, typename WeightOf >
+   SampledChoice< Action > operator()(
+      common::RNG& rng,
+      const std::vector< Action >& actions,
+      const WeightOf& policy_prob_of
+   ) const
+   {
+      return EpsilonOnPolicySamplingRule{epsilon}(rng, actions, policy_prob_of);
+   }
+};
+
 static_assert(
    average_strategy_sampling_rule_for< AverageStrategySamplingRule, int, decltype([](const int&) {
                                           return 1.;
@@ -214,6 +291,12 @@ static_assert(
 );
 static_assert(public_chance_sampling_rule< PublicChanceSamplingRule >);
 static_assert(average_strategy_sampling_rule< AverageStrategySamplingRule >);
+static_assert(probing_sampling_rule< ProbingSamplingRule >);
+static_assert(
+   sampling_rule_for< ProbingSamplingRule, int, decltype([](const int&) { return 1.; }) >,
+   "ProbingSamplingRule must satisfy the base sampling-rule protocol (it reproduces the "
+   "epsilon-on-policy mixture; probing itself is a traversal-side value-estimation switch)"
+);
 
 }  // namespace nor::rm
 
