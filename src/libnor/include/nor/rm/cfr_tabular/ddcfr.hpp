@@ -404,6 +404,12 @@ class DDCFRController {
     * @brief binds the runtime feature extraction to a constructed solver
     * (entropy + regret-table statistics; convergence_proxy stays NaN).
     * Call AFTER solver construction, BEFORE the first iterate().
+    *
+    * BIND CONTRACT: bind() stores references into the solver, so keep this
+    * controller's lifetime inside the solver's. Features must be read through
+    * this provider -- never through solver.policy()/average_policy() references
+    * cached outside, which the lazily-rebuilt policy views invalidate after
+    * every subsequent solver move (see VanillaCFR::policy() sharp edge).
     */
    template < typename Solver >
    void bind(Solver& solver)
