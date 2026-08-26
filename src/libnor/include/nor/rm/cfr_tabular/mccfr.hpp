@@ -87,6 +87,9 @@ class MCCFR:
    /// resolved variance-reduction mode of this instantiation (legacy boolean
    /// shim applied; see 'effective_variance_reduction')
    static constexpr VarianceReductionMode vr_mode = effective_variance_reduction(config);
+   /// B8: whether the probing value estimator (Gibson et al., AAAI 2012) is
+   /// attached to this instantiation via a tagged rm::ProbingSamplingRule
+   static constexpr bool probing_active = probing_sampling_rule< SamplingRule >;
    /// ESCHER-style history values V(h) keyed by world-state-edge hashes
    static constexpr bool vr_history_active = vr_mode == VarianceReductionMode::history_value;
    /// predictive baseline maintenance (Davis et al., ICML 2020, eq (8)) needs a
@@ -237,14 +240,32 @@ class MCCFR:
    using base::root_state;
    using base::fetch_policy;
 
-   /// number of materialized history-value entries (diagnostics/memory
-   /// profiling; zero unless variance_reduction == history_value)
    [[nodiscard]] size_t history_value_entry_count() const
    {
       if constexpr(vr_history_active) {
          return m_vr_history_store.edge_values.size();
       } else {
          return 0;
+      }
+   }
+
+   /**
+    * @brief B8 (probing): per-iteration root-side game-value diagnostic -- the
+    * sigma-mixture of the probed counterfactual value vector at the SHALLOWEST
+    * visited infoset of the updating player (closest to the root), on the
+    * usual outcome-sampling importance scale. Reset by every outcome-sampling
+    * iteration and republished during the post-order unwind; read it after
+    * @see iterate for variance studies of the probed value estimates (Gibson
+    * et al., AAAI 2012). Empty when probing is inactive or no eligible
+    * infoset was visited during the last iteration. The iterate() return
+    * values remain identical to the vanilla outcome-sampling flow.
+    */
+   [[nodiscard]] std::optional< double > probe_root_estimate() const
+   {
+      if constexpr(probing_active) {
+         return m_probe_root_value;
+      } else {
+         return std::nullopt;
       }
    }
 
@@ -334,6 +355,10 @@ class MCCFR:
    /// iteration (deque: growing never moves slots, keeping references of
    /// active frames valid)
    std::deque< utils::ReusableSlot< world_state_type > > m_traversal_state_arena;
+   /// B8: per-iteration root-side probed value diagnostic (see
+   /// probe_root_estimate); empty unless probing_active
+   [[no_unique_address]] std::conditional_t< probing_active, std::optional< double >, utils::empty >
+      m_probe_root_value{};
    /// ESCHER history-value table V(h->a); empty (and overlapped via
    /// no_unique_address) unless vr_history_active
    [[no_unique_address]] std::conditional_t< vr_history_active, HistoryValueStore, utils::empty >
@@ -551,6 +576,51 @@ class MCCFR:
     */
    template < bool return_likelihood = true >
    auto _sample_outcome_pcs(const world_state_type& state);
+
+   /**
+    * @brief B8 (probing): one on-policy Monte-Carlo probe rollout (Gibson et
+    * al., AAAI 2012, Algorithm 1 'Probe').
+    *
+    * Descends from 'state' along a single trajectory, sampling chance from the
+    * true distribution and every player's actions from the CURRENT strategy,
+    * until a terminal history is reached whose updater reward is returned. The
+    * rollout is value-only: no infonodes are created, no regrets or average
+    * policies are touched, and no importance weighting is applied (on-policy
+    * rollouts are unbiased estimates of v_sigma by themselves). Observation
+    * folding happens against the CALLER-PROVIDED local containers so the
+    * engine's live traversal state is untouched; world states reuse the
+    * depth-indexed arena slots at depths strictly below the invoking frame.
+    */
+   auto _probe_rollout(
+      world_state_type& state,
+      size_t depth,
+      player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
+         observation_buffer,
+      player_hashmap< sptr< info_state_type > >& infostates,
+      Player updating_player
+   ) -> double
+      requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
+
+   /**
+    * @brief B8 (probing): regret accumulation from the probed counterfactual
+    * value vector at one visited infoset of the updating player (paper
+    * Algorithm 1 lines 40-44).
+    *
+    * r(I,a) += pi_-i(h_I) * (v_hat(a) - sum_a' sigma(I,a') v_hat(a')) with
+    * v_hat(a*) = u(z)/q_prefix (the sampled branch's trajectory estimate) and
+    * v_hat(a') = probe_rollout(h_I a')/(q_prefix * xi(I,a*)) for unsampled a'
+    * (probes carry no prefix weight of their own, so they are lifted onto the
+    * trajectory's per-unit scale with the same divisor as the sampled branch).
+    */
+   void _update_regrets_probing(
+      const ReachProbabilityMap& reach_probability,
+      Player active_player,
+      infostate_data_type& infostate_data,
+      const std::vector< action_type >& actions,
+      const auto& action_policy,
+      const std::vector< double >& probed_action_values
+   ) const
+      requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling);
 
    void _initiate_regret_minimization(const delayed_update_set& update_set);
 

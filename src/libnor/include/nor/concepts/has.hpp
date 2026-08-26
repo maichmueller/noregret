@@ -483,11 +483,43 @@ concept payoff_bounds = requires(const T t, Player player) {
    } -> std::convertible_to< std::pair< double, double > >;
 };
 
+/// B8 (behavioral-perturbation trait): environments MAY expose per-infostate
+/// action-probability floors 'action_probability_floors(infostate, actions)'
+/// returning ONE lower bound per registered action. Used by the
+/// behaviorally-constrained CFR+ solver (RegretMinimizingMode::
+/// constrained_regret_matching_plus, Farina/Kroer/Sandholm ICML 2017) to
+/// REPLACE the uniform CFRConfig::perturbation_floor vector of infoset
+/// 'infostate' -- enabling non-uniform Selten/Rubinstein-style perturbation
+/// profiles.
+///
+/// Fallback contract: when the concept is NOT satisfied, solvers use the uniform
+/// 'CFRConfig::perturbation_floor' for every action (seeded at table
+/// registration; nothing to resolve at runtime). Environments implementing the
+/// trait must return feasible floor vectors (0 <= p(a), sum_a p(a) < 1 --
+/// validated by the kernel, which throws std::invalid_argument otherwise) and,
+/// together with this trait, solvers require CFRConfig::perturbation_floor > 0
+/// so that the kernel's buffered paper-exact update path is compiled.
+template < typename T, typename InfoState, typename Action >
+concept action_probability_floors = requires(
+   const T t,
+   const InfoState& infostate,
+   const std::vector< Action >& actions
+) {
+   {
+      t.action_probability_floors(infostate, actions)
+   } -> std::convertible_to< std::vector< double > >;
+};
+
 }  // namespace method
 
 /// convenience alias for env-level payoff-bound support detection
 template < typename Env >
 concept supports_payoff_bounds = method::payoff_bounds< Env >;
+
+/// convenience alias for env-level behavioral-perturbation floor support detection
+template < typename Env, typename InfoState, typename Action >
+concept supports_action_probability_floors = method::
+   action_probability_floors< Env, InfoState, Action >;
 
 /// convenience alias for env-level chance-classification support detection.
 /// (SFINAE-safe: probes the method through the env's own state/outcome types.)

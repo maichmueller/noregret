@@ -22,6 +22,8 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/rm/action_value_table.hpp"
+#include "nor/rm/cfr_tabular/mccfr.hpp"
+#include "nor/rm/extragradient.hpp"
 #include "nor/rm/forest.hpp"
 #include "nor/rm/lazy.hpp"
 #include "nor/rm/minimizers/minimizers.hpp"
@@ -209,6 +211,20 @@ class VanillaCFR:
    using infostate_data_type = InfostateNodeData<
       action_type,
       typename minimizer_type::node_data_type >;
+
+   // The B8 floor-overriding trait requires the buffered (paper-exact) kernel path of
+   // rm::ConstrainedRMPlus, which is compiled only for positive uniform floors: with
+   // perturbation_floor == 0 the kernel degenerates bit-for-bit to plain RM+, whose
+   // arithmetic cannot honor environment-provided floors at all.
+   static_assert(
+      config.regret_minimizing_mode != RegretMinimizingMode::constrained_regret_matching_plus
+         or config.perturbation_floor > 0.
+         or not concepts::has::method::
+               action_probability_floors< Env, info_state_type, action_type >,
+      "environments providing 'action_probability_floors' (B8 trait) combined with "
+      "RegretMinimizingMode::constrained_regret_matching_plus require a positive "
+      "CFRConfig::perturbation_floor"
+   );
    /// strong-types for player based maps
    using InfostateSptrMap = typename base::InfostateSptrMap;
    using ObservationbufferMap = typename base::ObservationbufferMap;
@@ -411,6 +427,34 @@ class VanillaCFR:
 
    [[nodiscard]] LazyStats lazy_stats() const { return m_lazy_stats; }
 
+   /// activity counters of the extragradient engine (extragradient_mode !=
+   /// off): anchor probe and real update traversals, exactly one of each per
+   /// global iteration. Always available; only ever non-zero under
+   /// CFRExtragradientMode::anchor_probe.
+   using ExtragradientStats = rm::ExtragradientStats;
+
+   [[nodiscard]] ExtragradientStats extragradient_stats() const { return m_extragradient_stats; }
+
+   /**
+    * @brief read-only visitor over every REGISTERED infostate's cumulative
+    * counterfactual regret table (the 'regret' member of the configured
+    * minimizer's node data, index-aligned to each infostate's action registry).
+    *
+    * Enables runtime feature extractors -- e.g. the rm::ddcfr dynamic-
+    * discounting layer's regret statistics -- without exposing mutable solver
+    * internals. Traversal follows the infostate hashmap's order; callers must
+    * not rely on any specific order (aggregations are order-insensitive up to
+    * fp associativity). Empty for solvers that have not run an initializing
+    * traversal yet.
+    */
+   template < typename Fn >
+   void visit_regret_tables(Fn&& fn) const
+   {
+      for(const auto& [infostate_ptr, node] : m_infonode) {
+         fn(node.data().regret);
+      }
+   }
+
    /// activity statistics of the greedy weighting engine (only available when
    /// weighting_mode == greedy) -- see rm::detail::GreedyWeightStats
    using GreedyWeightStats = detail::GreedyWeightStats;
@@ -519,6 +563,21 @@ class VanillaCFR:
       utils::empty >
       m_lazy_segments{};
    LazyStats m_lazy_stats{};
+   /// ---- extragradient engine state (empty cost when extragradient_mode == off) ----------
+   /// per-player maps of deferred counterfactual-regret increment buffers,
+   /// keyed by infostate VALUE (mirrors m_lazy_segments); index-aligned with
+   /// the owning infostate's action registry. Temporally shared by the anchor
+   /// probe (pass 1) and the real traversal's deferred updates (pass 2)
+   [[no_unique_address]] std::conditional_t<
+      config.extragradient_mode != CFRExtragradientMode::off,
+      player_hashmap< std::unordered_map<
+         info_state_type,
+         std::vector< double >,
+         common::value_hasher< info_state_type >,
+         common::value_comparator< info_state_type > > >,
+      utils::empty >
+      m_ex_regret_buffers{};
+   ExtragradientStats m_extragradient_stats{};
    /// memoized GLOBAL per-player bounds (B4 trait path, or degenerate fallback)
    player_hashmap< pruning::PayoffBound > m_payoff_bounds{};
    /// per-(infostate,action) probed ranges (lower = L(I), upper = U(I,a)) live INSIDE the
@@ -577,7 +636,13 @@ class VanillaCFR:
     * observation buffers and infostate maps are passed by reference and restored
     * at every recursion boundary (save/restore instead of per-edge copies).
     */
-   template < bool initialize_infonodes, bool use_current_policy = true >
+   /// EXTRAGRADIENT anchor-probe mode: 'probe_pass = true' turns the traversal
+   /// into a values-only measurement pass -- counterfactual increments of the
+   /// updating player are buffered for the intermediate step instead of being
+   /// applied, and no minimizer/average state is mutated. All existing
+   /// configurations instantiate with the default false (compiled out
+   /// entirely).
+   template < bool initialize_infonodes, bool use_current_policy = true, bool probe_pass = false >
    StateValueMap _traverse(
       std::optional< Player > player_to_update,
       world_state_type& state,
@@ -588,7 +653,7 @@ class VanillaCFR:
       ActionValueArena< action_variant_type >& action_value_arena
    );
 
-   template < bool initialize_infonodes, bool use_current_policy = true >
+   template < bool initialize_infonodes, bool use_current_policy = true, bool probe_pass = false >
    void _traverse_player_actions(
       std::optional< Player > player_to_update,
       Player active_player,
@@ -602,7 +667,7 @@ class VanillaCFR:
       ActionValueArena< action_variant_type >& action_value_arena
    );
 
-   template < bool initialize_infonodes, bool use_current_policy = true >
+   template < bool initialize_infonodes, bool use_current_policy = true, bool probe_pass = false >
    void _traverse_chance_actions(
       std::optional< Player > player_to_update,
       Player active_player,
@@ -669,6 +734,14 @@ class VanillaCFR:
       infostate_data_type& node
    );
 
+   /// behaviorally-constrained kernels: refreshes the per-action probability floors of the
+   /// infostate's node data ahead of every recommendation. With an environment exposing the
+   /// B8 trait 'action_probability_floors' the reported vector REPLACES the seeded uniform
+   /// floor; without it the floors registered at table creation (the uniform config value)
+   /// already are authoritative and this is a no-op.
+   template < typename NodeData >
+   void _refresh_probability_floors(const info_state_type& infostate, NodeData& node_data);
+
    ///////////////////////////////////////////////////////////////////////////////////////////
    ////////////////////// lazy-update segmentation engine (Lazy-CFR) /////////////////////////
    ///////////////////////////////////////////////////////////////////////////////////////////
@@ -697,6 +770,37 @@ class VanillaCFR:
    /// for references.
    template < typename NodeView >
    void _finalize_greedy_iteration(NodeView&& node_view);
+
+   ///////////////////////////////////////////////////////////////////////////////////////////
+   ////////////////////// extragradient engine (ExRM+ / Clairvoyant CFR) /////////////////////
+   ///////////////////////////////////////////////////////////////////////////////////////////
+
+   /// resolves (creating/resizing/zeroing on demand) the deferred-increment
+   /// buffer of 'infostate'; kept index-aligned with 'actions' (the infostate's
+   /// registry). Serves BOTH engine phases temporally disjointly: the anchor
+   /// probe fills it first (consumed + cleared by the intermediate step), the
+   /// real traversal fills it second (consumed + erased by the end-of-iteration
+   /// fold)
+   std::vector< double >& _extragradient_buffer(const info_state_type& infostate);
+
+   /// ANCHOR PROBE collection: buffers one visited history's counterfactual
+   /// regret increments for the updating player WITHOUT touching any minimizer
+   /// or average-policy state (values-only measurement of F at g(z^{t-1}))
+   void _probe_collect(
+      const info_state_type& infostate,
+      const ReachProbabilityMap& reach_probability,
+      const StateValueMap& state_value,
+      const std::unordered_map< action_variant_type, StateValueMap >& action_value_map
+   );
+
+   /// INTERMEDIATE STEP between the two traversals: derives
+   ///    w^t(I) = [z^{t-1}_I + eta * r_anchor(I)]^+
+   /// per infostate of 'update_player' from the STORED cumulative table plus
+   /// the eta-scaled anchor-probe buffer and writes the normalized w^t into the
+   /// current-policy tables (the played intermediate strategy g(w^t)). The
+   /// stored table z^{t-1} is left untouched so both proxes of Algorithm 5 stay
+   /// anchored at it; consumes and clears the anchor buffers.
+   void _extragradient_intermediate_recommendation(Player update_player);
 
    ///////////////////////////////////////////////////////////////////////////////////////////
    ////////////////////// regret-based pruning / dynamic thresholding ////////////////////////
@@ -849,6 +953,37 @@ using LazyCFRPlus = VanillaCFR<
    Env,
    Policy,
    AveragePolicy >;
+
+/**
+ * Extragradient RM+ (Farina, Grand-Clément, Kroer, Lee, Luo, NeurIPS 2023,
+ * arXiv:2305.14709, Algorithm 5) -- a.k.a. Clairvoyant CFR, the
+ * single-fixed-point instantiation of Conceptual RM+ the authors evaluate on
+ * extensive-form games: TWO traversals per global iteration. An anchor probe
+ * under g(z^{t-1}) measures F there, the intermediate strategy
+ * g(w^t) = g([z^{t-1} + eta r_anchor]^+) is derived, and the real traversal
+ * under g(w^t) supplies the anchored fold z^t = [z^{t-1} + eta r_real]^+.
+ * The intermediate strategy is what enters the average policy (Algorithm 5
+ * line 6). See rm/extragradient.hpp for the exact mapping and the documented
+ * deviations from the paper's simultaneous-update theory.
+ */
+template < CFRExtragradientConfig config, typename Env, typename Policy, typename AveragePolicy >
+using ExtragradientCFR = VanillaCFR<
+   CFRConfig{
+      .update_mode = config.update_mode,
+      .regret_minimizing_mode = config.regret_minimizing_mode,
+      .weighting_mode = CFRWeightingMode::uniform,
+      .pruning_mode = CFRPruningMode::none,
+      .extragradient_stepsize = config.stepsize,
+      .extragradient_mode = CFRExtragradientMode::anchor_probe},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+/// the paper's "Clairvoyant CFR" naming for the same algorithm: Conceptual-RM+
+/// with its fixed-point equation approximated by ONE extrapolation step (= the
+/// extragradient scheme above; arXiv:2305.14709, secs. 5-6)
+template < CFRExtragradientConfig config, typename Env, typename Policy, typename AveragePolicy >
+using ClairvoyantCFR = ExtragradientCFR< config, Env, Policy, AveragePolicy >;
 
 /**
  * @brief InternalRegretCFR: vanilla CFR driven by the swap-basis phi-regret
@@ -1068,6 +1203,58 @@ using CFRLinear = VanillaCFR<
       .update_mode = config.update_mode,
       .regret_minimizing_mode = config.regret_minimizing_mode,
       .weighting_mode = CFRWeightingMode::discounted},
+   Env,
+   Policy,
+   AveragePolicy >;
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////// MCCFR+ (predictive OS-MCCFR) ///////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief configuration carrier of the MCCFR+ family: OUTCOME-SAMPLING MCCFR
+ * whose per-infoset regret update is driven by a predictive RM+ kernel of the
+ * PCFR+ family instead of plain regret matching.
+ *
+ * The recommendation step derives the strategy from theta(a) =
+ * max(0, clip(z)(a) + s*rho(a)) where rho is the last realized
+ * importance-weighted sampled instantaneous regret vector (persistence
+ * prediction on samples) and s the kernel's prediction scale; the increments
+ * themselves are the UNCHANGED conditionally-unbiased OS-MCCFR estimator.
+ * See rm::MCCFRMinimizer for the precise statement of which guarantees survive
+ * this composition (unbiasedness + pathwise PRM+ external-regret machinery)
+ * and what degrades under sampling (prediction quality, quadratic averaging).
+ *
+ * 'regret_minimizing_mode' selects the kernel:
+ *   predictive_regret_matching_plus            -> PCFR+      (s = 1)
+ *   sap_predictive_regret_matching_plus        -> SAPCFR+    (s = 1/3)
+ *   ap_predictive_regret_matching_plus         -> APCFR+     (adaptive per-infostate s)
+ *   p2p_predictive_regret_matching_plus        -> P2PCFR+    (s = 1/6)
+ *   smooth_predictive_regret_matching_plus     -> Smooth-PRM+ (origin floor)
+ *   stable_predictive_regret_matching_plus     -> Stable-PRM+ (componentwise restart)
+ * All modes statically require MCCFRAlgorithmMode::outcome_sampling.
+ */
+struct MCCFRPlusConfig {
+   UpdateMode update_mode = UpdateMode::alternating;
+   /// average-policy accumulation scheme of the sampling engine (lazy weighting
+   /// reproduces Lanctot's unbiased deferred scheme; kept orthogonal to the
+   /// regret kernel on purpose -- see the composition-theory notes in
+   /// rm::MCCFRMinimizer for why PCFR+'s quadratic averaging is NOT imposed here)
+   MCCFRWeightingMode weighting = MCCFRWeightingMode::lazy;
+   /// the predictive RM+ kernel driving the regret updates (must be one of the
+   /// predictive_* modes above; anything else either falls back to plain RM or
+   /// trips the static admissibility checks)
+   RegretMinimizingMode
+      regret_minimizing_mode = RegretMinimizingMode::predictive_regret_matching_plus;
+};
+
+template < MCCFRPlusConfig config, typename Env, typename Policy, typename AveragePolicy >
+using MCCFRPlus = MCCFR<
+   MCCFRConfig{
+      .update_mode = config.update_mode,
+      .algorithm = MCCFRAlgorithmMode::outcome_sampling,
+      .weighting = config.weighting,
+      .regret_minimizing_mode = config.regret_minimizing_mode},
    Env,
    Policy,
    AveragePolicy >;

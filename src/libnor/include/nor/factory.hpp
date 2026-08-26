@@ -353,6 +353,75 @@ struct factory {
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
+   //////////////////// EXTRAGRADIENT Counterfactual Regret Minimizer Factory //////////////////
+   /////////////////////////////////////////////////////////////////////////////////////////////
+
+   template <
+      rm::CFRExtragradientConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
+   static rm::ExtragradientCFR<
+      cfg,
+      std::remove_cvref_t< Env >,  // remove_cvref_t necessary to avoid Env captured as const Env&
+      std::remove_cvref_t< Policy >,
+      std::remove_cvref_t< AveragePolicy > >
+   make_cfr_extragradient(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      Policy&& policy,
+      AveragePolicy&& avg_policy
+   )
+   {
+      if constexpr(as_map) {
+         auto players = env.players(*root_state);
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            to_map(players, std::forward< Policy >(policy)),
+            to_map(players, std::forward< AveragePolicy >(avg_policy))};
+      } else {
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::forward< Policy >(policy),
+            std::forward< AveragePolicy >(avg_policy)};
+      }
+   }
+
+   template <
+      rm::CFRExtragradientConfig cfg,
+      typename Env,
+      typename Policy,
+      typename AveragePolicy >
+   static rm::ExtragradientCFR< cfg, Env, Policy, AveragePolicy > make_cfr_extragradient(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map
+   )
+   {
+      return {
+         std::forward< Env >(env),
+         std::move(root_state),
+         std::move(policy_map),
+         std::move(avg_policy_map)};
+   }
+
+   template < rm::CFRExtragradientConfig cfg, bool as_map, typename Env, typename Policy >
+   static rm::ExtragradientCFR< cfg, Env, Policy, Policy > make_cfr_extragradient(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const Policy& policy
+   )
+   {
+      return make_cfr_extragradient< cfg, as_map >(
+         std::forward< Env >(env), std::move(root_state), policy, policy
+      );
+   }
+
+   /////////////////////////////////////////////////////////////////////////////////////////////
    /////////////////// DISCOUNTED Counterfactual Regret Minimizer Factory //////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -716,6 +785,90 @@ struct factory {
    }
 
    /////////////////////////////////////////////////////////////////////////////////////////////
+   //////////////////////// MCCFR+ (predictive OS-MCCFR) Factory ///////////////////////////////
+   /////////////////////////////////////////////////////////////////////////////////////////////
+
+   template <
+      rm::MCCFRPlusConfig cfg,
+      bool as_map,
+      typename Env,
+      typename Policy,
+      typename AvgPolicy >
+   static rm::MCCFRPlus<
+      cfg,
+      // remove_cvref_t necessary to avoid e.g. Env captured as const Env&
+      std::remove_cvref_t< Env >,
+      std::remove_cvref_t< Policy >,
+      std::remove_cvref_t< AvgPolicy > >
+   make_mccfr_plus(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      Policy&& policy,
+      AvgPolicy&& avg_policy,
+      double epsilon,
+      size_t seed = common::default_seed
+   )
+   {
+      if constexpr(as_map) {
+         auto players = env.players(*root_state);
+         auto each_player_current_policy_map = to_map(players, std::forward< Policy >(policy));
+         auto each_player_avg_policy_map = to_map(players, std::forward< AvgPolicy >(avg_policy));
+         return rm::MCCFRPlus<
+            cfg,
+            std::remove_cvref_t< Env >,
+            std::remove_cvref_t< Policy >,
+            std::remove_cvref_t< AvgPolicy > >{
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::move(each_player_current_policy_map),
+            std::move(each_player_avg_policy_map),
+            epsilon,
+            seed};
+      } else {
+         return {
+            std::forward< Env >(env),
+            std::move(root_state),
+            std::forward< Policy >(policy),
+            std::forward< AvgPolicy >(avg_policy),
+            epsilon,
+            seed};
+      }
+   }
+
+   template < rm::MCCFRPlusConfig cfg, typename Env, typename Policy, typename AveragePolicy >
+   static rm::MCCFRPlus< cfg, Env, Policy, AveragePolicy > make_mccfr_plus(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      std::unordered_map< Player, Policy > policy_map,
+      std::unordered_map< Player, AveragePolicy > avg_policy_map,
+      double epsilon,
+      size_t seed = common::default_seed
+   )
+   {
+      return {
+         std::forward< Env >(env),
+         std::move(root_state),
+         std::move(policy_map),
+         std::move(avg_policy_map),
+         epsilon,
+         seed};
+   }
+
+   template < rm::MCCFRPlusConfig cfg, bool as_map, typename Env, typename Policy >
+   static rm::MCCFRPlus< cfg, Env, Policy, Policy > make_mccfr_plus(
+      Env&& env,
+      uptr< auto_world_state_type< std::remove_cvref_t< Env > > > root_state,
+      const Policy& policy,
+      double epsilon,
+      size_t seed = common::default_seed
+   )
+   {
+      return make_mccfr_plus< cfg, as_map >(
+         std::forward< Env >(env), std::move(root_state), policy, policy, epsilon, seed
+      );
+   }
+
+   /////////////////////////////////////////////////////////////////////////////////////////////
    ////////////////////////////////// Generic CFR Factory /////////////////////////////////////
    /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -730,6 +883,8 @@ struct factory {
          return factory::make_cfr_vanilla< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRLazyConfig >) {
          return factory::make_cfr_lazy< config, as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRExtragradientConfig >) {
+         return factory::make_cfr_extragradient< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRDiscountedConfig >) {
          return factory::make_cfr_discounted< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
@@ -742,6 +897,8 @@ struct factory {
          return factory::make_cfr_greedy< config, as_map >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::MCCFRConfig >) {
          return factory::make_mccfr< config, as_map >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::MCCFRPlusConfig >) {
+         return factory::make_mccfr_plus< config, as_map >(std::forward< Args >(args)...);
       }
    }
 
@@ -754,6 +911,8 @@ struct factory {
          return factory::make_cfr_vanilla< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRLazyConfig >) {
          return factory::make_cfr_lazy< config >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::CFRExtragradientConfig >) {
+         return factory::make_cfr_extragradient< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRDiscountedConfig >) {
          return factory::make_cfr_discounted< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::CFRLinearConfig >) {
@@ -766,6 +925,8 @@ struct factory {
          return factory::make_cfr_greedy< config >(std::forward< Args >(args)...);
       } else if constexpr(std::same_as< ConfigType, rm::MCCFRConfig >) {
          return factory::make_mccfr< config >(std::forward< Args >(args)...);
+      } else if constexpr(std::same_as< ConfigType, rm::MCCFRPlusConfig >) {
+         return factory::make_mccfr_plus< config >(std::forward< Args >(args)...);
       }
    }
 

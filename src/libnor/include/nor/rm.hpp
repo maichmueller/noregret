@@ -5,8 +5,10 @@
 #include "factory.hpp"
 #include "nor/policy/policy.hpp"
 #include "rm/cfr_tabular/cfr.hpp"
+#include "rm/cfr_tabular/ddcfr.hpp"
 #include "rm/cfr_tabular/mccfr.hpp"
 #include "rm/forest.hpp"
+#include "rm/icfr.hpp"
 #include "rm/policy_value.hpp"
 #include "rm/rm_utils.hpp"
 

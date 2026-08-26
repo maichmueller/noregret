@@ -217,21 +217,27 @@ class Environment {
    observation_type public_observation(
       const world_state_type& wstate,
       const action_type& /*action*/,
-      const world_state_type& /*next_wstate*/
+      const world_state_type& next_wstate
    ) const
    {
+      // the fused resolve happens INSIDE the commit_p2 application, so both plays are
+      // only guaranteed to be present on the POST-transition state; keying the
+      // announcement off terminality of 'next_wstate' keeps every edge query well-
+      // defined (pre-edge commit_p2 states still hide player two's unmade play)
+      if(next_wstate.terminal()) {
+         return observation_type{
+            .revealed_plays = std::pair{
+               *next_wstate.committed_play(::shapley::Player::one),
+               *next_wstate.committed_play(::shapley::Player::two)}};
+      }
       switch(wstate.phase()) {
          case Phase::commit_p1: {
-            // commitment event is public knowledge while the play's value is withheld until the
-            // fused resolve
+            // commitment event is public knowledge while the play's value is withheld until
+            // the fused resolve
             return observation_type{.committed_by = Player::alex};
          }
          case Phase::commit_p2: {
-            // fused resolve publishes both plays and terminates the game
-            return observation_type{
-               .revealed_plays = std::pair{
-                  *wstate.committed_play(::shapley::Player::one),
-                  *wstate.committed_play(::shapley::Player::two)}};
+            break;
          }
       }
       return observation_type{};
