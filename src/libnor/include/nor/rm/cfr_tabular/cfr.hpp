@@ -331,6 +331,26 @@ class VanillaCFR:
 
    [[nodiscard]] LazyStats lazy_stats() const { return m_lazy_stats; }
 
+   /**
+    * @brief read-only visitor over every REGISTERED infostate's cumulative
+    * counterfactual regret table (the 'regret' member of the configured
+    * minimizer's node data, index-aligned to each infostate's action registry).
+    *
+    * Enables runtime feature extractors -- e.g. the rm::ddcfr dynamic-
+    * discounting layer's regret statistics -- without exposing mutable solver
+    * internals. Traversal follows the infostate hashmap's order; callers must
+    * not rely on any specific order (aggregations are order-insensitive up to
+    * fp associativity). Empty for solvers that have not run an initializing
+    * traversal yet.
+    */
+   template < typename Fn >
+   void visit_regret_tables(Fn&& fn) const
+   {
+      for(const auto& [infostate_ptr, node] : m_infonode) {
+         fn(node.data().regret);
+      }
+   }
+
    /// activity statistics of the greedy weighting engine (only available when
    /// weighting_mode == greedy) -- see rm::detail::GreedyWeightStats
    using GreedyWeightStats = detail::GreedyWeightStats;
