@@ -415,6 +415,27 @@ struct MCCFRConfig {
                                             : VarianceReductionMode::none;
 }
 
+/// B8: static compatibility predicate of the PROBING value estimator
+/// (Gibson et al., AAAI 2012; injected via rm::ProbingSamplingRule). Probing is
+/// defined on the outcome-sampling traversal of a single updating player, so it
+/// requires:
+///  - outcome_sampling (only that traversal consumes value estimates along one
+///    sampled trajectory),
+///  - alternating updates (under simultaneous updates every actual player is an
+///    updater within one trajectory and 'opponent behavior below an updater
+///    infoset' -- which the probes integrate out -- is ill-defined),
+///  - no VR/ESCHER baselines (those replace the very importance-weighted value
+///    stream that probing modifies),
+///  - current-policy updater sampling (ESCHER's fixed_uniform drops the
+///    importance corrections that the probing divisor participates in).
+[[nodiscard]] inline constexpr bool probing_supported(MCCFRConfig config)
+{
+   return config.algorithm == MCCFRAlgorithmMode::outcome_sampling
+          and config.update_mode == UpdateMode::alternating
+          and effective_variance_reduction(config) == VarianceReductionMode::none
+          and config.updater_sampling == UpdaterSamplingMode::current_policy;
+}
+
 struct CFRDiscountedParameters {
    /// the parameter to exponentiate the weight of positive cumulative regrets with
    double alpha = 1.5;

@@ -82,6 +82,16 @@ constexpr void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_sanit
       "AverageStrategySamplingRule is injected through the sampling-rule slot and "
       "therefore requires MCCFRExplorationMode::custom_sampling_policy."
    );
+   // B8 sanity guard: probing is a traversal-side value-estimation scheme of
+   // the single-updater outcome-sampling walk; see rm::probing_supported for
+   // the full rationale of each clause.
+   static_assert(
+      not probing_sampling_rule< SamplingRule > or probing_supported(config),
+      "ProbingSamplingRule (Gibson et al., AAAI 2012) requires an outcome-sampling, "
+      "alternating-update MCCFR configuration without VR/ESCHER baselines and with "
+      "current-policy updater sampling (see rm::probing_supported). External/pure/chance "
+      "sampling traversals do not consume probed value estimates."
+   );
 };
 
 template <
@@ -219,6 +229,9 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(std::op
       auto reach_probs = init_reach_probs();
       auto obs_buffer = init_obs_buffer();
       auto infostates = init_infostates();
+      if constexpr(probing_active) {
+         m_probe_root_value.reset();
+      }
       return _traverse(
          player_to_update, root_arena_state, /*depth=*/0, reach_probs, obs_buffer, infostates,
          Probability{1.}, weights, /*path_hash=*/0ul
@@ -480,6 +493,70 @@ _traverse(
                            )];
    }
 
+   // ---- B8 (probing) pre-edge snapshot -------------------------------------
+   // Gibson et al. (AAAI 2012), Algorithm 1: at every visited infoset of the
+   // UPDATING player each non-sampled action is probed with one on-policy
+   // rollout. The live observation buffers / infostates flow permanently
+   // downward along the single trajectory, so the PRE-edge state needed by the
+   // sibling-edge probes must be captured before the trajectory fold advances
+   // them past the sampled action.
+   [[maybe_unused]] bool probing_engaged = false;
+   [[maybe_unused]] size_t probing_sampled_idx = 0;
+   [[maybe_unused]] std::vector< double > probed_action_values{};
+   if constexpr(probing_active) {
+      probing_sampled_idx = infonode_data.data().index_of(sampled_action);
+      // probes fire only at infosets of the UPDATING player (paper Algorithm 1:
+      // "each non-terminal history h with P(h) = i reached"); alternating
+      // updates are statically enforced, so player_to_update is always set
+      probing_engaged =
+         actions.size() > 1 and active_player == player_to_update.value_or(Player::chance);
+      if(probing_engaged) {
+         // deep-copy helper: rollout containers must not alias the live ones
+         auto clone_infostate_map = [](const auto& src) {
+            auto out = src;
+            for(auto& entry : std::views::values(out)) {
+               entry = std::make_shared< info_state_type >(*entry);
+            }
+            return out;
+         };
+         auto probe_observation_buffer = observation_buffer.get();
+         auto probe_infostates = clone_infostate_map(infostates.get());
+         probed_action_values.assign(actions.size(), 0.);
+         const double probe_divisor = sample_probability.get();
+         for(const auto [probe_idx, probe_action] : std::views::enumerate(actions)) {
+            if(probe_idx == probing_sampled_idx) {
+               continue;
+            }
+            // fresh per-probe container copies: rollouts mutate their locals
+            auto rollout_observation_buffer = probe_observation_buffer;
+            auto rollout_infostates = clone_infostate_map(probe_infostates);
+            // arena slots strictly below this frame are safe to reuse: every
+            // _arena_state call reconstructs its slot IN PLACE from 'source',
+            // so neither this frame's slot nor the later main recursion can be
+            // corrupted by probe rollouts sharing the deeper slots
+            world_state_type& probe_state = _arena_state(depth + 1, state);
+            _env().transition(probe_state, probe_action);
+            next_infostate_and_obs_buffers_inplace(
+               _env(),
+               rollout_observation_buffer,
+               rollout_infostates,
+               state,
+               probe_action,
+               probe_state
+            );
+            probed_action_values[probe_idx] =
+               _probe_rollout(
+                  probe_state,
+                  depth + 1,
+                  rollout_observation_buffer,
+                  rollout_infostates,
+                  *player_to_update
+               )
+               / probe_divisor;
+         }
+      }
+   }
+
    // advance along the single trajectory via the arena slot of the next depth
    world_state_type& next_state = _arena_state(depth + 1, state);
    _env().transition(next_state, sampled_action);
@@ -511,6 +588,22 @@ _traverse(
    reach_probability.get() = std::move(saved_reach_probs);
    if constexpr(config.weighting == MCCFRWeightingMode::lazy) {
       weights.get() = std::move(saved_weights.get());
+   }
+
+   // ---- B8 (probing): lift the sampled branch onto the per-unit scale ------
+   // The child recursion returns u(z)/(q_prefix * xi*) on the trajectory's
+   // importance scale; multiplying back by xi* (and by the residual policy
+   // tail pi(h a*, z)) yields an estimate unbiased for v(h a*)/q_prefix -- the
+   // SAME scale the probe rollouts were lifted to above. All |A| entries of
+   // the probed counterfactual value vector are thereby unbiased per-visit
+   // estimates of v(h_I a)/q_prefix (Proposition 1 of Gibson et al., AAAI
+   // 2012), so the regret increments accumulated from them target, in
+   // expectation, the TRUE per-iteration counterfactual regret vector.
+   if constexpr(probing_active) {
+      if(probing_engaged) {
+         probed_action_values[probing_sampled_idx] =
+            action_value_map.get().at(active_player) * tail_prob.get() * action_sampling_prob;
+      }
    }
 
    // ---- VR-MCCFR quantities (Schmid et al., AAAI 2019, eqs (7)-(11)) and ----
@@ -642,7 +735,32 @@ _traverse(
       // strategy only if the current player is the next one in line to traverse the tree and
       // update
       if(active_player == *player_to_update) {
-         if constexpr(vr_mode != VarianceReductionMode::none) {
+         if constexpr(probing_active) {
+            // B8: probing replaces the vanilla importance-weighted update at
+            // every visited updater infoset with the probed counterfactual
+            // value vector (paper Algorithm 1 lines 40-44). VR baselines are
+            // statically incompatible (see probing_supported).
+            if(probing_engaged) {
+               _update_regrets_probing(
+                  reach_probability,
+                  active_player,
+                  infonode_data,
+                  actions,
+                  action_policy,
+                  probed_action_values
+               );
+            } else {
+               _update_regrets(
+                  reach_probability,
+                  active_player,
+                  infonode_data,
+                  sampled_action,
+                  Probability{action_policy_prob},
+                  StateValue{action_value_map.get()[active_player]},
+                  tail_prob
+               );
+            }
+         } else if constexpr(vr_mode != VarianceReductionMode::none) {
             // paper step (d): regret accumulation against the untouched
             // baseline snapshot
             _vr_accumulate_regrets(
@@ -725,6 +843,29 @@ _traverse(
    if constexpr(vr_predictive_active) {
       if(not vr_active) {
          _vr_secondary_slot(depth) = _vr_secondary_slot(depth + 1);
+      }
+   }
+
+   // ---- B8 (probing): root-side value diagnostic ---------------------------
+   // Every engaged updater frame folds its OWN subtree in expectation via the
+   // sigma-mixture of the probed counterfactual value vector -- the paper's
+   // v_hat_i(sigma, I) = sum_a sigma(I,a) v_hat(a)/q_i(I) aggregation. Because
+   // the traversal MUST keep returning vanilla-flow (value, tail) pairs --
+   // ancestor updates derive their sampled-branch estimates from them, and any
+   // rescaling here would break the per-unit-prefix consistency documented in
+   // rm::ProbingSamplingRule -- the folded mixture is published through the
+   // 'm_probe_root_value' diagnostic slot instead of the return channel.
+   // Post-order unwinding means the LAST write per iteration comes from the
+   // SHALLOWEST engaged frame, i.e. the one closest to the root.
+   if constexpr(probing_active) {
+      if(probing_engaged) {
+         m_probe_root_value = std::ranges::fold_left(
+            std::views::iota(size_t{0}, actions.size()) | std::views::transform([&](size_t idx) {
+               return action_policy[actions[idx]] * probed_action_values[idx];
+            }),
+            0.,
+            std::plus{}
+         );
       }
    }
 
@@ -898,6 +1039,105 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_update_regrets(
          }
       }();
    }
+}
+
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_update_regrets_probing(
+   const ReachProbabilityMap& reach_probability,
+   Player active_player,
+   infostate_data_type& infostate_data,  // -->r(I) and A(I)
+   const std::vector< action_type >& actions,
+   const auto& action_policy,  // = sigma(I, .)
+   const std::vector< double >& probed_action_values  // = v_hat(a), registry-indexed
+) const
+   requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
+{
+   // Gibson et al. (AAAI 2012), Algorithm 1 lines 40-44: with the probed
+   // counterfactual value vector available for EVERY action, the regret
+   // increment is the plain CFR form applied to the estimates:
+   //    r(I,a) += pi_-i(h_I) * (v_hat(a) - sum_a' sigma(I,a') v_hat(a'))
+   // Every v_hat entry is unbiased for v(h_I a)/q_prefix on the COMMON
+   // 1/sample_probability scale, so in expectation this accumulates the TRUE
+   // per-iteration counterfactual regret vector R(I,.) -- no visit-frequency
+   // rescaling and no per-coordinate projection as under vanilla outcome
+   // sampling.
+   double node_value = 0.;
+   for(auto idx : std::views::iota(size_t{0}, actions.size())) {
+      node_value += action_policy[actions[idx]] * probed_action_values[idx];
+   }
+   const double cf_reach = cf_reach_probability(active_player, reach_probability.get());
+   for(auto idx : std::views::iota(size_t{0}, actions.size())) {
+      infostate_data.regret(actions[idx]) += cf_reach * (probed_action_values[idx] - node_value);
+   }
+}
+
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_probe_rollout(
+   world_state_type& state,
+   size_t depth,
+   player_hashmap< std::vector< std::pair< observation_type, observation_type > > >&
+      observation_buffer,
+   player_hashmap< sptr< info_state_type > >& infostates,
+   Player updating_player
+) -> double
+   requires(config.algorithm == MCCFRAlgorithmMode::outcome_sampling)
+{
+   // Gibson et al. (AAAI 2012), Algorithm 1 'Probe': descend from h along a
+   // single on-policy trajectory -- chance from the true distribution, all
+   // players from the current strategy sigma^t -- and return u_i(z). Pure
+   // value recursion: no nodes are created and no tables are mutated.
+   if(_env().is_terminal(state)) {
+      return _env().reward(updating_player, state);
+   }
+
+   Player active_player = _env().active_player(state);
+
+   if constexpr(not concepts::deterministic_fosg< env_type >) {
+      if(active_player == Player::chance) {
+         auto chosen_outcome = _sample_outcome< false >(state);
+         world_state_type& next_state = _arena_state(depth + 1, state);
+         _env().transition(next_state, chosen_outcome);
+         next_infostate_and_obs_buffers_inplace(
+            _env(), observation_buffer, infostates, state, chosen_outcome, next_state
+         );
+         return _probe_rollout(next_state, depth + 1, observation_buffer, infostates, updating_player);
+      }
+   }
+
+   const auto& live_infostate_sptr = infostates.at(active_player);
+   const auto actions = _env().actions(active_player, state);
+   // READ-ONLY current-policy lookup: rollout-only histories must not
+   // materialize new table entries (fetch_policy would insert them), so
+   // infostates never recommended before fall back to uniform play here
+   const auto& player_policy_table = this->_policy().at(active_player);
+   const auto policy_entry_iter = player_policy_table.find(*live_infostate_sptr);
+   const bool has_policy_entry = policy_entry_iter != player_policy_table.end();
+   const auto& chosen_action =
+      common::choose(
+         actions,
+         [&](const action_type& act) {
+            return has_policy_entry ? policy_entry_iter->second.at(act)
+                                    : 1. / static_cast< double >(actions.size());
+         },
+         m_rng
+      );
+
+   world_state_type& next_state = _arena_state(depth + 1, state);
+   _env().transition(next_state, chosen_action);
+   next_infostate_and_obs_buffers_inplace(
+      _env(), observation_buffer, infostates, state, chosen_action, next_state
+   );
+   return _probe_rollout(next_state, depth + 1, observation_buffer, infostates, updating_player);
 }
 
 template <
