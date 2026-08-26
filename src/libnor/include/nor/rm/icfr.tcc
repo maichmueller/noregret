@@ -20,8 +20,8 @@ namespace nor::rm {
 //////////////////////////////////// construction / setup ////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::_init_roster()
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_init_roster()
 {
    for(auto player : m_env.players(*m_root_state) | utils::is_actual_player_filter) {
       m_player_index.emplace(player, m_roster.size());
@@ -32,8 +32,8 @@ void ICFR< Env, InternalRM, ExternalRM >::_init_roster()
    m_decision_stacks.resize(m_roster.size());
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::_ensure_initialized()
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_ensure_initialized()
 {
    if(m_initialized) {
       return;
@@ -70,8 +70,11 @@ void ICFR< Env, InternalRM, ExternalRM >::_ensure_initialized()
  * multiplayer poker response infosets span deals), so first-visit-only linking
  * would under-approximate the children sets.
  */
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::_enumerate_visit(world_state_type& state, size_t depth)
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_enumerate_visit(
+   world_state_type& state,
+   size_t depth
+)
 {
    if(_env().is_terminal(state)) {
       return;
@@ -133,8 +136,8 @@ void ICFR< Env, InternalRM, ExternalRM >::_enumerate_visit(world_state_type& sta
    }
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::_finalize_enumeration()
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_finalize_enumeration()
 {
    for(auto& st : m_structures) {
       const auto n_infosets = st.infosets.size();
@@ -213,9 +216,9 @@ void ICFR< Env, InternalRM, ExternalRM >::_finalize_enumeration()
 //////////////////////////// shared traversal edge mechanics /////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
 template < typename ActionOrOutcome >
-auto ICFR< Env, InternalRM, ExternalRM >::_advance_edge(
+auto ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_advance_edge(
    const world_state_type& state,
    size_t depth,
    const ActionOrOutcome& edge,
@@ -273,8 +276,8 @@ auto ICFR< Env, InternalRM, ExternalRM >::_advance_edge(
    return next_wstate;
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::_undo_edge(const EdgeUndo& undo)
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_undo_edge(const EdgeUndo& undo)
 {
    if(undo.flushes) {
       auto it = m_infostates.find(undo.flush_target);
@@ -290,8 +293,8 @@ void ICFR< Env, InternalRM, ExternalRM >::_undo_edge(const EdgeUndo& undo)
 ////////////////////////////////////// iteration driver //////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::iterate(size_t n_iters)
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::iterate(size_t n_iters)
 {
    _ensure_initialized();
    for([[maybe_unused]] auto _ : std::views::iota(size_t{0}, n_iters)) {
@@ -314,8 +317,8 @@ void ICFR< Env, InternalRM, ExternalRM >::iterate(size_t n_iters)
 /////////////////////////////// Algorithm 1: plan sampling ///////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::_sample_plan(size_t p_idx)
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_sample_plan(size_t p_idx)
 {
    auto& st = m_structures[p_idx];
    std::ranges::fill(st.ext_active, char{0});
@@ -379,8 +382,8 @@ void ICFR< Env, InternalRM, ExternalRM >::_sample_plan(size_t p_idx)
    }
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-size_t ICFR< Env, InternalRM, ExternalRM >::_sample_action(
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+size_t ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_sample_action(
    const policy_out_type& dist,
    const std::vector< action_type >& actions
 )
@@ -418,8 +421,8 @@ size_t ICFR< Env, InternalRM, ExternalRM >::_sample_action(
 //////////////////////////// counterfactual value traversal //////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::_traverse_values()
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_traverse_values()
 {
    for(auto& st : m_structures) {
       std::ranges::fill(st.x_sums, 0.);
@@ -442,9 +445,11 @@ void ICFR< Env, InternalRM, ExternalRM >::_traverse_values()
    _values_visit(root, /*depth=*/0);
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-auto ICFR< Env, InternalRM, ExternalRM >::_values_visit(world_state_type& state, size_t depth)
-   -> std::vector< double >
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+auto ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_values_visit(
+   world_state_type& state,
+   size_t depth
+) -> std::vector< double >
 {
    if(_env().is_terminal(state)) {
       // realized trajectory of iteration t <=> every player's sampled plan
@@ -556,8 +561,8 @@ auto ICFR< Env, InternalRM, ExternalRM >::_values_visit(world_state_type& state,
 ///////////////////////////// Algorithm 1: regret updates ////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-void ICFR< Env, InternalRM, ExternalRM >::_update_player(size_t p_idx)
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+void ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_update_player(size_t p_idx)
 {
    auto& st = m_structures[p_idx];
    const auto n_infosets = st.infosets.size();
@@ -661,8 +666,8 @@ void ICFR< Env, InternalRM, ExternalRM >::_update_player(size_t p_idx)
 /////////////////////////// trigger regrets (Definition 3 / Lemma 1) /////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-double ICFR< Env, InternalRM, ExternalRM >::_trigger_regret_dp(
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+double ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_trigger_regret_dp(
    const PlayerStructure& st,
    size_t trigger_infoset,
    size_t trigger_action_idx,
@@ -745,8 +750,9 @@ double ICFR< Env, InternalRM, ExternalRM >::_trigger_regret_dp(
    return best;
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-auto ICFR< Env, InternalRM, ExternalRM >::trigger_regrets() const -> std::vector< TriggerGapEntry >
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+auto ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::trigger_regrets() const
+   -> std::vector< TriggerGapEntry >
 {
    if(not m_initialized) {
       return {};
@@ -776,8 +782,8 @@ auto ICFR< Env, InternalRM, ExternalRM >::trigger_regrets() const -> std::vector
 //////////////////////// EFCE gap evaluation against mu_bar^T (Eq. 7) ////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-auto ICFR< Env, InternalRM, ExternalRM >::evaluate_efce_gap() -> GapReport
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+auto ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::evaluate_efce_gap() -> GapReport
 {
    if(m_iteration == 0) {
       throw std::logic_error("ICFR: evaluate_efce_gap requires at least one iteration");
@@ -843,8 +849,8 @@ auto ICFR< Env, InternalRM, ExternalRM >::evaluate_efce_gap() -> GapReport
    return report;
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-double ICFR< Env, InternalRM, ExternalRM >::_gap_triggered_dp(
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+double ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::_gap_triggered_dp(
    const PlayerStructure& st,
    size_t trigger_infoset,
    size_t trigger_action_idx,
@@ -914,8 +920,8 @@ double ICFR< Env, InternalRM, ExternalRM >::_gap_triggered_dp(
 //////////////////////////////////// diagnostic accessors ////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-size_t ICFR< Env, InternalRM, ExternalRM >::num_infosets(Player player) const
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+size_t ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::num_infosets(Player player) const
 {
    if(not m_initialized) {
       return 0;
@@ -923,9 +929,11 @@ size_t ICFR< Env, InternalRM, ExternalRM >::num_infosets(Player player) const
    return m_structures.at(m_player_index.at(player)).infosets.size();
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-size_t ICFR< Env, InternalRM, ExternalRM >::infoset_action_count(Player player, size_t infoset_id)
-   const
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+size_t ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::infoset_action_count(
+   Player player,
+   size_t infoset_id
+) const
 {
    if(not m_initialized) {
       return 0;
@@ -933,9 +941,11 @@ size_t ICFR< Env, InternalRM, ExternalRM >::infoset_action_count(Player player, 
    return m_structures.at(m_player_index.at(player)).infosets.at(infoset_id).actions.size();
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-size_t ICFR< Env, InternalRM, ExternalRM >::external_unit_count(Player player, size_t infoset_id)
-   const
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+size_t ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::external_unit_count(
+   Player player,
+   size_t infoset_id
+) const
 {
    if(not m_initialized) {
       return 0;
@@ -943,9 +953,10 @@ size_t ICFR< Env, InternalRM, ExternalRM >::external_unit_count(Player player, s
    return m_structures.at(m_player_index.at(player)).infosets.at(infoset_id).ext_units.size();
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
 std::vector< std::pair< size_t, icfr_action_type_of< Env > > >
-ICFR< Env, InternalRM, ExternalRM >::infoset_chain(Player player, size_t infoset_id) const
+ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::infoset_chain(Player player, size_t infoset_id)
+   const
 {
    using ret_entry = std::pair< size_t, icfr_action_type_of< Env > >;
    if(not m_initialized) {
@@ -959,9 +970,9 @@ ICFR< Env, InternalRM, ExternalRM >::infoset_chain(Player player, size_t infoset
           | std::ranges::to< std::vector >();
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
 std::pair< size_t, icfr_action_type_of< Env > >
-ICFR< Env, InternalRM, ExternalRM >::external_unit_descriptor(
+ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::external_unit_descriptor(
    Player player,
    size_t infoset_id,
    size_t unit_idx
@@ -974,8 +985,9 @@ ICFR< Env, InternalRM, ExternalRM >::external_unit_descriptor(
    return {unit.chain_pos, st.infosets[ancestor.first].actions[unit.action_idx]};
 }
 
-template < typename Env, typename InternalRM, typename ExternalRM >
-const std::vector< double >& ICFR< Env, InternalRM, ExternalRM >::last_recommendation_distribution(
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+const std::vector< double >&
+ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::last_recommendation_distribution(
    Player player,
    size_t infoset_id
 ) const
@@ -985,6 +997,44 @@ const std::vector< double >& ICFR< Env, InternalRM, ExternalRM >::last_recommend
       return empty;
    }
    return m_structures.at(m_player_index.at(player)).last_recommendation.at(infoset_id);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// predictive-regime unit-state accessors //////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+template < typename RM >
+   requires icfr_counting_unit_data< typename RM::node_data_type >
+const typename RM::node_data_type&
+ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::internal_unit_state(
+   Player player,
+   size_t infoset_id
+) const
+{
+   if(not m_initialized) {
+      throw std::logic_error("ICFR: internal_unit_state requires a prior iterate() call");
+   }
+   return m_structures.at(m_player_index.at(player)).infosets.at(infoset_id).internal_rm;
+}
+
+template < typename Env, ICFRLearnerRegime LearnerRegime, typename InternalRM, typename ExternalRM >
+template < typename RM >
+   requires icfr_counting_unit_data< typename RM::node_data_type >
+const typename RM::node_data_type&
+ICFR< Env, LearnerRegime, InternalRM, ExternalRM >::external_unit_state(
+   Player player,
+   size_t infoset_id,
+   size_t unit_idx
+) const
+{
+   if(not m_initialized) {
+      throw std::logic_error("ICFR: external_unit_state requires a prior iterate() call");
+   }
+   return m_structures.at(m_player_index.at(player))
+      .infosets.at(infoset_id)
+      .ext_units.at(unit_idx)
+      .rm;
 }
 
 }  // namespace nor::rm

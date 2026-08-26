@@ -842,6 +842,10 @@ class Thresholded {
 // the behaviorally-constrained (perturbed) RM+ kernel follows it as well
 #include "constrained.hpp"
 
+// the optimistic multiplicative-weights (OMWU) kernel of the EC 2022
+// predictive trigger-regret dynamics follows the same pattern
+#include "omwu.hpp"
+
 namespace nor::rm {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
