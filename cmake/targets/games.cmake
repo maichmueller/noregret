@@ -183,3 +183,11 @@ target_include_directories(sheriff INTERFACE ${PROJECT_GAMES_DIR}/sheriff/includ
 target_link_libraries(sheriff INTERFACE required_min_libs common)
 
 # ######################################################################################################################
+# General-sum Battleship -- EFCE benchmark of Farina et al., NeurIPS 2019, App. E (header-only)
+# ######################################################################################################################
+
+add_library(battleship_gs INTERFACE)
+
+target_include_directories(battleship_gs INTERFACE ${PROJECT_GAMES_DIR}/battleship_gs/include)
+
+target_link_libraries(battleship_gs INTERFACE required_min_libs common)
