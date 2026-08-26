@@ -461,6 +461,14 @@ TEST(RockPaperScissors, EXRM_Plus_social_regret_grows_sublinearly_vs_RM_Plus)
    // ... and in sqrt-normalized trend across horizons (decreasing sqrt-density =>
    // grows slower than sqrt(T), consistent with the paper's O(1) bound while the
    // RM+ density stays flat/growing)
+   // RECORD-CORE NOTE (merge 33af849): under the node-record representation the
+   // former table-introspection transient is gone -- the seeded starting profiles of
+   // infosets whose history grows before their first decision (bob's depth-1
+   // infostate) never surface as play on EITHER side of the merge, so both players
+   // reach the exact uniform equilibrium after the first update round and the social
+   // regret trajectory is IDENTICALLY ZERO at every checkpoint. The strict
+   // decrease-degenerate case (0 < 0) is therefore guarded by a no-worse check; the
+   // strict sublinearity assertion only applies when an early transient existed.
    const double ex_density_late = ex_final / std::sqrt(double(n_rounds));
    const double ex_density_early = ex_early / std::sqrt(double(checkpoint_every));
    const double rm_density_late = rm_final / std::sqrt(double(n_rounds));
@@ -468,7 +476,12 @@ TEST(RockPaperScissors, EXRM_Plus_social_regret_grows_sublinearly_vs_RM_Plus)
    std::cout << "[          ] sqrt-densities | exrm: " << ex_density_early << " -> "
              << ex_density_late << " | rm+: " << rm_density_early << " -> " << rm_density_late
              << "\n";
-   EXPECT_LT(ex_density_late, ex_density_early);
+   if(ex_density_early > 0.) {
+      EXPECT_LT(ex_density_late, ex_density_early);
+   } else {
+      EXPECT_DOUBLE_EQ(ex_density_late, 0.);
+      EXPECT_LE(ex_density_late, ex_density_early);
+   }
 }
 
 TEST(RockPaperScissors, EXRM_Plus_factory_entry_converges_to_uniform_mix)
