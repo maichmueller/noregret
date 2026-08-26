@@ -33,11 +33,18 @@ register_nor_target(${nor_test}_hindsight test_hindsight.cpp)
 register_nor_target(${nor_test}_policy test_policy.cpp)
 register_nor_target(${nor_test}_helpers test_helpers.cpp)
 register_nor_target(${nor_test}_exploitability test_exploitability.cpp)
+register_nor_target(${nor_test}_variance_reduction test_variance_reduction.cpp)
 # for the overall test executable we simply merge all other test files together
 foreach(sources_list IN LISTS REGISTERED_TEST_SOURCES_LIST)
     list(APPEND NOR_TEST_SOURCES ${${sources_list}})
 endforeach()
 register_nor_target(${nor_test}_all ${NOR_TEST_SOURCES})
+
+if(ENABLE_GAMES AND TARGET goofspiel)
+    # the variance-reduction evaluation test also covers the header-only goofspiel game
+    target_link_libraries(${nor_test}_variance_reduction PRIVATE goofspiel)
+    target_link_libraries(${nor_test}_all PRIVATE goofspiel)
+endif()
 
 # the test of all parts needs an extra linkage for the pybind11 components and Python
 target_link_libraries(${nor_test}_all PRIVATE # pybind11::module
