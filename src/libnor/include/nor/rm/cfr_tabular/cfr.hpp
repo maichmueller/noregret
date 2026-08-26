@@ -530,8 +530,14 @@ class VanillaCFR:
    /// ---- touched-infoset sweep state (D3) -------------------------------------------------
    /// nodes whose update_regret_and_policy ran during the current iteration,
    /// in pre-order traversal order; consumed by _initiate_regret_minimization
-   /// and cleared every iteration (memory bounded per cycle)
-   std::vector< std::pair< const info_state_type*, infostate_data_type* > > m_touched_infonodes{};
+   /// and cleared every iteration (memory bounded per cycle).
+   /// NOTE: the infostate is stored BY VALUE on purpose. During traversals the
+   /// live infostate objects are per-edge clones swapped into the seat-indexed
+   /// slot table and destroyed again at the recursion-boundary restore (only
+   /// the initializing run's node registration keeps a shared owner alive);
+   /// a raw pointer would dangle by sweep time (first surfaced as lazy-CFR
+   /// segment lookups missing their own freshly-folded segments).
+   std::vector< std::pair< info_state_type, infostate_data_type* > > m_touched_infonodes{};
    /// monotone stamp compared against InfostateNodeData::sweep_stamp to keep
    /// the touched list free of duplicates within one iteration
    size_t m_sweep_clock = 0;

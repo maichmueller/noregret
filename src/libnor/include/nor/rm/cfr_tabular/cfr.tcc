@@ -282,8 +282,8 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_initiate_regret_minimiza
          _finalize_greedy_iteration(m_touched_infonodes);
          return;
       }
-      for(auto& [infostate_ptr, node_ptr] : m_touched_infonodes) {
-         _invoke_regret_minimizer(*infostate_ptr, *node_ptr);
+      for(auto& [infostate, node_ptr] : m_touched_infonodes) {
+         _invoke_regret_minimizer(infostate, *node_ptr);
       }
    } else {
       // under regret-based/dynamic-thresholding pruning subtrees are skipped,
@@ -334,7 +334,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_touch(
 {
    if(node.sweep_stamp != m_sweep_clock) {
       node.sweep_stamp = m_sweep_clock;
-      m_touched_infonodes.emplace_back(&infostate, &node);
+      m_touched_infonodes.emplace_back(infostate, &node);
    }
 }
 
@@ -1158,6 +1158,20 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    // D3: remember this node for the end-of-iteration sweep (once per iteration)
    _touch(infostate, istate_data);
 
+   // NOTE: baseline ACTIVATION mirrors the former fetch_policy<average> side effect, which
+   // ran UNCONDITIONALLY at the top of this function -- BEFORE the lazy-update early return
+   // and regardless of the warm-start phase -- so every UPDATED infostate carried a
+   // uniform-baseline average entry from its first updating visit onward.
+   // Exponential/greedy modes deferred their average bookkeeping entirely (the former
+   // lambda returned a dummy lvalue without fetching); their activations happen where
+   // their deferred updates run.
+   if constexpr(
+      config.weighting_mode != CFRWeightingMode::exponential
+      and config.weighting_mode != CFRWeightingMode::greedy
+   ) {
+      istate_data.activate_average();
+   }
+
    if constexpr(config.lazy_update_mode != CFRLazyUpdateMode::off) {
       // ------------------- Lazy-CFR (Zhou et al., ICLR 2020) buffering path ------------------
       // The infostate's strategy is FROZEN inside an open segment: instead of the eager
@@ -1242,16 +1256,15 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
          // the greedy iteration weight is only known once the whole traversal's regrets are
          // aggregated, so the weighted average-policy increment is applied once per iteration
          // by the end-of-iteration sweep ('_finalize_greedy_iteration').
+         // NOTE: the baseline ACTIVATION ran unconditionally above (it mirrors the former
+         // fetch_policy<average> entry creation); only the INCREMENT is gated here.
          if(not warm_start_active(_iteration())) {
             // D1: accumulate the average strategy INTO the node record according
             // to the formula:
             // let 'I' be the infostate, 'p' the player, 'a' the chosen action and
             // 'sigma^t' the current policy:
             // -->  avg_sigma^{t+1}(a) += reach_prob_{p}(I) * sigma^t(I, a)
-            // activating on first touch reproduces the former fetch_policy<average>
-            // behavior of starting every entry from its uniform baseline
             const size_t action_idx = istate_data.index_of(action);
-            istate_data.activate_average();
             auto& sums = istate_data.strategy_sum();
             sums[action_idx] += player_reach_prob * istate_data.current_prob(action_idx);
          }
@@ -1310,8 +1323,11 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_lazy_fold_segment(
    // D1: written straight into the node record's strategy sums (the former
    // fetch_policy<current/average> tables ARE these caches under the record representation);
    // current_prob() reads the frozen recommendation exactly like the former table did.
+   // NOTE: activate_average runs UNCONDITIONALLY -- the former fetch_policy<average> created
+   // its uniform-baseline table entry even when the increment below was skipped
+   // (pending_player_reach == 0), and downstream consumers count activated entries.
+   istate_data.activate_average();
    if(seg.pending_player_reach != 0.) {
-      istate_data.activate_average();
       auto& sums = istate_data.strategy_sum();
       for(auto idx : std::views::iota(size_t{0}, seg.regret_buffer.size())) {
          sums[idx] += seg.pending_player_reach * istate_data.current_prob(idx);
