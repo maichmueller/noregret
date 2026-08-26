@@ -159,6 +159,20 @@ class VanillaCFR:
    using infostate_data_type = InfostateNodeData<
       action_type,
       typename minimizer_type::node_data_type >;
+
+   // The B8 floor-overriding trait requires the buffered (paper-exact) kernel path of
+   // rm::ConstrainedRMPlus, which is compiled only for positive uniform floors: with
+   // perturbation_floor == 0 the kernel degenerates bit-for-bit to plain RM+, whose
+   // arithmetic cannot honor environment-provided floors at all.
+   static_assert(
+      config.regret_minimizing_mode != RegretMinimizingMode::constrained_regret_matching_plus
+         or config.perturbation_floor > 0.
+         or not concepts::has::method::
+               action_probability_floors< Env, info_state_type, action_type >,
+      "environments providing 'action_probability_floors' (B8 trait) combined with "
+      "RegretMinimizingMode::constrained_regret_matching_plus require a positive "
+      "CFRConfig::perturbation_floor"
+   );
    /// strong-types for player based maps
    using InfostateSptrMap = typename base::InfostateSptrMap;
    using ObservationbufferMap = typename base::ObservationbufferMap;
@@ -593,6 +607,14 @@ class VanillaCFR:
       const std::vector< action_type >& actions,
       ActionPolicyTable& action_policy
    );
+
+   /// behaviorally-constrained kernels: refreshes the per-action probability floors of the
+   /// infostate's node data ahead of every recommendation. With an environment exposing the
+   /// B8 trait 'action_probability_floors' the reported vector REPLACES the seeded uniform
+   /// floor; without it the floors registered at table creation (the uniform config value)
+   /// already are authoritative and this is a no-op.
+   template < typename NodeData >
+   void _refresh_probability_floors(const info_state_type& infostate, NodeData& node_data);
 
    ///////////////////////////////////////////////////////////////////////////////////////////
    ////////////////////// lazy-update segmentation engine (Lazy-CFR) /////////////////////////
