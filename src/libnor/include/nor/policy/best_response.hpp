@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "action_policy.hpp"
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
 #include "nor/rm/forest.hpp"
@@ -398,6 +399,17 @@ make_best_response_impl(std::vector< Player > br_players, Env&& env, Args&&... a
 
 }  // namespace detail
 
+/**
+ * @brief policy view playing the pre-computed best response at every infostate.
+ *
+ * REUSE SEMANTICS OF 'allocate': each call runs a full best-response traversal
+ * that ACCUMULATES into the persistent per-player caches in 'm_best_response'
+ * (entries are added/emplaced; previously computed infostate entries are kept,
+ * not reset), and caches seeded through the cached-map constructors persist
+ * across allocations. Callers wanting a fresh solve must construct a new
+ * instance (or clear the table via 'table()') -- repeated 'allocate' calls on
+ * the same instance therefore amortize across recomputations but never shrink.
+ */
 template <
    concepts::info_state Infostate,
    concepts::action Action,
@@ -428,9 +440,12 @@ class BestResponsePolicy {
       std::vector< Player > best_response_players,
       const std::unordered_map< info_state_type, mapped_type >& cached_br_map = {}
    )
-       : m_best_responders{std::move(best_response_players)},
-         m_best_response(std::move(cached_br_map))
+       : m_best_responders{std::move(best_response_players)}, m_best_response()
    {
+      // fill per-player/per-entry inside the body: 'm_best_response' is a
+      // PLAYER-indexed map of per-player maps and cannot be initialized from an
+      // inner cached map directly (the former mem-initializer was ill-formed),
+      // and moving out of the const& parameter would be UB.
       _fill_from_cached_map(cached_br_map);
    }
 

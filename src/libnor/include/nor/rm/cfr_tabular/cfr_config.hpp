@@ -230,6 +230,12 @@ struct CFRConfig {
    /// regret-seeded recommendations without uniform-round pollution -- literature reports
    /// this to speed up EARLY exploitability descent.
    ///
+   /// Exclusion caveat: the 'contribute NOTHING' clause holds for the EAGER average-strategy
+   /// increment. Two deferred accumulation paths feed pre-play own-reach mass through by
+   /// design (historical/develop arithmetic, kept for golden-trajectory reproducibility):
+   /// LazyCFR's per-segment pending_player_reach and GreedyWeights' reach_prob_snapshot --
+   /// see the WARM-START SEMANTICS notes in cfr.tcc's update_regret_and_policy.
+   ///
    /// Terminology note: this is NOT Brown & Sandholm's "Strategy-Based Warm Starting" (AAAI
    /// 2016, DOI 10.1609/aaai.v30i1.10056), which provably substitutes regret-table values
    /// from a substitute value assignment in a single traversal -- their paper even shows
@@ -528,13 +534,18 @@ struct MCCFRConfig {
 ///  - no VR/ESCHER baselines (those replace the very importance-weighted value
 ///    stream that probing modifies),
 ///  - current-policy updater sampling (ESCHER's fixed_uniform drops the
-///    importance corrections that the probing divisor participates in).
+///    importance corrections that the probing divisor participates in),
+///  - the plain regret-matching kernel: the probed counterfactual vector is
+///    folded through the minimizer's 'observe' protocol, whose clip-at-fold /
+///    prediction-buffer semantics are only defined for the OS-MCCFR increment
+///    stream of the PRM+ family -- not for the probing-replaced update path.
 [[nodiscard]] inline constexpr bool probing_supported(MCCFRConfig config)
 {
    return config.algorithm == MCCFRAlgorithmMode::outcome_sampling
           and config.update_mode == UpdateMode::alternating
           and effective_variance_reduction(config) == VarianceReductionMode::none
-          and config.updater_sampling == UpdaterSamplingMode::current_policy;
+          and config.updater_sampling == UpdaterSamplingMode::current_policy
+          and config.regret_minimizing_mode == RegretMinimizingMode::regret_matching;
 }
 
 struct CFRDiscountedParameters {

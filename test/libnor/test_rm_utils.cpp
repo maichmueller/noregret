@@ -171,3 +171,45 @@ INSTANTIATE_TEST_SUITE_P(
    RegretMatchingParamsF,
    ::testing::Values(value_pack< 0 >(), value_pack< 1 >(), value_pack< 2 >())
 );
+
+TEST(PlayerValueTable, clearResetsPhysicalStorage)
+{
+   rm::PlayerValueTable table{};
+   table.emplace(Player::alex, 5.);
+   table.emplace(Player::bob, -3.);
+   ASSERT_EQ(table.size(), size_t{2});
+
+   // REGRESSION: clear() used to reset only the logical size while keeping the
+   // physical rows, so a later insert_at appended BEHIND the dead region and
+   // operator[]/at/values() handed out STALE entries of other players for
+   // freshly inserted keys.
+   table.clear();
+   ASSERT_TRUE(table.empty());
+
+   auto [iter, inserted] = table.emplace(Player::bob, 9.);
+   ASSERT_TRUE(inserted);
+   ASSERT_EQ(iter->first, Player::bob);
+   ASSERT_EQ(table.size(), size_t{1});
+   ASSERT_EQ(table.at(Player::bob), 9.);
+   ASSERT_EQ(table.count(Player::alex), size_t{0});
+   ASSERT_EQ(table.players().size(), size_t{1});
+   ASSERT_EQ(table.players().front(), Player::bob);
+   ASSERT_EQ(table.values().size(), size_t{1});
+   ASSERT_EQ(table.values().front(), 9.);
+
+   // iteration observes exactly the one freshly inserted entry
+   std::vector< rm::PlayerValueTable::value_type > drained;
+   for(auto entry : table) {
+      drained.push_back(entry);
+   }
+   ASSERT_EQ(drained.size(), size_t{1});
+   ASSERT_EQ(drained.front().first, Player::bob);
+   ASSERT_EQ(drained.front().second, 9.);
+
+   // the operator[] insertion path is equally affected by stale storage
+   table.clear();
+   ASSERT_EQ(table[Player::alex], 0.);
+   ASSERT_EQ(table.size(), size_t{1});
+   ASSERT_EQ(table.players().front(), Player::alex);
+   ASSERT_EQ(table.values().front(), 0.);
+}

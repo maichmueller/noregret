@@ -861,7 +861,11 @@ StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse(
                _probe_collect(*this_infostate, reach_probability, state_value, action_value);
             }
          } else {
-            _probe_collect(*this_infostate, reach_probability, state_value, action_value);
+            // UNREACHABLE by construction: probe passes exist only under the extragradient
+            // anchor-probe mode, which 'sanity_check_cfr_config' pins to alternating
+            // updates. Kept as an instantiation-time guard instead of a silent no-op that
+            // would falsely signal simultaneous-probe support.
+            static_assert(config.update_mode == UpdateMode::alternating);
          }
       } else if constexpr(config.update_mode == UpdateMode::alternating) {
          // in alternating updates, we only update the regret and strategy if the current
@@ -1033,6 +1037,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       // fixed-size STACK bookkeeping (bounded by max_player_seats): sizes of
       // exactly the buffers this edge appends to; restoring is an O(1)-each
       // resize afterwards. Replaces the former heap vector<pair<Player,size_t>>.
+      // Non-actual players (chance/unknown) are skipped explicitly: the
+      // seat-indexed buffer table throws on them where the former hashmap
+      // silently accepted any key.
       std::array< size_t, max_player_seats > saved_buffer_sizes{};
       std::array< size_t, max_player_seats > saved_seats{};
       size_t saved_size_count = 0;
@@ -1050,7 +1057,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          obs_scratch.swap(obs_table[next_active_player]);
       }
       for(auto player : _env().players(next_wstate)) {
-         if(player == Player::chance) {
+         if(not utils::is_actual_player_pred(player)) {
             continue;
          }
          if(not (flushes and player == next_active_player)) {
@@ -1061,7 +1068,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          }
       }
       for(auto player : _env().players(next_wstate)) {
-         if(player == Player::chance) {
+         if(not utils::is_actual_player_pred(player)) {
             continue;
          }
          if(flushes and player == next_active_player) {
@@ -1189,7 +1196,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
       sptr< info_state_type > saved_infostate{};
       sptr< info_state_type > child_infostate{};
       // fixed-size STACK bookkeeping bounded by max_player_seats (see the
-      // player-actions traversal for the full rationale)
+      // player-actions traversal for the full rationale). Non-actual players
+      // (chance/unknown) are skipped explicitly: the seat-indexed buffer table
+      // throws on them where the former hashmap silently accepted any key.
       std::array< size_t, max_player_seats > saved_buffer_sizes{};
       std::array< size_t, max_player_seats > saved_seats{};
       size_t saved_size_count = 0;
@@ -1203,7 +1212,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
          obs_scratch.swap(obs_table[next_active_player]);
       }
       for(auto player : _env().players(next_wstate)) {
-         if(player == Player::chance) {
+         if(not utils::is_actual_player_pred(player)) {
             continue;
          }
          if(not (flushes and player == next_active_player)) {
@@ -1214,7 +1223,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_chance_actions(
          }
       }
       for(auto player : _env().players(next_wstate)) {
-         if(player == Player::chance) {
+         if(not utils::is_actual_player_pred(player)) {
             continue;
          }
          if(flushes and player == next_active_player) {
@@ -1339,6 +1348,13 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
                                                                - player_state_value);
       }
       seg.pending_cf_reach += cf_reach_prob;
+      // WARM-START SEMANTICS (deliberate, matches the historical/develop behavior that
+      // golden-trajectory reproducibility across versions pins down): the eager
+      // average-strategy increment of the non-deferred paths skips warm-start rounds,
+      // but this DEFERRED own-reach accumulator is fed UNCONDITIONALLY -- i.e. under
+      // LazyCFR x warm-start pre-play rounds DO contribute their own-reach mass to the
+      // closed segment's average-strategy fold. Keep bit-for-bit; do not "fix" toward
+      // cfr.hpp's eager-path contract wording (see the caveat appended there).
       seg.pending_player_reach += player_reach_prob;
       return;
    }
@@ -1427,6 +1443,11 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
       // end-of-iteration sweep ('_finalize_greedy_iteration'), which also resets the snapshot.
       // ACCUMULATION (not overwrite) is required because an infostate may be reached through
       // several histories within one traversal.
+      // WARM-START SEMANTICS (deliberate, matches the historical/develop behavior pinned by
+      // golden-trajectory reproducibility): unlike the eager increment above, this DEFERRED
+      // own-reach accumulator is fed UNCONDITIONALLY -- under GreedyWeights x warm-start
+      // pre-play rounds therefore DO reach the deferred weighted fold. Do not "fix" toward
+      // cfr.hpp's eager-path contract wording (see the caveat appended there).
       istate_data.data().reach_prob_snapshot += player_reach_prob;
    } else if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
       // For exponential CFR we need to store the reach probability of the active player until
@@ -1483,6 +1504,10 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_lazy_fold_segment(
          sums[idx] += seg.pending_player_reach * istate_data.current_prob(idx);
       }
    }
+   // this deferred average-strategy write bypasses update_regret_and_policy's
+   // epilogue: flag the materialized view stale HERE so reads between the fold
+   // and the sweep-end flags never observe a pre-fold snapshot.
+   m_avg_view_dirty = true;
    std::ranges::fill(seg.regret_buffer, 0.);
    seg.pending_cf_reach = 0.;
    seg.pending_player_reach = 0.;
@@ -1725,9 +1750,20 @@ consteval bool sanity_check_cfr_config()
       // to InternalRegretMatching regardless of the weighting axis).
       // Regret-based pruning prescribes the RM+-style replace-if-positive fold
       // contract on a 'cumulative_instant_regret' layout this kernel does not
-      // carry; dynamic thresholding stays composable since it only reshapes the
-      // derived recommendation.
-      if constexpr(config.weighting_mode != CFRWeightingMode::uniform or config.pruning_mode == CFRPruningMode::regret_based) {
+      // carry.
+      // Dynamic thresholding is rejected too: Thresholded<Inner>::recommend runs the
+      // threshold AFTER Inner::recommend has already refreshed policy_snapshot, so when
+      // tau_t binds the NEXT fold pairs buffered instantaneous regrets against a strategy
+      // that was never actually played -- silently corrupting the phi-regret bookkeeping.
+      // Warm-start pre-play is rejected for the same pairing reason: forcing uniform play
+      // during pre-play rounds means those folds pair against the recommended-strategy
+      // snapshot, not against what generated the buffered increments (mirrors the
+      // constrained-kernel clause above).
+      if constexpr(
+         config.weighting_mode != CFRWeightingMode::uniform
+         or config.pruning_mode != CFRPruningMode::none
+         or config.warm_start_iterations > 0
+      ) {
          return false;
       }
    }
@@ -1782,22 +1818,68 @@ consteval bool sanity_check_cfr_config()
          return false;
       }
    }
-   // dynamic_thresholding composes with any base minimizer recommending via regret matching on
-   // its cumulative table (plain RM, RM+ via DiscountedCFR carrier, ExponentialCFR) -- which is
-   // what the selection in minimizers.hpp produces; it also keeps working under simultaneous
-   // updates since thresholding only reshapes recommendations. The predictive/discounted-kernel
-   // modes are already rejected above because they require pruning_mode == none altogether.
-   if constexpr(config.warm_start_iterations > 0) {
-      // the warm-start pre-play phase forces the PLAYED strategy during early traversals at
-      // the policy-fetch point while regret/average updates run unmodified (see
-      // _traverse_player_actions). Exponential CFR defers both its cumulative updates AND its
-      // policy refresh into finalize_iteration with a separate L1-weighted
-      // numerator/denominator machinery; forcing played policies mid-phase is unanalyzed
-      // there, so the combination is statically rejected. All regret-matching-based modes
-      // (RM / RM+, incl. their discounted/linear carriers) are supported.
-      if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
+   if constexpr(config.pruning_mode == CFRPruningMode::dynamic_thresholding) {
+      // Dynamic thresholding wraps the selected base minimizer in Thresholded<Inner>, whose
+      // protocol forwards (observe/recommend/policy_weight/finalize_iteration) are qualified
+      // STATIC-style calls. The discounted weighting mode selects the DiscountedCFR decorator,
+      // whose recommend/policy_weight are NON-static members (it carries parameters), and the
+      // solver additionally reads 'discounted_parameters()' directly off the minimizer under
+      // this weighting mode -- neither exists on the wrapper, so such instantiations are
+      // ill-formed deep inside template instantiation. Statically reject them here instead
+      // (matching this file's config-gate style). Greedy weights is already rejected above;
+      // exponential keeps working because ExponentialCFR satisfies the static protocol incl.
+      // the constrained finalize_iteration forwarding; and the DCFR+/PDCFR+ kernels are
+      // excluded from thresholding altogether by their pruning_mode == none requirement above.
+      //
+      // TODO(feature): the same NON-static-member hazard is latent for CFRLinear weighting
+      // (linear mode ALSO selects the parameter-carrying DiscountedCFR decorator) yet linear x
+      // dynamic_thresholding currently slips through this clause undetected. Proper admission
+      // needs a STATELESS linear decorator satisfying the static protocol first -- feature
+      // work, intentionally out of scope here.
+      if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
          return false;
       }
+   }
+   if constexpr(
+      config.weighting_mode == CFRWeightingMode::exponential
+      or config.weighting_mode == CFRWeightingMode::greedy
+   ) {
+      if constexpr(config.pruning_mode == CFRPruningMode::partial) {
+         // Partial pruning skips zero-reach subtrees mid-traversal, but the end-of-iteration
+         // sweep still refreshes EVERY infoset of the updating player(s) via the exhaustive
+         // filter view. For exponential weighting such unvisited nodes replay a STALE
+         // reach_prob_snapshot / instantaneous-regret buffer of an EARLIER iteration through
+         // finalize_iteration's L1 machinery -- permitted-but-unanalyzed corruption.
+         // CHOICE (vs. stamp-guarding finalize by sweep_stamp): both combos are dead in
+         // practice -- no test or benchmark instantiates exponential/greedy with partial, and
+         // partial itself is exercised only as a constrained-kernel REJECTION case
+         // (test_cfr_perturbed.cpp). A stamp guard would additionally change trajectories of
+         // the GREEN exponential x dynamic-thresholding combo (exhaustive sweep there can
+         // revisit infosets whose last visit predates the current iteration), so explicit
+         // rejection keeps every tested trajectory bit-for-bit while closing the defect.
+         return false;
+      }
+   }
+   // dynamic_thresholding otherwise composes with any base minimizer recommending via regret
+    // matching on its cumulative table (plain RM, RM+, ExponentialCFR) -- which is what the
+    // selection in minimizers.hpp produces; the swap-basis internal-regret kernel is
+    // deliberately NOT among them (its own clause above rejects pruning: thresholding would
+    // desynchronize its play snapshot). It also keeps working under simultaneous updates since
+    // thresholding only reshapes recommendations. The predictive/discounted-kernel modes are
+    // already rejected above because they require pruning_mode == none altogether.
+   if constexpr(config.warm_start_iterations > 0) {
+      // the warm-start pre-play phase forces the PLAYED strategy during early traversals at
+       // the policy-fetch point while regret/average updates run unmodified (see
+       // _traverse_player_actions). Exponential CFR defers both its cumulative updates AND its
+       // policy refresh into finalize_iteration with a separate L1-weighted
+       // numerator/denominator machinery; forcing played policies mid-phase is unanalyzed
+       // there, so the combination is statically rejected. All regret-matching-based modes
+       // (RM / RM+, incl. their discounted/linear carriers) are supported -- EXCEPT the
+       // swap-basis internal-regret kernel, whose snapshot pairing corrupts under forced
+       // uniform play (already rejected together with warm start in its own clause above).
+       if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
+          return false;
+       }
    }
    return true;
 }

@@ -9,6 +9,7 @@
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/tag.hpp"
 
 namespace nor {
 

@@ -65,7 +65,10 @@ class PlayerValueTable {
       using iterator_concept = std::random_access_iterator_tag;
 
       /// proxy returned by operator-> so that 'it->first'/'it->second' keep
-      /// working like on the former map iterators (elements are yielded by value)
+      /// working like on the former map iterators (elements are yielded by value).
+      /// CONTRACT: the proxy holds a COPY of the entry -- writes through it
+      /// ('it->second = x') mutate only the proxy and are silently discarded;
+      /// use 'table[player]' / 'table.at(player)' to read or mutate storage.
       struct arrow_proxy {
          value_type entry;
          value_type* operator->() { return &entry; }
@@ -232,7 +235,17 @@ class PlayerValueTable {
 
    [[nodiscard]] size_t size() const { return m_size; }
    [[nodiscard]] bool empty() const { return m_size == 0; }
-   void clear() { m_size = 0; }
+   /// map-like reset: the table becomes empty (size 0). Physical storage is
+   /// cleared alongside the logical size -- leaving stale rows behind would make
+   /// the next insert_at append BEHIND the dead region and hand out a STALE row
+   /// for the freshly inserted key. std::vector::clear keeps heap capacity, so
+   /// reserve-style reuse is preserved.
+   void clear()
+   {
+      m_players.clear();
+      m_values.clear();
+      m_size = 0;
+   }
    void reserve(size_t n)
    {
       m_players.reserve(n);
@@ -310,8 +323,6 @@ class StateValueMap {
    [[nodiscard]] UnderlyingType& get() { return m_table; }
    [[nodiscard]] const UnderlyingType& get() const { return m_table; }
 
-   friend bool operator==(const StateValueMap&, const StateValueMap&) = default;
-
   private:
    UnderlyingType m_table;
 };
@@ -335,8 +346,6 @@ class ReachProbabilityMap {
 
    [[nodiscard]] UnderlyingType& get() { return m_table; }
    [[nodiscard]] const UnderlyingType& get() const { return m_table; }
-
-   friend bool operator==(const ReachProbabilityMap&, const ReachProbabilityMap&) = default;
 
   private:
    UnderlyingType m_table;
@@ -533,6 +542,7 @@ template <
    typename Policy,
    typename RegretMap,
    typename InstantRegretMap,
+   typename ActionWrapper,
    typename Action = auto_action_type< Policy > >
 // clang-format off
 requires
@@ -541,11 +551,13 @@ requires
    and std::is_convertible_v< typename RegretMap::mapped_type, double >
    and concepts::map< InstantRegretMap >
    and std::is_convertible_v< typename InstantRegretMap::mapped_type, double >
+   and std::invocable< ActionWrapper, Action >
 // clang-format on
 void regret_matching_plus_rbp(
    Policy& policy_map,
    RegretMap& cumul_regret_map,
-   InstantRegretMap& instant_regret_map
+   InstantRegretMap& instant_regret_map,
+   ActionWrapper action_wrapper = [](const Action& action) { return action; }
 )
 {
    double pos_regret_sum{0.};

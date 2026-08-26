@@ -34,12 +34,6 @@ constexpr auto kInternalCfg = rm::CFRConfig{
    .update_mode = rm::UpdateMode::alternating,
    .regret_minimizing_mode = rm::RegretMinimizingMode::internal_regret_matching};
 
-constexpr auto kInternalThresholdedCfg = rm::CFRConfig{
-   .update_mode = rm::UpdateMode::alternating,
-   .regret_minimizing_mode = rm::RegretMinimizingMode::internal_regret_matching,
-   .weighting_mode = rm::CFRWeightingMode::uniform,
-   .pruning_mode = rm::CFRPruningMode::dynamic_thresholding};
-
 }  // namespace
 
 // the append-at-end contract of the selection enum (tests and persisted configs rely on the
@@ -57,9 +51,21 @@ static_assert(std::same_as<
               rm::minimizer_for_t< kInternalCfg, sp::Play >,
               rm::InternalRegretMatching< sp::Play > >);
 
-static_assert(std::same_as<
-              rm::minimizer_for_t< kInternalThresholdedCfg, sp::Play >,
-              rm::Thresholded< rm::InternalRegretMatching< sp::Play >, 3. > >);
+// dynamic thresholding (and any pruning) is statically rejected for the swap-basis kernel:
+// Thresholded<IRM>::recommend reshapes the published policy AFTER IRM::recommend refreshed
+// policy_snapshot, so once tau_t binds the next fold pairs buffered instantaneous regrets
+// against a never-played strategy -- corrupt phi-regret bookkeeping.
+static_assert(not rm::detail::sanity_check_cfr_config< rm::CFRConfig{
+                 .update_mode = rm::UpdateMode::alternating,
+                 .regret_minimizing_mode = rm::RegretMinimizingMode::internal_regret_matching,
+                 .weighting_mode = rm::CFRWeightingMode::uniform,
+                 .pruning_mode = rm::CFRPruningMode::dynamic_thresholding} >());
+// ... and the same pairing corruption forbids warm-start pre-play (forced uniform play folds
+// against the recommended-strategy snapshot)
+static_assert(not rm::detail::sanity_check_cfr_config< rm::CFRConfig{
+                 .update_mode = rm::UpdateMode::alternating,
+                 .regret_minimizing_mode = rm::RegretMinimizingMode::internal_regret_matching,
+                 .warm_start_iterations = 1} >());
 
 TEST(InternalRegretMatching, config_selection_and_factory_wiring)
 {
