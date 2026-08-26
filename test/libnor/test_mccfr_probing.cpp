@@ -255,7 +255,7 @@ kuhn_first_iteration_regret_stats(size_t n_seeds, Rule rule = Rule{})
    for(size_t seed = 0; seed < n_seeds; ++seed) {
       auto solver = make_kuhn_solver< config >(seed, rule);
       auto root_values = solver.iterate(1);
-      updater = root_values[0].begin()->first;
+      updater = root_values[0].get().begin()->first;
       // the CURRENT policy table carries an entry for every visited node
       for(const auto& [infostate, action_policy] : solver.policy().at(updater).table()) {
          for(const auto& [action, prob] : action_policy) {
@@ -850,7 +850,7 @@ TEST(ProbingSmoke, DarkHexTwoByTwoRunsAndStaysFinite)
    auto values = solver.iterate(50);
    ASSERT_EQ(values.size(), size_t{50});
    for(const auto& per_iter : values) {
-      for(const auto& [player, value] : per_iter) {
+      for(const auto& [player, value] : per_iter.get()) {
          EXPECT_TRUE(std::isfinite(value)) << "player " << static_cast< int >(player);
       }
    }
