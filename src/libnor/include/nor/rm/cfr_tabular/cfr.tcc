@@ -686,14 +686,23 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_invoke_regret_minimizer(
          m_regret_minimizer.recommend(node_data, m_recommend_scratch, _iteration());
          _publish_recommendation(istate_data);
 
-         // scale the accumulated average policy by this iteration's weight.
-         // B3: with 'weight_by_cycle' the gamma exponentiation indexes by the
-         // cycle number (iteration / num_players) instead of the raw iteration.
+         // scale the accumulated average policy by this iteration's weight
+         // (the gamma side of the DCFR-family averaging schemes). B3: with
+         // 'weight_by_cycle' the discounted mode indexes by the cycle number
+         // (iteration / num_players) instead of the raw iteration. The stateless
+         // linear carrier has no such knob and always indexes by the raw
+         // iteration -- which is exactly what the historical linear spelling
+         // (unit exponents, weight_by_cycle == false) did.
          if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
             const size_t weight_index = m_regret_minimizer.discounted_parameters().weight_by_cycle
                                             ? this->cycle()
                                             : _iteration();
             const double policy_weight = m_regret_minimizer.policy_weight(weight_index);
+            for(double& prob : istate_data.strategy_sum()) {
+               prob *= policy_weight;
+            }
+         } else if constexpr(config.weighting_mode == CFRWeightingMode::linear) {
+            const double policy_weight = m_regret_minimizer.policy_weight(_iteration());
             for(double& prob : istate_data.strategy_sum()) {
                prob *= policy_weight;
             }
@@ -1821,21 +1830,24 @@ consteval bool sanity_check_cfr_config()
    if constexpr(config.pruning_mode == CFRPruningMode::dynamic_thresholding) {
       // Dynamic thresholding wraps the selected base minimizer in Thresholded<Inner>, whose
       // protocol forwards (observe/recommend/policy_weight/finalize_iteration) are qualified
-      // STATIC-style calls. The discounted weighting mode selects the DiscountedCFR decorator,
-      // whose recommend/policy_weight are NON-static members (it carries parameters), and the
-      // solver additionally reads 'discounted_parameters()' directly off the minimizer under
-      // this weighting mode -- neither exists on the wrapper, so such instantiations are
-      // ill-formed deep inside template instantiation. Statically reject them here instead
-      // (matching this file's config-gate style). Greedy weights is already rejected above;
-      // exponential keeps working because ExponentialCFR satisfies the static protocol incl.
-      // the constrained finalize_iteration forwarding; and the DCFR+/PDCFR+ kernels are
-      // excluded from thresholding altogether by their pruning_mode == none requirement above.
-      //
-      // TODO(feature): the same NON-static-member hazard is latent for CFRLinear weighting
-      // (linear mode ALSO selects the parameter-carrying DiscountedCFR decorator) yet linear x
-      // dynamic_thresholding currently slips through this clause undetected. Proper admission
-      // needs a STATELESS linear decorator satisfying the static protocol first -- feature
-      // work, intentionally out of scope here.
+      // STATIC-style calls, and the traversal gate reuses its RBPTables bookkeeping. The
+      // admissible carriers are therefore exactly the STATELESS minimizers with a fully
+      // static protocol:
+      //  * the plain RM / RM+ kernels (policy_weight == 1, uniform weighting),
+      //  * ExponentialCFR (incl. the constrained finalize_iteration forwarding),
+      //  * LinearCFR, the parameter-free linear carrier of
+      //    CFRWeightingMode::linear / rm::CFRLinear.
+      // The discounted weighting mode selects the PARAMETER-CARRYING DiscountedCFR decorator,
+      // whose recommend/policy_weight are non-static members (it carries parameters) and whose
+      // 'discounted_parameters()' the solver reads directly under this weighting mode -- such
+      // instantiations are ill-formed deep inside template instantiation. This rejection ALSO
+      // keeps every runtime-SCHEDULE carrier out of thresholding permanently: HS-schedules and
+      // DDCFR-style agents ride that very same discounted instance carrier, so admitting
+      // arbitrary discounted x dtp combinations would reopen evaluating schedule parameters
+      // from a pruning-skewed population. Statically reject them here instead (matching this
+      // file's config-gate style). Greedy weights is already rejected above; and the
+      // DCFR+/PDCFR+ kernels are excluded from thresholding altogether by their
+      // pruning_mode == none requirement above.
       if constexpr(config.weighting_mode == CFRWeightingMode::discounted) {
          return false;
       }
@@ -1860,14 +1872,16 @@ consteval bool sanity_check_cfr_config()
          return false;
       }
    }
-   // dynamic_thresholding otherwise composes with any base minimizer recommending via regret
-    // matching on its cumulative table (plain RM, RM+, ExponentialCFR) -- which is what the
-    // selection in minimizers.hpp produces; the swap-basis internal-regret kernel is
-    // deliberately NOT among them (its own clause above rejects pruning: thresholding would
-    // desynchronize its play snapshot). It also keeps working under simultaneous updates since
-    // thresholding only reshapes recommendations. The predictive/discounted-kernel modes are
-    // already rejected above because they require pruning_mode == none altogether.
-   if constexpr(config.warm_start_iterations > 0) {
+   // LEGALITY MATRIX (dynamic_thresholding axis):
+    //  GREEN: uniform + plain RM / RM+ | exponential (static path incl. finalize
+    //  forwarding) | linear via the stateless LinearCFR carrier. RED:
+    //  parameterized discounted (carrier + schedule carriers, clause above) |
+    //  greedy (clause above) | DCFR+/PDCFR+ kernels (pruning_mode == none) | the
+    //  swap-basis internal-regret kernel (own clause above rejects pruning:
+    //  thresholding would desynchronize its play snapshot). Thresholding only
+    //  reshapes recommendations, so it also keeps working under simultaneous
+    //  updates.
+    if constexpr(config.warm_start_iterations > 0) {
       // the warm-start pre-play phase forces the PLAYED strategy during early traversals at
        // the policy-fetch point while regret/average updates run unmodified (see
        // _traverse_player_actions). Exponential CFR defers both its cumulative updates AND its

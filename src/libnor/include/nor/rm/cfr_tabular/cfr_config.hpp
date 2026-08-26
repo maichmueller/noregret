@@ -90,7 +90,13 @@ enum class CFRWeightingMode {
    // no particular weighting scheme applied to updates of regret or average policy.
    // Both are incremented by unweighted increments
    uniform = 0,
-   // The average policy is being incremented by the weight 't' in iteration 't'
+   // Linear CFR (the all-unit-exponents corner alpha = beta = gamma = 1 of the DCFR
+   // family): cumulative regrets are scaled by t/(t+1) at recommendation time and the
+   // accumulated average policy is rescaled by t/(t+1) after every iteration. Carried
+   // by the STATELESS rm::LinearCFR decorator (no runtime parameters), which is what
+   // admits linear x CFRPruningMode::dynamic_thresholding; historically this mode was
+   // only reachable through the parameter-carrying DiscountedCFR carrier with
+   // hand-injected unit parameters (rm::CFRLinearConfig / make_cfr_linear)
    linear = 1,
    // Both the regret and average policy are updated by the weights
    // t^alpha / (t^alpha +1), t^beta / (t^beta + 1), (t / t+1)^gamma
@@ -352,7 +358,9 @@ struct CFRDiscountedConfig {
 };
 
 struct CFRLinearConfig {
-   // should always be exact same as Discounted Config!
+   // fields mirror CFRDiscountedConfig, but the weighting axis resolves to the
+   // STATELESS linear carrier (CFRWeightingMode::linear / rm::LinearCFR) -- NOT to the
+   // parameterized discounted one (see the rm::CFRLinear alias)
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
 };

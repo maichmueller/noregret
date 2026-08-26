@@ -514,17 +514,20 @@ struct factory {
       AveragePolicy&& avg_policy
    )
    {
+      // linear weighting is backed by the STATELESS rm::LinearCFR carrier: no
+      // runtime parameters. (Historically this factory injected
+      // CFRDiscountedParameters{alpha=1, beta=1, gamma=1} into the discounted
+      // carrier; those constants are now compiled into the carrier itself with
+      // bit-for-bit identical arithmetic.) External signatures unchanged.
       if constexpr(as_map) {
          auto players = env.players(*root_state);
          return {
-            rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
             std::forward< Env >(env),
             std::move(root_state),
             to_map(players, std::forward< Policy >(policy)),
             to_map(players, std::forward< AveragePolicy >(avg_policy))};
       } else {
          return {
-            rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
             std::forward< Env >(env),
             std::move(root_state),
             std::forward< Policy >(policy),
@@ -541,7 +544,6 @@ struct factory {
    )
    {
       return {
-         rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
          std::forward< Env >(env),
          std::move(root_state),
          std::move(policy_map),
@@ -556,11 +558,7 @@ struct factory {
    )
    {
       return make_cfr_linear< cfg, as_map >(
-         rm::CFRDiscountedParameters{.alpha = 1, .beta = 1, .gamma = 1},
-         std::forward< Env >(env),
-         std::move(root_state),
-         policy,
-         policy
+         std::forward< Env >(env), std::move(root_state), policy, policy
       );
    }
 
