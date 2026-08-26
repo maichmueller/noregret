@@ -292,6 +292,14 @@ class DiscountedPlusRegretMatching {
       const double disc_prev = discount_factor(iteration, m_params.alpha_at(iteration));
       const double disc_curr = [&] {
          if constexpr(predictive) {
+            // LIMITATION: recommend() runs mid-sweep (per infostate, during the
+            // post-order unwind of an in-flight iteration), yet PDCFR+'s
+            // persistence prediction evaluates alpha at raw index t+1 HERE --
+            // i.e. before the iteration has completed. A scheduled alpha
+            // therefore observes an iterated-one-step-ahead input for every
+            // infoset swept within the current iteration; with a CONSTANT alpha
+            // (the published PDCFR+ default and all null-schedule parameter
+            // sets) this is numerically irrelevant.
             return discount_factor(iteration + 1, m_params.alpha_at(iteration + 1));
          } else {
             return 0.;  // unused

@@ -320,7 +320,13 @@ class VanillaCFR:
 
    /// the CURRENT policy profile, materialized from the infostate node
    /// records (D1: the records are the single source of truth; this view is
-   /// rebuilt lazily whenever the records changed since the last call)
+   /// rebuilt lazily whenever the records changed since the last call).
+   /// CONTRACT: node records only exist for infosets visited by a traversal,
+   /// so -- before the FIRST initializing traversal (or when zero iterations
+   /// have run) -- this view is EMPTY; it never contains pre-play/uniform
+   /// defaults (warm-start forced play happens at the fetch point and does
+   /// not create records either). Callers wanting a complete profile must run
+   /// at least one iteration first.
    const auto& policy() const
    {
       if(m_curr_view_dirty) {
@@ -332,7 +338,9 @@ class VanillaCFR:
 
    /// the AVERAGE policy profile, materialized from the node records'
    /// cumulative strategy sums (raw unnormalized numerators, identical to the
-   /// former table contents)
+   /// former table contents). Same CONTRACT as policy(): only infosets touched
+   /// by at least one completed, average-initializing traversal appear here --
+   /// before the first such iteration the view is empty.
    const auto& average_policy() const
       requires(config.weighting_mode != CFRWeightingMode::exponential)
    {

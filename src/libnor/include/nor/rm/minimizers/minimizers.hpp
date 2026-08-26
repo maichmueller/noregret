@@ -347,9 +347,12 @@ struct ExponentialCFR {
       // are stateless shared objects, so the reuse storage lives here as a
       // thread-local static (the end-of-iteration sweep is intentionally serial
       // -- see the determinism note in rm_utils.hpp -- and finalize_iteration
-      // is never reentered recursively). Reuse is result-neutral: the buffer is
-      // cleared and refilled with exactly the same values in exactly the same
-      // order on every call.
+      // is never reentered recursively). CONTRACT: 'beta' must NOT invoke CFR
+      // machinery (traversals, iterate, finalize_iteration itself, ...) on the
+      // SAME thread while this hoisted buffer holds unsaved scratch state --
+      // reentrancy would silently clobber it mid-sweep. Reuse is result-neutral:
+      // the buffer is cleared and refilled with exactly the same values in exactly
+      // the same order on every call.
       static thread_local per_action_table< Action > l1_weights;
       l1_weights.clear();
       l1_weights.reserve(n_actions);
