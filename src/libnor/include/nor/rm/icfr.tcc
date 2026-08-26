@@ -122,7 +122,10 @@ void ICFR< Env, InternalRM, ExternalRM >::_enumerate_visit(world_state_type& sta
       }
    }
 
-   const auto& actions = st.infosets[id].actions;
+   // COPY, not reference: deeper `_enumerate_visit` recursion below emplace_backs
+   // infoset records into 'st.infosets', so a bound reference could dangle on vector
+   // reallocation mid-descent.
+   const std::vector< action_type > actions = st.infosets[id].actions;
    for(auto [action_idx, action] : std::views::enumerate(actions)) {
       m_decision_stacks[p_idx].emplace_back(id, action_idx);
       EdgeUndo undo;
@@ -507,6 +510,9 @@ auto ICFR< Env, InternalRM, ExternalRM >::_values_visit(world_state_type& state,
    const size_t p_idx = m_player_index.at(active_player);
    auto& st = m_structures[p_idx];
    const size_t id = st.ids.at(*m_infostates.at(active_player));
+   // SAFE as a reference (unlike _enumerate_visit): infoset records are FROZEN by now --
+   // '_values_visit' runs only after enumeration+freeze and never inserts into
+   // 'st.infosets', so no reallocation can invalidate this binding.
    const auto& actions = st.infosets[id].actions;
 
    // per-action match indicators of the owner's sampled plan (the owner's OWN
