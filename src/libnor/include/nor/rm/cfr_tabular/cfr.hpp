@@ -790,7 +790,7 @@ class VanillaCFR:
       const info_state_type& infostate,
       const ReachProbabilityMap& reach_probability,
       const StateValueMap& state_value,
-      const std::unordered_map< action_variant_type, StateValueMap >& action_value_map
+      const ActionValueTable< action_variant_type >& action_value_map
    );
 
    /// INTERMEDIATE STEP between the two traversals: derives
