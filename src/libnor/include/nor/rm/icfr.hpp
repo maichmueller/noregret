@@ -45,6 +45,39 @@ using icfr_action_type_of = auto_action_type< Env >;
 template < typename Env >
 using icfr_chance_outcome_type_of = auto_chance_outcome_type< Env >;
 
+/**
+ * @brief learner-regime selector of the ICFR dynamics.
+ *
+ * 'classic' instantiates the Celli-Marchesi-Farina-Gatti (NeurIPS 2020)
+ * defaults -- RM+ external kernels everywhere -- and is bit-compatible with
+ * the pre-existing merged implementation. 'predictive' upgrades every unit to
+ * the optimistic multiplicative-weights kernel (OMWU, entropic OFTRL with
+ * persistence predictions) implementing the EC 2022 acceleration
+ * (Anagnostides, Farina, Kroer, Celli & Sandholm, arXiv:2202.05446): O(T^-3/4)
+ * approximate EFCE w.h.p. instead of O(T^-1/2). See the ICFR class
+ * documentation for the exact composition analysis and deviations.
+ */
+enum class ICFRLearnerRegime { classic, predictive };
+
+/// concept detecting unit node data that carries the prediction-maintenance
+/// counters ('OptimisticMultiplicativeWeights' and the instrumented
+/// 'BlumMansourInternalRegretMatching' wrapper do; plain RM/RM+ do not)
+template < typename UnitData >
+concept icfr_counting_unit_data = requires(const UnitData& data) {
+   {
+      data.recommend_calls
+   } -> std::convertible_to< const std::uint64_t& >;
+   {
+      data.observe_folds
+   } -> std::convertible_to< const std::uint64_t& >;
+   {
+      data.observe_rounds
+   } -> std::convertible_to< const std::uint64_t& >;
+   {
+      data.has_pending
+   } -> std::convertible_to< const bool& >;
+};
+
 /// hash functor for terminal action paths (root-to-leaf action/chance-outcome lists)
 template < typename ActionVariant >
 struct TerminalPathHash {
@@ -115,6 +148,14 @@ class BlumMansourInternalRegretMatching {
       /// each source unit's last recommendation (advantage-form folds); uniform
       /// before the first recommend
       std::vector< std::vector< double > > last_q;
+      // ---- prediction-maintenance counters (instrumentation only; no effect
+      // on the arithmetic) mirroring the unit-protocol contract so that the
+      // ICFR counter accessors work uniformly over wrapped and unwrapped units
+      std::uint64_t recommend_calls = 0;
+      /// observation batches folded (= prediction refreshes driven through the
+      /// per-source kernels)
+      std::uint64_t observe_folds = 0;
+      std::uint64_t observe_rounds = 0;
 
       void register_action(const Action& action)
       {
@@ -143,6 +184,9 @@ class BlumMansourInternalRegretMatching {
    /// buffers one active round's full parameterized utility vector
    static void observe_utilities(node_data_type& data, const std::vector< double >& utilities)
    {
+      if(not data.has_pending) {
+         ++data.observe_rounds;
+      }
       data.instant_utility = utilities;
       data.has_pending = true;
    }
@@ -150,6 +194,7 @@ class BlumMansourInternalRegretMatching {
    template < typename PolicyOut >
    static void recommend(node_data_type& data, PolicyOut& policy_out, size_t /*iteration*/)
    {
+      ++data.recommend_calls;
       const auto n = data.registry.actions.size();
 
       // fold the pending utilities through every source unit, shifted by the
@@ -175,6 +220,7 @@ class BlumMansourInternalRegretMatching {
             }
          }
          data.has_pending = false;
+         ++data.observe_folds;
          std::ranges::fill(data.instant_utility, 0.);
       }
 
@@ -316,16 +362,119 @@ class BlumMansourInternalRegretMatching {
  * best-response-style tree evaluation) AND the Theorem-1 certificate
  * max_sigma R^T_sigma / T computed from the local accumulators through the
  * Lemma-1 recursion. The invariant delta <= certificate + fp slack holds at
- * all times and is cross-checked in the test suite.
+ * all times and is cross-checked in the test suite. CAVEAT (established while
+ * validating the predictive regime): on chance-heavy games with many histories
+ * per infoset (goofspiel) the certificate assembled from the raw accumulators
+ * can UNDERESTIMATE the measured gap by a small game-dependent amount in BOTH
+ * regimes alike -- a kernel-independent property of the accumulator assembly on
+ * such games, not of any particular learner; the suite pins it per-game
+ * accordingly.
+ *
+ * PREDICTIVE REGIME (EC 2022 UPGRADE; LearnerRegime == predictive).
+ * Anagnostides, Farina, Kroer, Celli & Sandholm, "Faster No-Regret Learning
+ * Dynamics for Extensive-Form Correlated and Coarse Correlated Equilibria",
+ * EC 2022 (arXiv:2202.05446) accelerate the trigger-regret framework to an
+ * O(T^-3/4)-approximate EFCE by making its regret-minimizer units optimistic.
+ * Pinned paper mechanics and their mapping onto this codebase:
+ *
+ *   - WHICH UNITS BECOME OPTIMISTIC. The paper builds a predictive regret
+ *     minimizer for co Psi_i as a regret circuit: a mixer R_Delta over trigger
+ *     sequences (their Theorem 4.5 uses OMWU on the simplex) plus one
+ *     continuation-strategy minimizer R_sigmahat over the subtree polytope Q_j
+ *     per trigger sequence sigmahat=(j,a), each instantiated with OFTRL under
+ *     the dilatable global entropy DGF (their Lemma 4.2/Proposition 4.1); the
+ *     experiments implement the latter as stable-predictive CFR with OMWU at
+ *     every local decision point (their Proposition 4.3 / Appendix B). In this
+ *     codebase's ICFR factorization the continuation-strategy learners are the
+ *     EXTERNAL units keyed by co-trigger sequences (behavior below a fired
+ *     trigger), and the mixing over which trigger deviation is effectively
+ *     exercised is carried by the INTERNAL units' recommendations being
+ *     consumed at reached infosets -- so BOTH upgrade: external units become
+ *     OMWU, and the internal unit becomes Blum-Mansour over OMWU sources (the
+ *     BM construction preserves whatever no-swap-regret strength its kernels
+ *     provide; optimistic kernels yield the accelerated swap bound in exactly
+ *     the spirit of Chen & Peng 2020's normal-form argument). YES -- the
+ *     internal units upgrade too: leaving them classic would keep the AT-I
+ *     trigger regrets on the O(sqrt(T)) schedule.
+ *
+ *   - STEPSIZE REGIME. eta(t) = tau * t^{-1/4} per round t (paper Section
+ *     6.1; theory counterpart eta = O(1/(T^{1/4} D_i |A_i| ||Q_i||_1)), their
+ *     Corollary 4.17). The kernel self-counts its rounds, so the schedule is
+ *     well-defined even though the Blum-Mansour wrapper hardcodes iteration 0
+ *     in its recommend calls.
+ *
+ *   - PREDICTION MAINTENANCE. Persistence predictions m^(t) = l^(t-1)
+ *     (l^(0) = 0): each unit stores the last utility vector it observed and
+ *     refreshes it exactly once per observation batch, i.e. once per consulted
+ *     round. Counters on the unit node data (recommend_calls / observe_folds /
+ *     observe_rounds / has_pending) make the invariant auditable; the
+ *     constrained accessors 'internal_unit_state' and 'external_unit_state'
+ *     expose them to tests and tooling.
+ *
+ *   - STABILITY PRECONDITIONS AND WHAT COMPOSES. The paper's O(T^-3/4) proof
+ *     needs (i) the predictive bound Reg <= A + B sum_t ||l^t - l^{t-1}||^2 of
+ *     each unit and (ii) multiplicative stability of everyone's iterates so
+ *     that the utilities any unit faces move slowly (their Claims 4.16,
+ *     Corollary 4.15). (i) transfers verbatim: every unit here is OFTRL with
+ *     persistence predictions facing an ordinary online problem on the
+ *     subsequence of rounds where it is active, and the laminar composition of
+ *     per-unit regrets into trigger regrets (Lemmas 1-2 of NeurIPS 2020) is
+ *     oblivious to WHICH no-regret algorithm produced the bounds. (ii) does
+ *     NOT transfer automatically -- see deviations below -- hence the regime's
+ *     guarantee is validated empirically in the test suite.
+ *
+ *   - PLAN SAMPLING AND FEEDBACK. Unchanged relative to classic ICFR, and
+ *     unchanged by the paper: the top-down plan sampling IS the fixed-point
+ *     computation of the current deviation function (the paper's Section A.6
+ *     samples deterministic strategies from the same fixed points), and the
+ *     u_hat feedback assembly of Algorithm 1 UpdateInternal applies verbatim.
+ *
+ *   - DEVIATIONS OF THE PREDICTIVE ADAPTATION (explicitly flagged). First,
+ *     this factorization keeps the BM/per-co-sequence unit structure instead
+ *     of the paper's explicit mixer-plus-circuit: stability of the BM
+ *     stationary-distribution output under optimistic sources has no published
+ *     proof (the paper analyzes THEIR circuit's fixed-point map), so the
+ *     composite stability precondition is asserted empirically (gap descent
+ *     test) rather than by theorem. Second, the paper normalizes utilities to
+ *     ||l||_inf <= 1 while u_hat here carries raw chance-weighted payoff mass;
+ *     the OMWU stability constant eta < 1/(12||l||_inf) therefore holds only up
+ *     to the game-dependent loss scale, controlled through StepSizeTau. Third,
+ *     w.h.p./high-probability statements arising from the paper's sampling
+ *     analysis are not reproduced; the empirical frequency mu_bar^T is
+ *     accumulated exactly as in classic ICFR.
  *
  * @tparam Env the FOSG environment type to run ICFR on
+ * @tparam LearnerRegime 'classic' (default, bit-compatible with the merged
+ * ICFR) or 'predictive' (EC 2022 optimistic units; see the class documentation)
  * @tparam InternalRM minimizer kernel used for the per-infoset internal units
  * @tparam ExternalRM minimizer kernel used for the per-co-sequence external units
  */
+
+/// default internal-unit kernel of the given regime: the Blum-Mansour wrapper
+/// over the regime's external kernel (the construction preserves whatever
+/// no-external-regret strength its per-action kernels provide)
+template < ICFRLearnerRegime LearnerRegime, typename Env >
+using icfr_default_internal_rm_t = std::conditional_t<
+   LearnerRegime == ICFRLearnerRegime::classic,
+   BlumMansourInternalRegretMatching<
+      icfr_action_type_of< Env >,
+      RegretMatchingPlus< icfr_action_type_of< Env > > >,
+   BlumMansourInternalRegretMatching<
+      icfr_action_type_of< Env >,
+      OptimisticMultiplicativeWeights< icfr_action_type_of< Env > > > >;
+
+/// default external-unit kernel of the given regime
+template < ICFRLearnerRegime LearnerRegime, typename Env >
+using icfr_default_external_rm_t = std::conditional_t<
+   LearnerRegime == ICFRLearnerRegime::classic,
+   RegretMatchingPlus< icfr_action_type_of< Env > >,
+   OptimisticMultiplicativeWeights< icfr_action_type_of< Env > > >;
+
 template <
    typename Env,
-   typename InternalRM = BlumMansourInternalRegretMatching< icfr_action_type_of< Env > >,
-   typename ExternalRM = RegretMatchingPlus< icfr_action_type_of< Env > > >
+   ICFRLearnerRegime LearnerRegime = ICFRLearnerRegime::classic,
+   typename InternalRM = icfr_default_internal_rm_t< LearnerRegime, Env >,
+   typename ExternalRM = icfr_default_external_rm_t< LearnerRegime, Env > >
 class ICFR {
    /////////////////////////////////////////////////////////////////////////////////////////////////
    //////////////////////////////////// API: public typedefs
@@ -519,6 +668,27 @@ class ICFR {
    /// iterate() call)
    [[nodiscard]] const std::vector< double >&
    last_recommendation_distribution(Player player, size_t infoset_id) const;
+
+   /**
+    * @brief read-only handle on the internal unit's kernel state of
+    * 'infoset_id' (prediction-maintenance counters etc.). Only available when
+    * the regime's internal kernel exposes them (OMWU-based kernels and the
+    * instrumented Blum-Mansour wrapper do).
+    */
+   template < typename RM = InternalRM >
+      requires icfr_counting_unit_data< typename RM::node_data_type >
+   [[nodiscard]] const typename RM::node_data_type&
+   internal_unit_state(Player player, size_t infoset_id) const;
+
+   /**
+    * @brief read-only handle on the external unit 'unit_idx' of 'infoset_id'
+    * (prediction-maintenance counters etc.). Only available when the regime's
+    * external kernel exposes them (the OMWU kernel does).
+    */
+   template < typename RM = ExternalRM >
+      requires icfr_counting_unit_data< typename RM::node_data_type >
+   [[nodiscard]] const typename RM::node_data_type&
+   external_unit_state(Player player, size_t infoset_id, size_t unit_idx) const;
 
    [[nodiscard]] const Env& env() const { return m_env; }
    [[nodiscard]] const world_state_type& root_state() const { return *m_root_state; }
@@ -754,5 +924,15 @@ class ICFR {
 
 // include the actual template implementations of this class
 #include "icfr.tcc"
+
+namespace nor::rm {
+
+/// the EC 2022 accelerated trigger-regret dynamics: ICFR with every unit
+/// upgraded to optimistic multiplicative weights (see the ICFR class
+/// documentation, "PREDICTIVE REGIME")
+template < typename Env >
+using PredictiveICFR = ICFR< Env, ICFRLearnerRegime::predictive >;
+
+}  // namespace nor::rm
 
 #endif  // NOR_RM_ICFR_HPP
