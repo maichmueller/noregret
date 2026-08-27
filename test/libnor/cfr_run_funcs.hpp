@@ -12,7 +12,10 @@ constexpr double EXPLOITABILITY_THRESHOLD = 3e-3;
 constexpr double KUHN_POKER_GAME_VALUE_ALEX = -1. / 18.;
 
 /// returns true iff the exploitability threshold was reached within 'max_iters'
-template < auto config, typename... ExtraFactoryParams >
+template <
+   auto config,
+   double exploitability_threshold = EXPLOITABILITY_THRESHOLD,
+   typename... ExtraFactoryParams >
 bool run_cfr_on_kuhn_poker_checked(
    size_t max_iters = 1e5,
    size_t update_freq = 10,
@@ -54,7 +57,7 @@ bool run_cfr_on_kuhn_poker_checked(
    constexpr size_t n_infostates = 6;
    size_t n_iters = 0;
    double expl = std::numeric_limits< double >::max();
-   while(expl > EXPLOITABILITY_THRESHOLD and n_iters < max_iters) {
+   while(expl > exploitability_threshold and n_iters < max_iters) {
       solver.iterate(1);
       n_iters++;
 
@@ -81,21 +84,25 @@ bool run_cfr_on_kuhn_poker_checked(
    evaluate_policies< false >(
       solver, players | utils::is_actual_player_filter, n_iters, "Final Policy"
    );
-   return expl <= EXPLOITABILITY_THRESHOLD;
+   return expl <= exploitability_threshold;
 }
 
-template < auto config, typename... ExtraFactoryParams >
+template <
+   auto config,
+   double exploitability_threshold = EXPLOITABILITY_THRESHOLD,
+   typename... ExtraFactoryParams >
 void run_cfr_on_kuhn_poker(
    size_t max_iters = 1e5,
    size_t update_freq = 10,
    ExtraFactoryParams&&... extra_args
 )
 {
-   const bool converged = run_cfr_on_kuhn_poker_checked< config >(
+   const bool converged = run_cfr_on_kuhn_poker_checked< config, exploitability_threshold >(
       max_iters, update_freq, std::forward< ExtraFactoryParams >(extra_args)...
    );
    if(not converged) {
-      ADD_FAILURE() << "exploitability above threshold after " << max_iters << " iterations";
+      ADD_FAILURE() << "exploitability above threshold " << exploitability_threshold << " after "
+                    << max_iters << " iterations";
    }
 }
 
