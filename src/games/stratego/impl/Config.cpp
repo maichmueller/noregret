@@ -242,7 +242,9 @@ std::map< Team, Config::token_counter_t > Config::_init_tokencounters(
             auto all_tokens = std::ranges::to< std::vector >(std::views::concat(
                token_counter | std::views::keys, token_counter_from_setup | std::views::keys
             ));
-            for(auto token : std::ranges::unique(all_tokens)) {
+            auto unique_end = std::ranges::unique(all_tokens).begin();
+            all_tokens.erase(unique_end, all_tokens.end());
+            for(auto token : all_tokens) {
                counters[team][token] = std::max(
                   token_counter[token], token_counter_from_setup[token]
                );

@@ -1,6 +1,8 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+
 #include "fixtures.hpp"
 #include "testing_utils.hpp"
 
@@ -141,10 +143,11 @@ TEST(Config, constructor_custom_dims_with_setup_small)
    setup1[{0, 1}] = Token::miner;
    setup1[{1, 0}] = Token::spy;
    std::vector< Position2D > hole_pos{{1, 1}};
+   std::array< size_t, 2 > game_dims{2, 2};
 
    Config config{
       Team::BLUE,
-      std::vector{size_t(2), size_t(2)},
+      game_dims,
       std::map{
          std::pair{Team::BLUE, std::optional{setup0}}, std::pair{Team::RED, std::optional{setup1}}},
       hole_pos,
@@ -203,10 +206,11 @@ TEST(Config, constructor_custom_dims_with_setup_medium)
    setup1[{3, 4}] = Token::marshall;
 
    std::vector< Position2D > hole_pos{{1, 1}};
+   std::array< size_t, 2 > game_dims{3, 4};
 
    Config config{
       Team::BLUE,
-      std::vector{size_t(3), size_t(4)},
+      game_dims,
       std::map{
          std::pair{Team::BLUE, std::optional(setup0)}, std::pair{Team::RED, std::optional(setup1)}},
       hole_pos,
@@ -283,16 +287,9 @@ TEST(Config, constructor_custom_dims_no_setup)
       std::pair{Team::RED, std::optional< Config::token_variant_t >{tokens_red}}};
 
    std::vector< Position2D > hole_pos{{1, 1}};
+   std::array< size_t, 2 > game_dims{3, 4};
 
-   Config config{
-      Team::BLUE,
-      std::vector{size_t(3), size_t(4)},
-      hole_pos,
-      tokens,
-      start_pos,
-      false,
-      false,
-      500};
+   Config config{Team::BLUE, game_dims, hole_pos, tokens, start_pos, false, false, 500};
 
    EXPECT_EQ(
       config.token_counters[Team::BLUE], (std::map< Token, unsigned int >{{Token::miner, 3}})

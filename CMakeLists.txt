@@ -40,7 +40,8 @@ option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
 # Use C++26 (language floor; requires GCC 16+/Clang 21+ with C++26 views such as zip/enumerate/concat)
 set(PROJ_CXX_STD_FEATURE cxx_std_26)
-set(PROJ_CXX_STANDARD C++26)
+set(PROJ_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD ${PROJ_CXX_STANDARD})
 
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)

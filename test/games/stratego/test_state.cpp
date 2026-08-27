@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <ranges>
 
 #include "fixtures.hpp"
@@ -23,8 +24,9 @@ TEST(State, constructor)
 
    auto setup = std::map{
       std::pair{Team::BLUE, std::optional{setup0}}, std::pair{Team::RED, std::optional{setup1}}};
+   std::array< size_t, 2 > game_dims{2, 2};
 
-   Config config{Team::BLUE, std::vector{size_t(2), size_t(2)}, setup, hole_pos, false, true, 500};
+   Config config{Team::BLUE, game_dims, setup, hole_pos, false, true, 500};
 
    State state{config};
 
