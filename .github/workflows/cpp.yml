@@ -140,7 +140,7 @@ jobs:
       - name: Setup cmake
         uses: jwlawson/actions-setup-cmake@v2
         with:
-          cmake-version: '3.28'
+          cmake-version: '3.30'
 
       - name: Configure Windows compile environment
         uses: ilammy/msvc-dev-cmd@v1
