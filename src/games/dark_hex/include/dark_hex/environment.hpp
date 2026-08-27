@@ -199,12 +199,10 @@ class Environment {
       if(wstate.is_occupied(action.cell_index)) {
          // resolved from the PRE-transition occupancy: this very attempt targeted a taken cell
          return observation_type{
-            .kind = Observation::Kind::attempt_rejected, .cell_index = action.cell_index
-         };
+            .kind = Observation::Kind::attempt_rejected, .cell_index = action.cell_index};
       }
       return observation_type{
-         .kind = Observation::Kind::stone_placed, .cell_index = action.cell_index
-      };
+         .kind = Observation::Kind::stone_placed, .cell_index = action.cell_index};
    }
 
    observation_type public_observation(

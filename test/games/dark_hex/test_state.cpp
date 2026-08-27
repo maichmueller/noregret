@@ -238,8 +238,7 @@ TEST(DarkHexInformation, opponent_board_invisible_given_identical_own_view_histo
       {Player::one, rc(3, 1, 1)},
       {Player::two, rc(3, 0, 2)},
       {Player::one, rc(3, 2, 0)},
-      {Player::two, rc(3, 2, 1)}
-   };
+      {Player::two, rc(3, 2, 1)}};
    DarkHexScript script_b = script_a;
    script_b.moves[1].second = rc(3, 2, 2);
    script_b.moves[3].second = rc(3, 1, 0);
@@ -273,8 +272,7 @@ TEST(DarkHexInformation, visible_referee_feedback_splits_information_sets)
       {Player::two, rc(3, 0, 1)},
       {Player::one, rc(3, 1, 1)},
       {Player::two, rc(3, 0, 2)},
-      {Player::one, rc(3, 1, 0)}
-   };
+      {Player::one, rc(3, 1, 0)}};
 
    // collision: bob secretly took (1,0) instead of (0,2), so alex's last attempt is publicly
    // silent but privately REJECTED to him -- a visible outcome difference at equal history length
@@ -377,8 +375,7 @@ INSTANTIATE_TEST_SUITE_P(
              {Player::two, rc(3, 0, 1)},
              {Player::one, rc(3, 1, 0)},
              {Player::two, rc(3, 0, 2)},
-             {Player::one, rc(3, 2, 0)}}
-         },
+             {Player::one, rc(3, 2, 0)}}},
          1.,
          -1.
       ),
@@ -391,8 +388,7 @@ INSTANTIATE_TEST_SUITE_P(
              {Player::one, rc(3, 0, 1)},
              {Player::two, rc(3, 1, 1)},
              {Player::one, rc(3, 2, 0)},
-             {Player::two, rc(3, 1, 2)}}
-         },
+             {Player::two, rc(3, 1, 2)}}},
          -1.,
          1.
       ),
@@ -409,8 +405,7 @@ INSTANTIATE_TEST_SUITE_P(
              {Player::one, rc(3, 0, 2)},
              {Player::two, rc(3, 0, 2)},  // rejected on enemy stone, turn retained
              {Player::two, rc(3, 1, 0)},
-             {Player::one, rc(3, 2, 2)}}
-         },
+             {Player::one, rc(3, 2, 2)}}},
          1.,
          -1.
       )
@@ -532,10 +527,8 @@ TEST(DarkHexCFR, vanilla_alternating_2x2_cdh_converges)
          games::dark_hex::State{config},
          player_hashmap< AvgTablePolicy >{
             std::pair{
-               nor::Player::alex, normalize_state_policy(avg_policies.at(nor::Player::alex))
-            },
-            std::pair{nor::Player::bob, normalize_state_policy(avg_policies.at(nor::Player::bob))}
-         }
+               nor::Player::alex, normalize_state_policy(avg_policies.at(nor::Player::alex))},
+            std::pair{nor::Player::bob, normalize_state_policy(avg_policies.at(nor::Player::bob))}}
       );
       fmt::print("[darkhex-cfr-baseline] iter={} exploitability={:.6e}\n", iter, expl);
       if(iter == kCheckpoint) {

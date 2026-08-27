@@ -59,6 +59,14 @@ jobs:
           version: ${{ matrix.config.compiler_version }}
           platform: x64
 
+      - name: Set up GCC standard library for Clang
+        if: ${{ runner.os == 'Linux' && matrix.config.cc == 'clang' }}
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: 16
+          platform: x64
+          cc: 0
+
       - name: Cache LLVM Download
         id: cache-llvm
         uses: actions/cache@v4
@@ -226,10 +234,12 @@ jobs:
           merge-multiple: true
 
       - name: Display structure of downloaded files
+        if: ${{ hashFiles('artifacts/**/*.xml') != '' }}
         run: ls
         working-directory: ./artifacts/gtest-results_downloaded
 
       - name: Publish Unit Test Results
+        if: ${{ hashFiles('artifacts/**/*.xml') != '' }}
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           files: ./artifacts/**/*.xml

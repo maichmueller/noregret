@@ -5,6 +5,8 @@
 #include <concepts>
 #include <cstddef>
 #include <ranges>
+#include <type_traits>
+#include <utility>
 
 #include "default_policy.hpp"
 #include "nor/concepts.hpp"
@@ -66,9 +68,14 @@ class TabularPolicy {
             m_table.reserve(table.size());
          }
          for(auto&& [key, mapped] : table) {
-            m_table.emplace(
-               std::forward< decltype(key) >(key), std::forward< decltype(mapped) >(mapped)
-            );
+            // Preserve the source's value category explicitly.  The type of a structured-binding
+            // name is not a reliable proxy for whether the range itself was passed as an lvalue,
+            // so forwarding 'mapped' by decltype here can move out of a caller-owned lvalue table.
+            if constexpr(std::is_lvalue_reference_v< OtherTableType >) {
+               m_table.emplace(key, mapped);
+            } else {
+               m_table.emplace(std::move(key), std::move(mapped));
+            }
          }
       }
    }

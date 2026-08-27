@@ -15,32 +15,6 @@
 
 namespace nor::opponent_aware {
 
-/**
- * Outcome of an opponent-aware solving pass of the modified game (RNR / DBR family).
- *
- * SAFETY REMINDER: the underlying guarantees (Johanson, Zinkevich & Bowling, NeurIPS 2007,
- * Thm. 1; Johanson & Bowling, AISTATS 2009) hold for TWO-PLAYER ZERO-SUM games and are
- * relative to the assumed model class -- they say nothing about adversaries that behave
- * outside the model-or-adapt-around-it envelope.
- */
-template < typename Env >
-struct ResponseResult {
-   using info_state_type = auto_info_state_type< Env >;
-   using action_type = auto_action_type< Env >;
-   /// normalized behavioral strategy of the responding player (the robust counter-strategy)
-   std::unordered_map< info_state_type, HashmapActionPolicy< action_type > > policy{};
-   /// root value of every player under the FINAL played (blended) profile of the last
-   /// iteration
-   player_hashmap< double > final_root_values{};
-};
-
-/// enables the per-infostate opponent blend on a copy of 'solver_config' (compile-time)
-[[nodiscard]] inline consteval rm::CFRConfig with_blend_enabled(rm::CFRConfig solver_config)
-{
-   solver_config.opponent_blend_mode = rm::CFROpponentBlendMode::per_infostate_blend;
-   return solver_config;
-}
-
 namespace detail {
 
 /**
@@ -56,6 +30,37 @@ using canonical_policy_table = std::unordered_map<
    HashmapActionPolicy< ActionType >,
    common::value_hasher< InfoStateType >,
    common::value_comparator< InfoStateType > >;
+
+}  // namespace detail
+
+/**
+ * Outcome of an opponent-aware solving pass of the modified game (RNR / DBR family).
+ *
+ * SAFETY REMINDER: the underlying guarantees (Johanson, Zinkevich & Bowling, NeurIPS 2007,
+ * Thm. 1; Johanson & Bowling, AISTATS 2009) hold for TWO-PLAYER ZERO-SUM games and are
+ * relative to the assumed model class -- they say nothing about adversaries that behave
+ * outside the model-or-adapt-around-it envelope.
+ */
+template < typename Env >
+struct ResponseResult {
+   using info_state_type = auto_info_state_type< Env >;
+   using action_type = auto_action_type< Env >;
+   using policy_table_type = detail::canonical_policy_table< info_state_type, action_type >;
+   /// normalized behavioral strategy of the responding player (the robust counter-strategy)
+   policy_table_type policy{};
+   /// root value of every player under the FINAL played (blended) profile of the last
+   /// iteration
+   player_hashmap< double > final_root_values{};
+};
+
+/// enables the per-infostate opponent blend on a copy of 'solver_config' (compile-time)
+[[nodiscard]] inline consteval rm::CFRConfig with_blend_enabled(rm::CFRConfig solver_config)
+{
+   solver_config.opponent_blend_mode = rm::CFROpponentBlendMode::per_infostate_blend;
+   return solver_config;
+}
+
+namespace detail {
 
 /**
  * Copies any infostate->action-policy style container (raw std-hashed / value-hashed maps,
@@ -207,8 +212,10 @@ template < rm::CFRConfig config, typename Env, typename OpponentModelType >
    auto root_values_per_iteration = solver.iterate(n_iterations);
 
    ResponseResult< env_type > result{};
-   result.final_root_values = root_values_per_iteration.back();
-   result.policy = normalize_state_policy(solver.average_policy().at(responder).table());
+   result.final_root_values = root_values_per_iteration.back().get().to_hashmap();
+   result.policy = detail::canonicalize_strategy< info_state_type, action_type >(
+      solver.average_policy().at(responder).table()
+   );
    return result;
 }
 

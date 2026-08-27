@@ -863,19 +863,18 @@ class VanillaCFR:
    );
 
    /// OPPONENT-AWARE blend worker (RNR/DBR): mixes the fixed opponent-model distribution into
-   /// the CURRENT policy table 'action_policy' of a MODELED player's infostate at the fetch
-   /// point,    action_policy <- P(I) * model(I) + (1 - P(I)) * action_policy,
+   /// the CURRENT strategy cache of a MODELED player's node record at the fetch point,
+   ///     current(I, a) <- P(I) * model(I, a) + (1 - P(I)) * current(I, a),
    /// exactly like _force_warm_start_policy but with a per-infostate weight/model pair reported
    /// by the attached OpponentBlendPolicy selector. Returns the PRE-BLEND entries it overwrote;
-   /// the CALLER must restore them into the table once this visit's edge probabilities have
-   /// been consumed, keeping the stored tables free-component-only so that revisit visits --
-   /// one per chance branch above the infostate -- never compound a previously blended value.
+   /// the CALLER must restore them into the node record once this visit's edge probabilities have
+   /// been consumed, keeping the stored cache free-component-only so that revisit visits -- one
+   /// per chance branch above the infostate -- never compound a previously blended value.
    /// Returns an empty vector when nothing was blended.
-   template < typename ActionPolicyTable >
    [[nodiscard]] std::vector< std::pair< action_type, double > > _apply_opponent_blend(
       const info_state_type& infostate,
       const std::vector< action_type >& actions,
-      ActionPolicyTable& action_policy
+      infostate_data_type& node
    );
 
    /// behaviorally-constrained kernels: refreshes the per-action probability floors of the

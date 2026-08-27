@@ -745,20 +745,19 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_force_warm_start_policy(
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
-template < typename ActionPolicyTable >
 std::vector<
    std::pair< typename VanillaCFR< config, Env, Policy, AveragePolicy >::action_type, double > >
 VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_opponent_blend(
    const info_state_type& infostate,
    const std::vector< action_type >& actions,
-   ActionPolicyTable& action_policy
+   infostate_data_type& node
 )
 {
    using saved_entry = std::pair< action_type, double >;
    if constexpr(config.opponent_blend_mode == CFROpponentBlendMode::off) {
       (void)infostate;
       (void)actions;
-      (void)action_policy;
+      (void)node;
       return {};
    } else {
       if(not m_opponent_blend.blend) {
@@ -776,13 +775,15 @@ VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_opponent_blend(
       }
       auto saved_entries = std::vector< saved_entry >{};
       saved_entries.reserve(actions.size());
-      for(const auto& action : actions) {
+      auto& current_strategy = node.current_strategy();
+      for(auto [action_idx, action] : std::views::enumerate(actions)) {
          // .at() on purpose: an incomplete model distribution is a caller bug we want to
          // fail loudly on instead of silently zeroing actions
          const double model_prob = spec.model_distribution.at(action);
-         saved_entries.emplace_back(action, action_policy[action]);
-         action_policy[action] = spec.forced_probability * model_prob
-                                 + (1. - spec.forced_probability) * action_policy[action];
+         saved_entries.emplace_back(action, current_strategy[action_idx]);
+         current_strategy[action_idx] = spec.forced_probability * model_prob
+                                        + (1. - spec.forced_probability)
+                                             * current_strategy[action_idx];
       }
       return saved_entries;
    }
@@ -1006,7 +1007,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       // action loop has consumed the probabilities: stored tables stay free-component-only,
       // so revisits (one per chance branch above the infostate) blend the same clean
       // recommendation instead of compounding an already blended value.
-      opponent_blend_saved_entries = _apply_opponent_blend(*this_infostate, actions, action_policy);
+      opponent_blend_saved_entries = _apply_opponent_blend(*this_infostate, actions, this_node);
    }
    double normalizing_factor = std::invoke([&] {
       if constexpr(not use_current_policy) {
@@ -1213,7 +1214,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    // downstream bookkeeping (update_regret_and_policy re-fetches this table) reads it; see
    // the visit-scoped blending contract of OpponentBlendPolicy
    for(const auto& [action, saved_prob] : opponent_blend_saved_entries) {
-      action_policy[action] = saved_prob;
+      this_node.current_strategy()[this_node.index_of(action)] = saved_prob;
    }
 }
 
