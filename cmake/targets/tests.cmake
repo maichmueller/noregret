@@ -43,10 +43,21 @@ foreach(sources_list IN LISTS REGISTERED_TEST_SOURCES_LIST)
 endforeach()
 register_nor_target(${nor_test}_all ${NOR_TEST_SOURCES})
 
-if(ENABLE_GAMES AND TARGET goofspiel)
+if(ENABLE_GAMES)
     # the variance-reduction evaluation test also covers the header-only goofspiel game
     target_link_libraries(${nor_test}_variance_reduction PRIVATE goofspiel)
-    target_link_libraries(${nor_test}_all PRIVATE goofspiel)
+
+    # The aggregate executable contains library tests for several header-only games. Link their interface targets here
+    # so their include directories and dependencies follow the game target graph instead of being duplicated as
+    # test-specific include paths.
+    target_link_libraries(
+        ${nor_test}_all
+        PRIVATE goofspiel
+                liars_dice
+                dark_hex
+                oshi_zumo
+                shapley
+                centipede)
 endif()
 
 # the test of all parts needs an extra linkage for the pybind11 components and Python
