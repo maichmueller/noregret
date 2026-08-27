@@ -172,4 +172,20 @@ if(ENABLE_GAMES)
         colonel_blotto
         SOURCE_FILES
         test_state.cpp)
+    register_game_target(
+        sheriff
+        INCLUDE_DIR
+        sheriff
+        LINK_LIBRARY
+        sheriff
+        SOURCE_FILES
+        test_state.cpp)
+    register_game_target(
+        battleship_gs
+        INCLUDE_DIR
+        battleship_gs
+        LINK_LIBRARY
+        battleship_gs
+        SOURCE_FILES
+        test_state.cpp)
 endif()
