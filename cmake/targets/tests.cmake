@@ -33,6 +33,7 @@ register_nor_target(${nor_test}_hindsight test_hindsight.cpp)
 register_nor_target(${nor_test}_policy test_policy.cpp)
 register_nor_target(${nor_test}_helpers test_helpers.cpp)
 register_nor_target(${nor_test}_exploitability test_exploitability.cpp)
+register_nor_target(${nor_test}_opponent_aware_rnr test_opponent_aware_rnr.cpp)
 # for the overall test executable we simply merge all other test files together
 foreach(sources_list IN LISTS REGISTERED_TEST_SOURCES_LIST)
     list(APPEND NOR_TEST_SOURCES ${${sources_list}})

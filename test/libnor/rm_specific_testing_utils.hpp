@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <iterator>
 #include <ranges>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
@@ -460,6 +461,89 @@ inline auto kuhn_policy_always_mix_like(double check_prob = 0.5, double bet_prob
    }
 
    return std::tuple{std::move(alex_policy), std::move(bob_policy)};
+}
+
+/// resolves the named kuhn infostate objects ('j?', '?jb', ...) for both players from the
+/// history-to-infostate mapping; shared by the opponent-aware family tests
+inline auto make_kuhn_named_infostates()
+{
+   using namespace nor;
+   using namespace games::kuhn;
+
+   auto env = Environment{};
+   auto state = State{};
+   auto [_, history_to_istate] = map_histories_to_infostates(env, state);
+   auto fetch = [&](std::string infostate_str, nor::Player player) {
+      return *(history_to_istate.find(kuhn_istate_to_history_rep.at(infostate_str))
+                  ->second.second.at(player));
+   };
+
+   struct NamedKuhnInfostates {
+      std::unordered_map< std::string, Infostate > alex{};
+      std::unordered_map< std::string, Infostate > bob{};
+   };
+   NamedKuhnInfostates out;
+   for(auto name : {"j?", "j?cb", "q?", "q?cb", "k?", "k?cb"}) {
+      out.alex.emplace(name, fetch(name, nor::Player::alex));
+   }
+   for(auto name : {"?jc", "?jb", "?qc", "?qb", "?kc", "?kb"}) {
+      out.bob.emplace(name, fetch(name, nor::Player::bob));
+   }
+   return out;
+}
+
+/**
+ * Expected value of the OTHER player's best response against a fully specified behavioral
+ * strategy 'strategist_table' of 'strategist' -- i.e. how much a worst-case adversary extracts
+ * beyond equilibrium play. The standard robustness metric of the RNR paper family.
+ */
+template < typename Env, typename StrategyTable >
+[[nodiscard]] double best_response_value_against(
+   Env&& env,
+   const nor::auto_world_state_type< std::remove_cvref_t< Env > >& root_state,
+   nor::Player strategist,
+   const StrategyTable& strategist_table
+)
+{
+   using env_type = std::remove_cvref_t< Env >;
+   using info_state_type = nor::auto_info_state_type< env_type >;
+   using action_type = nor::auto_action_type< env_type >;
+   using canonical_table = nor::opponent_aware::detail::
+      canonical_policy_table< info_state_type, action_type >;
+   using tabular_policy_type = nor::
+      TabularPolicy< info_state_type, nor::HashmapActionPolicy< action_type >, canonical_table >;
+
+   auto players = env.players(root_state);
+   std::erase(players, nor::Player::chance);
+   if(players.size() != 2) {
+      throw std::invalid_argument("best_response_value_against: two-player games only.");
+   }
+   nor::Player nemesis = players.front() == strategist ? players.back() : players.front();
+
+   auto strategist_policy = tabular_policy_type{
+      nor::opponent_aware::detail::canonicalize_strategy< info_state_type, action_type >(
+         strategist_table
+      )};
+   // the nemesis side of the profile is carried by the best-response policy itself, so an
+   // empty placeholder table suffices there
+   auto nemesis_br = nor::factory::make_best_response_policy< info_state_type, action_type >(nemesis
+   );
+   nemesis_br.allocate(
+      env,
+      root_state,
+      nor::player_hashmap{
+         std::pair{strategist, tabular_policy_type{strategist_policy}},
+         std::pair{nemesis, tabular_policy_type{}}}
+   );
+   return nor::rm::policy_value(
+             env,
+             root_state,
+             nor::player_hashmap{
+                std::pair{strategist, nor::StatePolicyView{strategist_policy}},
+                std::pair{nemesis, nor::StatePolicyView{std::move(nemesis_br)}}}
+   )
+      .get()
+      .at(nemesis);
 }
 
 void assert_optimal_policy_rps(const auto& solver, double precision = 1e-2)

@@ -8,6 +8,7 @@
 #include <list>
 #include <map>
 #include <named_type.hpp>
+#include <optional>
 #include <queue>
 #include <ranges>
 #include <stack>
@@ -104,6 +105,60 @@ struct WarmStartPolicy {
 /// resolves the warm-start policy selector type of an environment
 template < typename Env >
 using warm_start_policy_selector_t = WarmStartPolicy<
+   auto_info_state_type< Env >,
+   auto_action_type< Env > >;
+
+/**
+ * Fixed-opposition carrier of opponent-aware solving (RNR / DBR; see
+ * rm::CFROpponentBlendMode::per_infostate_blend). During EVERY traversal visit to an
+ * infostate of a modeled player, the PLAYED edge probabilities are taken from the convex
+ * blend of the fixed model distribution reported by this selector and the player's own
+ * current-policy recommendation:
+ *
+ *    played(I, a) <- P(I) * model(I, a) + (1 - P(I)) * current(I, a)
+ *
+ * The mixing is applied PER VISIT and restored afterwards: the stored current-policy tables
+ * keep holding the UNBLENDED free component (the regret minimizer's raw recommendation), so
+ * revisits of one infostate within a traversal -- every chance branch above the infostate
+ * produces one -- blend the SAME clean component instead of compounding.
+ *
+ * Counterfactual regret updates are NOT modified: everybody's counterfactual values measure
+ * the actual (blended) play, i.e. exactly the modified game of Johanson, Zinkevich &
+ * Bowling, NIPS 2007 / Johanson & Bowling, AISTATS 2009. Two documented bookkeeping
+ * deviations follow from the visit-scoped realization:
+ *   - the MODELED player's average-policy accumulation happens after the restoration and
+ *     therefore tracks the FREE component only (their realized-play profile is trivially
+ *     reconstructible downstream as P(I)*model + (1-P(I))*average); only the responding
+ *     player's average is consumed by the entry points,
+ *   - the modeled player's instantaneous regret deltas mix a baseline over the blended
+ *     distribution; up to the additive Pconf term these coincide with the external-regret
+ *     deltas of the free component (positive rescalings do not move regret matching's
+ *     recommendation).
+ *
+ * The 'blend' callable receives an infostate (carrying its owner) and that infostate's
+ * registered actions. Returning nullopt marks the infostate as UNCONSTRAINED (pure table
+ * play); returning a spec forces the blend with 'forced_probability' in [0, 1] and requires
+ * a FULL, normalized 'model_distribution' over the registered actions (violations throw). An
+ * EMPTY callable disables blending entirely.
+ */
+template < typename InfoState, typename Action >
+struct OpponentBlendPolicy {
+   struct BlendSpec {
+      /// per-infostate forcing weight P(I): probability mass played from the model (RNR: the
+      /// global p; DBR: the confidence Pconf(I))
+      double forced_probability = 0.;
+      /// full normalized action distribution of the opponent model at this infostate
+      std::unordered_map< Action, double, common::value_hasher< Action > > model_distribution{};
+   };
+
+   /// custom per-infostate blend selector; empty => no blending anywhere
+   std::function< std::optional< BlendSpec >(const InfoState&, const std::vector< Action >&) >
+      blend{};
+};
+
+/// resolves the opponent-blend policy selector type of an environment
+template < typename Env >
+using opponent_blend_policy_selector_t = OpponentBlendPolicy<
    auto_info_state_type< Env >,
    auto_action_type< Env > >;
 
@@ -239,6 +294,22 @@ class VanillaCFR:
                     CFRExponentialParameters >
    VanillaCFR(tag::internal_construct, T1&& t, Args&&... args)
        : base(std::forward< T1 >(t), std::forward< Args >(args)...), m_expcfr_params{}
+   {
+   }
+
+   /// attaches the opponent-model blend selector of the RNR/DBR family (see
+   /// OpponentBlendPolicy). Only participates when the configuration enables
+   /// CFROpponentBlendMode::per_infostate_blend; with the mode off a passed selector is a hard
+   /// compile error instead of being silently ignored. The selector is forwarded as the FIRST
+   /// constructor argument, ahead of all base-class arguments.
+   template < typename... Args >
+      requires(config.opponent_blend_mode != CFROpponentBlendMode::off)
+   VanillaCFR(
+      tag::internal_construct,
+      opponent_blend_policy_selector_t< Env > selector,
+      Args&&... args
+   )
+       : base(std::forward< Args >(args)...), m_opponent_blend(std::move(selector))
    {
    }
 
@@ -468,6 +539,14 @@ class VanillaCFR:
       utils::empty >
       m_warm_start_policy{};
 
+   /// fixed-opposition carrier of opponent-aware solving (RNR/DBR; empty cost when
+   /// config.opponent_blend_mode == off)
+   [[no_unique_address]] std::conditional_t<
+      config.opponent_blend_mode != CFROpponentBlendMode::off,
+      OpponentBlendPolicy< info_state_type, action_type >,
+      utils::empty >
+      m_opponent_blend{};
+
    /// ---- pruning engine state (empty cost when pruning_mode == none) ----------------------
    PruningStats m_pruning_stats{};
    /// ---- lazy-update engine state (empty cost when lazy_update_mode == off) ---------------
@@ -603,6 +682,22 @@ class VanillaCFR:
    /// during the phase while their regret/average updates stay unmodified.
    template < typename ActionPolicyTable >
    void _force_warm_start_policy(
+      const info_state_type& infostate,
+      const std::vector< action_type >& actions,
+      ActionPolicyTable& action_policy
+   );
+
+   /// OPPONENT-AWARE blend worker (RNR/DBR): mixes the fixed opponent-model distribution into
+   /// the CURRENT policy table 'action_policy' of a MODELED player's infostate at the fetch
+   /// point,    action_policy <- P(I) * model(I) + (1 - P(I)) * action_policy,
+   /// exactly like _force_warm_start_policy but with a per-infostate weight/model pair reported
+   /// by the attached OpponentBlendPolicy selector. Returns the PRE-BLEND entries it overwrote;
+   /// the CALLER must restore them into the table once this visit's edge probabilities have
+   /// been consumed, keeping the stored tables free-component-only so that revisit visits --
+   /// one per chance branch above the infostate -- never compound a previously blended value.
+   /// Returns an empty vector when nothing was blended.
+   template < typename ActionPolicyTable >
+   [[nodiscard]] std::vector< std::pair< action_type, double > > _apply_opponent_blend(
       const info_state_type& infostate,
       const std::vector< action_type >& actions,
       ActionPolicyTable& action_policy

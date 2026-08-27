@@ -553,6 +553,50 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_force_warm_start_policy(
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+template < typename ActionPolicyTable >
+std::vector<
+   std::pair< typename VanillaCFR< config, Env, Policy, AveragePolicy >::action_type, double > >
+VanillaCFR< config, Env, Policy, AveragePolicy >::_apply_opponent_blend(
+   const info_state_type& infostate,
+   const std::vector< action_type >& actions,
+   ActionPolicyTable& action_policy
+)
+{
+   using saved_entry = std::pair< action_type, double >;
+   if constexpr(config.opponent_blend_mode == CFROpponentBlendMode::off) {
+      (void)infostate;
+      (void)actions;
+      (void)action_policy;
+      return {};
+   } else {
+      if(not m_opponent_blend.blend) {
+         return {};
+      }
+      auto maybe_spec = m_opponent_blend.blend(infostate, actions);
+      if(not maybe_spec.has_value()) {
+         return {};
+      }
+      const auto& spec = *maybe_spec;
+      if(spec.forced_probability < 0. or spec.forced_probability > 1.) {
+         throw std::invalid_argument(
+            "OpponentBlendPolicy: the per-infostate forced probability must lie in [0, 1]."
+         );
+      }
+      auto saved_entries = std::vector< saved_entry >{};
+      saved_entries.reserve(actions.size());
+      for(const auto& action : actions) {
+         // .at() on purpose: an incomplete model distribution is a caller bug we want to
+         // fail loudly on instead of silently zeroing actions
+         const double model_prob = spec.model_distribution.at(action);
+         saved_entries.emplace_back(action, action_policy[action]);
+         action_policy[action] = spec.forced_probability * model_prob
+                                 + (1. - spec.forced_probability) * action_policy[action];
+      }
+      return saved_entries;
+   }
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 template < typename NodeData >
 void VanillaCFR< config, Env, Policy, AveragePolicy >::_refresh_probability_floors(
    const info_state_type& infostate,
@@ -732,6 +776,22 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
          _force_warm_start_policy(*this_infostate, actions, action_policy);
       }
    }
+   /// OPPONENT-AWARE (RNR/DBR): pre-blend entries saved by the visit below and restored once
+   /// the action loop has consumed its probabilities (see the comment at the call site)
+   std::vector< std::pair< action_type, double > > opponent_blend_saved_entries{};
+   if constexpr(config.opponent_blend_mode != CFROpponentBlendMode::off and use_current_policy) {
+      // OPPONENT-AWARE (RNR/DBR) played-policy blending: applied at EVERY visit to a modeled
+      // player's infostate, i.e. at the exact point where the edge probabilities are read.
+      // The counterfactual regret updates below therefore measure deviations against the
+      // blended opposition of the modified game while all minimizer bookkeeping
+      // (recommend(), discounting, clamping, average-policy increments) runs exactly as in
+      // plain CFR -- see OpponentBlendPolicy and rm::CFROpponentBlendMode for the mechanics
+      // and the convergence reading. The pre-blend entries are restored once this visit's
+      // action loop has consumed the probabilities: stored tables stay free-component-only,
+      // so revisits (one per chance branch above the infostate) blend the same clean
+      // recommendation instead of compounding an already blended value.
+      opponent_blend_saved_entries = _apply_opponent_blend(*this_infostate, actions, action_policy);
+   }
    double normalizing_factor = std::invoke([&] {
       if constexpr(not use_current_policy) {
          // we try to normalize only for the average policy, since iterations with the current
@@ -893,6 +953,12 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
             );
          }
       }
+   }
+   // OPPONENT-AWARE (RNR/DBR): restore the free-component recommendation before any
+   // downstream bookkeeping (update_regret_and_policy re-fetches this table) reads it; see
+   // the visit-scoped blending contract of OpponentBlendPolicy
+   for(const auto& [action, saved_prob] : opponent_blend_saved_entries) {
+      action_policy[action] = saved_prob;
    }
 }
 
@@ -1522,6 +1588,23 @@ consteval bool sanity_check_cfr_config()
       // there, so the combination is statically rejected. All regret-matching-based modes
       // (RM / RM+, incl. their discounted/linear carriers) are supported.
       if constexpr(config.weighting_mode == CFRWeightingMode::exponential) {
+         return false;
+      }
+   }
+   if constexpr(config.opponent_blend_mode != CFROpponentBlendMode::off) {
+      // Opponent-aware solving (RNR/DBR, Johanson, Zinkevich & Bowling NIPS 2007 / Johanson &
+      // Bowling AISTATS 2009) overrides PLAYED policies at the fetch point for the whole run.
+      // Combinations that override played strategies themselves or freeze/buffer recommendations
+      // are statically rejected initially: the warm-start pre-play phase would compound two
+      // different overrides of the same tables, lazy segmentation folds deferred
+      // average-strategy mass through a strategy that no longer matches what was played, and
+      // pruning windows buffer best-response increments whose contract assumes unblended play.
+      // Extragradient's two-traversal iterations were not analyzed with blended oppositions.
+      if constexpr(
+         config.warm_start_iterations > 0 or config.lazy_update_mode != CFRLazyUpdateMode::off
+         or config.pruning_mode != CFRPruningMode::none
+         or config.extragradient_mode != CFRExtragradientMode::off
+      ) {
          return false;
       }
    }

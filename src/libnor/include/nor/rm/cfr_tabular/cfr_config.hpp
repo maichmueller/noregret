@@ -181,6 +181,26 @@ enum class CFRExtragradientMode {
    anchor_probe = 1
 };
 
+enum class CFROpponentBlendMode {
+   // plain CFR: every player's played strategy is read from their own current-policy tables
+   off = 0,
+   // Opponent-aware solving (restricted Nash response / data-biased robust responses,
+   // Johanson, Zinkevich & Bowling, NeurIPS 2007 and Johanson & Bowling, AISTATS 2009):
+   // at every traversal visit to an infostate of a MODELED player, the PLAYED strategy is
+   // overridden AT THE POLICY-FETCH POINT with the convex blend
+   //    sigma_blend(I) = P(I) * model(I) + (1 - P(I)) * sigma_current(I)
+   // where 'model' is the fixed opponent-model distribution and P(I) in [0,1] the per-infostate
+   // forcing weight (globally constant p for RNR, a confidence function Pconf(I) for DBR).
+   // Regret and counterfactual-value updates run UNMODIFIED on the traversals under blended
+   // play: the unrestricted player's average strategy converges to the robust counter-strategy
+   // (the p-restricted Nash response / DBR response) of the modified game while the MODELED
+   // player's stored tables keep holding their free component -- blending is applied strictly
+   // per traversal visit and restored afterwards (see rm::OpponentBlendPolicy), never
+   // compounding across revisits or recommendation sweeps. See nor/rm/opponent_aware/ for the
+   // solver entry points and their documented safety caveats.
+   per_infostate_blend = 1
+};
+
 struct CFRConfig {
    UpdateMode update_mode = UpdateMode::alternating;
    RegretMinimizingMode regret_minimizing_mode = RegretMinimizingMode::regret_matching;
@@ -272,6 +292,16 @@ struct CFRConfig {
    double extragradient_norm_floor_epsilon = 1.;
 
    CFRExtragradientMode extragradient_mode = CFRExtragradientMode::off;
+
+   /// ---- opponent-aware blend knob (only meaningful when opponent_blend_mode != off) --------
+
+   /// Activates the played-policy blending of the RNR/DBR family at the policy-fetch point (see
+   /// CFROpponentBlendMode::per_infostate_blend). The per-infostate model distributions and
+   /// forcing weights are supplied at construction time through an
+   /// rm::OpponentBlendPolicy<Infostate, Action> selector (first constructor argument, exactly
+   /// like the warm-start selector); the solver itself stays agnostic of which player is being
+   /// modeled -- the selector reports 'nullopt' for every infostate it does not constrain.
+   CFROpponentBlendMode opponent_blend_mode = CFROpponentBlendMode::off;
 
    /// ---- greedy weighting knobs (only meaningful when weighting_mode == greedy) -------------
 
