@@ -207,8 +207,16 @@ template < rm::CFRConfig config, typename Env, typename OpponentModelType >
    auto root_values_per_iteration = solver.iterate(n_iterations);
 
    ResponseResult< env_type > result{};
-   result.final_root_values = root_values_per_iteration.back();
-   result.policy = normalize_state_policy(solver.average_policy().at(responder).table());
+   // the traversal containers are performance-typed (the compacted per-player
+   // StateValueMap wrapper and the dense table inside the policy record); the
+   // public result carries the plain std typedefs, so convert via the wrapper's
+   // (player, value) iterator range
+   const auto& last_root_values = root_values_per_iteration.back().get();
+   result.final_root_values = player_hashmap< double >{
+      last_root_values.begin(), last_root_values.end()};
+   const auto normalized = normalize_state_policy(solver.average_policy().at(responder).table());
+   using policy_map_type = decltype(result.policy);
+   result.policy = policy_map_type{normalized.begin(), normalized.end()};
    return result;
 }
 

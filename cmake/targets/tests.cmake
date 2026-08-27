@@ -8,6 +8,12 @@ register_nor_target(${nor_test}_rm_utils test_rm_utils.cpp)
 register_nor_target(${nor_test}_internal_regret test_internal_regret.cpp)
 register_nor_target(${nor_test}_icfr test_icfr.cpp)
 register_nor_target(${nor_test}_icfr_predictive test_icfr_predictive.cpp)
+register_nor_target(${nor_test}_efcp test_efcp.cpp)
+if(ENABLE_GAMES
+   AND TARGET centipede
+   AND TARGET colonel_blotto)
+    target_link_libraries(${nor_test}_efcp PRIVATE centipede colonel_blotto)
+endif()
 register_nor_target(${nor_test}_cfr_vanilla test_cfr_vanilla.cpp)
 register_nor_target(${nor_test}_cfr_warm_start test_cfr_warm_start.cpp)
 register_nor_target(${nor_test}_cfr_plus test_cfr_plus.cpp)
@@ -47,6 +53,13 @@ if(ENABLE_GAMES AND TARGET goofspiel)
     # the variance-reduction evaluation test also covers the header-only goofspiel game
     target_link_libraries(${nor_test}_variance_reduction PRIVATE goofspiel)
     target_link_libraries(${nor_test}_all PRIVATE goofspiel)
+endif()
+
+if(ENABLE_GAMES
+   AND TARGET centipede
+   AND TARGET colonel_blotto)
+    # the EFCP suite additionally exercises the header-only centipede and colonel blotto beds
+    target_link_libraries(${nor_test}_all PRIVATE centipede colonel_blotto)
 endif()
 
 # the test of all parts needs an extra linkage for the pybind11 components and Python

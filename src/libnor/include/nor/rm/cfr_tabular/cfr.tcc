@@ -993,7 +993,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       }
    }
    /// OPPONENT-AWARE (RNR/DBR): pre-blend entries saved by the visit below and restored once
-   /// the action loop has consumed its probabilities (see the comment at the call site)
+   /// the action loop has consumed its probabilities (see the comment at the call site).
+   /// The blended table is the D1 node-record recommendation cache wrapped in an
+   /// action-keyed proxy so the blend helper keeps its keyed interface.
    std::vector< std::pair< action_type, double > > opponent_blend_saved_entries{};
    if constexpr(config.opponent_blend_mode != CFROpponentBlendMode::off and use_current_policy) {
       // OPPONENT-AWARE (RNR/DBR) played-policy blending: applied at EVERY visit to a modeled
@@ -1006,7 +1008,16 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       // action loop has consumed the probabilities: stored tables stay free-component-only,
       // so revisits (one per chance branch above the infostate) blend the same clean
       // recommendation instead of compounding an already blended value.
-      opponent_blend_saved_entries = _apply_opponent_blend(*this_infostate, actions, action_policy);
+      struct BlendableStrategyTable {
+         std::remove_reference_t< decltype(this_node) >* node{};
+         double& operator[](const action_type& action)
+         {
+            return node->current_strategy()[node->index_of(action)];
+         }
+      };
+      BlendableStrategyTable blendable{&this_node};
+      opponent_blend_saved_entries =
+         _apply_opponent_blend(*this_infostate, actions, blendable);
    }
    double normalizing_factor = std::invoke([&] {
       if constexpr(not use_current_policy) {
@@ -1211,9 +1222,20 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    }
    // OPPONENT-AWARE (RNR/DBR): restore the free-component recommendation before any
    // downstream bookkeeping (update_regret_and_policy re-fetches this table) reads it; see
-   // the visit-scoped blending contract of OpponentBlendPolicy
-   for(const auto& [action, saved_prob] : opponent_blend_saved_entries) {
-      action_policy[action] = saved_prob;
+   // the visit-scoped blending contract of OpponentBlendPolicy. Restores write back into the
+   // node-record recommendation cache (the D1 representation of the played strategy).
+   if(not opponent_blend_saved_entries.empty()) {
+      struct BlendableStrategyTable {
+         std::remove_reference_t< decltype(this_node) >* node{};
+         double& operator[](const action_type& action)
+         {
+            return node->current_strategy()[node->index_of(action)];
+         }
+      };
+      BlendableStrategyTable blendable{&this_node};
+      for(const auto& [action, saved_prob] : opponent_blend_saved_entries) {
+         blendable[action] = saved_prob;
+      }
    }
 }
 
