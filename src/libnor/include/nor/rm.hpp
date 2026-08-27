@@ -9,6 +9,11 @@
 #include "rm/cfr_tabular/mccfr.hpp"
 #include "rm/forest.hpp"
 #include "rm/icfr.hpp"
+#include "rm/opponent_aware/dbbr.hpp"
+#include "rm/opponent_aware/dbr.hpp"
+#include "rm/opponent_aware/opponent_model.hpp"
+#include "rm/opponent_aware/response.hpp"
+#include "rm/opponent_aware/rnr.hpp"
 #include "rm/policy_value.hpp"
 #include "rm/rm_utils.hpp"
 
