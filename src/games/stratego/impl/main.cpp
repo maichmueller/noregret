@@ -1,7 +1,11 @@
 #include <array>
 #include <iostream>
 #include <memory>
-#include <xtensor/xtensor.hpp>
+#if __has_include(<xtensor/xtensor.hpp>)
+   #include <xtensor/xtensor.hpp>
+#else
+   #include <xtensor.hpp>
+#endif
 
 #include "stratego/Game.hpp"
 #include "stratego/State.hpp"
