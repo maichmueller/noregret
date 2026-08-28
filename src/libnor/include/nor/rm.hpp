@@ -16,5 +16,7 @@
 #include "rm/opponent_aware/rnr.hpp"
 #include "rm/policy_value.hpp"
 #include "rm/rm_utils.hpp"
+#include "rm/team/dag_cfr.hpp"
+#include "rm/team/team_belief_dag.hpp"
 
 #endif  // NOR_RM_HPP

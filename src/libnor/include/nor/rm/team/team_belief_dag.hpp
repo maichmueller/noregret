@@ -64,6 +64,8 @@ inline constexpr std::size_t dag_npos = std::numeric_limits< std::size_t >::max(
  * scalar p_c(z) together with the payoff of every root participant. Realization flows of a
  * behavioral strategy on the DAG induce a well-defined correlation plan over the original
  * game tree; see rm::team::AdversarialTeamDagCfr for the DAG-CFR learner built on top.
+ * A later per-member behavioral-policy view is only the marginal projection of that correlated
+ * plan; independently sampling those marginals is not generally payoff-equivalent.
  *
  * DEVIATIONS FROM THE PAPER: none in the construction itself. Enumeration order determines
  * only internal ids (labels are canonicalized via sorted world-id vectors), so the produced
@@ -188,8 +190,14 @@ class TeamBeliefDAG {
    TeamBeliefDAG(Env env, uptr< world_state_type > root_state, Config config)
        : m_env(std::move(env)), m_root_state(std::move(root_state)), m_config(std::move(config))
    {
+      if(not m_root_state) {
+         throw std::invalid_argument("TeamBeliefDAG: root_state must not be null");
+      }
       if(m_config.members.empty()) {
          throw std::invalid_argument("TeamBeliefDAG: 'members' must be non-empty");
+      }
+      if(m_config.max_dag_nodes == 0) {
+         throw std::invalid_argument("TeamBeliefDAG: max_dag_nodes must be positive");
       }
       _build();
    }

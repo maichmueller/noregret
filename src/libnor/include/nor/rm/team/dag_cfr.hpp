@@ -50,11 +50,11 @@ namespace nor::rm::team {
  *    averaging is LINEAR in the iteration index (LCFR convention; the paper additionally tried
  *    quadratic/Danger-discounted variants).
  *
- * CONVERGENCE GUARANTEE. Each side is a CFR-style regret minimizer over its realization
- * polytope (Corollary A.4: regret O(N sqrt(T))), hence the averaged profiles converge to the
- * saddle-point solution of Definition 2.3 -- a correlated team max-min equilibrium (TMECor)
- * with payoffs reported WITHOUT explicit correlation devices; for a single-agent adversary
- * this coincides with the usual team-security value.
+ * GUARANTEE SCOPE. Under the paper's finite alternating-DAG assumptions, each side is a
+ * CFR-style regret minimizer over its realization polytope (Corollary A.4: regret O(N sqrt(T))).
+ * The learner therefore targets the correlated team max-min problem (TMECor). The extracted
+ * `decentralized_policies` view is only a marginal projection and is not a TME solver: sampling
+ * those member policies independently can lose the coordinator's correlation payoff.
  *
  * EVALUATION (`evaluate()`). Three co-reported instruments, mirroring the suite conventions of
  * e.g. ICFR:
@@ -94,6 +94,8 @@ class AdversarialTeamDagCfr {
       std::vector< Player > team_members{};
       /// averaging weight exponent: weight(iteration) = pow(iteration + 1, linear_weight_power)
       double linear_weight_power = 1.;
+      /// exact-construction bound applied independently to both team-belief DAGs
+      size_t max_dag_nodes = dag_type::k_default_max_dag_nodes;
    };
 
    ////////////////////////////////////////
@@ -113,12 +115,44 @@ class AdversarialTeamDagCfr {
    AdversarialTeamDagCfr(Env env, uptr< auto_world_state_type< Env > > root_state, Config config)
        : m_env(std::move(env)), m_config(std::move(config))
    {
+      if(not root_state) {
+         throw std::invalid_argument("AdversarialTeamDagCfr: root_state must not be null");
+      }
+      if(m_config.team_members.empty()) {
+         throw std::invalid_argument("AdversarialTeamDagCfr: empty team");
+      }
+      if(not std::isfinite(m_config.linear_weight_power)) {
+         throw std::invalid_argument("AdversarialTeamDagCfr: linear_weight_power must be finite");
+      }
+      if(m_config.max_dag_nodes == 0) {
+         throw std::invalid_argument("AdversarialTeamDagCfr: max_dag_nodes must be positive");
+      }
+      for(auto [index, member] : std::views::enumerate(m_config.team_members)) {
+         if(std::ranges::find(
+               m_config.team_members.begin(), m_config.team_members.begin() + index, member
+            )
+            != m_config.team_members.begin() + index) {
+            throw std::invalid_argument("AdversarialTeamDagCfr: team_members must be unique");
+         }
+      }
+
       // derive the adversary block from the root roster
       std::vector< Player > all_players;
-      for(auto player : m_env.players(*root_state)) {  // includes chance; filtered below implicitly
+      std::vector< Player > root_roster;
+      for(auto player : m_env.players(*root_state)) {
          if(player == Player::chance) {
             continue;
          }
+         root_roster.emplace_back(player);
+      }
+      for(auto member : m_config.team_members) {
+         if(std::ranges::find(root_roster, member) == root_roster.end()) {
+            throw std::invalid_argument(
+               "AdversarialTeamDagCfr: configured team member is not in the root roster"
+            );
+         }
+      }
+      for(auto player : root_roster) {
          bool is_team = false;
          for(auto member : m_config.team_members) {
             if(member == player) {
@@ -130,9 +164,6 @@ class AdversarialTeamDagCfr {
             all_players.emplace_back(player);
          }
       }
-      if(m_config.team_members.empty()) {
-         throw std::invalid_argument("AdversarialTeamDagCfr: empty team");
-      }
       if(all_players.empty()) {
          throw std::invalid_argument(
             "AdversarialTeamDagCfr: every root participant belongs to the team -- no adversary"
@@ -141,12 +172,15 @@ class AdversarialTeamDagCfr {
       // NOTE: both planes enumerate the SAME underlying game tree, so both DAGs carry
       // identical leaf payoff rows; leaf chance weights and utilities are shared through
       // m_leaf_utilities computed from the team plane below.
+      auto adversary_root = std::make_unique< auto_world_state_type< Env > >(*root_state);
       typename dag_type::Config team_cfg{};
       team_cfg.members = m_config.team_members;
+      team_cfg.max_dag_nodes = m_config.max_dag_nodes;
       m_planes.emplace_back(dag_type(m_env, std::move(root_state), std::move(team_cfg)));
       typename dag_type::Config adversary_cfg{};
       adversary_cfg.members = std::move(all_players);
-      m_planes.emplace_back(dag_type(m_env, std::move(adversary_cfg)));
+      adversary_cfg.max_dag_nodes = m_config.max_dag_nodes;
+      m_planes.emplace_back(dag_type(m_env, std::move(adversary_root), std::move(adversary_cfg)));
       m_leaf_utilities[k_team_plane] = _coalition_leaf_utility(m_config.team_members);
       m_leaf_utilities[k_adversary_plane] = _coalition_leaf_utility(
          std::vector< Player >(m_planes[k_adversary_plane].members())
@@ -178,8 +212,7 @@ class AdversarialTeamDagCfr {
    struct Evaluation {
       /// iterations trained so far
       size_t iterations = 0;
-      /// E(x_bar, y_bar) -- the team's (plane 0) payoff under both average plans; negated for
-      /// the adversary plane
+      /// each coalition's own summed roster payoff under both average plans
       std::array< double, 2 > average_pair_values{};
       /// sum of POSITIVE cumulative regret entries divided by T, per plane (valid CFR-style
       /// average-exploitability certificates up to standard constants)
@@ -232,7 +265,8 @@ class AdversarialTeamDagCfr {
    [[nodiscard]] std::vector< std::vector< double > > coordinator_plan(size_t side) const;
 
    /// average realization weights of plane 'side' at its terminal beliefs (indexed like
-   /// 'dag(side).terminal_weights()' after normalization by aggregate inflow mass)
+   /// 'dag(side).terminal_weights()'). These are realization-form masses, not a leaf probability
+   /// distribution; chance probabilities are carried by the terminal utility weights.
    [[nodiscard]] std::vector< double > average_realizations(size_t side) const;
 
   private:
@@ -286,8 +320,16 @@ class AdversarialTeamDagCfr {
    std::pair< std::vector< std::vector< double > >, std::vector< double > > _average_plan(
       size_t side
    ) const;
-   /// forward-propagates belief inflow (root-seeded) through edge probabilities and returns
-   /// the normalized singleton-terminal-belief masses aligned with the leaf rows
+   /// derives a topological order from the explicit belief -> inactive -> belief edges
+   [[nodiscard]] std::vector< BeliefId > _topological_beliefs(size_t side) const;
+   /// forward-propagates a seeded belief flow through the explicit DAG constraints
+   [[nodiscard]] std::vector< double > _belief_flows(
+      size_t side,
+      const std::vector< double >& inflow,
+      const std::vector< std::vector< double > >* edgep_override = nullptr
+   ) const;
+   /// forward-propagates belief inflow (root-seeded) through edge probabilities and returns the
+   /// singleton-terminal-belief realization masses aligned with the leaf rows
    [[nodiscard]] std::vector< double > _terminal_flows(
       size_t side,
       const std::vector< double >& inflow,

@@ -70,22 +70,22 @@ void AdversarialTeamDagCfr< Env >::_next_strategy(size_t side)
    auto& rt = m_rt[side];
 
    std::ranges::fill(rt.inflow, 0.);
+   std::ranges::fill(rt.inactive_inflow, 0.);
    rt.inflow[dag.root_belief()] = 1.;
 
    const double avg_weight = std::pow(
       static_cast< double >(m_iteration + 1), m_config.linear_weight_power
    );
+   if(not std::isfinite(avg_weight)) [[unlikely]] {
+      throw std::overflow_error("AdversarialTeamDagCfr: averaging weight became non-finite");
+   }
 
-   // beliefs are in creation order == topological order (parents constructed first)
-   for(auto b : std::views::iota(size_t{0}, dag.belief_count())) {
+   // A merged belief can be reached through more than one inactive node, so creation order is
+   // not a sufficient topological-order contract.  Route each inactive node after its unique
+   // parent belief has been processed, using an order derived from the public edges.
+   for(const BeliefId b : _topological_beliefs(side)) {
       const auto& rec = dag.belief(b);
       if(rec.terminal) {
-         continue;
-      }
-      const double inflow_b = rt.inflow[b];
-      if(inflow_b <= 0.) {
-         // unreachable under the current plan; keep edgep at its last recommendation but
-         // zero the fold so stale weights cannot leak into the average plan
          continue;
       }
       const size_t k_count = rec.prescriptions.size();
@@ -104,27 +104,35 @@ void AdversarialTeamDagCfr< Env >::_next_strategy(size_t side)
             edgep[k] = uniform_prob;
          }
       }
+
+      const double inflow_b = rt.inflow[b];
+      if(inflow_b <= 0.) {
+         // The recommendation is still refreshed for an unreachable belief.  ObserveUtility
+         // consumes the complete recommendation table, while no average mass is folded here.
+         continue;
+      }
       for(auto k : std::views::iota(size_t{0}, k_count)) {
          rt.strategy_sum[b][k] += avg_weight * inflow_b * edgep[k];
       }
-      // route the flow through the inactive children (each child is exactly one prescription)
+
+      // First accumulate every prescription edge.  Multiple prescriptions may share one
+      // memoized inactive node; it must be distributed to components only once after the sum.
       for(auto k : std::views::iota(size_t{0}, k_count)) {
-         // account lazily: store per-prescription routed masses as belief-relative values on
-         // the inactive layer below
          rt.inactive_inflow[rec.prescription_children[k]] += inflow_b * edgep[k];
       }
-   }
-
-   // second sweep over inactive nodes distributing to their component child beliefs
-   for(auto o : std::views::iota(size_t{0}, dag.inactive_count())) {
-      const double inflow_o = rt.inactive_inflow[o];
-      if(inflow_o <= 0.) {
-         continue;
+      std::vector< InactiveId > children = rec.prescription_children;
+      std::ranges::sort(children);
+      children.erase(std::ranges::unique(children).begin(), children.end());
+      for(const InactiveId o : children) {
+         const double inflow_o = rt.inactive_inflow[o];
+         if(inflow_o <= 0.) {
+            continue;
+         }
+         for(const BeliefId child : dag.inactive(o).components) {
+            rt.inflow[child] += inflow_o;
+         }
+         rt.inactive_inflow[o] = 0.;
       }
-      for(const BeliefId child : dag.inactive(o).components) {
-         rt.inflow[child] += inflow_o;
-      }
-      rt.inactive_inflow[o] = 0.;  // reset scratch for the next iteration
    }
 }
 
@@ -147,11 +155,17 @@ void AdversarialTeamDagCfr< Env >::_observe_utility(size_t side, const std::vect
    std::ranges::fill(ubuf_belief, 0.);
    std::ranges::fill(ubuf_inactive, 0.);
 
+   if(g.size() != dag.terminal_count()) [[unlikely]] {
+      throw std::logic_error("AdversarialTeamDagCfr: terminal utility vector has the wrong size");
+   }
+
    for(auto leaf : std::views::iota(size_t{0}, dag.terminal_count())) {
       ubuf_belief[dag.terminal_belief_id(leaf)] = g[leaf];
    }
 
-   for(size_t b = dag.belief_count(); b-- > 0;) {
+   const auto order = _topological_beliefs(side);
+   for(size_t position = order.size(); position-- > 0;) {
+      const BeliefId b = order[position];
       const auto& rec = dag.belief(b);
       if(rec.terminal) {
          // singleton terminal: its preloaded g value flows straight into the inactive parent
@@ -180,8 +194,8 @@ void AdversarialTeamDagCfr< Env >::_observe_utility(size_t side, const std::vect
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Normalized average plan of one plane: RMS-free plain strategy-sum normalization with
- * uniform fallbacks, followed by an average-flow recurrence mirroring _next_strategy.
+ * Average plan of one plane: RMS-free plain strategy-sum normalization with uniform fallbacks,
+ * followed by an average-flow recurrence mirroring _next_strategy.
  */
 template < typename Env >
 auto AdversarialTeamDagCfr< Env >::_average_plan(size_t side) const
@@ -349,6 +363,9 @@ auto AdversarialTeamDagCfr< Env >::decentralized_policies(size_t side) const
 
    const auto& dag = m_planes[side];
    const auto [avg_edges, avg_flows] = _average_plan(side);
+   std::vector< double > root_inflow(dag.belief_count(), 0.);
+   root_inflow[dag.root_belief()] = 1.;
+   const auto avg_belief_flows = _belief_flows(side, root_inflow, &avg_edges);
 
    // numerator/denominator accumulators per global team infoset of this plane
    std::unordered_map<
@@ -360,14 +377,18 @@ auto AdversarialTeamDagCfr< Env >::decentralized_policies(size_t side) const
 
    for(auto b : std::views::iota(size_t{0}, dag.belief_count())) {
       const auto& rec = dag.belief(b);
-      if(rec.terminal or avg_flows[b] <= 0.) {
+      if(rec.terminal or avg_belief_flows[b] <= 0.) {
          continue;
       }
-      const double inflow_b = avg_flows[b];
+      const double inflow_b = avg_belief_flows[b];
       const auto k_count = rec.prescriptions.size();
 
       for(const auto& slot : rec.slots) {
          engagement[slot.infoset_global] += inflow_b;
+         auto& numerator = numerators[slot.infoset_global];
+         for(const auto& action : slot.actions) {
+            numerator.emplace(action, 0.);
+         }
       }
       for(auto presc_idx : std::views::iota(size_t{0}, k_count)) {
          const double mass = inflow_b * avg_edges[b][presc_idx];
@@ -427,44 +448,106 @@ auto AdversarialTeamDagCfr< Env >::_coalition_leaf_utility(const std::vector< Pl
 }
 
 template < typename Env >
+auto AdversarialTeamDagCfr< Env >::_topological_beliefs(size_t side) const
+   -> std::vector< BeliefId >
+{
+   const auto& dag = m_planes[side];
+   const size_t belief_count = dag.belief_count();
+   std::vector< size_t > remaining_parents(belief_count, 0);
+   std::vector< BeliefId > ready;
+   ready.reserve(belief_count);
+   for(auto b : std::views::iota(size_t{0}, belief_count)) {
+      remaining_parents[b] = dag.belief(b).parents.size();
+      if(remaining_parents[b] == 0) {
+         ready.emplace_back(b);
+      }
+   }
+
+   std::vector< BeliefId > order;
+   order.reserve(belief_count);
+   for(size_t next_ready = 0; next_ready < ready.size(); ++next_ready) {
+      const BeliefId b = ready[next_ready];
+      order.emplace_back(b);
+
+      std::vector< InactiveId > children = dag.belief(b).prescription_children;
+      std::ranges::sort(children);
+      children.erase(std::ranges::unique(children).begin(), children.end());
+      for(const InactiveId inactive : children) {
+         for(const BeliefId child : dag.inactive(inactive).components) {
+            if(remaining_parents[child] == 0) [[unlikely]] {
+               throw std::logic_error(
+                  "AdversarialTeamDagCfr: inconsistent TB-DAG parent multiplicity"
+               );
+            }
+            if(--remaining_parents[child] == 0) {
+               ready.emplace_back(child);
+            }
+         }
+      }
+   }
+   if(order.size() != belief_count) [[unlikely]] {
+      throw std::logic_error("AdversarialTeamDagCfr: TB-DAG contains a cycle");
+   }
+   return order;
+}
+
+template < typename Env >
+auto AdversarialTeamDagCfr< Env >::_belief_flows(
+   size_t side, const std::vector< double >& inflow,
+   const std::vector< std::vector< double > >* edgep_override
+) const -> std::vector< double >
+{
+   const auto& dag = m_planes[side];
+   if(inflow.size() != dag.belief_count()) [[unlikely]] {
+      throw std::logic_error("AdversarialTeamDagCfr: belief flow vector has the wrong size");
+   }
+
+   std::vector< double > belief_flow = inflow;
+   std::vector< double > inactive_flow(dag.inactive_count(), 0.);
+   for(const BeliefId b : _topological_beliefs(side)) {
+      const auto& rec = dag.belief(b);
+      if(rec.terminal or belief_flow[b] <= 0.) {
+         continue;
+      }
+      const auto& probabilities = edgep_override ? edgep_override->at(b)
+                                                  : m_rt[side].current_edgep.at(b);
+      if(probabilities.size() != rec.prescriptions.size()) [[unlikely]] {
+         throw std::logic_error("AdversarialTeamDagCfr: recommendation row has the wrong size");
+      }
+      for(auto k : std::views::iota(size_t{0}, rec.prescriptions.size())) {
+         inactive_flow[rec.prescription_children[k]] += belief_flow[b] * probabilities[k];
+      }
+
+      std::vector< InactiveId > children = rec.prescription_children;
+      std::ranges::sort(children);
+      children.erase(std::ranges::unique(children).begin(), children.end());
+      for(const InactiveId inactive : children) {
+         const double flow = inactive_flow[inactive];
+         if(flow <= 0.) {
+            continue;
+         }
+         for(const BeliefId child : dag.inactive(inactive).components) {
+            belief_flow[child] += flow;
+         }
+         inactive_flow[inactive] = 0.;
+      }
+   }
+
+   return belief_flow;
+}
+
+template < typename Env >
 auto AdversarialTeamDagCfr< Env >::_terminal_flows(
    size_t side, const std::vector< double >& inflow,
    const std::vector< std::vector< double > >* edgep_override
 ) const -> std::vector< double >
 {
    const auto& dag = m_planes[side];
-   // forward-propagate the supplied/overridden belief inflow through the DAG layers and read
-   // off the singleton-terminal belief masses
-   std::vector< double > inactive_flow(dag.inactive_count(), 0.);
-   std::vector< double > belief_flow = inflow;
-
-   for(auto b : std::views::iota(size_t{0}, dag.belief_count())) {
-      const auto& rec = dag.belief(b);
-      if(rec.terminal or belief_flow[b] <= 0.) {
-         continue;
-      }
-      for(auto k : std::views::iota(size_t{0}, rec.prescriptions.size())) {
-         const double prob = edgep_override ? (*edgep_override)[b][k]
-                                            : m_rt[side].current_edgep[b][k];
-         inactive_flow[rec.prescription_children[k]] += belief_flow[b] * prob;
-      }
-   }
-   for(auto o : std::views::iota(size_t{0}, dag.inactive_count())) {
-      for(const BeliefId child : dag.inactive(o).components) {
-         belief_flow[child] += inactive_flow[o];
-      }
-   }
+   const auto belief_flow = _belief_flows(side, inflow, edgep_override);
 
    std::vector< double> out(dag.terminal_count());
-   double mass_total = 0.;
    for(auto leaf : std::views::iota(size_t{0}, dag.terminal_count())) {
       out[leaf] = belief_flow[dag.terminal_belief_id(leaf)];
-      mass_total += out[leaf];
-   }
-   if(mass_total > 0.) {
-      for(double& f : out) {
-         f /= mass_total;
-      }
    }
    return out;
 }

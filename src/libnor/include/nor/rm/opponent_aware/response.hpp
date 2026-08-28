@@ -27,14 +27,8 @@ template < typename Env >
 struct ResponseResult {
    using info_state_type = auto_info_state_type< Env >;
    using action_type = auto_action_type< Env >;
-   /// normalized behavioral strategy of the responding player (the robust counter-strategy);
-   /// uses the solver's native value-hashed dense table so downstream lookups compose
-   dense_hashmap<
-      info_state_type,
-      HashmapActionPolicy< action_type >,
-      common::value_hasher< info_state_type >,
-      common::value_comparator< info_state_type > >
-      policy{};
+   /// normalized behavioral strategy of the responding player (the robust counter-strategy)
+   std::unordered_map< info_state_type, HashmapActionPolicy< action_type > > policy{};
    /// root value of every player under the FINAL played (blended) profile of the last
    /// iteration
    player_hashmap< double > final_root_values{};
@@ -213,9 +207,7 @@ template < rm::CFRConfig config, typename Env, typename OpponentModelType >
    auto root_values_per_iteration = solver.iterate(n_iterations);
 
    ResponseResult< env_type > result{};
-   for(const auto& [value_player, value] : root_values_per_iteration.back().get()) {
-      result.final_root_values[value_player] = value;
-   }
+   result.final_root_values = root_values_per_iteration.back();
    result.policy = normalize_state_policy(solver.average_policy().at(responder).table());
    return result;
 }

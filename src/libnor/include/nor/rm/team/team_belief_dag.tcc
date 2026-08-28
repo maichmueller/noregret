@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cmath>
 #include <numeric>
 #include <ranges>
 #include <stdexcept>
@@ -28,7 +29,13 @@ void TeamBeliefDAG< Env >::_build()
       m_roster_index.emplace(player, m_roster.size());
       m_roster.emplace_back(player);
    }
-   for(auto member : m_config.members) {
+   for(auto [member_index, member] : std::views::enumerate(m_config.members)) {
+      if(std::ranges::find(
+            m_config.members.begin(), m_config.members.begin() + member_index, member
+         )
+         != m_config.members.begin() + member_index) {
+         throw std::invalid_argument("TeamBeliefDAG: 'members' must not contain duplicates");
+      }
       if(not m_roster_index.contains(member)) {
          throw std::invalid_argument(
             "TeamBeliefDAG: configured team member is not part of the root roster"
@@ -38,6 +45,7 @@ void TeamBeliefDAG< Env >::_build()
       reg.player = member;
       m_member_infostates.emplace_back(std::move(reg));
       m_active_infostates.emplace(member, std::make_shared< info_state_type >(member));
+      m_obs_buffers.emplace(member, std::vector< std::pair< observation_type, observation_type > >{});
    }
 
    // -- full-tree DFS of the team decision problem --------------------------------------------
@@ -132,6 +140,7 @@ void TeamBeliefDAG< Env >::_enumerate_visit(world_state_type& state, NodeId node
    const auto deciding_slot = slot_of(active_player);
    if(deciding_slot != npos) {
       // ---- a TEAM MEMBER decides here -------------------------------------------------------
+      m_tree[node_id].team_decision = true;
       auto& registry = m_member_infostates[deciding_slot];
       const sptr< info_state_type >& istate = m_active_infostates.at(active_player);
       auto [id_it, inserted] =
@@ -165,24 +174,51 @@ void TeamBeliefDAG< Env >::_enumerate_visit(world_state_type& state, NodeId node
          EdgeUndo undo;
          world_state_type& next = _advance_edge(state, depth, action, undo);
          NodeId child = m_tree.size();
-         m_tree.emplace_back().chance_weight = m_tree[node_id].chance_weight;
+         m_tree.emplace_back();
+         m_tree.back().depth = depth + 1;
+         m_tree.back().chance_weight = m_tree[node_id].chance_weight;
          _enumerate_visit(next, child, depth + 1);
          children.emplace_back(child);
          _undo_edge(undo);
       }
       m_tree[node_id].children = std::move(children);
    } else {
-      // ---- chance / adversarial block decides: fan out to ALL outcomes ----------------------
+      // ---- inactive world node: expand chance outcomes or adversary actions ------------------
       std::vector< NodeId > children;
-      for(const auto& outcome : m_env.chance_actions(state)) {
+      const auto descend = [&](const auto& edge, double edge_weight) {
          EdgeUndo undo;
-         world_state_type& next = _advance_edge(state, depth, outcome, undo);
+         world_state_type& next = _advance_edge(state, depth, edge, undo);
          NodeId child = m_tree.size();
-         m_tree.emplace_back().chance_weight =
-            m_tree[node_id].chance_weight * m_env.chance_probability(state, outcome);
+         m_tree.emplace_back();
+         m_tree.back().depth = depth + 1;
+         m_tree.back().chance_weight = m_tree[node_id].chance_weight * edge_weight;
          _enumerate_visit(next, child, depth + 1);
          children.emplace_back(child);
          _undo_edge(undo);
+      };
+
+      if constexpr(concepts::stochastic_env< Env >) {
+         if(active_player == Player::chance) {
+            for(const auto& outcome : m_env.chance_actions(state)) {
+               const double probability = m_env.chance_probability(state, outcome);
+               if(not std::isfinite(probability) or probability < 0.) [[unlikely]] {
+                  throw std::logic_error(
+                     "TeamBeliefDAG: chance_probability must be finite and non-negative"
+                  );
+               }
+               descend(outcome, probability);
+            }
+         } else {
+            for(const auto& action : m_env.actions(active_player, state)) {
+               descend(action, 1.);
+            }
+         }
+      } else {
+         // Deterministic FOSGs do not provide chance_actions; all non-team turns are ordinary
+         // inactive actions in the induced team decision problem.
+         for(const auto& action : m_env.actions(active_player, state)) {
+            descend(action, 1.);
+         }
       }
       m_tree[node_id].children = std::move(children);
    }
@@ -262,10 +298,7 @@ auto TeamBeliefDAG< Env >::_advance_edge(
       undo.saved_flush_buffer = m_obs_buffers.at(next_active_player);
    }
 
-   for(auto player : m_env.players(next_wstate)) {
-      if(player == Player::chance or slot_of(player) == npos) {
-         continue;  // only team members' views are tracked
-      }
+   for(auto player : m_config.members) {
       if(undo.flushes and player == undo.flush_target) {
          continue;  // restored wholesale via saved_flush_buffer
       }
@@ -330,7 +363,16 @@ auto TeamBeliefDAG< Env >::_make_active(std::vector< NodeId > b) -> BeliefId
    if(auto found = m_belief_ids.find(b); found != m_belief_ids.end()) {
       return found->second;
    }
-   if(m_config.max_dag_nodes - (m_beliefs.size() + m_inactives.size()) < 2) {
+   const size_t used_nodes = node_count();
+   if(used_nodes >= m_config.max_dag_nodes) {
+      throw std::length_error(
+         "TeamBeliefDAG exceeded max_dag_nodes=" + std::to_string(m_config.max_dag_nodes)
+         + "; the game appears too large for an exact TB-DAG construction"
+      );
+   }
+
+   const bool is_terminal = b.size() == 1 and m_tree[b.front()].terminal;
+   if(not is_terminal and m_config.max_dag_nodes - used_nodes < 2) {
       throw std::length_error(
          "TeamBeliefDAG exceeded max_dag_nodes=" + std::to_string(m_config.max_dag_nodes)
          + "; the game appears too large for an exact TB-DAG construction"
@@ -353,7 +395,9 @@ auto TeamBeliefDAG< Env >::_make_active(std::vector< NodeId > b) -> BeliefId
          continue;
       }
       BeliefSlot slot{};
-      slot.member_idx = m_infoset_slot.at(g);
+      // The global-id cross-reference arrays are finalized only after the recursive DAG build;
+      // resolve the owning member directly from the registry created during enumeration here.
+      slot.member_idx = slot_of(m_infoset_owner.at(g));
       slot.infoset_global = g;
       slot.actions = m_infoset_actions.at(g);
       rec.slots.emplace_back(std::move(slot));
@@ -362,7 +406,7 @@ auto TeamBeliefDAG< Env >::_make_active(std::vector< NodeId > b) -> BeliefId
    m_belief_ids.emplace(b, my_id);
    m_beliefs.emplace_back(std::move(rec));
 
-   if(b.size() == 1 and m_tree[b.front()].terminal) {
+   if(is_terminal) {
       m_beliefs[my_id].terminal = true;
       m_beliefs[my_id].leaf_index = m_leaf_by_world.at(b.front());
       return my_id;
@@ -390,7 +434,7 @@ auto TeamBeliefDAG< Env >::_make_active(std::vector< NodeId > b) -> BeliefId
       );
    }
    m_beliefs[my_id].prescriptions.reserve(total);
-   m_beliefs[my_id].prescription_children.reserve(total);
+   m_beliefs[my_id].prescription_children.resize(total);
    {
       std::vector< size_t > odometer(n_slots, 0);
       for([[maybe_unused]] auto _ : std::views::iota(size_t{0}, total)) {
@@ -427,6 +471,11 @@ auto TeamBeliefDAG< Env >::_make_active(std::vector< NodeId > b) -> BeliefId
                break;
             }
          }
+         if(slot_pos == npos) [[unlikely]] {
+            throw std::logic_error(
+               "TeamBeliefDAG: team decision world has no matching belief slot"
+            );
+         }
          const auto action_idx = m_beliefs[my_id].prescriptions[presc_idx].slot_action_idx.at(
             slot_pos
          );
@@ -453,6 +502,9 @@ auto TeamBeliefDAG< Env >::_make_inactive(std::vector< NodeId > o, BeliefId pare
 {
    std::ranges::sort(o);
    o.erase(std::ranges::unique(o).begin(), o.end());
+   if(o.empty()) [[unlikely]] {
+      throw std::logic_error("TeamBeliefDAG: encountered an empty inactive label");
+   }
 
    if(auto found = m_inactive_ids.find(o); found != m_inactive_ids.end()) {
       const InactiveId existing = found->second;
@@ -464,7 +516,7 @@ auto TeamBeliefDAG< Env >::_make_inactive(std::vector< NodeId > o, BeliefId pare
       }
       return existing;
    }
-   if(m_config.max_dag_nodes - (m_beliefs.size() + m_inactives.size()) < 2) {
+   if(node_count() >= m_config.max_dag_nodes) {
       throw std::length_error(
          "TeamBeliefDAG exceeded max_dag_nodes=" + std::to_string(m_config.max_dag_nodes)
          + "; the game appears too large for an exact TB-DAG construction"
@@ -480,9 +532,6 @@ auto TeamBeliefDAG< Env >::_make_inactive(std::vector< NodeId > o, BeliefId pare
 
    // ---- connected components of G[O] (union-find over pair connectivity) -------------------
    const size_t n = o.size();
-   if(n == 0) [[unlikely]] {
-      throw std::logic_error("TeamBeliefDAG: encountered an empty inactive label");
-   }
    std::vector< size_t > uf(n);
    std::iota(uf.begin(), uf.end(), size_t{0});
    const auto find_root = [&](size_t x) {
@@ -521,10 +570,8 @@ auto TeamBeliefDAG< Env >::_make_inactive(std::vector< NodeId > o, BeliefId pare
    std::vector< BeliefId > component_ids;
    {
       std::unordered_map< size_t, std::vector< NodeId > > buckets;
-      for(auto world : m_inactives[my_id].worlds) {
-         buckets[find_root(static_cast< size_t >(&m_tree[world] - m_tree.data()))].emplace_back(
-            world
-         );
+      for(auto [position, world] : std::views::enumerate(m_inactives[my_id].worlds)) {
+         buckets[find_root(static_cast< size_t >(position))].emplace_back(world);
       }
       std::vector< std::vector< NodeId > > comps;
       comps.reserve(buckets.size());

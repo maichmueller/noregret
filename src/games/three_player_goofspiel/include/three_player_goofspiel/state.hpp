@@ -92,8 +92,8 @@ enum class Phase : uint8_t {
  * Team members are alex and bob acting independently against the adversarial cedric -- no
  * intra-team communication during play. Scoring is zero-sum with an EQUAL SPLIT of the team's
  * accumulated score between the members (the payoff-split rule of the TB-DAG papers'
- * experiments): every team member receives 0.5*(team_score - cedric_score) and cedric the
- * negation.
+ * experiments): every team member receives 0.5*(team_score - cedric_score), and cedric
+ * receives the negation of the sum of those team-member payoffs.
  *
  * Two deal modes exist:
  * - identical (classic goofspiel): everyone holds the full deck 1..k. The team then has NO
@@ -189,8 +189,8 @@ class State {
     */
    [[nodiscard]] double chance_probability(ChanceOutcome outcome) const;
 
-   /// zero-sum reward: 0.5*(team score) - score(cedric) for team members and its negation for
-   /// cedric; 0 before terminality
+   /// zero-sum reward: 0.5*(team score - cedric score) for each team member and the negation of
+   /// their sum for cedric; 0 before terminality
    [[nodiscard]] double payoff(Player player) const;
 
    ////////////////////////
@@ -570,7 +570,7 @@ inline double State::payoff(Player player) const
       // equal-split payoff rule of the TB-DAG papers' experiments
       return 0.5 * (team_score - opp_score);
    }
-   return opp_score - 0.5 * team_score;
+   return opp_score - team_score;
 }
 
 }  // namespace three_player_goofspiel
