@@ -968,6 +968,25 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
    }
    auto& this_node = _infonode(this_infostate);
    const auto& actions = this_node.actions();
+   /// indexed view over this visit's cached recommendation table; consumed/restored by the
+   /// OPPONENT-AWARE (RNR/DBR) blending hooks below (repairs a latent undeclared-name bug).
+   /// Materializes the cache on first touch with the historical uniform default so that
+   /// first-iteration visits behave exactly like the former fetch_policy<current> reads.
+   struct CachedRecommendationView {
+      infostate_data_type* node;
+      double& operator[](const action_type& action)
+      {
+         auto& cache = node->current_strategy();
+         const size_t idx = node->index_of(action);
+         if(cache.empty()) {
+            const double uniform_prob =
+               node->actions().empty() ? 0. : 1. / static_cast< double >(node->actions().size());
+            cache.assign(node->actions().size(), uniform_prob);
+         }
+         return cache[idx];
+      }
+   };
+   CachedRecommendationView action_policy{&this_node};
    if constexpr(config.warm_start_iterations > 0 and use_current_policy) {
       // WARM START pre-play phase: while warm_start_active(_iteration()) holds, EVERY
       // player's played strategy is forced to the fixed warm-start policy by overwriting

@@ -44,6 +44,7 @@ register_nor_target(${nor_test}_exploitability test_exploitability.cpp)
 register_nor_target(${nor_test}_variance_reduction test_variance_reduction.cpp)
 register_nor_target(${nor_test}_opponent_aware_rnr test_opponent_aware_rnr.cpp)
 register_nor_target(${nor_test}_opponent_aware_dbr test_opponent_aware_dbr.cpp)
+register_nor_target(${nor_test}_team_dag test_team_belief_dag.cpp)
 # for the overall test executable we simply merge all other test files together
 foreach(sources_list IN LISTS REGISTERED_TEST_SOURCES_LIST)
     list(APPEND NOR_TEST_SOURCES ${${sources_list}})
@@ -72,6 +73,12 @@ if(ENABLE_GAMES
    AND TARGET colonel_blotto)
     # the EFCP suite additionally exercises the header-only centipede and colonel blotto beds
     target_link_libraries(${nor_test}_all PRIVATE centipede colonel_blotto)
+endif()
+
+if(ENABLE_GAMES AND TARGET three_player_goofspiel)
+    # the team-belief-DAG test covers the header-only three-player goofspiel benchmark
+    target_link_libraries(${nor_test}_team_dag PRIVATE three_player_goofspiel)
+    target_link_libraries(${nor_test}_all PRIVATE three_player_goofspiel)
 endif()
 
 # the test of all parts needs an extra linkage for the pybind11 components and Python

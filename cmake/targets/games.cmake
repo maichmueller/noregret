@@ -103,6 +103,17 @@ add_library(goofspiel INTERFACE)
 target_include_directories(goofspiel INTERFACE ${PROJECT_GAMES_DIR}/goofspiel/include)
 
 target_link_libraries(goofspiel INTERFACE required_min_libs common)
+
+# ######################################################################################################################
+# Three-Player Goofspiel -- adversarial-team benchmark (2 members vs 1 opponent, equal-split team payoff) for the
+# Team-Belief-DAG subsystem of Zhang et al., ICML 2022 (header-only)
+# ######################################################################################################################
+
+add_library(three_player_goofspiel INTERFACE)
+
+target_include_directories(three_player_goofspiel INTERFACE ${PROJECT_GAMES_DIR}/three_player_goofspiel/include)
+
+target_link_libraries(three_player_goofspiel INTERFACE required_min_libs common)
 # Battleship (header-only)
 # ######################################################################################################################
 
