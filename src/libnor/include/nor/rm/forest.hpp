@@ -387,6 +387,12 @@ void InfostateTree< Env >::build(Player owning_player, player_policies_type play
    if(not utils::is_actual_player_pred(owning_player)) {
       throw std::invalid_argument("InfostateTree::build requires an actual owning player.");
    }
+   const auto roster = m_env.players(*m_root_state);
+   if(std::ranges::find(roster, owning_player) == roster.end()) {
+      throw std::invalid_argument(
+         "InfostateTree::build owning player is not part of the root roster."
+      );
+   }
 
    using observation_buffer_type = player_hashmap<
       std::vector< std::pair< observation_type, observation_type > > >;

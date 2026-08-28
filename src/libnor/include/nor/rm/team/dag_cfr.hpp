@@ -104,16 +104,19 @@ class AdversarialTeamDagCfr {
 
    AdversarialTeamDagCfr(Env env, Config config)
       requires concepts::has::method::initial_world_state< Env >
-       : AdversarialTeamDagCfr(
-          std::move(env),
-          std::make_unique< auto_world_state_type< Env > >(env.initial_world_state()),
-          std::move(config)
-       )
+       : m_env(std::move(env)), m_config(std::move(config))
    {
+      _initialize(std::make_unique< auto_world_state_type< Env > >(m_env.initial_world_state()));
    }
 
    AdversarialTeamDagCfr(Env env, uptr< auto_world_state_type< Env > > root_state, Config config)
        : m_env(std::move(env)), m_config(std::move(config))
+   {
+      _initialize(std::move(root_state));
+   }
+
+  private:
+   void _initialize(uptr< auto_world_state_type< Env > > root_state)
    {
       if(not root_state) {
          throw std::invalid_argument("AdversarialTeamDagCfr: root_state must not be null");
@@ -189,6 +192,7 @@ class AdversarialTeamDagCfr {
       m_rt[k_adversary_plane].allocate(m_planes[k_adversary_plane]);
    }
 
+  public:
    AdversarialTeamDagCfr(const AdversarialTeamDagCfr&) = delete;
    AdversarialTeamDagCfr& operator=(const AdversarialTeamDagCfr&) = delete;
    AdversarialTeamDagCfr(AdversarialTeamDagCfr&&) = default;

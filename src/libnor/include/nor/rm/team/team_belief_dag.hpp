@@ -179,12 +179,17 @@ class TeamBeliefDAG {
 
    TeamBeliefDAG(Env env, Config config)
       requires concepts::has::method::initial_world_state< Env >
-       : TeamBeliefDAG(
-          std::move(env),
-          std::make_unique< world_state_type >(env.initial_world_state()),
-          std::move(config)
-       )
+       : m_env(std::move(env)),
+         m_root_state(std::make_unique< world_state_type >(m_env.initial_world_state())),
+         m_config(std::move(config))
    {
+      if(m_config.members.empty()) {
+         throw std::invalid_argument("TeamBeliefDAG: 'members' must be non-empty");
+      }
+      if(m_config.max_dag_nodes == 0) {
+         throw std::invalid_argument("TeamBeliefDAG: max_dag_nodes must be positive");
+      }
+      _build();
    }
 
    TeamBeliefDAG(Env env, uptr< world_state_type > root_state, Config config)

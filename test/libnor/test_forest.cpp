@@ -109,6 +109,7 @@ TEST(InfostateTree, deterministicOwnerReachAndNodeOwnership)
    }
 
    EXPECT_THROW(moved_tree.build(Player::chance, {}), std::invalid_argument);
+   EXPECT_THROW(moved_tree.build(Player::cedric, {}), std::invalid_argument);
 }
 
 TEST(InfostateTree, stochasticChanceProbabilitiesAndBufferedObservations)
