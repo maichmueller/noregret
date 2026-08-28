@@ -80,7 +80,7 @@ TEST(EFCPStructure, decomposition_shape_invariants_on_chance_free_beds)
       games::rps::State root{};
       corr::SequenceFormOracle< Env > oracle(env, root);
       corr::CorrelationPlanSpace< Env > space(oracle);
-      // serialized RPS: one infoset per player, all nine pairs relevant
+      // serialized RPS: one infoset per player, all 4x4 sequence pairs relevant
       EXPECT_EQ(space.relevant_pair_count(), size_t(16));
       EXPECT_GT(space.decomposition_ops().size(), size_t{0});
       size_t fills = 0;
@@ -139,6 +139,41 @@ TEST(EFCPStructure, rejects_chance_games_outside_the_solver_scope)
    corr::SequenceFormOracle< Env > oracle(env, root);
    EXPECT_THROW((corr::CorrelationPlanSpace< Env >(oracle)), std::invalid_argument);
    EXPECT_THROW((corr::EFCP< Env >(env, root)), std::invalid_argument);
+}
+
+TEST(EFCPStructure, feasibility_audit_includes_plan_primitives)
+{
+   using Env = games::rps::Environment;
+   Env env{};
+   games::rps::State root{};
+   corr::SequenceFormOracle< Env > oracle(env, root);
+   corr::CorrelationPlanSpace< Env > space(oracle);
+
+   std::vector< double > zero_plan(space.relevant_pair_count(), 0.);
+   const auto residual = space.feasibility_residual(zero_plan);
+   EXPECT_DOUBLE_EQ(residual.linf, 1.);
+   EXPECT_DOUBLE_EQ(residual.l1, 1.);
+   EXPECT_THROW(
+      (void) space.feasibility_residual(std::vector< double >(space.relevant_pair_count() - 1, 0.)),
+      std::invalid_argument
+   );
+}
+
+TEST(EFCPStructure, omits_flow_rows_for_disconnected_descendant_infosets)
+{
+   using Env = games::centipede::Environment;
+   const games::centipede::Config config{/*rounds*/ 3, /*pile_big*/ 4, /*pile_small*/ 1};
+   Env env{config};
+   games::centipede::State root{config};
+   corr::SequenceFormOracle< Env > oracle(env, root);
+   corr::CorrelationPlanSpace< Env > space(oracle);
+
+   // A parent sequence can remain relevant to an opponent sequence after the
+   // descendant infoset has become unreachable. Such a pair has no Definition-3
+   // row; an empty left-hand side would incorrectly force the parent mass to zero.
+   EXPECT_TRUE(std::ranges::all_of(space.constraints(), [](const auto& row) {
+      return not row.lhs_terms.empty();
+   }));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

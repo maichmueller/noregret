@@ -338,15 +338,38 @@ class CorrelationPlanSpace {
    };
    [[nodiscard]] FeasibilityResidual feasibility_residual(const std::vector< double >& plan) const
    {
+      if(plan.size() != m_rel_coords.size()) {
+         throw std::invalid_argument(
+            "CorrelationPlanSpace::feasibility_residual: plan dimension mismatch"
+         );
+      }
       FeasibilityResidual out{};
+      const auto record_violation = [&](double violation) {
+         if(not std::isfinite(violation)) {
+            out.linf = std::numeric_limits< double >::infinity();
+            out.l1 = std::numeric_limits< double >::infinity();
+            return;
+         }
+         out.linf = std::max(out.linf, violation);
+         out.l1 += violation;
+      };
+
+      // Xi is a normalized non-negative correlation plan, not merely a solution of
+      // the homogeneous flow equations.  Keep these primitive constraints in the
+      // audit so arbitrary caller-supplied plans cannot receive a false zero residual.
+      for(const double value : plan) {
+         record_violation(std::max(0., -value));
+      }
+      record_violation(
+         std::abs(plan.at(size_t(index_of(k_empty_sequence_id, k_empty_sequence_id))) - 1.)
+      );
       for(const auto& constraint : m_constraints) {
          double lhs = 0.;
          for(const auto& [coord, coefficient] : constraint.lhs_terms) {
             lhs += coefficient * plan.at(size_t(coord));
          }
          const double diff = std::abs(lhs - plan.at(size_t(constraint.rhs)));
-         out.linf = std::max(out.linf, diff);
-         out.l1 += diff;
+         record_violation(diff);
       }
       return out;
    }
@@ -613,6 +636,19 @@ class CorrelationPlanSpace {
                entry.rhs = slot == 0 ? index_of(parent, tau) : index_of(tau, parent);
                if(entry.rhs < 0) {
                   continue;  // off-diagonal redundant pair outside Xi's support
+               }
+               // Definition 3 has a row only when the current infoset is connected
+               // to the opponent sequence.  The parent coordinate may still be
+               // relevant through an earlier infoset; treating that coordinate as
+               // zero here would incorrectly manufacture an empty-LHS equation.
+               if(tau != k_empty_sequence_id) {
+                  const auto& opponent_sequence = m_sequences[other_slot][size_t(tau)];
+                  const bool is_connected = slot == 0
+                                               ? m_connected[iid][opponent_sequence.owner_infoset]
+                                               : m_connected[opponent_sequence.owner_infoset][iid];
+                  if(not is_connected) {
+                     continue;
+                  }
                }
                for(int32_t child : child_seqs) {
                   const int32_t lhs_coord = slot == 0 ? index_of(child, tau) : index_of(tau, child);

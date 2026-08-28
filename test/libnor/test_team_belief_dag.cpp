@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <numeric>
+#include <random>
 #include <ranges>
 #include <set>
 #include <string>
@@ -602,6 +603,58 @@ TEST(TeamBeliefDagConstruction, partition_matches_independent_oracle_deck2_limit
    compare_with_oracle(tpg::GoofspielConfig{.deck_size = 2, .imp_info = true});
 }
 
+TEST(TeamBeliefDagConstruction, sampled_larger_labels_match_independent_oracle)
+{
+   // Keep this regression on a legal full-depth fixture.  A split deal can leave a member with
+   // no card before the game reaches its terminal phase; the environment intentionally exposes
+   // that as a zero-action decision rather than inventing a pass action.  The larger limited-
+   // information fixture still exercises many contextual labels without changing those rules.
+   const tpg::GoofspielConfig cfg{.deck_size = 3, .imp_info = true};
+   const auto dag = make_team_dag(cfg);
+   validate_dag_structure(dag);
+
+   Oracle oracle{};
+   oracle.enumerate(EnvT(cfg));
+   ASSERT_EQ(oracle.worlds.size(), dag.tree_node_count());
+
+   // Labels are contextual inactive nodes, not global partition tokens. Sample within
+   // each label and compare its actual connected components with the literal oracle
+   // predicate, preserving the independently derived Definition 4.1 check without
+   // turning this larger regression case into an O(|H|^2) global comparison.
+   std::mt19937_64 rng{0x9E3779B97F4A7C15ull};
+   size_t checked_pairs = 0;
+   size_t connected_pairs = 0;
+   for(auto inactive_id : std::views::iota(size_t{0}, dag.inactive_count())) {
+      const auto& inactive = dag.inactive(inactive_id);
+      if(inactive.worlds.size() < 2) {
+         continue;
+      }
+      std::unordered_map< size_t, size_t, common::value_hasher< size_t > > component_of;
+      for(auto [component, belief_id] : std::views::enumerate(inactive.components)) {
+         for(const auto world : dag.belief(belief_id).worlds) {
+            ASSERT_TRUE(component_of.emplace(world, static_cast< size_t >(component)).second);
+         }
+      }
+      ASSERT_EQ(component_of.size(), inactive.worlds.size());
+
+      std::uniform_int_distribution< size_t > pick(0, inactive.worlds.size() - 1);
+      constexpr size_t kSamplesPerLabel = 8;
+      for([[maybe_unused]] auto sample : std::views::iota(size_t{0}, kSamplesPerLabel)) {
+         const size_t first = inactive.worlds[pick(rng)];
+         const size_t second = inactive.worlds[pick(rng)];
+         const bool actual = component_of.at(first) == component_of.at(second);
+         const bool expected = oracle_connected(oracle, first, second);
+         EXPECT_EQ(actual, expected) << "connectivity mismatch in inactive " << inactive_id
+                                     << " for worlds " << first << "," << second;
+         ++checked_pairs;
+         connected_pairs += expected;
+      }
+   }
+   EXPECT_GT(checked_pairs, size_t{1000});
+   EXPECT_GT(connected_pairs, size_t{0});
+   EXPECT_GT(dag.stats().max_belief_size, size_t{1});
+}
+
 TEST(TeamBeliefDagConstruction, exact_node_bound_rejects_nonterminal_expansion)
 {
    EXPECT_THROW(
@@ -781,6 +834,93 @@ TEST(DagCfrDecentralization, extracted_policies_are_normalized_and_keep_joint_pl
          EXPECT_NEAR(total, 1., 1e-8) << "marginal distributions must be normalized";
       }
    }
+}
+
+TEST(DagCfrDecentralization, extracted_policies_are_executable_through_observation_plumbing)
+{
+   using Solver = rm::team::AdversarialTeamDagCfr< EnvT >;
+   const tpg::GoofspielConfig cfg{.deck_size = 3};
+   Solver::Config config{};
+   config.team_members = {Player::alex, Player::bob};
+   Solver solver(EnvT(cfg), config);
+   solver.iterate(512);
+
+   const auto policies = solver.decentralized_policies(Solver::k_team_plane);
+   using ISType = EnvT::info_state_type;
+
+   std::mt19937_64 rng{1234567};
+   player_hashmap< sptr< ISType > > istates{};
+   player_hashmap< std::vector< std::pair< EnvT::observation_type, EnvT::observation_type > > >
+      obuffers{};
+   const EnvT env{cfg};
+   for(auto player : env.players(solver.dag(Solver::k_team_plane).root_state())) {
+      if(player == Player::chance) {
+         continue;
+      }
+      istates[player] = std::make_shared< ISType >(player);
+      obuffers[player] = {};
+   }
+
+   size_t team_decisions = 0;
+   constexpr size_t kRollouts = 2000;
+   for([[maybe_unused]] auto rollout : std::views::iota(size_t{0}, kRollouts)) {
+      for(auto& [player, holder] : istates) {
+         holder = std::make_shared< ISType >(player);
+         obuffers.at(player).clear();
+      }
+      auto state = solver.dag(Solver::k_team_plane).root_state();
+      while(not env.is_terminal(state)) {
+         const Player acting = env.active_player(state);
+         if(acting == Player::chance) {
+            const auto outcomes = env.chance_actions(state);
+            ASSERT_FALSE(outcomes.empty());
+            std::uniform_int_distribution< size_t > pick(0, outcomes.size() - 1);
+            const auto& chosen = outcomes[pick(rng)];
+            auto next_holder = child_state(env, state, chosen);
+            next_infostate_and_obs_buffers_inplace(
+               env, obuffers, istates, state, chosen, *next_holder
+            );
+            state = *next_holder;
+            continue;
+         }
+
+         const auto acts = env.actions(acting, state);
+         ASSERT_FALSE(acts.empty());
+         auto chosen = acts.front();
+         if(solver.dag(Solver::k_team_plane).slot_of(acting)
+            != solver.dag(Solver::k_team_plane).npos) {
+            const auto& current = *istates.at(acting);
+            const auto found = policies.at(acting).find(current);
+            ASSERT_NE(found, policies.at(acting).end());
+            const auto& policy = found->second;
+            ASSERT_GT(policy.size(), size_t{0});
+            EXPECT_EQ(policy.size(), acts.size());
+            for(const auto& [action, probability] : policy) {
+               static_cast< void >(probability);
+               EXPECT_TRUE(std::ranges::contains(acts, action));
+            }
+            for(const auto& action : acts) {
+               EXPECT_TRUE(policy.contains(action));
+            }
+            // The marginal policy is deliberately checked as an executable view here.  Its
+            // rollout frequencies are not compared with the table: the table is a belief-flow
+            // marginal, while an exploratory world rollout has a different conditioning measure.
+            chosen = policy.begin()->first;
+            ++team_decisions;
+         } else {
+            // Keep the opponent exploratory so the execution test sees many information states.
+            std::uniform_int_distribution< size_t > pick(0, acts.size() - 1);
+            chosen = acts[pick(rng)];
+         }
+
+         auto next_holder = child_state(env, state, chosen);
+         next_infostate_and_obs_buffers_inplace(
+            env, obuffers, istates, state, chosen, *next_holder
+         );
+         state = *next_holder;
+      }
+   }
+   EXPECT_GT(team_decisions, size_t{10});
 }
 
 TEST(DagCfr, custom_root_is_shared_by_both_planes)

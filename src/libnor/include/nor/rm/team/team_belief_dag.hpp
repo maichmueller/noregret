@@ -92,7 +92,8 @@ class TeamBeliefDAG {
       /// the cooperating team members (>= 1 seat). All remaining participants of the root
       /// roster act as the adversarial block (or are inert scenery for degenerate configs).
       std::vector< Player > members{};
-      /// upper bound on the number of DAG nodes constructed; a blowup beyond this throws.
+      /// upper bound on both the materialized world-tree and DAG nodes; a blowup beyond this
+      /// throws before the exact construction can exhaust memory.
       size_t max_dag_nodes = k_default_max_dag_nodes;
    };
 
@@ -364,6 +365,9 @@ class TeamBeliefDAG {
    struct MemberRegistry {
       Player player = Player::unknown;
       std::vector< sptr< info_state_type > > representatives;
+      /// depth of each local infoset; the TB-DAG theorem requires a timeable decision problem
+      /// (one fixed layer per team infoset).
+      std::vector< size_t > depths;
       std::unordered_map<
          info_state_type,
          size_t,

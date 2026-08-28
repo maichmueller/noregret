@@ -149,11 +149,18 @@ void TeamBeliefDAG< Env >::_enumerate_visit(world_state_type& state, NodeId node
          registry.representatives.emplace_back(istate);
          const size_t global_id = m_infoset_global_count++;
          registry.local_ids.emplace_back(global_id);
+         registry.depths.emplace_back(depth);
          m_infoset_owner.emplace_back(active_player);
          m_tree[node_id].infoset_local = id_it->second;
          m_tree[node_id].infoset_global = global_id;
          m_infoset_actions.emplace_back(m_env.actions(active_player, state));
       } else {
+         if(registry.depths.at(id_it->second) != depth) [[unlikely]] {
+            throw std::invalid_argument(
+               "TeamBeliefDAG requires a timeable decision problem: one team infoset appears "
+               "at multiple tree depths"
+            );
+         }
          m_tree[node_id].infoset_local = id_it->second;
          m_tree[node_id].infoset_global = registry.local_ids.at(id_it->second);
       }
@@ -173,6 +180,12 @@ void TeamBeliefDAG< Env >::_enumerate_visit(world_state_type& state, NodeId node
       for(const auto& action : actions) {
          EdgeUndo undo;
          world_state_type& next = _advance_edge(state, depth, action, undo);
+         if(m_tree.size() >= m_config.max_dag_nodes) {
+            throw std::length_error(
+               "TeamBeliefDAG exceeded max_dag_nodes=" + std::to_string(m_config.max_dag_nodes)
+               + " while materializing the world tree"
+            );
+         }
          NodeId child = m_tree.size();
          m_tree.emplace_back();
          m_tree.back().depth = depth + 1;
@@ -188,6 +201,12 @@ void TeamBeliefDAG< Env >::_enumerate_visit(world_state_type& state, NodeId node
       const auto descend = [&](const auto& edge, double edge_weight) {
          EdgeUndo undo;
          world_state_type& next = _advance_edge(state, depth, edge, undo);
+         if(m_tree.size() >= m_config.max_dag_nodes) {
+            throw std::length_error(
+               "TeamBeliefDAG exceeded max_dag_nodes=" + std::to_string(m_config.max_dag_nodes)
+               + " while materializing the world tree"
+            );
+         }
          NodeId child = m_tree.size();
          m_tree.emplace_back();
          m_tree.back().depth = depth + 1;
