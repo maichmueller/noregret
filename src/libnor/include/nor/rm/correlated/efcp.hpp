@@ -55,9 +55,9 @@ namespace nor::rm::correlated {
  * the trigger sequence sigma_k = (I_k, a_k) ("treeplex rooted at
  * sigma(I_k)"). Alternating updates and linear averaging drive the average
  * correlation plan to a minimax point of the saddle-point reformulation of
- * Farina et al. 2019c, i.e. an extensive-form correlated equilibrium; running
- * it on the raw bilinear payoff selects a high-social-welfare mediation on the
- * repo's general-sum beds.
+ * Farina et al. 2019c, i.e. an extensive-form correlated equilibrium. Social
+ * welfare is a diagnostic of the returned mediation; this raw regret objective
+ * does not impose a welfare-maximization criterion.
  *
  * SCOPE CAVEATS (explicit, deliberate): losses are evaluated through
  * terminal and reduced-plan enumeration (polynomial objects, quadratic in the
@@ -91,6 +91,9 @@ struct SimplexRMPlus {
    /// clamps in place and matches on positive cumulative mass
    [[nodiscard]] std::vector< double > recommend()
    {
+      if(regret.empty()) {
+         return {};
+      }
       double pos_sum = 0.;
       for(double& value : regret) {
          value = std::max(0., value);
@@ -170,9 +173,8 @@ class CorrelationPlanSpace {
          throw std::invalid_argument("CorrelationPlanSpace: exactly two players required");
       }
       m_players = {roster.at(0), roster.at(1)};
-      if constexpr(requires { Env::stochasticity(); }) {
-         static_assert(
-            Env::stochasticity() == Stochasticity::deterministic,
+      if constexpr(not concepts::deterministic_env< Env >) {
+         throw std::invalid_argument(
             "EFCP requires a chance-free environment (the von Stengel-Forges "
             "correlation-plan polytope characterization holds only without "
             "chance moves)"
@@ -303,6 +305,9 @@ class CorrelationPlanSpace {
    [[nodiscard]] bool sequence_is_at_or_below(Player player, int32_t descendant, int32_t ancestor)
       const
    {
+      if(descendant == ancestor) {
+         return true;
+      }
       if(ancestor == k_empty_sequence_id) {
          return true;
       }
@@ -386,6 +391,10 @@ class CorrelationPlanSpace {
    void _build_sequences_and_chains()
    {
       const size_t n_terms = m_oracle.terminal_count();
+      std::array<
+         std::unordered_map< uint32_t, std::optional< std::pair< uint32_t, uint32_t > > >,
+         2 >
+         parent_keys{};
 
       for(auto slot : std::views::iota(size_t{0}, size_t{2})) {
          SequenceRecord empty_rec{};
@@ -401,6 +410,18 @@ class CorrelationPlanSpace {
             const auto& sig = m_oracle.terminal(z).signatures[slot];
             for(auto step : std::views::iota(size_t{0}, sig.size())) {
                const auto key = sig[step];
+               const std::optional< std::pair< uint32_t, uint32_t > >
+                  parent = step == 0
+                              ? std::nullopt
+                              : std::optional< std::pair< uint32_t, uint32_t > >{sig[step - 1]};
+               if(const auto found = parent_keys[slot].find(key.first);
+                  found != parent_keys[slot].end() and found->second != parent) {
+                  throw std::invalid_argument(
+                     "EFCP requires perfect recall: an information set has "
+                     "inconsistent preceding own actions"
+                  );
+               }
+               parent_keys[slot].insert_or_assign(key.first, parent);
                if(m_seq_ids[slot].contains(key)) {
                   continue;
                }
@@ -930,20 +951,10 @@ class EFCP {
          m_oracle(m_env, *m_root),
          m_space(m_oracle)
    {
-      constexpr bool chance_free = not requires {
-         typename Env::chance_outcome_type;
-      } or std::is_same_v< typename Env::chance_outcome_type, void > or (requires {
-         Env::stochasticity();
-      } and Env::stochasticity() == Stochasticity::deterministic);
-      if constexpr(! chance_free) {
-         throw std::invalid_argument(
-            "EFCP: environments with chance moves are outside the scope of "
-            "extensive-form correlation-plan solvers"
-         );
-      }
       _initialize_reward_scale();
       _build_mediator_circuit();
       _build_deviator_circuit();
+      (void) _recommend_mediator();
    }
 
    ///////////////////////////////
@@ -960,14 +971,22 @@ class EFCP {
          for(double& entry : mediator_loss) {
             entry /= m_reward_scale;
          }
-         _recommend_mediator();  // materializes xi before observing
+         (void) _recommend_mediator();  // materializes xi before observing
          _observe_mediator(mediator_loss);
          _accumulate_average(avg_weight);
 
          // ---- alternating deviator refresh against the new mediator plan ----
          const auto& xi_next = _recommend_mediator();
+         std::vector< double > trigger_values;
+         trigger_values.reserve(m_blocks.size());
+         for(const auto& block : m_blocks) {
+            trigger_values.push_back(_trigger_component_value(block, xi_next));
+         }
+         const double lambda_value = std::inner_product(
+            m_lambda_weights.begin(), m_lambda_weights.end(), trigger_values.begin(), 0.
+         );
          for(auto block_idx : std::views::iota(size_t{0}, m_blocks.size())) {
-            _observe_trigger_component(block_idx, xi_next);
+            _observe_trigger_component(block_idx, xi_next, lambda_value);
             _refresh_trigger_component(block_idx);
          }
          // hull mixing weights move once per completed round
@@ -985,8 +1004,7 @@ class EFCP {
    {
       std::vector< double > out;
       if(m_average_weight_sum <= 0.) {
-         out.assign(m_space.relevant_pair_count(), 0.);
-         return out;
+         return m_current_plan;
       }
       out.reserve(m_avg_plan.size());
       for(double acc : m_avg_plan) {
@@ -1010,6 +1028,7 @@ class EFCP {
    {
       (void) _recommend_mediator();
       _observe_mediator(loss);
+      (void) _recommend_mediator();
    }
 
    ////////////////////////////////////
@@ -1247,6 +1266,14 @@ class EFCP {
                weighted_child_mass += policy[idx] * child_loss;
                child_scratch.push_back(child_loss);
             }
+            for(auto idx : std::views::iota(size_t{0}, child_scratch.size())) {
+               // SimplexRMPlus matches utilities (negative losses).  The
+               // subtracting the local policy average turns losses into the
+               // external-regret increments consumed by the kernel.  A
+               // scaled extension intentionally leaves the source scale in
+               // the global regret bound; it is not another local weight.
+               child_scratch[idx] = weighted_child_mass - child_scratch[idx];
+            }
             kernel.observe_span(child_scratch.data(), child_scratch.size());
             buffer[size_t(op.source)] += weighted_child_mass;
          } else {
@@ -1279,24 +1306,49 @@ class EFCP {
       return std::vector< double >(m_space.sequence_count(m_space.player(slot)), 0.);
    }
 
+   [[nodiscard]] double
+   _trigger_component_value(const TriggerBlock& block, const std::vector< double >& xi) const
+   {
+      const Player player = m_space.player(block.slot);
+      const size_t other_slot = size_t{1} - block.slot;
+      double value = 0.;
+      for(auto z : m_space.terminals_through(player, block.infoset)) {
+         const double reward = m_oracle.terminal_reward(z, player);
+         if(reward == 0.) {
+            continue;
+         }
+         const int32_t tau = m_terminal_last_sequence[block.slot][z];
+         const int32_t tau_other = m_terminal_last_sequence[other_slot][z];
+         const int32_t gain_coord = block.slot == 0 ? m_space.index_of(block.sigma_sid, tau_other)
+                                                    : m_space.index_of(tau_other, block.sigma_sid);
+         value += reward * xi.at(size_t(gain_coord)) * block.realization.at(size_t(tau));
+      }
+      for(auto z : m_space.terminals_by_step(player, block.infoset, block.action)) {
+         value -= m_oracle.terminal_reward(z, player)
+                  * xi.at(size_t(m_space.terminal_pair_coordinate(z)));
+      }
+      return value;
+   }
+
    /**
-    * folds the component's counterfactual losses (gain-side scatter only -- the
-    * obedient side is constant in the deviation strategy) into its treeplex
-    * kernels, and reports the trigger's total value into the hull mixing
-    * kernel. The component gradient is compensated by its own current mixing
-    * mass (losses are consumed in q-space rather than lambda*q-space -- the
-    * convex-hull circuit's rescale-to-simplex compensation); starved components
-    * freeze until their mass revives.
+    * folds the component's counterfactual utility (gain-side scatter only --
+    * the obedient side is constant in the response strategy) into its treeplex
+    * kernels, and reports the trigger's total utility into the hull mixing
+    * kernel. The scaled-extension circuit consumes response gradients in
+    * q-space; source realization scales are accounted for by the circuit's
+    * regret bound rather than applied a second time to local updates.
     */
-   void _observe_trigger_component(size_t block_idx, const std::vector< double >& xi)
+   void _observe_trigger_component(
+      size_t block_idx,
+      const std::vector< double >& xi,
+      double lambda_value
+   )
    {
       TriggerBlock& block = m_blocks[block_idx];
       const Player player = m_space.player(block.slot);
       const size_t other_slot = size_t{1} - block.slot;
-      const size_t lam_idx = block.lambda_index;
 
       auto gradient = _zero_gradient_buffer(block.slot);
-      double total_value = 0.;
 
       for(auto z : m_space.terminals_through(player, block.infoset)) {
          const double reward = m_oracle.terminal_reward(z, m_space.player(block.slot));
@@ -1307,23 +1359,14 @@ class EFCP {
          const int32_t tau_other = m_terminal_last_sequence[other_slot][z];
          const int32_t gain_coord = block.slot == 0 ? m_space.index_of(block.sigma_sid, tau_other)
                                                     : m_space.index_of(tau_other, block.sigma_sid);
-         gradient[size_t(tau)] += reward * xi[size_t(gain_coord)];
-         total_value += reward * xi[size_t(gain_coord)] * block.realization[size_t(tau)];
-      }
-      for(auto z : m_space.terminals_by_step(player, block.infoset, block.action)) {
-         const double reward = m_oracle.terminal_reward(z, m_space.player(block.slot));
-         total_value -= reward * xi[size_t(m_space.terminal_pair_coordinate(z))];
+         gradient[size_t(tau)] += reward * xi.at(size_t(gain_coord));
       }
 
-      m_lambda_kernel.observe(lam_idx, -(total_value / m_reward_scale));
-
-      const double lambda_mass = m_lambda_weights[lam_idx];
-      if(lambda_mass <= 0.) {
-         return;  // hull-circuit corner: starved component freezes
-      }
-      for(double& entry : gradient) {
-         entry /= (m_reward_scale * lambda_mass);
-      }
+      // The hull player maximizes deviation gain, so its RM+ utility is the
+      // component's deviation-minus-obedience value.
+      m_lambda_kernel.observe(
+         block.lambda_index, (_trigger_component_value(block, xi) - lambda_value) / m_reward_scale
+      );
       for(size_t op_idx = block.chain.size(); op_idx-- > 0;) {
          const auto& op = block.chain[op_idx];
          auto& kernel = block.kernels[op.rm_index];
@@ -1331,7 +1374,13 @@ class EFCP {
          double weighted = 0.;
          for(auto idx : std::views::iota(size_t{0}, op.child_sids.size())) {
             weighted += policy[idx] * gradient[size_t(op.child_sids[idx])];
-            kernel.observe(idx, gradient[size_t(op.child_sids[idx])]);
+         }
+         for(auto idx : std::views::iota(size_t{0}, op.child_sids.size())) {
+            // The responding player maximizes utility.  As with CFR's
+            // action_value - state_value update, subtract the current
+            // local-policy value.  The source scale is accounted for by the
+            // scaled-extension regret bound rather than by this local kernel.
+            kernel.observe(idx, gradient[size_t(op.child_sids[idx])] - weighted);
          }
          gradient[size_t(op.source_sid)] += weighted;
       }
