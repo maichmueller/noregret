@@ -994,7 +994,9 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::_traverse_player_actions(
       }
    }
    /// OPPONENT-AWARE (RNR/DBR): pre-blend entries saved by the visit below and restored once
-   /// the action loop has consumed its probabilities (see the comment at the call site)
+   /// the action loop has consumed its probabilities (see the comment at the call site).
+   /// The blended table is the D1 node-record recommendation cache wrapped in an
+   /// action-keyed proxy so the blend helper keeps its keyed interface.
    std::vector< std::pair< action_type, double > > opponent_blend_saved_entries{};
    if constexpr(config.opponent_blend_mode != CFROpponentBlendMode::off and use_current_policy) {
       // OPPONENT-AWARE (RNR/DBR) played-policy blending: applied at EVERY visit to a modeled
