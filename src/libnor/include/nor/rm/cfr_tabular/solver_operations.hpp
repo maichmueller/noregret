@@ -25,8 +25,33 @@ namespace detail {
 /// solver's storage alive (or appear valid after the solver is destroyed).
 struct PolicyGeneration {
    size_t value = 0;
+   // C++ sessions are externally synchronized. This deliberately non-atomic counter adds no
+   // cost to the solver's node hot loop; it is held only for the duration of an explicit policy
+   // visitor so mutation can fail before invalidating the traversal's source map.
+   mutable size_t active_visits = 0;
 
    void invalidate() noexcept { ++value; }
+   void begin_visit() const noexcept { ++active_visits; }
+   void end_visit() const noexcept { --active_visits; }
+};
+
+class PolicyVisitGuard {
+  public:
+   explicit PolicyVisitGuard(std::shared_ptr< const PolicyGeneration > generation)
+       : m_generation(std::move(generation))
+   {
+      m_generation->begin_visit();
+   }
+
+   PolicyVisitGuard(const PolicyVisitGuard&) = delete;
+   PolicyVisitGuard& operator=(const PolicyVisitGuard&) = delete;
+   PolicyVisitGuard(PolicyVisitGuard&&) = delete;
+   PolicyVisitGuard& operator=(PolicyVisitGuard&&) = delete;
+
+   ~PolicyVisitGuard() { m_generation->end_visit(); }
+
+  private:
+   std::shared_ptr< const PolicyGeneration > m_generation;
 };
 
 template < typename T >
@@ -456,6 +481,10 @@ class TabularPolicyLookup {
    size_t visit(Fn&& fn) const
    {
       _check_current();
+      auto generation = m_generation.lock();
+      // _check_current() above establishes that this cannot be null. Keep a strong reference for
+      // the callback so destruction of the originating solver cannot invalidate the guard itself.
+      detail::PolicyVisitGuard visit_guard{std::move(generation)};
       size_t visited = 0;
       m_source.template for_each< Label >([&](const info_state_type& infostate, auto entry) {
          view_type< Label > view{
@@ -662,14 +691,28 @@ class TabularSolverOperations {
    template < typename Fn >
    decltype(auto) _run_step(Fn&& fn)
    {
-      _invalidate_policy_views();
+      _ensure_no_active_policy_visit();
+      // Keep the active-visitor check outside the traversal itself. The only work added to a
+      // normal iteration is this coarse operation boundary; node visits remain unchanged.
+      m_generation->invalidate();
       return std::invoke(std::forward< Fn >(fn));
    }
 
    void _invalidate_policy_views()
    {
+      _ensure_no_active_policy_visit();
       _ensure_generation();
       m_generation->invalidate();
+   }
+
+   void _ensure_no_active_policy_visit() const
+   {
+      _ensure_generation();
+      if(m_generation->active_visits != 0) {
+         throw std::logic_error(
+            "solver mutation during policy visitation is not allowed; finish the visitor first"
+         );
+      }
    }
 
    void _ensure_generation() const

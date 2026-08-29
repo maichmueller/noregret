@@ -56,6 +56,15 @@ foreach(sources_list IN LISTS REGISTERED_TEST_SOURCES_LIST)
 endforeach()
 register_nor_target(${nor_test}_all ${NOR_TEST_SOURCES})
 
+if(TARGET nor_binding_runtime)
+    # Keep the binding-runtime suite independent from the aggregate header-heavy test target. This executable links the
+    # compiled registry, so the test translation unit never instantiates the concrete game/profile matrix itself.
+    add_executable(${nor_test}_binding_runtime ${PROJECT_TEST_DIR}/main_tests.cpp
+                                               ${PROJECT_TEST_DIR}/nor/binding/runtime/test_runtime.cpp)
+    target_link_libraries(${nor_test}_binding_runtime PRIVATE shared_test_libs nor_binding_runtime)
+    add_test(NAME Test_${nor_test}_binding_runtime COMMAND ${nor_test}_binding_runtime)
+endif()
+
 if(ENABLE_GAMES)
     # the variance-reduction evaluation test also covers the header-only goofspiel game
     target_link_libraries(${nor_test}_variance_reduction PRIVATE goofspiel)

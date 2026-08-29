@@ -23,6 +23,7 @@
 
 #include "common/common.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/meta/enum_names.hpp"
 #include "nor/meta/fosg.hpp"
 
 namespace nor::binding::runtime {
@@ -30,11 +31,17 @@ namespace nor::binding::runtime {
 /// Stable wire identifiers.  Values are assigned explicitly and are never derived from C++
 /// types, RTTI, enum spelling, or a process-local hash.
 enum class GameId : uint16_t {
-   kuhn = 0x0101,
-   leduc = 0x0102,
-   rps = 0x0103,
+   // Descriptive spellings are the canonical reflected names. The short names remain
+   // same-value aliases for source compatibility, and every numeric wire ID stays unchanged.
+   kuhn_poker = 0x0101,
+   kuhn = kuhn_poker,
+   leduc_poker = 0x0102,
+   leduc = leduc_poker,
+   rock_paper_scissors = 0x0103,
+   rps = rock_paper_scissors,
    stratego = 0x0104,
-   texas_holdem = 0x0105,
+   texas_holdem_poker = 0x0105,
+   texas_holdem = texas_holdem_poker,
    goofspiel = 0x0201,
    three_player_goofspiel = 0x0202,
    battleship = 0x0203,
@@ -52,12 +59,8 @@ enum class GameId : uint16_t {
    // static game catalog and therefore cannot be passed to make_game().
    dynamic = 0x7f00,
 
-   // Spelling aliases keep the public catalog pleasant to consume without introducing a second
-   // identity for an environment.
-   texas_holdem_poker = texas_holdem,
-   rock_paper_scissors = rps,
-   kuhn_poker = kuhn,
-   leduc_poker = leduc,
+   // Additional spelling aliases keep the public catalog pleasant to consume without introducing
+   // a second identity for an environment.
    blotto = colonel_blotto
 };
 
@@ -219,7 +222,8 @@ enum class CapabilityErrorCode : uint8_t {
    invalid_handle,
    construction_failure,
    session_failure,
-   operation_unavailable
+   operation_unavailable,
+   invalid_dynamic_provider
 };
 
 struct CapabilityError {
@@ -357,8 +361,8 @@ class ErasedValue {
       [[nodiscard]] virtual const ValueMetadata& metadata() const noexcept = 0;
       [[nodiscard]] virtual const void* type_token() const noexcept = 0;
       [[nodiscard]] virtual const void* value_ptr() const noexcept = 0;
-      [[nodiscard]] virtual size_t value_hash() const noexcept = 0;
-      [[nodiscard]] virtual bool equals(const Concept&) const noexcept = 0;
+      [[nodiscard]] virtual size_t value_hash() const = 0;
+      [[nodiscard]] virtual bool equals(const Concept&) const = 0;
       [[nodiscard]] virtual std::optional< std::string > to_string() const = 0;
       [[nodiscard]] virtual std::optional< TensorData > to_tensor() const = 0;
    };
@@ -386,9 +390,9 @@ class ErasedValue {
 
       [[nodiscard]] const void* value_ptr() const noexcept final { return std::addressof(value); }
 
-      [[nodiscard]] size_t value_hash() const noexcept final { return std::hash< T >{}(value); }
+      [[nodiscard]] size_t value_hash() const final { return std::hash< T >{}(value); }
 
-      [[nodiscard]] bool equals(const Concept& other) const noexcept final
+      [[nodiscard]] bool equals(const Concept& other) const final
       {
          if(other.type_token() != type_token()) {
             return false;
@@ -488,7 +492,7 @@ class ErasedValue {
       return m_model == nullptr ? std::string_view{} : m_model->metadata().name;
    }
 
-   [[nodiscard]] size_t hash() const noexcept
+   [[nodiscard]] size_t hash() const
    {
       if(m_model == nullptr) {
          return 0;
@@ -530,7 +534,7 @@ class ErasedValue {
       return static_cast< const std::remove_cvref_t< T >* >(m_model->value_ptr());
    }
 
-   friend bool operator==(const ErasedValue& left, const ErasedValue& right) noexcept
+   friend bool operator==(const ErasedValue& left, const ErasedValue& right)
    {
       if(left.m_model == nullptr or right.m_model == nullptr) {
          return left.m_model == nullptr and right.m_model == nullptr;
@@ -872,6 +876,10 @@ struct FieldDescriptor {
 class GameHandle;
 class SolverSession;
 
+namespace detail {
+struct SessionFactory;
+}
+
 using GameFactoryFn = Result< GameHandle > (*)(const GameSpec&);
 using SessionFactoryFn = Result< SolverSession > (*)(const GameHandle&, SessionOptions);
 
@@ -998,16 +1006,9 @@ class SolverSession {
       return policy_lookup(kind);
    }
 
-   /// Internal construction is exposed as a constrained value factory rather than as a public
-   /// constructor.  The catalog is the only production caller; keeping this operation templated
-   /// preserves the concrete solver type until the single coarse-erasure point.
-   template < typename Model, typename... Args >
-   static SolverSession make(Args&&... args)
-   {
-      return SolverSession{new Model(std::forward< Args >(args)...), &Model::ops};
-   }
-
   private:
+   friend struct detail::SessionFactory;
+
    SolverSession(void* object, const SolverSessionOps* ops) : m_object(object), m_ops(ops) {}
 
    void reset() noexcept
@@ -1031,7 +1032,15 @@ class SolverSession {
    const SolverSessionOps* m_ops = nullptr;
 };
 
-// The catalog layer provides the actual lookup/construction functions.
+// The compiled catalog layer provides the actual lookup/construction functions. The declarations
+// remain in this concrete-type-free contract so public consumers do not need catalog.hpp.
+[[nodiscard]] std::span< const GameDescriptor > games() noexcept;
+[[nodiscard]] std::span< const SolverDescriptor > solvers() noexcept;
+[[nodiscard]] std::span< const ProfileDescriptor > profiles() noexcept;
+[[nodiscard]] std::span< const CapabilityDescriptor > capabilities() noexcept;
+[[nodiscard]] std::vector< CapabilityDescriptor > capabilities_for(GameId);
+[[nodiscard]] std::vector< ProfileDescriptor > profiles_for(SolverId);
+
 [[nodiscard]] const StaticCatalog& catalog() noexcept;
 [[nodiscard]] const GameDescriptor* find_game(GameId) noexcept;
 [[nodiscard]] const SolverDescriptor* find_solver(SolverId) noexcept;
@@ -1048,10 +1057,7 @@ namespace std {
 
 template <>
 struct hash< nor::binding::runtime::ErasedValue > {
-   size_t operator()(const nor::binding::runtime::ErasedValue& value) const noexcept
-   {
-      return value.hash();
-   }
+   size_t operator()(const nor::binding::runtime::ErasedValue& value) const { return value.hash(); }
 };
 
 }  // namespace std

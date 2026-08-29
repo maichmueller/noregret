@@ -420,6 +420,12 @@ class VanillaCFR:
    using base::root_state;
    using operation_layer::iterate;
 
+   // The inherited legacy fetch_policy() writes only TabularCFRBase's compatibility tables. The
+   // direct policy lookup below reads m_infonode records, which are the solver's source of truth;
+   // consequently VanillaCFR intentionally does not invalidate a direct view for that unrelated
+   // compatibility write. MCCFR has a different table-backed direct source and guards its
+   // override explicitly.
+
    /// the CURRENT policy profile, materialized from the infostate node
    /// records (D1: the records are the single source of truth; this view is
    /// rebuilt lazily whenever the records changed since the last call).

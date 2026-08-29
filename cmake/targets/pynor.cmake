@@ -15,3 +15,6 @@ endif()
 
 set_target_properties(${nor_pymodule} PROPERTIES LIBRARY_OUTPUT_NAME _${nor_pymodule} CXX_VISIBILITY_PRESET hidden)
 target_link_libraries(${nor_pymodule} PUBLIC ${nor_lib}_envs)
+if(TARGET nor_binding_runtime)
+    target_link_libraries(${nor_pymodule} PUBLIC nor_binding_runtime)
+endif()

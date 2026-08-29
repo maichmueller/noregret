@@ -1,8 +1,7 @@
 #ifndef NOR_BINDING_RUNTIME_DYNAMIC_HPP
 #define NOR_BINDING_RUNTIME_DYNAMIC_HPP
 
-#include <array>
-#include <cmath>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -13,7 +12,7 @@
 #include <variant>
 #include <vector>
 
-#include "catalog.hpp"
+#include "types.hpp"
 
 namespace nor::binding::runtime {
 
@@ -21,8 +20,8 @@ namespace nor::binding::runtime {
  * @brief Value-owned payload used by the dynamic environment boundary.
  *
  * A dynamic provider supplies stable type and identity strings rather than a Python object. The
- * strings are copied into the C++ value, so a later trampoline can implement the virtual calls
- * without making Python types part of libnor's solver interface.
+ * strings are copied into the C++ value, so the provider boundary is crossed once per value and
+ * the solver can retain ordinary C++ values in its static data structures.
  */
 class DynamicValue {
   public:
@@ -54,7 +53,7 @@ class DynamicValue {
 
    [[nodiscard]] bool valid() const noexcept
    {
-      return not m_type_name.empty() or not m_identity.empty();
+      return not m_type_name.empty() and not m_identity.empty();
    }
    [[nodiscard]] std::string_view type_name() const noexcept { return m_type_name; }
    [[nodiscard]] std::string_view name() const noexcept { return m_type_name; }
@@ -65,7 +64,7 @@ class DynamicValue {
    [[nodiscard]] size_t hash() const noexcept
    {
       // FNV-1a over provider-supplied stable names. std::hash is deliberately not used here:
-      // dynamic values are allowed to be serialized or compared across provider instances.
+      // dynamic values may be serialized or compared across provider instances.
       size_t result = size_t{1469598103934665603ull};
       const auto add = [&result](std::string_view text) {
          for(const char character : text) {
@@ -80,6 +79,8 @@ class DynamicValue {
       return result;
    }
 
+   // Presentation is intentionally excluded from identity. Two values with the same provider
+   // type and identity are the same solver key even when one has an optional display payload.
    friend bool operator==(const DynamicValue& left, const DynamicValue& right) noexcept
    {
       return left.m_type_name == right.m_type_name and left.m_identity == right.m_identity;
@@ -143,7 +144,7 @@ class DynamicWorldState {
 
    [[nodiscard]] const DynamicWorldValue& value() const noexcept { return m_value; }
    [[nodiscard]] DynamicWorldValue& value() noexcept { return m_value; }
-   void set(DynamicWorldValue value) noexcept { m_value = std::move(value); }
+   void set(DynamicWorldValue value) { m_value = std::move(value); }
 
    friend bool operator==(const DynamicWorldState&, const DynamicWorldState&) = default;
    [[nodiscard]] size_t hash() const noexcept { return m_value.hash(); }
@@ -266,11 +267,16 @@ struct hash< nor::binding::runtime::DynamicPublicState > {
 namespace nor::binding::runtime {
 
 /**
- * @brief Virtual provider contract for a Python-authored game.
+ * @brief The one dynamic game-provider boundary.
  *
- * This is the only dynamic boundary. The solver, policy tables, generation checks, and coarse
- * session loop remain C++; a later Nanobind trampoline can implement these value operations per
- * game-tree edge. No Python or Nanobind type appears in this header.
+ * A Python trampoline may implement this interface. Every provider operation is therefore a
+ * virtual boundary for a genuinely dynamic game, but the resulting DynamicEnvironment is one
+ * ordinary concrete C++ environment type. The compiled registry then statically dispatches the
+ * selected solver/profile through a normal SolverSession; it does not add a virtual session or
+ * game layer around that traversal.
+ *
+ * Providers are externally synchronized. C++ sessions do not promise cross-thread safety; the
+ * Python wrapper is responsible for serializing calls (normally with a per-session mutex).
  */
 class DynamicEnvironmentProvider {
   public:
@@ -278,6 +284,8 @@ class DynamicEnvironmentProvider {
 
    [[nodiscard]] virtual size_t max_player_count() const = 0;
    [[nodiscard]] virtual size_t player_count() const = 0;
+
+   /** Runtime declaration checked when a dynamic handle/session is created. */
    [[nodiscard]] virtual Stochasticity stochasticity() const = 0;
    [[nodiscard]] virtual bool serialized() const { return true; }
    [[nodiscard]] virtual bool unrolled() const { return true; }
@@ -304,8 +312,6 @@ class DynamicEnvironmentProvider {
       const DynamicWorldState& next_state
    ) const = 0;
 
-   // These defaults keep deterministic dynamic providers small while still satisfying the
-   // stochastic FOSG branch required by a runtime-valued stochasticity() classification.
    [[nodiscard]] virtual std::vector< DynamicChanceOutcome >
    chance_actions(const DynamicWorldState&) const
    {
@@ -334,7 +340,14 @@ class DynamicEnvironmentProvider {
    }
 };
 
-/** Concrete FOSG wrapper owned by a dynamic game boundary. */
+/**
+ * @brief Concrete FOSG adapter for a provider.
+ *
+ * The static choice classification is deliberate: it is the compile-time superset needed by the
+ * solver traversal. The provider's runtime stochasticity() remains an admission-time declaration
+ * and may be deterministic or choice, but sample is rejected because it cannot provide an outcome
+ * distribution to this concrete adapter.
+ */
 class DynamicEnvironment {
   public:
    using action_type = DynamicAction;
@@ -344,6 +357,10 @@ class DynamicEnvironment {
    using public_state_type = DynamicPublicState;
    using world_state_type = DynamicWorldState;
    using action_variant_type = std::variant< action_type, chance_outcome_type >;
+
+   static constexpr Stochasticity stochasticity() noexcept { return Stochasticity::choice; }
+   static constexpr bool serialized() noexcept { return true; }
+   static constexpr bool unrolled() noexcept { return true; }
 
    explicit DynamicEnvironment(std::shared_ptr< const DynamicEnvironmentProvider > provider)
        : m_provider(std::move(provider))
@@ -359,9 +376,12 @@ class DynamicEnvironment {
    }
    [[nodiscard]] size_t max_player_count() const { return m_provider->max_player_count(); }
    [[nodiscard]] size_t player_count() const { return m_provider->player_count(); }
-   [[nodiscard]] Stochasticity stochasticity() const { return m_provider->stochasticity(); }
-   [[nodiscard]] bool serialized() const { return m_provider->serialized(); }
-   [[nodiscard]] bool unrolled() const { return m_provider->unrolled(); }
+   [[nodiscard]] Stochasticity provider_stochasticity() const
+   {
+      return m_provider->stochasticity();
+   }
+   [[nodiscard]] bool provider_serialized() const { return m_provider->serialized(); }
+   [[nodiscard]] bool provider_unrolled() const { return m_provider->unrolled(); }
    [[nodiscard]] DynamicWorldState initial_world_state() const
    {
       return m_provider->initial_world_state();
@@ -448,404 +468,56 @@ class DynamicEnvironment {
    std::shared_ptr< const DynamicEnvironmentProvider > m_provider;
 };
 
-static_assert(concepts::fosg< DynamicEnvironment >);
-
-class DynamicSolverSession {
-  public:
-   virtual ~DynamicSolverSession() = default;
-
-   virtual Result< IterationResult > iterate() = 0;
-   virtual Result< void > advance(size_t) = 0;
-   virtual Result< std::optional< IterationResult > > advance_last(size_t) = 0;
-   virtual Result< TraceResult > trace(size_t, size_t every = 1) = 0;
-   virtual Result< SessionStats > stats() const = 0;
-   virtual Result< PolicyView > policy_lookup(PolicyViewKind) const = 0;
-
-   virtual Result< PolicyView > policy_view(PolicyViewKind kind = PolicyViewKind::current) const
-   {
-      return policy_lookup(kind);
-   }
-};
-
-class DynamicGameBoundary {
-  public:
-   virtual ~DynamicGameBoundary() = default;
-
-   [[nodiscard]] virtual GameSpec game_spec() const = 0;
-   [[nodiscard]] virtual Result< std::unique_ptr< DynamicSolverSession > >
-      make_session(SolverId, ProfileId, SessionOptions) const = 0;
-};
-
-/** A dynamic handle is explicit and cannot enter the static GameHandle API. */
-class DynamicGameHandle {
-  public:
-   explicit DynamicGameHandle(std::shared_ptr< const DynamicGameBoundary > boundary)
-       : m_boundary(std::move(boundary))
-   {
-   }
-
-   [[nodiscard]] explicit operator bool() const noexcept { return bool(m_boundary); }
-   [[nodiscard]] const DynamicGameBoundary* boundary() const noexcept { return m_boundary.get(); }
-
-   [[nodiscard]] Result< std::unique_ptr< DynamicSolverSession > >
-   make_session(SolverId solver, ProfileId profile, SessionOptions options = {}) const
-   {
-      if(not m_boundary) {
-         return std::unexpected(CapabilityError{
-            .code = CapabilityErrorCode::invalid_handle,
-            .message = "dynamic game handle is empty",
-            .game = GameId::dynamic,
-            .solver = solver,
-            .profile = profile});
-      }
-      return m_boundary->make_session(solver, profile, options);
-   }
-
-   [[nodiscard]] Result< GameSpec > game_spec() const
-   {
-      if(not m_boundary) {
-         return std::unexpected(CapabilityError{
-            .code = CapabilityErrorCode::invalid_handle,
-            .message = "dynamic game handle is empty",
-            .game = GameId::dynamic});
-      }
-      return m_boundary->game_spec();
-   }
-
-  private:
-   std::shared_ptr< const DynamicGameBoundary > m_boundary;
-};
+class DynamicGameHandle;
 
 struct DynamicCapabilityDescriptor {
    SolverId solver{};
    ProfileId profile{};
    std::string_view name{};
-   using Factory = Result< std::unique_ptr< DynamicSolverSession > > (*)(
-      std::shared_ptr< const DynamicEnvironmentProvider >,
-      SessionOptions
-   );
+   using Factory = Result< SolverSession > (*)(const DynamicGameHandle&, SessionOptions);
    Factory create = nullptr;
 };
 
-namespace detail {
-
-template < typename Solver, SolverId SolverFamily, ProfileId Profile >
-struct DynamicSessionModel final: DynamicSolverSession {
-   Solver solver;
-
-   explicit DynamicSessionModel(Solver concrete_solver) : solver(std::move(concrete_solver)) {}
-
-   template < typename T >
-   [[nodiscard]] static Result< T > operation_error(CapabilityErrorCode code, std::string message)
-   {
-      return std::unexpected(CapabilityError{
-         .code = code,
-         .message = std::move(message),
-         .game = GameId::dynamic,
-         .solver = SolverFamily,
-         .profile = Profile});
-   }
-
-   Result< IterationResult > iterate() final
-   {
-      try {
-         const size_t iteration = solver.iteration();
-         return make_iteration_result(iteration, solver.iterate());
-      } catch(const std::exception& exception) {
-         return operation_error< IterationResult >(
-            CapabilityErrorCode::session_failure,
-            std::string("dynamic solver iteration failed: ") + exception.what()
-         );
-      }
-   }
-
-   Result< void > advance(size_t iterations) final
-   {
-      try {
-         solver.advance(iterations);
-         return {};
-      } catch(const std::exception& exception) {
-         return operation_error< void >(
-            CapabilityErrorCode::session_failure,
-            std::string("dynamic solver advance failed: ") + exception.what()
-         );
-      }
-   }
-
-   Result< std::optional< IterationResult > > advance_last(size_t iterations) final
-   {
-      try {
-         const size_t first_iteration = solver.iteration();
-         auto root = solver.advance_last(iterations);
-         if(not root)
-            return std::optional< IterationResult >{};
-         return std::optional< IterationResult >{
-            make_iteration_result(first_iteration + iterations - 1, *root)};
-      } catch(const std::exception& exception) {
-         return operation_error< std::optional< IterationResult > >(
-            CapabilityErrorCode::session_failure,
-            std::string("dynamic solver advance_last failed: ") + exception.what()
-         );
-      }
-   }
-
-   Result< TraceResult > trace(size_t iterations, size_t every = 1) final
-   {
-      try {
-         if(every == 0) {
-            return operation_error< TraceResult >(
-               CapabilityErrorCode::invalid_spec, "trace cadence must be greater than zero"
-            );
-         }
-         const size_t first_iteration = solver.iteration();
-         auto roots = solver.trace(iterations, every);
-         return make_trace_result(first_iteration, solver.iteration(), every, roots);
-      } catch(const std::exception& exception) {
-         return operation_error< TraceResult >(
-            CapabilityErrorCode::session_failure,
-            std::string("dynamic solver trace failed: ") + exception.what()
-         );
-      }
-   }
-
-   Result< SessionStats > stats() const final
-   {
-      try {
-         size_t current_entries = 0;
-         size_t average_entries = 0;
-         solver.visit_current_policy([&](const auto&, const auto& node) {
-            current_entries += node.size();
-         });
-         solver.visit_average_policy([&](const auto&, const auto& node) {
-            average_entries += node.size();
-         });
-         return SessionStats{
-            .game = GameId::dynamic,
-            .solver = SolverFamily,
-            .profile = Profile,
-            .iteration = solver.iteration(),
-            .cycle = solver.cycle(),
-            .player_count = solver.env().players(solver.root_state()).size(),
-            .current_policy_entries = current_entries,
-            .average_policy_entries = average_entries};
-      } catch(const std::exception& exception) {
-         return operation_error< SessionStats >(
-            CapabilityErrorCode::session_failure,
-            std::string("dynamic solver statistics failed: ") + exception.what()
-         );
-      }
-   }
-
-   Result< PolicyView > policy_lookup(PolicyViewKind kind) const final
-   {
-      try {
-         return erase_policy_lookup<
-            decltype(solver.policy_lookup()),
-            typename Solver::info_state_type,
-            typename Solver::action_type >(solver.policy_lookup(), kind);
-      } catch(const std::exception& exception) {
-         return operation_error< PolicyView >(
-            CapabilityErrorCode::session_failure,
-            std::string("dynamic policy lookup failed: ") + exception.what()
-         );
-      }
-   }
-};
-
-template < typename Profile >
-Result< std::unique_ptr< DynamicSolverSession > > make_dynamic_session_impl(
-   std::shared_ptr< const DynamicEnvironmentProvider > provider,
-   SessionOptions options
-)
-{
-   if(not provider) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::invalid_handle,
-         .message = "dynamic session requires a provider",
-         .game = GameId::dynamic,
-         .solver = Profile::solver,
-         .profile = Profile::id});
-   }
-   if constexpr(not profile_supported< DynamicEnvironment, Profile >()) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::unsupported_combination,
-         .message = "solver/profile is not constructible for the dynamic FOSG contract",
-         .game = GameId::dynamic,
-         .solver = Profile::solver,
-         .profile = Profile::id});
-   } else {
-      try {
-         DynamicEnvironment environment{provider};
-         auto root = std::make_unique< DynamicWorldState >(environment.initial_world_state());
-         auto solver = make_concrete_solver< Profile >(
-            std::move(environment), std::move(root), options
-         );
-         using solver_type = decltype(solver);
-         using model_type = DynamicSessionModel< solver_type, Profile::solver, Profile::id >;
-         return std::unique_ptr< DynamicSolverSession >{new model_type(std::move(solver))};
-      } catch(const std::exception& exception) {
-         return std::unexpected(CapabilityError{
-            .code = CapabilityErrorCode::construction_failure,
-            .message = std::string("failed to create dynamic ") + std::string(Profile::name) + ": "
-                       + exception.what(),
-            .game = GameId::dynamic,
-            .solver = Profile::solver,
-            .profile = Profile::id});
-      }
-   }
-}
-
-template < typename... Profiles >
-[[nodiscard]] consteval size_t dynamic_capability_count(type_list< Profiles... >)
-{
-   return (static_cast< size_t >(profile_supported< DynamicEnvironment, Profiles >()) + ...);
-}
-
-template < typename Profile, size_t Count >
-constexpr void
-append_dynamic_capability(std::array< DynamicCapabilityDescriptor, Count >& output, size_t& index)
-{
-   if constexpr(profile_supported< DynamicEnvironment, Profile >()) {
-      output[index++] = DynamicCapabilityDescriptor{
-         .solver = Profile::solver,
-         .profile = Profile::id,
-         .name = Profile::name,
-         .create = &make_dynamic_session_impl< Profile >};
-   }
-}
-
-template < size_t Count, typename... Profiles >
-[[nodiscard]] consteval auto make_dynamic_capabilities(type_list< Profiles... >)
-{
-   std::array< DynamicCapabilityDescriptor, Count > output{};
-   size_t index = 0;
-   (append_dynamic_capability< Profiles >(output, index), ...);
-   return output;
-}
-
-inline constexpr size_t dynamic_capability_count_v = dynamic_capability_count(profile_types{});
-inline constexpr auto
-   dynamic_capability_descriptors = make_dynamic_capabilities< dynamic_capability_count_v >(
-      profile_types{}
-   );
-
-}  // namespace detail
-
-[[nodiscard]] inline std::span< const DynamicCapabilityDescriptor > dynamic_capabilities() noexcept
-{
-   return detail::dynamic_capability_descriptors;
-}
-
-[[nodiscard]] inline const DynamicCapabilityDescriptor*
-find_dynamic_capability(SolverId solver, ProfileId profile) noexcept
-{
-   for(const auto& capability : dynamic_capabilities()) {
-      if(capability.solver == solver and capability.profile == profile)
-         return &capability;
-   }
-   return nullptr;
-}
-
-/** Concrete dynamic boundary that registers profiles against one DynamicEnvironment type. */
-class DynamicEnvironmentBoundary final: public DynamicGameBoundary {
+class DynamicGameHandle {
   public:
-   DynamicEnvironmentBoundary(
-      GameSpec spec,
-      std::shared_ptr< const DynamicEnvironmentProvider > provider
-   )
-       : m_spec(std::move(spec)), m_provider(std::move(provider))
-   {
-      if(m_spec.game_id() != GameId::dynamic)
-         throw std::invalid_argument("dynamic boundary requires GameId::dynamic");
-      if(not m_provider)
-         throw std::invalid_argument("dynamic boundary requires a provider");
-   }
+   DynamicGameHandle() = default;
 
-   [[nodiscard]] GameSpec game_spec() const final { return m_spec; }
+   [[nodiscard]] explicit operator bool() const noexcept
+   {
+      return m_provider != nullptr and m_spec.game_id() == GameId::dynamic;
+   }
+   [[nodiscard]] GameId game_id() const noexcept { return m_spec.game_id(); }
+   [[nodiscard]] const GameSpec& spec() const noexcept { return m_spec; }
    [[nodiscard]] const std::shared_ptr< const DynamicEnvironmentProvider >& provider(
    ) const noexcept
    {
       return m_provider;
    }
 
-   [[nodiscard]] Result< std::unique_ptr< DynamicSolverSession > >
-   make_session(SolverId solver, ProfileId profile, SessionOptions options) const final
-   {
-      if(find_solver(solver) == nullptr) {
-         return std::unexpected(CapabilityError{
-            .code = CapabilityErrorCode::unknown_solver,
-            .message = "solver ID is not present in the immutable solver catalog",
-            .game = GameId::dynamic,
-            .solver = solver,
-            .profile = profile});
-      }
-      const auto* profile_descriptor = find_profile(profile);
-      if(profile_descriptor == nullptr) {
-         return std::unexpected(CapabilityError{
-            .code = CapabilityErrorCode::unknown_profile,
-            .message = "profile ID is not present in the immutable profile catalog",
-            .game = GameId::dynamic,
-            .solver = solver,
-            .profile = profile});
-      }
-      if(profile_descriptor->solver != solver) {
-         return std::unexpected(CapabilityError{
-            .code = CapabilityErrorCode::profile_solver_mismatch,
-            .message = "profile belongs to a different solver family",
-            .game = GameId::dynamic,
-            .solver = solver,
-            .profile = profile});
-      }
-      if(not std::isfinite(options.epsilon) or options.epsilon < 0. or options.epsilon > 1.) {
-         return std::unexpected(CapabilityError{
-            .code = CapabilityErrorCode::invalid_spec,
-            .message = "sampling epsilon must be finite and in [0, 1]",
-            .game = GameId::dynamic,
-            .solver = solver,
-            .profile = profile});
-      }
-      const auto* capability = find_dynamic_capability(solver, profile);
-      if(capability == nullptr) {
-         return std::unexpected(CapabilityError{
-            .code = CapabilityErrorCode::unsupported_combination,
-            .message = "solver/profile is not accepted by the dynamic capability matrix",
-            .game = GameId::dynamic,
-            .solver = solver,
-            .profile = profile});
-      }
-      return capability->create(m_provider, options);
-   }
+   [[nodiscard]] Result< SolverSession >
+   make_session(SolverId solver, ProfileId profile, SessionOptions options = {}) const;
+
+   [[nodiscard]] Result< GameSpec > game_spec() const;
 
   private:
-   GameSpec m_spec;
+   DynamicGameHandle(GameSpec spec, std::shared_ptr< const DynamicEnvironmentProvider > provider)
+       : m_spec(std::move(spec)), m_provider(std::move(provider))
+   {
+   }
+
+   friend Result< DynamicGameHandle >
+      make_dynamic_game(GameSpec, std::shared_ptr< const DynamicEnvironmentProvider >);
+
+   GameSpec m_spec{GameId::dynamic};
    std::shared_ptr< const DynamicEnvironmentProvider > m_provider;
 };
 
-[[nodiscard]] inline Result< DynamicGameHandle >
-make_dynamic_game(GameSpec spec, std::shared_ptr< const DynamicEnvironmentProvider > provider)
-{
-   if(spec.game_id() != GameId::dynamic) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::invalid_spec,
-         .message = "dynamic GameSpec must use the reserved dynamic game ID",
-         .game = spec.game_id()});
-   }
-   if(not provider) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::invalid_handle,
-         .message = "dynamic game requires a provider",
-         .game = GameId::dynamic});
-   }
-   try {
-      return DynamicGameHandle{
-         std::make_shared< DynamicEnvironmentBoundary >(std::move(spec), std::move(provider))};
-   } catch(const std::exception& exception) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::invalid_spec,
-         .message = std::string("failed to create dynamic game boundary: ") + exception.what(),
-         .game = GameId::dynamic});
-   }
-}
+[[nodiscard]] std::span< const DynamicCapabilityDescriptor > dynamic_capabilities() noexcept;
+[[nodiscard]] const DynamicCapabilityDescriptor*
+find_dynamic_capability(SolverId solver, ProfileId profile) noexcept;
+
+[[nodiscard]] Result< DynamicGameHandle >
+   make_dynamic_game(GameSpec, std::shared_ptr< const DynamicEnvironmentProvider >);
 
 }  // namespace nor::binding::runtime
 

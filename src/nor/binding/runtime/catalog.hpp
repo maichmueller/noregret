@@ -45,6 +45,12 @@ namespace detail {
 template < typename... Ts >
 struct type_list {};
 
+template < typename Game >
+[[nodiscard]] consteval std::string_view game_name();
+
+template < typename Profile >
+[[nodiscard]] consteval std::string_view profile_name();
+
 template < typename Value, size_t Count >
 [[nodiscard]] consteval bool unique_values(const std::array< Value, Count >& values)
 {
@@ -102,7 +108,7 @@ template < typename Tag >
       const auto found = std::ranges::find(Tag::fields, supplied.id, &FieldDescriptor::id);
       if(found == Tag::fields.end()) {
          return std::unexpected(invalid_spec_error< Tag >(
-            "field is not accepted by game '" + std::string(Tag::name) + "'."
+            "field is not accepted by game '" + std::string(game_name< Tag >()) + "'."
          ));
       }
       if(not spec_kind_matches(found->kind, supplied.value)) {
@@ -198,13 +204,35 @@ template < typename Game >
    }
 }
 
+template < typename... Args >
+[[nodiscard]] consteval FieldDescriptor
+reflected_field(GameFieldId id, SpecKind kind, Args&&... args)
+{
+   return FieldDescriptor{
+      .id = id,
+      .name = meta::enum_name(id),
+      .kind = kind,
+      .default_value = SpecValue{std::forward< Args >(args)...}};
+}
+
+template < typename Game >
+[[nodiscard]] consteval std::string_view game_name()
+{
+   return meta::enum_name(Game::id);
+}
+
+template < typename Profile >
+[[nodiscard]] consteval std::string_view profile_name()
+{
+   return meta::enum_name(Profile::id);
+}
+
 // Each tag is a single source of truth for a stable ID, its fields, and its concrete environment
 // constructor.  The arrays below are intentionally explicit: adding a game requires adding one
 // tag here, after which descriptor and capability generation remains generic.
 struct kuhn_game {
    using env_type = games::kuhn::Environment;
    static constexpr GameId id = GameId::kuhn;
-   static constexpr std::string_view name = "kuhn_poker";
    inline static constexpr std::array< FieldDescriptor, 0 > fields{};
 
    static Result< env_type > make_env(const GameSpec&) { return env_type{}; }
@@ -213,7 +241,6 @@ struct kuhn_game {
 struct leduc_game {
    using env_type = games::leduc::Environment;
    static constexpr GameId id = GameId::leduc;
-   static constexpr std::string_view name = "leduc_poker";
    inline static constexpr std::array< FieldDescriptor, 0 > fields{};
 
    static Result< env_type > make_env(const GameSpec&) { return env_type{}; }
@@ -222,7 +249,6 @@ struct leduc_game {
 struct rps_game {
    using env_type = games::rps::Environment;
    static constexpr GameId id = GameId::rps;
-   static constexpr std::string_view name = "rock_paper_scissors";
    inline static constexpr std::array< FieldDescriptor, 0 > fields{};
 
    static Result< env_type > make_env(const GameSpec&) { return env_type{}; }
@@ -231,7 +257,6 @@ struct rps_game {
 struct stratego_game {
    using env_type = games::stratego::Environment;
    static constexpr GameId id = GameId::stratego;
-   static constexpr std::string_view name = "stratego";
    inline static constexpr std::array< FieldDescriptor, 0 > fields{};
 
    static Result< env_type > make_env(const GameSpec&) { return env_type{}; }
@@ -255,28 +280,11 @@ struct stratego_game {
 struct texas_holdem_game {
    using env_type = games::texholdem::Environment;
    static constexpr GameId id = GameId::texas_holdem;
-   static constexpr std::string_view name = "texas_holdem";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::n_players,
-         "n_players",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{2}}},
-      FieldDescriptor{
-         GameFieldId::starting_stack,
-         "starting_stack",
-         SpecKind::floating_point,
-         SpecValue{200.}},
-      FieldDescriptor{
-         GameFieldId::small_blind,
-         "small_blind",
-         SpecKind::floating_point,
-         SpecValue{1.}},
-      FieldDescriptor{
-         GameFieldId::big_blind,
-         "big_blind",
-         SpecKind::floating_point,
-         SpecValue{2.}}};
+      reflected_field(GameFieldId::n_players, SpecKind::unsigned_integer, uint64_t{2}),
+      reflected_field(GameFieldId::starting_stack, SpecKind::floating_point, 200.),
+      reflected_field(GameFieldId::small_blind, SpecKind::floating_point, 1.),
+      reflected_field(GameFieldId::big_blind, SpecKind::floating_point, 2.)};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -291,14 +299,9 @@ struct texas_holdem_game {
 struct goofspiel_game {
    using env_type = games::goofspiel::Environment;
    static constexpr GameId id = GameId::goofspiel;
-   static constexpr std::string_view name = "goofspiel";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::deck_size,
-         "deck_size",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{3}}},
-      FieldDescriptor{GameFieldId::imp_info, "imp_info", SpecKind::boolean, SpecValue{false}}};
+      reflected_field(GameFieldId::deck_size, SpecKind::unsigned_integer, uint64_t{3}),
+      reflected_field(GameFieldId::imp_info, SpecKind::boolean, false)};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -313,19 +316,10 @@ struct goofspiel_game {
 struct three_player_goofspiel_game {
    using env_type = games::three_player_goofspiel::Environment;
    static constexpr GameId id = GameId::three_player_goofspiel;
-   static constexpr std::string_view name = "three_player_goofspiel";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::deck_size,
-         "deck_size",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{3}}},
-      FieldDescriptor{GameFieldId::imp_info, "imp_info", SpecKind::boolean, SpecValue{false}},
-      FieldDescriptor{
-         GameFieldId::split_half_deal,
-         "split_half_deal",
-         SpecKind::boolean,
-         SpecValue{false}}};
+      reflected_field(GameFieldId::deck_size, SpecKind::unsigned_integer, uint64_t{3}),
+      reflected_field(GameFieldId::imp_info, SpecKind::boolean, false),
+      reflected_field(GameFieldId::split_half_deal, SpecKind::boolean, false)};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -341,33 +335,12 @@ struct three_player_goofspiel_game {
 struct battleship_game {
    using env_type = games::battleship::Environment;
    static constexpr GameId id = GameId::battleship;
-   static constexpr std::string_view name = "battleship";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::rows,
-         "rows",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{2}}},
-      FieldDescriptor{
-         GameFieldId::cols,
-         "cols",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{2}}},
-      FieldDescriptor{
-         GameFieldId::ships_per_fleet,
-         "ships_per_fleet",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{1}}},
-      FieldDescriptor{
-         GameFieldId::max_shots,
-         "max_shots",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{3}}},
-      FieldDescriptor{
-         GameFieldId::ship_value,
-         "ship_value",
-         SpecKind::floating_point,
-         SpecValue{2.}}};
+      reflected_field(GameFieldId::rows, SpecKind::unsigned_integer, uint64_t{2}),
+      reflected_field(GameFieldId::cols, SpecKind::unsigned_integer, uint64_t{2}),
+      reflected_field(GameFieldId::ships_per_fleet, SpecKind::unsigned_integer, uint64_t{1}),
+      reflected_field(GameFieldId::max_shots, SpecKind::unsigned_integer, uint64_t{3}),
+      reflected_field(GameFieldId::ship_value, SpecKind::floating_point, 2.)};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -383,28 +356,11 @@ struct battleship_game {
 struct battleship_gs_game {
    using env_type = games::battleship_gs::Environment;
    static constexpr GameId id = GameId::battleship_gs;
-   static constexpr std::string_view name = "battleship_gs";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::rows,
-         "rows",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{3}}},
-      FieldDescriptor{
-         GameFieldId::cols,
-         "cols",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{1}}},
-      FieldDescriptor{
-         GameFieldId::max_shots,
-         "max_shots",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{2}}},
-      FieldDescriptor{
-         GameFieldId::loss_multiplier,
-         "loss_multiplier",
-         SpecKind::floating_point,
-         SpecValue{2.}}};
+      reflected_field(GameFieldId::rows, SpecKind::unsigned_integer, uint64_t{3}),
+      reflected_field(GameFieldId::cols, SpecKind::unsigned_integer, uint64_t{1}),
+      reflected_field(GameFieldId::max_shots, SpecKind::unsigned_integer, uint64_t{2}),
+      reflected_field(GameFieldId::loss_multiplier, SpecKind::floating_point, 2.)};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -421,23 +377,10 @@ struct battleship_gs_game {
 struct dark_hex_game {
    using env_type = games::dark_hex::Environment;
    static constexpr GameId id = GameId::dark_hex;
-   static constexpr std::string_view name = "dark_hex";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::board_size,
-         "board_size",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{3}}},
-      FieldDescriptor{
-         GameFieldId::rules_mode,
-         "rules_mode",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{0}}},
-      FieldDescriptor{
-         GameFieldId::move_limit,
-         "move_limit",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{0}}}};
+      reflected_field(GameFieldId::board_size, SpecKind::unsigned_integer, uint64_t{3}),
+      reflected_field(GameFieldId::rules_mode, SpecKind::unsigned_integer, uint64_t{0}),
+      reflected_field(GameFieldId::move_limit, SpecKind::unsigned_integer, uint64_t{0})};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -456,12 +399,8 @@ struct dark_hex_game {
 struct pursuit_evasion_game {
    using env_type = games::pursuit_evasion::Environment;
    static constexpr GameId id = GameId::pursuit_evasion;
-   static constexpr std::string_view name = "pursuit_evasion";
-   inline static constexpr std::array fields{FieldDescriptor{
-      GameFieldId::rounds,
-      "rounds",
-      SpecKind::unsigned_integer,
-      SpecValue{uint64_t{6}}}};
+   inline static constexpr std::array fields{
+      reflected_field(GameFieldId::rounds, SpecKind::unsigned_integer, uint64_t{6})};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -473,28 +412,11 @@ struct pursuit_evasion_game {
 struct oshi_zumo_game {
    using env_type = games::oshi_zumo::Environment;
    static constexpr GameId id = GameId::oshi_zumo;
-   static constexpr std::string_view name = "oshi_zumo";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::size,
-         "size",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{3}}},
-      FieldDescriptor{
-         GameFieldId::coins,
-         "coins",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{50}}},
-      FieldDescriptor{
-         GameFieldId::min_bid,
-         "min_bid",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{0}}},
-      FieldDescriptor{
-         GameFieldId::horizon,
-         "horizon",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{9}}}};
+      reflected_field(GameFieldId::size, SpecKind::unsigned_integer, uint64_t{3}),
+      reflected_field(GameFieldId::coins, SpecKind::unsigned_integer, uint64_t{50}),
+      reflected_field(GameFieldId::min_bid, SpecKind::unsigned_integer, uint64_t{0}),
+      reflected_field(GameFieldId::horizon, SpecKind::unsigned_integer, uint64_t{9})};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -509,7 +431,6 @@ struct oshi_zumo_game {
 struct shapley_game {
    using env_type = games::shapley::Environment;
    static constexpr GameId id = GameId::shapley;
-   static constexpr std::string_view name = "shapley";
    inline static constexpr std::array< FieldDescriptor, 0 > fields{};
 
    static Result< env_type > make_env(const GameSpec&) { return env_type{}; }
@@ -518,23 +439,10 @@ struct shapley_game {
 struct centipede_game {
    using env_type = games::centipede::Environment;
    static constexpr GameId id = GameId::centipede;
-   static constexpr std::string_view name = "centipede";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::rounds,
-         "rounds",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{4}}},
-      FieldDescriptor{
-         GameFieldId::pile_big,
-         "pile_big",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{4}}},
-      FieldDescriptor{
-         GameFieldId::pile_small,
-         "pile_small",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{1}}}};
+      reflected_field(GameFieldId::rounds, SpecKind::unsigned_integer, uint64_t{4}),
+      reflected_field(GameFieldId::pile_big, SpecKind::unsigned_integer, uint64_t{4}),
+      reflected_field(GameFieldId::pile_small, SpecKind::unsigned_integer, uint64_t{1})};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -548,12 +456,8 @@ struct centipede_game {
 struct colonel_blotto_game {
    using env_type = games::colonel_blotto::Environment;
    static constexpr GameId id = GameId::colonel_blotto;
-   static constexpr std::string_view name = "colonel_blotto";
-   inline static constexpr std::array fields{FieldDescriptor{
-      GameFieldId::budget,
-      "budget",
-      SpecKind::unsigned_integer,
-      SpecValue{uint64_t{3}}}};
+   inline static constexpr std::array fields{
+      reflected_field(GameFieldId::budget, SpecKind::unsigned_integer, uint64_t{3})};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -565,26 +469,13 @@ struct colonel_blotto_game {
 struct sheriff_game {
    using env_type = games::sheriff::Environment;
    static constexpr GameId id = GameId::sheriff;
-   static constexpr std::string_view name = "sheriff";
    inline static constexpr std::array fields{
-      FieldDescriptor{GameFieldId::v, "v", SpecKind::floating_point, SpecValue{5.}},
-      FieldDescriptor{GameFieldId::p, "p", SpecKind::floating_point, SpecValue{1.}},
-      FieldDescriptor{GameFieldId::s, "s", SpecKind::floating_point, SpecValue{1.}},
-      FieldDescriptor{
-         GameFieldId::n_max,
-         "n_max",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{10}}},
-      FieldDescriptor{
-         GameFieldId::b_max,
-         "b_max",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{2}}},
-      FieldDescriptor{
-         GameFieldId::rounds,
-         "rounds",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{2}}}};
+      reflected_field(GameFieldId::v, SpecKind::floating_point, 5.),
+      reflected_field(GameFieldId::p, SpecKind::floating_point, 1.),
+      reflected_field(GameFieldId::s, SpecKind::floating_point, 1.),
+      reflected_field(GameFieldId::n_max, SpecKind::unsigned_integer, uint64_t{10}),
+      reflected_field(GameFieldId::b_max, SpecKind::unsigned_integer, uint64_t{2}),
+      reflected_field(GameFieldId::rounds, SpecKind::unsigned_integer, uint64_t{2})};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -601,23 +492,10 @@ struct sheriff_game {
 struct liars_dice_game {
    using env_type = games::liars_dice::Environment;
    static constexpr GameId id = GameId::liars_dice;
-   static constexpr std::string_view name = "liars_dice";
    inline static constexpr std::array fields{
-      FieldDescriptor{
-         GameFieldId::n_players,
-         "n_players",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{2}}},
-      FieldDescriptor{
-         GameFieldId::dice_per_player,
-         "dice_per_player",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{1}}},
-      FieldDescriptor{
-         GameFieldId::n_faces,
-         "n_faces",
-         SpecKind::unsigned_integer,
-         SpecValue{uint64_t{6}}}};
+      reflected_field(GameFieldId::n_players, SpecKind::unsigned_integer, uint64_t{2}),
+      reflected_field(GameFieldId::dice_per_player, SpecKind::unsigned_integer, uint64_t{1}),
+      reflected_field(GameFieldId::n_faces, SpecKind::unsigned_integer, uint64_t{6})};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
@@ -667,7 +545,7 @@ template < typename Tag >
    } catch(const std::exception& exception) {
       return std::unexpected(CapabilityError{
          .code = CapabilityErrorCode::construction_failure,
-         .message = std::string("failed to construct ") + std::string(Tag::name) + ": "
+         .message = std::string("failed to construct ") + std::string(game_name< Tag >()) + ": "
                     + exception.what(),
          .game = Tag::id});
    }
@@ -682,7 +560,6 @@ template < typename Tag >
 struct vanilla_alternating_profile {
    static constexpr ProfileId id = ProfileId::vanilla_alternating;
    static constexpr SolverId solver = SolverId::vanilla_cfr;
-   static constexpr std::string_view name = "vanilla_cfr/alternating";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRConfig{.update_mode = rm::UpdateMode::alternating};
    static constexpr auto effective_config = factory_config;
@@ -691,7 +568,6 @@ struct vanilla_alternating_profile {
 struct vanilla_simultaneous_profile {
    static constexpr ProfileId id = ProfileId::vanilla_simultaneous;
    static constexpr SolverId solver = SolverId::vanilla_cfr;
-   static constexpr std::string_view name = "vanilla_cfr/simultaneous";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRConfig{
       .update_mode = rm::UpdateMode::simultaneous};
@@ -701,7 +577,6 @@ struct vanilla_simultaneous_profile {
 struct cfr_plus_alternating_profile {
    static constexpr ProfileId id = ProfileId::cfr_plus_alternating;
    static constexpr SolverId solver = SolverId::cfr_plus;
-   static constexpr std::string_view name = "cfr_plus/alternating";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRPlusConfig{
       .update_mode = rm::UpdateMode::alternating};
@@ -713,7 +588,6 @@ struct cfr_plus_alternating_profile {
 struct lazy_alternating_profile {
    static constexpr ProfileId id = ProfileId::lazy_alternating;
    static constexpr SolverId solver = SolverId::lazy_cfr;
-   static constexpr std::string_view name = "lazy_cfr/alternating";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRLazyConfig{
       .update_mode = rm::UpdateMode::alternating};
@@ -725,7 +599,6 @@ struct lazy_alternating_profile {
 struct lazy_plus_alternating_profile {
    static constexpr ProfileId id = ProfileId::lazy_plus_alternating;
    static constexpr SolverId solver = SolverId::lazy_cfr_plus;
-   static constexpr std::string_view name = "lazy_cfr_plus/alternating";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRLazyConfig{
       .update_mode = rm::UpdateMode::alternating,
@@ -739,7 +612,6 @@ struct lazy_plus_alternating_profile {
 struct extragradient_alternating_profile {
    static constexpr ProfileId id = ProfileId::extragradient_alternating;
    static constexpr SolverId solver = SolverId::extragradient_cfr;
-   static constexpr std::string_view name = "extragradient_cfr/alternating";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRExtragradientConfig{};
    static constexpr auto effective_config = rm::CFRConfig{
@@ -751,7 +623,6 @@ struct extragradient_alternating_profile {
 struct discounted_alternating_profile {
    static constexpr ProfileId id = ProfileId::discounted_alternating;
    static constexpr SolverId solver = SolverId::discounted_cfr;
-   static constexpr std::string_view name = "discounted_cfr/alternating";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRDiscountedConfig{};
    static constexpr auto effective_config = rm::CFRConfig{
@@ -762,7 +633,6 @@ struct discounted_alternating_profile {
 struct linear_alternating_profile {
    static constexpr ProfileId id = ProfileId::linear_alternating;
    static constexpr SolverId solver = SolverId::linear_cfr;
-   static constexpr std::string_view name = "linear_cfr/alternating";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRLinearConfig{};
    static constexpr auto effective_config = rm::CFRConfig{
@@ -773,7 +643,6 @@ struct linear_alternating_profile {
 struct exponential_alternating_profile {
    static constexpr ProfileId id = ProfileId::exponential_alternating;
    static constexpr SolverId solver = SolverId::exponential_cfr;
-   static constexpr std::string_view name = "exponential_cfr/alternating";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRExponentialConfig{};
    static constexpr auto effective_config = rm::CFRConfig{
@@ -784,7 +653,6 @@ struct exponential_alternating_profile {
 struct greedy_simultaneous_profile {
    static constexpr ProfileId id = ProfileId::greedy_simultaneous;
    static constexpr SolverId solver = SolverId::greedy_cfr;
-   static constexpr std::string_view name = "greedy_cfr/simultaneous";
    static constexpr bool is_sampling = false;
    static constexpr auto factory_config = rm::CFRGreedyConfig{
       .update_mode = rm::UpdateMode::simultaneous};
@@ -796,7 +664,6 @@ struct greedy_simultaneous_profile {
 struct mccfr_outcome_lazy_profile {
    static constexpr ProfileId id = ProfileId::mccfr_outcome_lazy;
    static constexpr SolverId solver = SolverId::mccfr;
-   static constexpr std::string_view name = "mccfr/outcome_sampling/lazy";
    static constexpr bool is_sampling = true;
    static constexpr auto factory_config = rm::MCCFRConfig{
       .update_mode = rm::UpdateMode::alternating,
@@ -808,7 +675,6 @@ struct mccfr_outcome_lazy_profile {
 struct mccfr_chance_sampling_profile {
    static constexpr ProfileId id = ProfileId::mccfr_chance_sampling;
    static constexpr SolverId solver = SolverId::mccfr;
-   static constexpr std::string_view name = "mccfr/chance_sampling";
    static constexpr bool is_sampling = true;
    static constexpr auto factory_config = rm::MCCFRConfig{
       .update_mode = rm::UpdateMode::alternating,
@@ -820,7 +686,6 @@ struct mccfr_chance_sampling_profile {
 struct mccfr_external_sampling_profile {
    static constexpr ProfileId id = ProfileId::mccfr_external_sampling;
    static constexpr SolverId solver = SolverId::mccfr;
-   static constexpr std::string_view name = "mccfr/external_sampling";
    static constexpr bool is_sampling = true;
    static constexpr auto factory_config = rm::MCCFRConfig{
       .update_mode = rm::UpdateMode::alternating,
@@ -832,7 +697,6 @@ struct mccfr_external_sampling_profile {
 struct mccfr_pure_cfr_profile {
    static constexpr ProfileId id = ProfileId::mccfr_pure_cfr;
    static constexpr SolverId solver = SolverId::mccfr;
-   static constexpr std::string_view name = "mccfr/pure_cfr";
    static constexpr bool is_sampling = true;
    static constexpr auto factory_config = rm::MCCFRConfig{
       .update_mode = rm::UpdateMode::alternating,
@@ -844,7 +708,6 @@ struct mccfr_pure_cfr_profile {
 struct mccfr_plus_alternating_profile {
    static constexpr ProfileId id = ProfileId::mccfr_plus_alternating;
    static constexpr SolverId solver = SolverId::mccfr_plus;
-   static constexpr std::string_view name = "mccfr_plus/outcome_sampling/lazy";
    static constexpr bool is_sampling = true;
    static constexpr auto factory_config = rm::MCCFRPlusConfig{};
    static constexpr auto effective_config = rm::MCCFRConfig{
@@ -985,6 +848,17 @@ template < typename Env, typename Profile >
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// session adapter //////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
+
+// This is the sole implementation-side constructor for the public move-only session handle. It
+// is declared only as a friend in types.hpp so a binding consumer cannot manufacture a session
+// with an arbitrary model/vtable and thereby bypass the capability registry.
+struct SessionFactory {
+   template < typename Model, typename... Args >
+   [[nodiscard]] static SolverSession make(Args&&... args)
+   {
+      return SolverSession{new Model(std::forward< Args >(args)...), &Model::ops};
+   }
+};
 
 template < typename TypedNode >
 struct ErasedPolicyNodeBackend final: PolicyNodeView::Backend {
@@ -1163,6 +1037,16 @@ template < typename RootValues >
    return result;
 }
 
+template < typename Env >
+[[nodiscard]] size_t
+actual_player_count(const Env& environment, const typename Env::world_state_type& root_state)
+{
+   const auto players = environment.players(root_state);
+   return static_cast< size_t >(std::ranges::count_if(players, [](Player player) {
+      return player != Player::chance;
+   }));
+}
+
 template < typename Solver, GameId Game, SolverId SolverFamily, ProfileId Profile >
 struct SessionModel {
    Solver solver;
@@ -1267,7 +1151,7 @@ struct SessionModel {
             .profile = Profile,
             .iteration = self.solver.iteration(),
             .cycle = self.solver.cycle(),
-            .player_count = self.solver.env().players(self.solver.root_state()).size(),
+            .player_count = actual_player_count(self.solver.env(), self.solver.root_state()),
             .current_policy_entries = current_entries,
             .average_policy_entries = average_entries};
       } catch(const std::exception& exception) {
@@ -1383,12 +1267,12 @@ make_session_impl(const GameHandle& handle, SessionOptions options)
       );
       using solver_type = decltype(solver);
       using model_type = SessionModel< solver_type, Game::id, Profile::solver, Profile::id >;
-      return SolverSession::make< model_type >(std::move(solver));
+      return SessionFactory::make< model_type >(std::move(solver));
    } catch(const std::exception& exception) {
       return std::unexpected(CapabilityError{
          .code = CapabilityErrorCode::construction_failure,
-         .message = std::string("failed to create ") + std::string(Profile::name) + " on "
-                    + std::string(Game::name) + ": " + exception.what(),
+         .message = std::string("failed to create ") + std::string(profile_name< Profile >())
+                    + " on " + std::string(game_name< Game >()) + ": " + exception.what(),
          .game = Game::id,
          .solver = Profile::solver,
          .profile = Profile::id});
@@ -1406,7 +1290,7 @@ template < typename Game >
    constexpr size_t max_players = default_max_players< typename Game::env_type >();
    return GameDescriptor{
       .id = Game::id,
-      .name = Game::name,
+      .name = game_name< Game >(),
       .min_players = min_players,
       .max_players = max_players,
       .stochasticity = Game::env_type::stochasticity(),
@@ -1428,7 +1312,8 @@ template < typename... Games >
 template < typename Profile >
 [[nodiscard]] consteval ProfileDescriptor make_profile_descriptor()
 {
-   return ProfileDescriptor{.id = Profile::id, .solver = Profile::solver, .name = Profile::name};
+   return ProfileDescriptor{
+      .id = Profile::id, .solver = Profile::solver, .name = profile_name< Profile >()};
 }
 
 template < typename... Profiles >
@@ -1439,17 +1324,25 @@ template < typename... Profiles >
 }
 
 inline constexpr std::array solver_descriptors{
-   SolverDescriptor{.id = SolverId::vanilla_cfr, .name = "vanilla_cfr"},
-   SolverDescriptor{.id = SolverId::cfr_plus, .name = "cfr_plus"},
-   SolverDescriptor{.id = SolverId::lazy_cfr, .name = "lazy_cfr"},
-   SolverDescriptor{.id = SolverId::lazy_cfr_plus, .name = "lazy_cfr_plus"},
-   SolverDescriptor{.id = SolverId::extragradient_cfr, .name = "extragradient_cfr"},
-   SolverDescriptor{.id = SolverId::discounted_cfr, .name = "discounted_cfr"},
-   SolverDescriptor{.id = SolverId::linear_cfr, .name = "linear_cfr"},
-   SolverDescriptor{.id = SolverId::exponential_cfr, .name = "exponential_cfr"},
-   SolverDescriptor{.id = SolverId::greedy_cfr, .name = "greedy_cfr"},
-   SolverDescriptor{.id = SolverId::mccfr, .name = "mccfr"},
-   SolverDescriptor{.id = SolverId::mccfr_plus, .name = "mccfr_plus"}};
+   SolverDescriptor{.id = SolverId::vanilla_cfr, .name = meta::enum_name(SolverId::vanilla_cfr)},
+   SolverDescriptor{.id = SolverId::cfr_plus, .name = meta::enum_name(SolverId::cfr_plus)},
+   SolverDescriptor{.id = SolverId::lazy_cfr, .name = meta::enum_name(SolverId::lazy_cfr)},
+   SolverDescriptor{
+      .id = SolverId::lazy_cfr_plus,
+      .name = meta::enum_name(SolverId::lazy_cfr_plus)},
+   SolverDescriptor{
+      .id = SolverId::extragradient_cfr,
+      .name = meta::enum_name(SolverId::extragradient_cfr)},
+   SolverDescriptor{
+      .id = SolverId::discounted_cfr,
+      .name = meta::enum_name(SolverId::discounted_cfr)},
+   SolverDescriptor{.id = SolverId::linear_cfr, .name = meta::enum_name(SolverId::linear_cfr)},
+   SolverDescriptor{
+      .id = SolverId::exponential_cfr,
+      .name = meta::enum_name(SolverId::exponential_cfr)},
+   SolverDescriptor{.id = SolverId::greedy_cfr, .name = meta::enum_name(SolverId::greedy_cfr)},
+   SolverDescriptor{.id = SolverId::mccfr, .name = meta::enum_name(SolverId::mccfr)},
+   SolverDescriptor{.id = SolverId::mccfr_plus, .name = meta::enum_name(SolverId::mccfr_plus)}};
 
 template < typename Game, typename... Profiles >
 [[nodiscard]] consteval size_t capability_count_for(type_list< Profiles... >)
@@ -1520,193 +1413,48 @@ template < size_t Count >
    return true;
 }
 
-inline constexpr auto game_descriptors = make_game_descriptors(game_types{});
-inline constexpr auto profile_descriptors = make_profile_descriptors(profile_types{});
-inline constexpr size_t capability_count_v = capability_count(game_types{}, profile_types{});
+template < typename Game, typename... Profiles >
+[[nodiscard]] consteval auto make_game_capabilities(type_list< Profiles... > profiles)
+{
+   (void) profiles;
+   constexpr size_t count = capability_count_for< Game >(type_list< Profiles... >{});
+   std::array< CapabilityDescriptor, count > output{};
+   size_t index = 0;
+   append_game_capabilities< Game >(output, index, profiles);
+   return output;
+}
 
-// The helper above is intentionally specialized through this lambda so the array extent remains a
-// compile-time value while the game/profile type-lists stay the only cross-product declaration.
-inline constexpr auto all_capability_descriptors = [] {
-   return make_capabilities< capability_count_v >(game_types{}, profile_types{});
-}();
+/**
+ * @brief The one-game unit emitted by a compiled binding-runtime partition.
+ *
+ * The function-local static arrays live in the partition translation unit that instantiates this
+ * template. Public consumers see only spans returned by catalog(), so including this header never
+ * emits a game/solver pair or a registry cross-product.
+ */
+struct CatalogPartition {
+   GameDescriptor game{};
+   std::span< const CapabilityDescriptor > capabilities{};
+};
 
-static_assert(
-   unique_capabilities(all_capability_descriptors),
-   "static capability entries must be complete and unique"
-);
+template < typename Game >
+[[nodiscard]] const CatalogPartition& partition_for() noexcept
+{
+   static constexpr auto game = make_game_descriptor< Game >();
+   static constexpr auto game_capabilities = make_game_capabilities< Game >(profile_types{});
+   static_assert(
+      unique_capabilities(game_capabilities),
+      "a compiled game partition must contain unique admitted capabilities"
+   );
+   static const CatalogPartition value{
+      .game = game, .capabilities = std::span< const CapabilityDescriptor >{game_capabilities}};
+   return value;
+}
 
 }  // namespace detail
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// public lookup API ////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
-
-[[nodiscard]] inline const StaticCatalog& catalog() noexcept
-{
-   static constexpr StaticCatalog value{
-      .games = detail::game_descriptors,
-      .solvers = detail::solver_descriptors,
-      .profiles = detail::profile_descriptors,
-      .combinations = detail::all_capability_descriptors};
-   return value;
-}
-
-[[nodiscard]] inline std::span< const GameDescriptor > games() noexcept
-{
-   return catalog().games;
-}
-
-[[nodiscard]] inline std::span< const SolverDescriptor > solvers() noexcept
-{
-   return catalog().solvers;
-}
-
-[[nodiscard]] inline std::span< const ProfileDescriptor > profiles() noexcept
-{
-   return catalog().profiles;
-}
-
-[[nodiscard]] inline std::span< const CapabilityDescriptor > capabilities() noexcept
-{
-   return catalog().combinations;
-}
-
-[[nodiscard]] inline std::vector< CapabilityDescriptor > capabilities_for(GameId game)
-{
-   std::vector< CapabilityDescriptor > result;
-   for(const auto& capability : catalog().combinations) {
-      if(capability.game == game)
-         result.emplace_back(capability);
-   }
-   return result;
-}
-
-[[nodiscard]] inline std::vector< ProfileDescriptor > profiles_for(SolverId solver)
-{
-   std::vector< ProfileDescriptor > result;
-   for(const auto& profile : catalog().profiles) {
-      if(profile.solver == solver)
-         result.emplace_back(profile);
-   }
-   return result;
-}
-
-[[nodiscard]] inline const GameDescriptor* find_game(GameId id) noexcept
-{
-   for(const auto& descriptor : catalog().games) {
-      if(descriptor.id == id)
-         return &descriptor;
-   }
-   return nullptr;
-}
-
-[[nodiscard]] inline const SolverDescriptor* find_solver(SolverId id) noexcept
-{
-   for(const auto& descriptor : catalog().solvers) {
-      if(descriptor.id == id)
-         return &descriptor;
-   }
-   return nullptr;
-}
-
-[[nodiscard]] inline const ProfileDescriptor* find_profile(ProfileId id) noexcept
-{
-   for(const auto& descriptor : catalog().profiles) {
-      if(descriptor.id == id)
-         return &descriptor;
-   }
-   return nullptr;
-}
-
-[[nodiscard]] inline const CapabilityDescriptor*
-find_capability(GameId game, SolverId solver, ProfileId profile) noexcept
-{
-   for(const auto& descriptor : catalog().combinations) {
-      if(descriptor.game == game && descriptor.solver == solver && descriptor.profile == profile) {
-         return &descriptor;
-      }
-   }
-   return nullptr;
-}
-
-[[nodiscard]] inline GameSpec GameSpec::defaults(GameId id)
-{
-   GameSpec spec{id};
-   if(const auto* descriptor = find_game(id); descriptor != nullptr) {
-      for(const auto& field : descriptor->fields)
-         spec.set(field.id, field.default_value);
-   }
-   return spec;
-}
-
-[[nodiscard]] inline Result< GameHandle > make_game(const GameSpec& spec)
-{
-   const auto* descriptor = find_game(spec.game_id());
-   if(descriptor == nullptr) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::unknown_game,
-         .message = "GameSpec refers to an unknown static game ID",
-         .game = spec.game_id()});
-   }
-   return descriptor->create(spec);
-}
-
-[[nodiscard]] inline Result< SolverSession >
-make_session(const GameHandle& handle, SolverId solver, ProfileId profile, SessionOptions options)
-{
-   if(find_game(handle.game_id()) == nullptr) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::invalid_handle,
-         .message = "GameHandle refers to an unknown static game ID",
-         .game = handle.game_id(),
-         .solver = solver,
-         .profile = profile});
-   }
-   if(find_solver(solver) == nullptr) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::unknown_solver,
-         .message = "solver ID is not present in the immutable solver catalog",
-         .game = handle.game_id(),
-         .solver = solver,
-         .profile = profile});
-   }
-   const auto* profile_descriptor = find_profile(profile);
-   if(profile_descriptor == nullptr) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::unknown_profile,
-         .message = "profile ID is not present in the immutable profile catalog",
-         .game = handle.game_id(),
-         .solver = solver,
-         .profile = profile});
-   }
-   if(profile_descriptor->solver != solver) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::profile_solver_mismatch,
-         .message = "profile belongs to a different solver family",
-         .game = handle.game_id(),
-         .solver = solver,
-         .profile = profile});
-   }
-   if(not std::isfinite(options.epsilon) or options.epsilon < 0. or options.epsilon > 1.) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::invalid_spec,
-         .message = "sampling epsilon must be finite and in [0, 1]",
-         .game = handle.game_id(),
-         .solver = solver,
-         .profile = profile});
-   }
-   const auto* capability = find_capability(handle.game_id(), solver, profile);
-   if(capability == nullptr) {
-      return std::unexpected(CapabilityError{
-         .code = CapabilityErrorCode::unsupported_combination,
-         .message = "game/solver/profile combination is not accepted by the static capability "
-                    "matrix",
-         .game = handle.game_id(),
-         .solver = solver,
-         .profile = profile});
-   }
-   return capability->create(handle, options);
-}
 
 }  // namespace nor::binding::runtime
 
