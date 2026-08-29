@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <functional>
 #include <limits>
 #include <map>
 #include <memory>
@@ -70,6 +71,48 @@ template < size_t Count >
    for(size_t index = 0; index < Count; ++index)
       ids[index] = fields[index].id;
    return unique_values(ids);
+}
+
+template < typename T, typename... Ts >
+inline constexpr bool contains_type_v = (std::is_same_v< T, Ts > or ...);
+
+/// Whether @p Needle is one of the types in a type list.
+template < typename Needle, typename... Ts >
+[[nodiscard]] consteval bool list_contains(type_list< Ts... >)
+{
+   return contains_type_v< Needle, Ts... >;
+}
+
+/// Whether two type lists name exactly the same set of types, in any order.
+template < typename... Left, typename... Right >
+[[nodiscard]] consteval bool same_type_set(type_list< Left... >, type_list< Right... >)
+{
+   return sizeof...(Left) == sizeof...(Right) and (contains_type_v< Left, Right... > and ...)
+          and (contains_type_v< Right, Left... > and ...);
+}
+
+template < typename... Games >
+[[nodiscard]] consteval bool unique_game_ids(type_list< Games... >)
+{
+   return unique_values(std::array{Games::id...});
+}
+
+template < typename... Games >
+[[nodiscard]] consteval bool unique_game_field_ids(type_list< Games... >)
+{
+   return (unique_field_ids(Games::fields) and ...);
+}
+
+template < typename... Profiles >
+[[nodiscard]] consteval bool unique_profile_ids(type_list< Profiles... >)
+{
+   return unique_values(std::array{Profiles::id...});
+}
+
+template < typename... Games >
+[[nodiscard]] consteval size_t type_list_size(type_list< Games... >)
+{
+   return sizeof...(Games);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -188,17 +231,19 @@ template < typename Env >
 
 // The standalone wrapper environments used by the existing C++ game targets
 // expose their initial state as a default-constructed world state, while the
-// richer environment types expose initial_world_state(). Keep that difference
-// inside the binding-runtime adapter so neither the registry nor libnor needs
-// a special-case API.
+// richer environment types expose initial_world_state(). A tag may also build the root itself
+// from its normalized spec, which is what games whose root is a board position rather than an
+// environment property need. Keep that difference inside the binding-runtime adapter so neither
+// the registry nor libnor needs a special-case API.
 template < typename Game >
-[[nodiscard]] auto initial_world_state(const typename Game::env_type& environment)
+[[nodiscard]] auto
+initial_world_state(const typename Game::env_type& environment, const GameSpec& spec)
 {
    using env_type = typename Game::env_type;
-   if constexpr(requires(const env_type& env) { env.initial_world_state(); }) {
+   if constexpr(requires(const GameSpec& s) { Game::world_state_for(s); }) {
+      return Game::world_state_for(spec);
+   } else if constexpr(requires(const env_type& env) { env.initial_world_state(); }) {
       return environment.initial_world_state();
-   } else if constexpr(requires { Game::default_world_state(); }) {
-      return Game::default_world_state();
    } else {
       return typename env_type::world_state_type{};
    }
@@ -257,23 +302,73 @@ struct rps_game {
 struct stratego_game {
    using env_type = games::stratego::Environment;
    static constexpr GameId id = GameId::stratego;
-   inline static constexpr std::array< FieldDescriptor, 0 > fields{};
+   inline static constexpr std::array fields{
+      reflected_field(GameFieldId::board_size, SpecKind::unsigned_integer, uint64_t{3}),
+      reflected_field(GameFieldId::max_turn_count, SpecKind::unsigned_integer, uint64_t{10})};
 
    static Result< env_type > make_env(const GameSpec&) { return env_type{}; }
 
-   static env_type::world_state_type default_world_state()
+   /**
+    * @brief The 3x3 flag/spy opening that the Stratego implementation's own suite plays out.
+    *
+    * Stratego's convenience constructor derives a start field from a helper that does not produce
+    * a playable position, and an empty setup default-constructs but has no legal first move. The
+    * board below is the same explicit, fully placed position the game's `StrategoState3x3` fixture
+    * uses, so the registered default is a real game rather than a state that only survives until
+    * the first traversal:
+    *
+    * ```
+    * ---------------- BLUE holds the flag at (0,0) and a spy at (0,1);
+    * |    | 1R | 0R | RED holds a spy at (2,1) and the flag at (2,2).
+    * ----------------
+    * |    |    |    |
+    * ----------------
+    * | 0B | 1B |    |
+    * ----------------
+    * ```
+    *
+    * The turn cap keeps the default catalog entry a tractable tree; a caller that wants a longer
+    * or larger game supplies the spec fields.
+    */
+   static env_type::world_state_type world_state_for(const GameSpec& spec)
    {
-      // The legacy Stratego convenience constructor currently delegates to a
-      // broken default-start-field helper.  Supplying empty, explicit setups
-      // keeps this binding adapter constructible without changing the game
-      // implementation; the later binding can add a richer Stratego spec when
-      // that environment exposes one.
-      using setup_map = std::map< ::stratego::Team, std::optional< ::stratego::Config::setup_t > >;
-      const setup_map empty_setups{
-         {::stratego::Team::BLUE, ::stratego::Config::setup_t{}},
-         {::stratego::Team::RED, ::stratego::Config::setup_t{}}};
-      return env_type::world_state_type{
-         ::stratego::Config{::stratego::Team::BLUE, size_t{5}, empty_setups}};
+      using ::stratego::Config;
+      using ::stratego::Position2D;
+      using ::stratego::Team;
+      using ::stratego::Token;
+
+      const auto board_size = spec.contains(GameFieldId::board_size)
+                                 ? spec_unsigned_as< size_t >(spec, GameFieldId::board_size)
+                                 : size_t{3};
+      const auto max_turn_count = spec.contains(GameFieldId::max_turn_count)
+                                     ? spec_unsigned_as< size_t >(spec, GameFieldId::max_turn_count)
+                                     : size_t{10};
+      if(board_size < 3) {
+         throw std::invalid_argument("stratego board_size must be at least 3");
+      }
+      if(max_turn_count == 0) {
+         throw std::invalid_argument("stratego max_turn_count must be greater than zero");
+      }
+
+      // Both teams get a flag and a spy on opposite corners of the board, which is a legal
+      // position for every square board of size three or more.
+      const auto last = board_size - 1;
+      Config::setup_t blue{{Position2D{0, 0}, Token::flag}, {Position2D{0, 1}, Token::spy}};
+      Config::setup_t red{
+         {Position2D{static_cast< int >(last), static_cast< int >(last) - 1}, Token::spy},
+         {Position2D{static_cast< int >(last), static_cast< int >(last)}, Token::flag}};
+
+      Config config{
+         Team::BLUE,
+         board_size,
+         std::map< Team, std::optional< Config::setup_t > >{
+            {Team::BLUE, std::make_optional(std::move(blue))},
+            {Team::RED, std::make_optional(std::move(red))}},
+         std::vector< Position2D >{},
+         true,
+         true,
+         max_turn_count};
+      return env_type::world_state_type{std::move(config), size_t{0}};
    }
 };
 
@@ -540,13 +635,19 @@ template < typename Tag >
       auto environment = Tag::make_env(*normalized);
       if(not environment)
          return std::unexpected(environment.error());
-      (void) initial_world_state< Tag >(*environment);
+      (void) initial_world_state< Tag >(*environment, *normalized);
       return GameHandle{std::move(*normalized)};
    } catch(const std::exception& exception) {
       return std::unexpected(CapabilityError{
          .code = CapabilityErrorCode::construction_failure,
          .message = std::string("failed to construct ") + std::string(game_name< Tag >()) + ": "
                     + exception.what(),
+         .game = Tag::id});
+   } catch(...) {
+      return std::unexpected(CapabilityError{
+         .code = CapabilityErrorCode::construction_failure,
+         .message = std::string("failed to construct ") + std::string(game_name< Tag >())
+                    + ": the environment threw a non-standard exception",
          .game = Tag::id});
    }
 }
@@ -1066,38 +1167,60 @@ struct SessionModel {
          .profile = Profile});
    }
 
+   /**
+    * @brief Run one erased operation and translate every possible failure into a Result.
+    *
+    * This is the outermost frame of the compiled session: nothing above it can catch a C++
+    * exception, and a foreign (non-std::exception) throw escaping here would cross the erased
+    * function-pointer boundary into a caller that has no handler for it. A dynamic provider's
+    * language runtime is exactly such a source, so the catch-all is not defensive padding.
+    */
+   template < typename T, typename Operation >
+   [[nodiscard]] static Result< T > guarded(const char* what, Operation&& operation)
+   {
+      try {
+         return std::invoke(std::forward< Operation >(operation));
+      } catch(const DynamicProviderError& violation) {
+         return operation_error< T >(
+            CapabilityErrorCode::invalid_dynamic_provider,
+            std::string("solver ") + what
+               + " rejected a dynamic provider value: " + violation.what()
+         );
+      } catch(const std::exception& exception) {
+         return operation_error< T >(
+            CapabilityErrorCode::session_failure,
+            std::string("solver ") + what + " failed: " + exception.what()
+         );
+      } catch(...) {
+         return operation_error< T >(
+            CapabilityErrorCode::session_failure,
+            std::string("solver ") + what + " failed with a non-standard exception"
+         );
+      }
+   }
+
    static Result< IterationResult > iterate(void* object)
    {
       auto& self = *static_cast< SessionModel* >(object);
-      try {
+      return guarded< IterationResult >("iteration", [&] {
          const size_t iteration = self.solver.iteration();
          return make_iteration_result(iteration, self.solver.iterate());
-      } catch(const std::exception& exception) {
-         return operation_error< IterationResult >(
-            CapabilityErrorCode::session_failure,
-            std::string("solver iteration failed: ") + exception.what()
-         );
-      }
+      });
    }
 
    static Result< void > advance(void* object, size_t iterations)
    {
       auto& self = *static_cast< SessionModel* >(object);
-      try {
+      return guarded< void >("advance", [&]() -> Result< void > {
          self.solver.advance(iterations);
          return {};
-      } catch(const std::exception& exception) {
-         return operation_error< void >(
-            CapabilityErrorCode::session_failure,
-            std::string("solver advance failed: ") + exception.what()
-         );
-      }
+      });
    }
 
    static Result< std::optional< IterationResult > > advance_last(void* object, size_t iterations)
    {
       auto& self = *static_cast< SessionModel* >(object);
-      try {
+      return guarded< std::optional< IterationResult > >("advance_last", [&] {
          const size_t first_iteration = self.solver.iteration();
          auto root = self.solver.advance_last(iterations);
          if(not root) {
@@ -1105,38 +1228,28 @@ struct SessionModel {
          }
          return std::optional< IterationResult >{
             make_iteration_result(first_iteration + iterations - 1, *root)};
-      } catch(const std::exception& exception) {
-         return operation_error< std::optional< IterationResult > >(
-            CapabilityErrorCode::session_failure,
-            std::string("solver advance_last failed: ") + exception.what()
-         );
-      }
+      });
    }
 
    static Result< TraceResult > trace(void* object, size_t iterations, size_t every)
    {
       auto& self = *static_cast< SessionModel* >(object);
-      try {
-         if(every == 0) {
-            return operation_error< TraceResult >(
-               CapabilityErrorCode::invalid_spec, "trace cadence must be greater than zero"
-            );
-         }
+      if(every == 0) {
+         return operation_error< TraceResult >(
+            CapabilityErrorCode::invalid_spec, "trace cadence must be greater than zero"
+         );
+      }
+      return guarded< TraceResult >("trace", [&] {
          const size_t first_iteration = self.solver.iteration();
          auto roots = self.solver.trace(iterations, every);
          return make_trace_result(first_iteration, self.solver.iteration(), every, roots);
-      } catch(const std::exception& exception) {
-         return operation_error< TraceResult >(
-            CapabilityErrorCode::session_failure,
-            std::string("solver trace failed: ") + exception.what()
-         );
-      }
+      });
    }
 
    static Result< SessionStats > stats(const void* object)
    {
       const auto& self = *static_cast< const SessionModel* >(object);
-      try {
+      return guarded< SessionStats >("statistics", [&] {
          size_t current_entries = 0;
          size_t average_entries = 0;
          self.solver.visit_current_policy([&](const auto&, const auto& node) {
@@ -1154,28 +1267,18 @@ struct SessionModel {
             .player_count = actual_player_count(self.solver.env(), self.solver.root_state()),
             .current_policy_entries = current_entries,
             .average_policy_entries = average_entries};
-      } catch(const std::exception& exception) {
-         return operation_error< SessionStats >(
-            CapabilityErrorCode::session_failure,
-            std::string("solver statistics failed: ") + exception.what()
-         );
-      }
+      });
    }
 
    static Result< PolicyView > policy_lookup(const void* object, PolicyViewKind kind)
    {
       const auto& self = *static_cast< const SessionModel* >(object);
-      try {
+      return guarded< PolicyView >("policy lookup", [&] {
          return erase_policy_lookup<
             decltype(self.solver.policy_lookup()),
             typename Solver::info_state_type,
             typename Solver::action_type >(self.solver.policy_lookup(), kind);
-      } catch(const std::exception& exception) {
-         return operation_error< PolicyView >(
-            CapabilityErrorCode::session_failure,
-            std::string("policy lookup failed: ") + exception.what()
-         );
-      }
+      });
    }
 
    inline static constexpr SolverSessionOps ops{
@@ -1230,15 +1333,38 @@ template < typename Profile, typename Env >
    }
 }
 
+/**
+ * @brief The one static session thunk.
+ *
+ * A CapabilityDescriptor exposes this as a plain function pointer, so a caller that already holds
+ * a descriptor reaches this code without passing through make_session(). Every precondition that
+ * make_session() checks is therefore re-checked here rather than assumed.
+ */
 template < typename Game, typename Profile >
 [[nodiscard]] Result< SolverSession >
 make_session_impl(const GameHandle& handle, SessionOptions options)
 {
+   // A descriptor for an inadmissible pair is never emitted, so this branch is unreachable through
+   // the registry. Stating it as a constant-evaluated condition is what keeps the concrete solver
+   // instantiation out of this translation unit for a pair the compiler did not admit.
+   static_assert(
+      profile_supported< typename Game::env_type, Profile >(),
+      "a static session thunk may only be instantiated for a compiler-admitted game/profile pair"
+   );
+
    if(handle.game_id() != Game::id) {
       return std::unexpected(CapabilityError{
          .code = CapabilityErrorCode::invalid_handle,
          .message = "GameHandle ID does not match its selected capability thunk",
          .game = handle.game_id(),
+         .solver = Profile::solver,
+         .profile = Profile::id});
+   }
+   if(not std::isfinite(options.epsilon) or options.epsilon < 0. or options.epsilon > 1.) {
+      return std::unexpected(CapabilityError{
+         .code = CapabilityErrorCode::invalid_spec,
+         .message = "sampling epsilon must be finite and in [0, 1]",
+         .game = Game::id,
          .solver = Profile::solver,
          .profile = Profile::id});
    }
@@ -1258,7 +1384,7 @@ make_session_impl(const GameHandle& handle, SessionOptions options)
       if(not environment_result)
          return std::unexpected(environment_result.error());
       auto environment = std::move(*environment_result);
-      auto root_state = initial_world_state< Game >(environment);
+      auto root_state = initial_world_state< Game >(environment, *normalized);
       auto root = std::make_unique< auto_world_state_type< typename Game::env_type > >(
          std::move(root_state)
       );
@@ -1273,6 +1399,15 @@ make_session_impl(const GameHandle& handle, SessionOptions options)
          .code = CapabilityErrorCode::construction_failure,
          .message = std::string("failed to create ") + std::string(profile_name< Profile >())
                     + " on " + std::string(game_name< Game >()) + ": " + exception.what(),
+         .game = Game::id,
+         .solver = Profile::solver,
+         .profile = Profile::id});
+   } catch(...) {
+      return std::unexpected(CapabilityError{
+         .code = CapabilityErrorCode::construction_failure,
+         .message = std::string("failed to create ") + std::string(profile_name< Profile >())
+                    + " on " + std::string(game_name< Game >())
+                    + ": the solver threw a non-standard exception",
          .game = Game::id,
          .solver = Profile::solver,
          .profile = Profile::id});
@@ -1428,8 +1563,14 @@ template < typename Game, typename... Profiles >
  * @brief The one-game unit emitted by a compiled binding-runtime partition.
  *
  * The function-local static arrays live in the partition translation unit that instantiates this
- * template. Public consumers see only spans returned by catalog(), so including this header never
- * emits a game/solver pair or a registry cross-product.
+ * template, and each partition instantiates concrete solvers for one game only. What partitioning
+ * removes is the *instantiation* cross-product, not the admissibility work: every partition still
+ * evaluates profile_supported() for every profile, because that is what decides which of its
+ * capabilities exist. Those checks are cheap constant evaluation; the expensive part that stays
+ * partitioned is the concrete solver each admitted pair instantiates.
+ *
+ * Public consumers see only spans returned by catalog(), so including types.hpp never emits a
+ * game/solver pair.
  */
 struct CatalogPartition {
    GameDescriptor game{};
@@ -1439,8 +1580,15 @@ struct CatalogPartition {
 template < typename Game >
 [[nodiscard]] const CatalogPartition& partition_for() noexcept
 {
+   static_assert(
+      list_contains< Game >(game_types{}),
+      "a partition may only be emitted for a game tag that is part of the static game list"
+   );
    static constexpr auto game = make_game_descriptor< Game >();
    static constexpr auto game_capabilities = make_game_capabilities< Game >(profile_types{});
+   static_assert(
+      unique_field_ids(Game::fields), "fields within a static game specification must be unique"
+   );
    static_assert(
       unique_capabilities(game_capabilities),
       "a compiled game partition must contain unique admitted capabilities"

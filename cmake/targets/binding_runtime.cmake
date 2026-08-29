@@ -3,26 +3,23 @@
 # Cartesian product again.
 set(NOR_BINDING_RUNTIME_DIR "${PROJECT_NOR_BINDING_DIR}/runtime")
 
+# The partition roster lives in catalog_partitions.hpp, which generates one declaration per game. Globbing the directory
+# therefore cannot drift from it: a partition file that is missing is an unresolved declaration at link time, and a file
+# for a game that is not in the static game list fails a static assertion. CONFIGURE_DEPENDS re-runs the glob when the
+# directory changes.
+file(
+    GLOB
+    NOR_BINDING_RUNTIME_GAME_PARTITIONS
+    CONFIGURE_DEPENDS
+    "${NOR_BINDING_RUNTIME_DIR}/partitions/*.cpp")
+list(SORT NOR_BINDING_RUNTIME_GAME_PARTITIONS)
+if(NOT NOR_BINDING_RUNTIME_GAME_PARTITIONS)
+    message(FATAL_ERROR "no binding-runtime game partitions found in ${NOR_BINDING_RUNTIME_DIR}/partitions")
+endif()
+
 set(NOR_BINDING_RUNTIME_PARTITION_SOURCES
-    "${NOR_BINDING_RUNTIME_DIR}/catalog.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/dynamic.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/kuhn.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/leduc.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/rps.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/stratego.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/texas_holdem.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/goofspiel.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/three_player_goofspiel.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/battleship.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/battleship_gs.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/dark_hex.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/pursuit_evasion.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/oshi_zumo.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/shapley.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/centipede.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/colonel_blotto.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/sheriff.cpp"
-    "${NOR_BINDING_RUNTIME_DIR}/partitions/liars_dice.cpp")
+    "${NOR_BINDING_RUNTIME_DIR}/catalog.cpp" "${NOR_BINDING_RUNTIME_DIR}/dynamic.cpp"
+    ${NOR_BINDING_RUNTIME_GAME_PARTITIONS})
 
 add_library(nor_binding_runtime STATIC ${NOR_BINDING_RUNTIME_PARTITION_SOURCES})
 set_property(GLOBAL APPEND PROPERTY JOB_POOLS nor_binding_runtime_compile=1)

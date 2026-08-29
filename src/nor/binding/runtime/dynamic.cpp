@@ -5,6 +5,7 @@
 #include <cmath>
 #include <exception>
 #include <ranges>
+#include <utility>
 
 #include "catalog.hpp"
 
@@ -27,159 +28,127 @@ with_session_context(CapabilityError error, SolverId solver, ProfileId profile)
    return error;
 }
 
-[[nodiscard]] constexpr bool is_actual_player(Player player) noexcept
-{
-   const auto value = static_cast< int >(player);
-   return value >= static_cast< int >(Player::alex) and value <= static_cast< int >(Player::zoey);
-}
+using detail::contains_duplicate;
+using detail::is_actual_player;
+using detail::max_actual_player_count;
 
-[[nodiscard]] bool contains_player(std::span< const Player > players, Player requested) noexcept
+/**
+ * @brief Validate the provider's declarations and the state it starts every session from.
+ *
+ * Only facts that are constant for the whole game are established here. Everything that can vary
+ * per state is validated by DynamicEnvironment on each crossing, because a provider that is well
+ * formed at its root can still be malformed at a later reachable state.
+ */
+[[nodiscard]] Result< DynamicAdmission > admit_declarations(
+   const DynamicEnvironmentProvider& provider
+)
 {
-   return std::ranges::find(players, requested) != players.end();
-}
+   DynamicAdmission admission;
+   admission.max_player_count = provider.max_player_count();
+   admission.player_count = provider.player_count();
+   if(admission.max_player_count == 0 or admission.max_player_count > max_actual_player_count) {
+      return std::unexpected(dynamic_provider_error(
+         "provider max_player_count must be in [1, " + std::to_string(max_actual_player_count) + "]"
+      ));
+   }
+   if(admission.player_count == 0 or admission.player_count > admission.max_player_count) {
+      return std::unexpected(dynamic_provider_error(
+         "provider player_count must be nonzero and no greater than max_player_count"
+      ));
+   }
 
-template < typename Value >
-[[nodiscard]] bool contains_duplicate(const std::vector< Value >& values)
-{
-   for(size_t left = 0; left < values.size(); ++left) {
-      for(size_t right = left + 1; right < values.size(); ++right) {
-         if(values[left] == values[right])
-            return true;
+   admission.stochasticity = provider.stochasticity();
+   if(admission.stochasticity == Stochasticity::sample) {
+      return std::unexpected(dynamic_provider_error(
+         "provider stochasticity::sample is unsupported; declare deterministic or choice"
+      ));
+   }
+   if(admission.stochasticity != Stochasticity::deterministic
+      and admission.stochasticity != Stochasticity::choice) {
+      return std::unexpected(dynamic_provider_error("provider declared an unknown stochasticity"));
+   }
+   if(not provider.serialized()) {
+      return std::unexpected(
+         dynamic_provider_error("dynamic providers must declare serialized() == true")
+      );
+   }
+   if(not provider.unrolled()) {
+      return std::unexpected(
+         dynamic_provider_error("dynamic providers must declare unrolled() == true")
+      );
+   }
+
+   admission.initial_state = provider.initial_world_state();
+   if(not admission.initial_state.value().valid()) {
+      return std::unexpected(dynamic_provider_error(
+         "provider initial_world_state() must have a nonempty type name and identity"
+      ));
+   }
+
+   admission.roster = provider.players(admission.initial_state);
+   if(admission.roster.size() != admission.player_count) {
+      return std::unexpected(dynamic_provider_error(
+         "provider players(initial_world_state) count does not match player_count"
+      ));
+   }
+   for(const auto player : admission.roster) {
+      if(not is_actual_player(player)) {
+         return std::unexpected(
+            dynamic_provider_error("provider player roster contains a non-actual player")
+         );
       }
    }
-   return false;
+   if(contains_duplicate(admission.roster)) {
+      return std::unexpected(
+         dynamic_provider_error("provider player roster contains duplicate players")
+      );
+   }
+   return admission;
 }
 
-[[nodiscard]] Result< void > validate_dynamic_provider(
+/**
+ * @brief Walk the admitted initial state through the checked adapter.
+ *
+ * This deliberately reuses DynamicEnvironment rather than repeating its rules, so the initial
+ * state is admitted by exactly the checks every later state has to pass.
+ */
+[[nodiscard]] Result< void > admit_initial_state(const DynamicEnvironment& environment)
+{
+   const auto& initial = environment.initial_world_state();
+   // Terminality is settled first: a terminal root has no active player to admit.
+   if(environment.is_terminal(initial))
+      return {};
+   const auto active = environment.active_player(initial);
+   if(active == Player::chance) {
+      (void) environment.chance_actions(initial);
+   } else {
+      (void) environment.actions(active, initial);
+   }
+   return {};
+}
+
+}  // namespace
+
+Result< std::shared_ptr< const DynamicAdmission > > admit_dynamic_provider(
    const std::shared_ptr< const DynamicEnvironmentProvider >& provider
 )
 {
    if(not provider) {
       return std::unexpected(dynamic_provider_error("dynamic game requires a provider"));
    }
-
    try {
-      constexpr size_t max_actual_players = static_cast< size_t >(Player::zoey) + 1;
-      const size_t max_players = provider->max_player_count();
-      const size_t player_count = provider->player_count();
-      if(max_players == 0 or max_players > max_actual_players) {
-         return std::unexpected(dynamic_provider_error(
-            "provider max_player_count must be in [1, " + std::to_string(max_actual_players) + "]"
-         ));
-      }
-      if(player_count == 0 or player_count > max_players) {
-         return std::unexpected(dynamic_provider_error(
-            "provider player_count must be nonzero and no greater than max_player_count"
-         ));
-      }
-
-      const auto stochasticity = provider->stochasticity();
-      if(stochasticity == Stochasticity::sample) {
-         return std::unexpected(dynamic_provider_error(
-            "provider stochasticity::sample is unsupported; declare deterministic or choice"
-         ));
-      }
-      if(stochasticity != Stochasticity::deterministic and stochasticity != Stochasticity::choice) {
-         return std::unexpected(dynamic_provider_error("provider declared an unknown stochasticity")
-         );
-      }
-      if(not provider->serialized()) {
-         return std::unexpected(
-            dynamic_provider_error("dynamic providers must declare serialized() == true")
-         );
-      }
-      if(not provider->unrolled()) {
-         return std::unexpected(
-            dynamic_provider_error("dynamic providers must declare unrolled() == true")
-         );
-      }
-
-      const auto initial = provider->initial_world_state();
-      const auto roster = provider->players(initial);
-      if(roster.size() != player_count) {
-         return std::unexpected(dynamic_provider_error(
-            "provider players(initial_world_state) count does not match player_count"
-         ));
-      }
-      for(const auto player : roster) {
-         if(not is_actual_player(player)) {
-            return std::unexpected(
-               dynamic_provider_error("provider player roster contains a non-actual player")
-            );
-         }
-      }
-      if(contains_duplicate(roster)) {
-         return std::unexpected(
-            dynamic_provider_error("provider player roster contains duplicate players")
-         );
-      }
-
-      const auto active = provider->active_player(initial);
-      if(active != Player::chance
-         and (not is_actual_player(active) or not contains_player(roster, active))) {
-         return std::unexpected(dynamic_provider_error(
-            "provider active_player(initial_world_state) is not in the player roster or chance"
-         ));
-      }
-      if(active == Player::chance and stochasticity != Stochasticity::choice) {
-         return std::unexpected(
-            dynamic_provider_error("a chance initial state requires provider stochasticity::choice")
-         );
-      }
-
-      if(not provider->is_terminal(initial)) {
-         if(active == Player::chance) {
-            const auto outcomes = provider->chance_actions(initial);
-            if(outcomes.empty()) {
-               return std::unexpected(
-                  dynamic_provider_error("nonterminal chance initial state has no chance outcomes")
-               );
-            }
-            if(contains_duplicate(outcomes)) {
-               return std::unexpected(
-                  dynamic_provider_error("initial chance outcomes must be unique")
-               );
-            }
-            double probability_sum = 0.;
-            for(const auto& outcome : outcomes) {
-               if(not outcome.valid()) {
-                  return std::unexpected(dynamic_provider_error(
-                     "initial chance outcomes must have nonempty type and identity"
-                  ));
-               }
-               const double probability = provider->chance_probability(initial, outcome);
-               if(not std::isfinite(probability) or probability < 0.) {
-                  return std::unexpected(dynamic_provider_error(
-                     "initial chance probabilities must be finite and nonnegative"
-                  ));
-               }
-               probability_sum += probability;
-            }
-            if(not std::isfinite(probability_sum) or std::abs(probability_sum - 1.) > 1.e-8) {
-               return std::unexpected(dynamic_provider_error(
-                  "initial chance probabilities must sum approximately to one"
-               ));
-            }
-         } else {
-            const auto actions = provider->actions(active, initial);
-            if(actions.empty()) {
-               return std::unexpected(
-                  dynamic_provider_error("nonterminal initial state has no legal actions")
-               );
-            }
-            if(contains_duplicate(actions)) {
-               return std::unexpected(dynamic_provider_error("initial legal actions must be unique")
-               );
-            }
-            for(const auto& action : actions) {
-               if(not action.valid()) {
-                  return std::unexpected(dynamic_provider_error(
-                     "initial legal actions must have nonempty type and identity"
-                  ));
-               }
-            }
-         }
-      }
+      auto declarations = admit_declarations(*provider);
+      if(not declarations)
+         return std::unexpected(std::move(declarations.error()));
+      auto admission = std::make_shared< const DynamicAdmission >(std::move(*declarations));
+      // Constructing the adapter with the record under test is what makes the validated snapshot
+      // and the snapshot a session is rooted at literally the same value.
+      const DynamicEnvironment environment{provider, admission};
+      if(auto initial = admit_initial_state(environment); not initial)
+         return std::unexpected(std::move(initial.error()));
+      return admission;
+   } catch(const DynamicProviderError& violation) {
+      return std::unexpected(dynamic_provider_error(violation.what()));
    } catch(const std::exception& exception) {
       return std::unexpected(
          dynamic_provider_error(std::string("provider validation threw: ") + exception.what())
@@ -189,8 +158,9 @@ template < typename Value >
          dynamic_provider_error("provider validation threw a non-standard exception")
       );
    }
-   return {};
 }
+
+namespace {
 
 template < typename Profile >
 Result< SolverSession >
@@ -204,6 +174,8 @@ make_dynamic_session_impl(const DynamicGameHandle& handle, SessionOptions option
          .solver = Profile::solver,
          .profile = Profile::id});
    }
+   // Repeated inside the thunk as well as in the outer entry point: a capability descriptor is a
+   // plain function pointer, so a caller that already holds one bypasses the outer checks.
    if(not std::isfinite(options.epsilon) or options.epsilon < 0. or options.epsilon > 1.) {
       return std::unexpected(CapabilityError{
          .code = CapabilityErrorCode::invalid_spec,
@@ -211,11 +183,6 @@ make_dynamic_session_impl(const DynamicGameHandle& handle, SessionOptions option
          .game = GameId::dynamic,
          .solver = Profile::solver,
          .profile = Profile::id});
-   }
-   if(auto validation = validate_dynamic_provider(handle.provider()); not validation) {
-      return std::unexpected(
-         with_session_context(std::move(validation.error()), Profile::solver, Profile::id)
-      );
    }
 
    if constexpr(not detail::profile_supported< DynamicEnvironment, Profile >()) {
@@ -227,7 +194,15 @@ make_dynamic_session_impl(const DynamicGameHandle& handle, SessionOptions option
          .profile = Profile::id});
    } else {
       try {
-         DynamicEnvironment environment{handle.provider()};
+         auto admission = admit_dynamic_provider(handle.provider());
+         if(not admission) {
+            return std::unexpected(
+               with_session_context(std::move(admission.error()), Profile::solver, Profile::id)
+            );
+         }
+         DynamicEnvironment environment{handle.provider(), *admission};
+         // The root is the snapshot that was just validated, not a second initial_world_state()
+         // query that the provider could answer differently.
          auto root = std::make_unique< DynamicWorldState >(environment.initial_world_state());
          auto solver = detail::make_concrete_solver< Profile >(
             std::move(environment), std::move(root), options
@@ -236,6 +211,10 @@ make_dynamic_session_impl(const DynamicGameHandle& handle, SessionOptions option
          using model_type = detail::
             SessionModel< solver_type, GameId::dynamic, Profile::solver, Profile::id >;
          return detail::SessionFactory::make< model_type >(std::move(solver));
+      } catch(const DynamicProviderError& violation) {
+         return std::unexpected(with_session_context(
+            dynamic_provider_error(violation.what()), Profile::solver, Profile::id
+         ));
       } catch(const std::exception& exception) {
          return std::unexpected(CapabilityError{
             .code = CapabilityErrorCode::construction_failure,
@@ -248,7 +227,8 @@ make_dynamic_session_impl(const DynamicGameHandle& handle, SessionOptions option
       } catch(...) {
          return std::unexpected(CapabilityError{
             .code = CapabilityErrorCode::construction_failure,
-            .message = "failed to create a dynamic solver session",
+            .message = "failed to create a dynamic solver session: the environment threw a "
+                       "non-standard exception",
             .game = GameId::dynamic,
             .solver = Profile::solver,
             .profile = Profile::id});
@@ -294,6 +274,11 @@ inline constexpr auto
    dynamic_capability_descriptors = make_dynamic_capabilities< dynamic_capability_count_v >(
       detail::profile_types{}
    );
+
+static_assert(
+   dynamic_capability_count_v > 0,
+   "the dynamic FOSG contract must admit at least one solver profile"
+);
 
 }  // namespace
 
@@ -356,9 +341,6 @@ DynamicGameHandle::make_session(SolverId solver, ProfileId profile, SessionOptio
          .solver = solver,
          .profile = profile});
    }
-   if(auto validation = validate_dynamic_provider(m_provider); not validation) {
-      return std::unexpected(with_session_context(std::move(validation.error()), solver, profile));
-   }
    const auto* capability = find_dynamic_capability(solver, profile);
    if(capability == nullptr) {
       return std::unexpected(CapabilityError{
@@ -368,6 +350,8 @@ DynamicGameHandle::make_session(SolverId solver, ProfileId profile, SessionOptio
          .solver = solver,
          .profile = profile});
    }
+   // The thunk re-admits the provider itself, so the session is rooted at a snapshot validated
+   // now rather than at handle-creation time.
    return capability->create(*this, options);
 }
 
@@ -391,10 +375,11 @@ make_dynamic_game(GameSpec spec, std::shared_ptr< const DynamicEnvironmentProvid
          .message = "dynamic GameSpec must use the reserved dynamic game ID",
          .game = spec.game_id()});
    }
-   if(auto validation = validate_dynamic_provider(provider); not validation) {
-      return std::unexpected(std::move(validation.error()));
+   auto admission = admit_dynamic_provider(provider);
+   if(not admission) {
+      return std::unexpected(std::move(admission.error()));
    }
-   return DynamicGameHandle{std::move(spec), std::move(provider)};
+   return DynamicGameHandle{std::move(spec), std::move(provider), std::move(*admission)};
 }
 
 }  // namespace nor::binding::runtime

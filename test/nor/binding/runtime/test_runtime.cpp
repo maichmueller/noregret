@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <set>
@@ -21,6 +23,10 @@ using nor::Stochasticity;
 
 namespace {
 
+/**
+ * Modes prefixed with `late_` are well formed at the initial state and only malformed at a state
+ * the solver reaches later. They exist because validating admission alone would accept them.
+ */
 enum class ProviderMode {
    deterministic,
    chance,
@@ -32,10 +38,23 @@ enum class ProviderMode {
    bad_actions,
    bad_chance,
    not_serialized,
-   not_unrolled
+   not_unrolled,
+   empty_initial_world,
+   late_empty_actions,
+   late_duplicate_actions,
+   late_invalid_action,
+   late_bad_active,
+   late_short_roster,
+   late_duplicate_roster,
+   late_foreign_roster,
+   late_bad_reward,
+   late_bad_world,
+   late_bad_observation,
+   late_bad_chance_sum,
+   late_bad_chance_probability
 };
 
-class TestDynamicProvider final: public DynamicEnvironmentProvider {
+class TestDynamicProvider: public DynamicEnvironmentProvider {
   public:
    using DynamicEnvironmentProvider::private_observation;
    using DynamicEnvironmentProvider::public_observation;
@@ -66,8 +85,10 @@ class TestDynamicProvider final: public DynamicEnvironmentProvider {
    [[nodiscard]] bool serialized() const final { return m_mode != ProviderMode::not_serialized; }
    [[nodiscard]] bool unrolled() const final { return m_mode != ProviderMode::not_unrolled; }
 
-   [[nodiscard]] DynamicWorldState initial_world_state() const final
+   [[nodiscard]] DynamicWorldState initial_world_state() const override
    {
+      if(m_mode == ProviderMode::empty_initial_world)
+         return DynamicWorldState{DynamicWorldValue::named("test.world", "")};
       return world(is_chance_mode() ? "chance_root" : "root");
    }
 
@@ -81,14 +102,30 @@ class TestDynamicProvider final: public DynamicEnvironmentProvider {
          return {};
       if(m_mode == ProviderMode::bad_actions)
          return {DynamicAction{}};
+      if(is_later_state(state)) {
+         switch(m_mode) {
+            case ProviderMode::late_empty_actions: return {};
+            case ProviderMode::late_duplicate_actions: return {action("left"), action("left")};
+            case ProviderMode::late_invalid_action: return {action("left"), DynamicAction{}};
+            default: break;
+         }
+      }
       return {action("left"), action("right")};
    }
 
-   [[nodiscard]] std::vector< Player > players(const DynamicWorldState&) const final
+   [[nodiscard]] std::vector< Player > players(const DynamicWorldState& state) const final
    {
       touch();
       if(m_mode == ProviderMode::duplicate_players)
          return {Player::alex, Player::alex};
+      if(is_later_state(state)) {
+         switch(m_mode) {
+            case ProviderMode::late_short_roster: return {Player::alex};
+            case ProviderMode::late_duplicate_roster: return {Player::alex, Player::alex};
+            case ProviderMode::late_foreign_roster: return {Player::alex, Player::cedric};
+            default: break;
+         }
+      }
       return {Player::alex, Player::bob};
    }
 
@@ -97,7 +134,10 @@ class TestDynamicProvider final: public DynamicEnvironmentProvider {
       touch();
       if(m_mode == ProviderMode::bad_active)
          return Player::unknown;
-      if(is_chance_mode() and state.value().identity() == "chance_root")
+      if(m_mode == ProviderMode::late_bad_active and is_later_state(state))
+         return Player::unknown;
+      if(is_chance_mode()
+         and (state.value().identity() == "chance_root" or state.value().identity() == "second_chance"))
          return Player::chance;
       if(state.value().identity() == "root")
          return Player::alex;
@@ -121,6 +161,8 @@ class TestDynamicProvider final: public DynamicEnvironmentProvider {
    [[nodiscard]] double reward(Player player, const DynamicWorldState& state) const final
    {
       touch();
+      if(m_mode == ProviderMode::late_bad_reward and state.value().identity() == "terminal")
+         return std::numeric_limits< double >::infinity();
       if(state.value().identity() != "terminal")
          return 0.;
       return player == Player::alex ? 1. : -1.;
@@ -129,6 +171,10 @@ class TestDynamicProvider final: public DynamicEnvironmentProvider {
    void transition(DynamicWorldState& state, const DynamicAction&) const final
    {
       touch();
+      if(m_mode == ProviderMode::late_bad_world and state.value().identity() == "after") {
+         state.set(DynamicWorldValue::named("test.world", ""));
+         return;
+      }
       if(state.value().identity() == "root" or state.value().identity() == "chance_root")
          state.set(world_value("after"));
       else
@@ -136,10 +182,12 @@ class TestDynamicProvider final: public DynamicEnvironmentProvider {
    }
 
    [[nodiscard]] DynamicObservation
-   private_observation(Player, const DynamicWorldState&, const DynamicAction& action_value, const DynamicWorldState&)
+   private_observation(Player, const DynamicWorldState& state, const DynamicAction& action_value, const DynamicWorldState&)
       const final
    {
       touch();
+      if(m_mode == ProviderMode::late_bad_observation and is_later_state(state))
+         return DynamicObservation{};
       return observation(std::string(action_value.identity()));
    }
 
@@ -155,21 +203,38 @@ class TestDynamicProvider final: public DynamicEnvironmentProvider {
    ) const final
    {
       touch();
-      if(not is_chance_mode() or state.value().identity() != "chance_root")
+      if(not is_chance_mode())
          return {};
-      return {outcome("heads"), outcome("tails")};
+      if(state.value().identity() == "chance_root" or state.value().identity() == "second_chance")
+         return {outcome("heads"), outcome("tails")};
+      return {};
    }
 
-   [[nodiscard]] double chance_probability(const DynamicWorldState&, const DynamicChanceOutcome&)
-      const final
+   [[nodiscard]] double chance_probability(
+      const DynamicWorldState& state,
+      const DynamicChanceOutcome& outcome_value
+   ) const final
    {
       touch();
-      return m_mode == ProviderMode::bad_chance ? 0.6 : 0.5;
+      if(m_mode == ProviderMode::bad_chance)
+         return 0.6;
+      if(state.value().identity() == "second_chance") {
+         if(m_mode == ProviderMode::late_bad_chance_sum)
+            return 0.6;
+         if(m_mode == ProviderMode::late_bad_chance_probability)
+            return outcome_value.identity() == "heads" ? -0.5
+                                                       : std::numeric_limits< double >::quiet_NaN();
+      }
+      return 0.5;
    }
 
    void transition(DynamicWorldState& state, const DynamicChanceOutcome&) const final
    {
       touch();
+      if(has_second_chance_node() and state.value().identity() == "chance_root") {
+         state.set(world_value("second_chance"));
+         return;
+      }
       state.set(world_value("after"));
    }
 
@@ -191,10 +256,25 @@ class TestDynamicProvider final: public DynamicEnvironmentProvider {
 
    [[nodiscard]] const std::shared_ptr< size_t >& calls() const noexcept { return m_calls; }
 
-  private:
+  protected:
    [[nodiscard]] bool is_chance_mode() const noexcept
    {
-      return m_mode == ProviderMode::chance or m_mode == ProviderMode::bad_chance;
+      return m_mode == ProviderMode::chance or m_mode == ProviderMode::bad_chance
+             or has_second_chance_node();
+   }
+
+   /// A chance node that the initial admission pass never reaches.
+   [[nodiscard]] bool has_second_chance_node() const noexcept
+   {
+      return m_mode == ProviderMode::late_bad_chance_sum
+             or m_mode == ProviderMode::late_bad_chance_probability;
+   }
+
+   /// True for every state past the root, which is where the `late_` modes misbehave.
+   [[nodiscard]] static bool is_later_state(const DynamicWorldState& state) noexcept
+   {
+      const auto identity = state.value().identity();
+      return identity != "root" and identity != "chance_root";
    }
 
    static DynamicWorldState world(std::string identity)
@@ -316,6 +396,155 @@ TEST(Catalog, DescriptorsReflectAndAreUnique)
       EXPECT_NE(find_game(capability.game), nullptr);
       EXPECT_NE(find_profile(capability.profile), nullptr);
    }
+}
+
+TEST(Catalog, ReportsExactlyTheCompiledGameRoster)
+{
+   // The partition roster is generated from one macro list and cross-checked against the static
+   // game type list at compile time. This test pins the *result* of that generation, so dropping
+   // or renaming a game cannot pass silently just because both places were edited together.
+   const std::set< GameId > expected_games{
+      GameId::kuhn_poker,
+      GameId::leduc_poker,
+      GameId::rock_paper_scissors,
+      GameId::stratego,
+      GameId::texas_holdem_poker,
+      GameId::goofspiel,
+      GameId::three_player_goofspiel,
+      GameId::battleship,
+      GameId::battleship_gs,
+      GameId::dark_hex,
+      GameId::pursuit_evasion,
+      GameId::oshi_zumo,
+      GameId::shapley,
+      GameId::centipede,
+      GameId::colonel_blotto,
+      GameId::sheriff,
+      GameId::liars_dice};
+
+   std::set< GameId > actual_games;
+   for(const auto& game : games())
+      actual_games.insert(game.id);
+   EXPECT_EQ(actual_games, expected_games);
+   EXPECT_EQ(games().size(), expected_games.size());
+
+   // The reserved dynamic identifier is not a static game and must never be constructible as one.
+   EXPECT_EQ(find_game(GameId::dynamic), nullptr);
+   auto dynamic_as_static = make_game(GameSpec{GameId::dynamic});
+   ASSERT_FALSE(dynamic_as_static);
+   EXPECT_EQ(dynamic_as_static.error().code, CapabilityErrorCode::unknown_game);
+
+   size_t counted = 0;
+   for(const auto& game : games()) {
+      const auto admitted = capabilities_for(game.id);
+      EXPECT_FALSE(admitted.empty()) << game.name << " admits no solver profile";
+      counted += admitted.size();
+      for(const auto& capability : admitted) {
+         const auto* profile = find_profile(capability.profile);
+         ASSERT_NE(profile, nullptr);
+         EXPECT_EQ(profile->solver, capability.solver);
+      }
+   }
+   EXPECT_EQ(counted, capabilities().size());
+
+   // Every admitted pair is reachable through the public lookup and no other pair is.
+   for(const auto& game : games()) {
+      for(const auto& profile : profiles()) {
+         const auto* capability = find_capability(game.id, profile.solver, profile.id);
+         const auto admitted = capabilities_for(game.id);
+         const bool listed = std::ranges::any_of(admitted, [&](const CapabilityDescriptor& entry) {
+            return entry.solver == profile.solver and entry.profile == profile.id;
+         });
+         EXPECT_EQ(capability != nullptr, listed);
+      }
+   }
+}
+
+TEST(Catalog, RejectsUnsupportedAndMismatchedCombinations)
+{
+   auto handle = make_game(GameSpec::defaults(GameId::rock_paper_scissors));
+   ASSERT_TRUE(handle) << handle.error().message;
+
+   auto unknown_solver = make_session(
+      *handle, static_cast< SolverId >(0x7fff), ProfileId::vanilla_alternating
+   );
+   ASSERT_FALSE(unknown_solver);
+   EXPECT_EQ(unknown_solver.error().code, CapabilityErrorCode::unknown_solver);
+
+   auto unknown_profile = make_session(
+      *handle, SolverId::vanilla_cfr, static_cast< ProfileId >(0x7fff)
+   );
+   ASSERT_FALSE(unknown_profile);
+   EXPECT_EQ(unknown_profile.error().code, CapabilityErrorCode::unknown_profile);
+
+   auto mismatched = make_session(*handle, SolverId::mccfr, ProfileId::vanilla_alternating);
+   ASSERT_FALSE(mismatched);
+   EXPECT_EQ(mismatched.error().code, CapabilityErrorCode::profile_solver_mismatch);
+}
+
+TEST(Catalog, EveryStaticThunkValidatesEpsilonItself)
+{
+   // A CapabilityDescriptor is a raw function pointer. A caller holding one never passes through
+   // make_session(), so the outer epsilon check is not the only one that may exist.
+   auto handle = make_game(GameSpec::defaults(GameId::rock_paper_scissors));
+   ASSERT_TRUE(handle) << handle.error().message;
+
+   for(const double epsilon :
+       {-0.5,
+        1.5,
+        std::numeric_limits< double >::quiet_NaN(),
+        std::numeric_limits< double >::infinity()}) {
+      for(const auto& capability : capabilities_for(GameId::rock_paper_scissors)) {
+         auto session = capability.create(*handle, SessionOptions{.epsilon = epsilon, .seed = 0});
+         ASSERT_FALSE(session) << "a thunk accepted epsilon " << epsilon;
+         EXPECT_EQ(session.error().code, CapabilityErrorCode::invalid_spec);
+      }
+      // The same rejection reaches callers of the public entry point.
+      auto outer = make_session(
+         *handle,
+         SolverId::vanilla_cfr,
+         ProfileId::vanilla_alternating,
+         SessionOptions{.epsilon = epsilon, .seed = 0}
+      );
+      ASSERT_FALSE(outer);
+      EXPECT_EQ(outer.error().code, CapabilityErrorCode::invalid_spec);
+   }
+
+   const auto* dynamic_capability = find_dynamic_capability(
+      SolverId::vanilla_cfr, ProfileId::vanilla_alternating
+   );
+   ASSERT_NE(dynamic_capability, nullptr);
+   auto dynamic_game = make_dynamic_game(
+      GameSpec{GameId::dynamic},
+      std::make_shared< TestDynamicProvider >(ProviderMode::deterministic)
+   );
+   ASSERT_TRUE(dynamic_game) << dynamic_game.error().message;
+   auto dynamic_session = dynamic_capability->create(
+      *dynamic_game, SessionOptions{.epsilon = 2., .seed = 0}
+   );
+   ASSERT_FALSE(dynamic_session);
+   EXPECT_EQ(dynamic_session.error().code, CapabilityErrorCode::invalid_spec);
+}
+
+TEST(Catalog, StrategoDefaultIsPlayableRatherThanMerelyConstructible)
+{
+   // The registered default used to be an empty setup: it constructed, and then failed on the
+   // first traversal. Registering a capability at all means the first iteration has to work.
+   auto handle = make_game(GameSpec::defaults(GameId::stratego));
+   ASSERT_TRUE(handle) << handle.error().message;
+   auto session = make_session(*handle, SolverId::vanilla_cfr, ProfileId::vanilla_alternating);
+   ASSERT_TRUE(session) << session.error().message;
+
+   auto iteration = session->iterate();
+   ASSERT_TRUE(iteration) << iteration.error().message;
+   EXPECT_EQ(iteration->iteration, 0u);
+   ASSERT_EQ(iteration->root_values.size(), 2u);
+
+   auto stats = session->stats();
+   ASSERT_TRUE(stats) << stats.error().message;
+   EXPECT_EQ(stats->player_count, 2u);
+   // A playable opening has at least one decision node for the player to move first.
+   EXPECT_GT(stats->current_policy_entries, 0u);
 }
 
 TEST(Catalog, ConstructsEveryAdmittedCapability)
@@ -446,11 +675,131 @@ TEST(Dynamic, ValidationRejectsMalformedProviders)
    expect_invalid(ProviderMode::max_count_zero, "max_player_count");
    expect_invalid(ProviderMode::wrong_count, "does not match player_count");
    expect_invalid(ProviderMode::duplicate_players, "duplicate players");
-   expect_invalid(ProviderMode::bad_active, "not in the player roster");
+   expect_invalid(ProviderMode::bad_active, "neither chance nor an admitted actual player");
    expect_invalid(ProviderMode::bad_actions, "legal actions must have");
    expect_invalid(ProviderMode::bad_chance, "sum approximately");
    expect_invalid(ProviderMode::not_serialized, "serialized() == true");
    expect_invalid(ProviderMode::not_unrolled, "unrolled() == true");
+   expect_invalid(ProviderMode::empty_initial_world, "initial_world_state()");
+}
+
+TEST(Dynamic, ValidationRejectsProvidersThatOnlyBreakLater)
+{
+   // The initial state of each of these providers is perfectly admissible. Only a state the solver
+   // reaches during traversal is malformed, which is exactly the case an admission-time-only check
+   // would let through into the concrete solver.
+   const auto expect_invalid_at_run =
+      [](ProviderMode mode, std::string_view label, std::string_view message) {
+         SCOPED_TRACE(std::string{label});
+         auto game = make_dynamic_game(
+            GameSpec{GameId::dynamic}, std::make_shared< TestDynamicProvider >(mode)
+         );
+         ASSERT_TRUE(game) << "provider was expected to be admissible at its initial state: "
+                           << game.error().message;
+         auto session = game->make_session(SolverId::vanilla_cfr, ProfileId::vanilla_alternating);
+         ASSERT_TRUE(session) << session.error().message;
+         auto iteration = session->iterate();
+         ASSERT_FALSE(iteration) << "a malformed later state was accepted by the solver";
+         EXPECT_EQ(iteration.error().code, CapabilityErrorCode::invalid_dynamic_provider);
+         EXPECT_NE(iteration.error().message.find(message), std::string::npos)
+            << iteration.error().message;
+         EXPECT_EQ(iteration.error().game, GameId::dynamic);
+         EXPECT_EQ(iteration.error().profile, ProfileId::vanilla_alternating);
+      };
+
+   expect_invalid_at_run(
+      ProviderMode::late_empty_actions, "late_empty_actions", "no legal actions"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_duplicate_actions, "late_duplicate_actions", "legal actions must be unique"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_invalid_action, "late_invalid_action", "legal actions must have"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_bad_active, "late_bad_active", "neither chance nor an admitted"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_short_roster, "late_short_roster", "different size than the admitted"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_duplicate_roster, "late_duplicate_roster", "duplicate players"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_foreign_roster, "late_foreign_roster", "outside the admitted roster"
+   );
+   expect_invalid_at_run(ProviderMode::late_bad_reward, "late_bad_reward", "non-finite");
+   expect_invalid_at_run(
+      ProviderMode::late_bad_world, "late_bad_world", "world state without a type name"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_bad_observation, "late_bad_observation", "observation without a type name"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_bad_chance_sum, "late_bad_chance_sum", "sum approximately to one"
+   );
+   expect_invalid_at_run(
+      ProviderMode::late_bad_chance_probability,
+      "late_bad_chance_probability",
+      "finite and nonnegative"
+   );
+}
+
+TEST(Dynamic, AdmissionAndSolverConstructionShareOneInitialSnapshot)
+{
+   // A provider whose initial_world_state() answers differently on the second call would let the
+   // solver start from a state nothing validated. The session must root itself at the snapshot it
+   // validated, not at a fresh query.
+   class DriftingProvider final: public TestDynamicProvider {
+     public:
+      using TestDynamicProvider::TestDynamicProvider;
+
+      [[nodiscard]] DynamicWorldState initial_world_state() const final
+      {
+         ++m_calls;
+         return TestDynamicProvider::initial_world_state();
+      }
+
+      [[nodiscard]] size_t initial_calls() const noexcept { return m_calls; }
+
+     private:
+      mutable size_t m_calls = 0;
+   };
+
+   auto provider = std::make_shared< DriftingProvider >(ProviderMode::deterministic);
+   auto game = make_dynamic_game(GameSpec{GameId::dynamic}, provider);
+   ASSERT_TRUE(game) << game.error().message;
+   const auto calls_after_admission = provider->initial_calls();
+   auto session = game->make_session(SolverId::vanilla_cfr, ProfileId::vanilla_alternating);
+   ASSERT_TRUE(session) << session.error().message;
+   // Exactly one query per admission pass: the session re-admits, and then roots itself at that
+   // very snapshot rather than asking a third time.
+   EXPECT_EQ(provider->initial_calls(), calls_after_admission + 1);
+   ASSERT_TRUE(session->iterate());
+}
+
+TEST(Dynamic, ChanceDistributionsAreValidatedOncePerState)
+{
+   // Summing a chance node's distribution costs one probability query per outcome. Doing that on
+   // every visit would double the provider traffic of the hottest dynamic code path, so the check
+   // is memoized per state; the first iteration pays for it and later ones do not.
+   auto calls = std::make_shared< size_t >(0);
+   auto provider = std::make_shared< TestDynamicProvider >(ProviderMode::chance, calls);
+   auto game = make_dynamic_game(GameSpec{GameId::dynamic}, provider);
+   ASSERT_TRUE(game) << game.error().message;
+   auto session = game->make_session(SolverId::vanilla_cfr, ProfileId::vanilla_alternating);
+   ASSERT_TRUE(session) << session.error().message;
+
+   const auto before_first = *calls;
+   ASSERT_TRUE(session->iterate());
+   const auto first_iteration_calls = *calls - before_first;
+
+   const auto before_second = *calls;
+   ASSERT_TRUE(session->iterate());
+   const auto second_iteration_calls = *calls - before_second;
+
+   EXPECT_GT(first_iteration_calls, 0u);
+   EXPECT_LE(second_iteration_calls, first_iteration_calls);
 }
 
 TEST(Dynamic, DeterministicProviderUsesUnifiedSession)
@@ -512,6 +861,111 @@ TEST(Dynamic, ChanceProviderUsesChoiceSuperset)
    auto stats = session->stats();
    ASSERT_TRUE(stats) << stats.error().message;
    EXPECT_EQ(stats->player_count, 2u);
+}
+
+TEST(Session, BulkPolicyRowOrderIsUnspecifiedButContentIsNot)
+{
+   // to_entries() is documented to produce rows in the solver's hash-map order. The contract this
+   // test pins is therefore about the row *set* and each row's internal order, never the row
+   // sequence itself.
+   auto session = make_rps_session();
+   ASSERT_TRUE(session) << session.error().message;
+   ASSERT_TRUE(session->advance(3));
+
+   auto lookup = session->policy_lookup();
+   ASSERT_TRUE(lookup) << lookup.error().message;
+   const auto entries = lookup->to_entries();
+   ASSERT_FALSE(entries.empty());
+
+   std::set< Player > owners;
+   for(const auto& entry : entries) {
+      owners.insert(entry.player);
+      ASSERT_FALSE(entry.actions.empty());
+      // Within one row the action order is the node's deterministic registry order, which the
+      // ordinal accessors must agree with.
+      auto row = lookup->find(entry.info_state);
+      ASSERT_TRUE(row.has_value());
+      ASSERT_EQ(row->size(), entry.actions.size());
+      for(size_t index = 0; index < entry.actions.size(); ++index) {
+         EXPECT_EQ(row->action_at(index), entry.actions[index].action);
+         EXPECT_DOUBLE_EQ(row->value_at(index), entry.actions[index].probability);
+      }
+   }
+   EXPECT_EQ(owners, (std::set< Player >{Player::alex, Player::bob}));
+
+   // Repeating the copy on an unmutated policy yields the same rows, whatever order they arrive in.
+   const auto repeated = lookup->to_entries();
+   ASSERT_EQ(repeated.size(), entries.size());
+   for(const auto& entry : entries) {
+      const auto found = std::ranges::find(repeated, entry.info_state, &PolicyEntry::info_state);
+      ASSERT_NE(found, repeated.end());
+      EXPECT_EQ(found->player, entry.player);
+      EXPECT_EQ(found->actions.size(), entry.actions.size());
+   }
+}
+
+TEST(Session, SolverDestructionDuringVisitationStopsTheTraversal)
+{
+   // The erased boundary hands out a lookup that borrows solver-owned storage. A visitor callback
+   // that releases the session frees that storage mid-traversal; the traversal must stop rather
+   // than step to the next node.
+   std::optional< SolverSession > session = std::nullopt;
+   auto created = make_rps_session();
+   ASSERT_TRUE(created) << created.error().message;
+   session.emplace(std::move(*created));
+   ASSERT_TRUE(session->iterate());
+
+   auto lookup_result = session->policy_lookup();
+   ASSERT_TRUE(lookup_result) << lookup_result.error().message;
+   auto lookup = std::move(*lookup_result);
+
+   size_t visited = 0;
+   EXPECT_THROW(
+      {
+         (void) lookup.visit([&](const PolicyNodeView&) {
+            ++visited;
+            session.reset();
+         });
+      },
+      std::logic_error
+   );
+   EXPECT_EQ(visited, 1u);
+   EXPECT_FALSE(lookup.valid());
+}
+
+TEST(Session, SessionMoveAssignmentDuringVisitationStopsTheTraversal)
+{
+   auto destination_result = make_rps_session();
+   ASSERT_TRUE(destination_result) << destination_result.error().message;
+   auto destination = std::move(*destination_result);
+   ASSERT_TRUE(destination.iterate());
+
+   auto source_result = make_rps_session();
+   ASSERT_TRUE(source_result) << source_result.error().message;
+   auto source = std::move(*source_result);
+   ASSERT_TRUE(source.iterate());
+
+   auto lookup_result = destination.policy_lookup();
+   ASSERT_TRUE(lookup_result) << lookup_result.error().message;
+   auto lookup = std::move(*lookup_result);
+
+   size_t visited = 0;
+   EXPECT_THROW(
+      {
+         (void) lookup.visit([&](const PolicyNodeView&) {
+            ++visited;
+            destination = std::move(source);
+         });
+      },
+      std::logic_error
+   );
+   EXPECT_EQ(visited, 1u);
+   EXPECT_FALSE(lookup.valid());
+
+   auto fresh = destination.policy_lookup();
+   ASSERT_TRUE(fresh) << fresh.error().message;
+   EXPECT_TRUE(fresh->valid());
+   EXPECT_GT(fresh->visit([](const PolicyNodeView&) {}), 0u);
 }
 
 TEST(Values, IdentityPresentationAndTensorSemantics)
