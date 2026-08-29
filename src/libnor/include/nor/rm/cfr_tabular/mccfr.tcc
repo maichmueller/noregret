@@ -141,41 +141,7 @@ template <
    typename SamplingRule >
 auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(size_t n_iters)
 {
-   std::vector< StateValueMap > root_values_per_iteration;
-   root_values_per_iteration.reserve(n_iters);
-   for([[maybe_unused]] auto _ : std::views::iota(size_t(0), n_iters)) {
-      SPDLOG_DEBUG("Iteration number: {}", _iteration());
-      std::optional< Player > player_to_update = std::nullopt;
-      if constexpr(config.update_mode == UpdateMode::alternating) {
-         player_to_update = _cycle_player_to_update();
-      }
-      root_values_per_iteration.emplace_back(std::invoke([&] {
-         if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
-            return std::move(_iterate(player_to_update).first);
-         }
-         if constexpr(  // clang-format off
-             (config.algorithm == MCCFRAlgorithmMode::chance_sampling)
-             or (
-                config.algorithm == MCCFRAlgorithmMode::pure_cfr
-                and config.update_mode == UpdateMode::simultaneous
-             )  // clang-format on
-         ) {
-            return std::move(_iterate(player_to_update).get());
-         }
-         if constexpr(  // clang-format off
-             (config.algorithm == MCCFRAlgorithmMode::external_sampling)
-             or (
-                config.algorithm == MCCFRAlgorithmMode::pure_cfr
-                and config.update_mode == UpdateMode::alternating
-             )  // clang-format on
-         ) {
-            return StateValueMap{std::unordered_map< Player, double >{
-               {*player_to_update, _iterate(*player_to_update).get()}}};
-         }
-      }));
-      _iteration()++;
-   }
-   return root_values_per_iteration;
+   return this->trace(n_iters);
 }
 
 template <
@@ -190,25 +156,67 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::iterate(
    requires(config.update_mode == UpdateMode::alternating)
 {
    SPDLOG_DEBUG("Iteration number: {}", _iteration());
-   // run the iteration
    auto updated_player = _cycle_player_to_update(player_to_update);
-   // _iterate's return type differs per algorithm (StateValueMap pair / StateValueMap /
-   // StateValue) -- mirror the per-algorithm extraction of iterate(size_t) to obtain the
-   // updated player's value
-   auto value = std::vector{std::invoke([&] {
+   auto value = this->_run_step([&] {
       std::optional< Player > next_player{updated_player};
       if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
          return std::pair{updated_player, _iterate(next_player).first.get().at(updated_player)};
       } else if constexpr(config.algorithm == MCCFRAlgorithmMode::chance_sampling) {
          return std::pair{updated_player, _iterate(next_player).get().at(updated_player)};
       } else {
-         // external sampling and pure CFR: the traversal returns the updated player's value
-         // directly
+         // External sampling and alternating pure CFR return the updating
+         // player's scalar value directly from their traversal.
          return std::pair{updated_player, _iterate(std::move(next_player)).get()};
       }
-   })};
-   // and increment our iteration counter
-   _iteration()++;
+   });
+   ++_iteration();
+   return std::vector{std::move(value)};
+}
+
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate_one()
+{
+   return _iterate_one(std::nullopt);
+}
+
+template <
+   MCCFRConfig config,
+   typename Env,
+   typename Policy,
+   typename AveragePolicy,
+   typename SamplingRule >
+StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate_one(
+   std::optional< Player > player_to_update
+)
+{
+   SPDLOG_DEBUG("Iteration number: {}", _iteration());
+   if constexpr(config.update_mode == UpdateMode::alternating) {
+      player_to_update = _cycle_player_to_update(player_to_update);
+   }
+   StateValueMap value = std::invoke([&] {
+      std::optional< Player > next_player{player_to_update};
+      if constexpr(config.algorithm == MCCFRAlgorithmMode::outcome_sampling) {
+         return std::move(_iterate(next_player).first);
+      } else if constexpr(config.algorithm == MCCFRAlgorithmMode::chance_sampling) {
+         return std::move(_iterate(next_player).get());
+      } else if constexpr(
+         config.algorithm == MCCFRAlgorithmMode::pure_cfr
+         and config.update_mode == UpdateMode::simultaneous
+      ) {
+         return std::move(_iterate(next_player).get());
+      } else {
+         // external sampling and alternating pure CFR return the updating player's value
+         // directly, so preserve the existing StateValueMap root-result shape.
+         return StateValueMap{std::unordered_map< Player, double >{
+            {*player_to_update, _iterate(std::move(next_player)).get()}}};
+      }
+   });
+   ++_iteration();
    return value;
 }
 
@@ -2106,6 +2114,7 @@ void MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::update_regret_an
       or (config.algorithm == MCCFRAlgorithmMode::pure_cfr and config.update_mode == UpdateMode::simultaneous)
    )
 {
+   this->_invalidate_policy_views();
    auto& istate_data = _infonode(infostate);
 
    auto player = infostate.player();

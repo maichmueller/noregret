@@ -24,6 +24,7 @@
 #include "nor/game_defs.hpp"
 #include "nor/rm/action_value_table.hpp"
 #include "nor/rm/cfr_tabular/mccfr.hpp"
+#include "nor/rm/cfr_tabular/solver_operations.hpp"
 #include "nor/rm/extragradient.hpp"
 #include "nor/rm/forest.hpp"
 #include "nor/rm/lazy.hpp"
@@ -231,12 +232,21 @@ using opponent_blend_policy_selector_t = OpponentBlendPolicy<
  */
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 class VanillaCFR:
+    public detail::TabularSolverOperations<
+       VanillaCFR< config, Env, Policy, AveragePolicy >,
+       auto_info_state_type< Env >,
+       auto_action_type< Env > >,
     public TabularCFRBase<
        config.update_mode == UpdateMode::alternating,
        Env,
        Policy,
        AveragePolicy > {
   public:
+   friend class detail::TabularSolverOperations<
+      VanillaCFR< config, Env, Policy, AveragePolicy >,
+      auto_info_state_type< Env >,
+      auto_action_type< Env > >;
+
    static_assert(
       detail::sanity_check_cfr_config< config >(),
       "The configuration check did not return TRUE. This solver was instantiated with a "
@@ -259,6 +269,10 @@ class VanillaCFR:
    /// aliases for the template types
    using base =
       TabularCFRBase< config.update_mode == UpdateMode::alternating, Env, Policy, AveragePolicy >;
+   using operation_layer = detail::TabularSolverOperations<
+      VanillaCFR< config, Env, Policy, AveragePolicy >,
+      auto_info_state_type< Env >,
+      auto_action_type< Env > >;
    using env_type = Env;
    using policy_type = Policy;
    using average_policy_type = AveragePolicy;
@@ -404,6 +418,7 @@ class VanillaCFR:
    using base::iteration;
    using base::cycle;
    using base::root_state;
+   using operation_layer::iterate;
 
    /// the CURRENT policy profile, materialized from the infostate node
    /// records (D1: the records are the single source of truth; this view is
@@ -478,7 +493,9 @@ class VanillaCFR:
     * @brief executes n iterations of the VanillaCFR algorithm in unrolled form (no recursion).
 
     * @param n_iters the number of iterations to perform.
-    * @return game value per iteration
+    * @return the root value map from each iteration. This is the historical
+    *         collection API; use advance(), advance_last(), or trace() when a
+    *         different collection policy is wanted.
     */
    auto iterate(size_t n_iters);
    /**
@@ -489,12 +506,17 @@ class VanillaCFR:
     * @param player_to_update the optional player to update this iteration. If not provided, the
     * function will continue with the regular update cycle. By providing this parameter the user can
     * expressly modify the update cycle to even update individual players multiple times in a row.
-    * @return game value of the iteration of the player
+    * @return a one-element vector containing the root value map. This
+    *         compatibility overload retains the historical return shape;
+    *         use iterate() for the efficient root-map operation.
     */
-   auto iterate(std::optional< Player > player_to_update = std::nullopt)
+   auto iterate(std::optional< Player > player_to_update)
       requires(config.update_mode == UpdateMode::alternating);
 
-   StateValueMap game_value() { return _iterate< false, false >(std::nullopt); }
+   StateValueMap game_value()
+   {
+      return this->_run_step([this] { return _iterate< false, false >(std::nullopt); });
+   }
 
    /// true iff global iteration 'iteration' lies inside the warm-start pre-play phase
    /// (see rm::CFRConfig::warm_start_iterations). Always false when the phase is disabled.
@@ -583,6 +605,11 @@ class VanillaCFR:
    ////////////////////////////////
 
    [[nodiscard]] inline auto& _infonodes() { return m_infonode; }
+   [[nodiscard]] auto _policy_source() const
+   {
+      using node_map_type = std::remove_cvref_t< decltype(m_infonode) >;
+      return detail::NodePolicySource< node_map_type, info_state_type, action_type >{m_infonode};
+   }
    /// Throwing lookups (mirroring MCCFR's): node records populate only during the first
    /// initializing traversal, so a lookup on an untrained solver (e.g. game_value() before
    /// any iterate()) must fail loudly with std::out_of_range instead of dereferencing an
@@ -755,6 +782,11 @@ class VanillaCFR:
     */
    template < bool initializing_run, bool use_current_policy = true >
    auto _iterate(std::optional< Player > player_to_update);
+
+   /// one regular iteration hook consumed by the shared operation layer; the
+   /// caller owns view invalidation and this hook advances the solver counter.
+   StateValueMap _iterate_one();
+   StateValueMap _iterate_one(std::optional< Player > player_to_update);
 
    /**
     * @brief traverses the game tree and fills the nodes with policy weighted regret updates.

@@ -21,6 +21,7 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/rm/action_value_table.hpp"
+#include "nor/rm/cfr_tabular/solver_operations.hpp"
 #include "nor/rm/forest.hpp"
 #include "nor/rm/minimizers/minimizers.hpp"
 #include "nor/rm/node.hpp"
@@ -45,6 +46,10 @@ template <
    typename AveragePolicy,
    typename SamplingRule = EpsilonOnPolicySamplingRule >
 class MCCFR:
+    public detail::TabularSolverOperations<
+       MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >,
+       auto_info_state_type< Env >,
+       auto_action_type< Env > >,
     public TabularCFRBase<
        config.update_mode == UpdateMode::alternating,
        Env,
@@ -54,9 +59,18 @@ class MCCFR:
    /// API: public typedefs ///
    ////////////////////////////
   public:
+   friend class detail::TabularSolverOperations<
+      MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >,
+      auto_info_state_type< Env >,
+      auto_action_type< Env > >;
+
    /// aliases for the template types
    using base =
       TabularCFRBase< config.update_mode == UpdateMode::alternating, Env, Policy, AveragePolicy >;
+   using operation_layer = detail::TabularSolverOperations<
+      MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >,
+      auto_info_state_type< Env >,
+      auto_action_type< Env > >;
 
    /// import all fosg aliases to be used in this class from the env type.
    using typename base::env_type;
@@ -238,7 +252,43 @@ class MCCFR:
    using base::iteration;
    using base::cycle;
    using base::root_state;
-   using base::fetch_policy;
+   using operation_layer::iterate;
+
+   /**
+    * @brief Legacy mutable policy access with direct-view invalidation.
+    *
+    * fetch_policy() may insert or mutate a table entry. Keep its historical
+    * reference-returning API, but invalidate non-owning policy views before
+    * exposing the mutable reference.
+    */
+   template < bool current_policy >
+   auto& fetch_policy(const info_state_type& infostate, const std::vector< action_type >& actions)
+   {
+      this->_invalidate_policy_views();
+      return base::template fetch_policy< current_policy >(infostate, actions);
+   }
+
+   template < PolicyLabel label >
+   decltype(auto)
+   fetch_policy(const info_state_type& infostate, const std::vector< action_type >& actions)
+   {
+      static_assert(
+         label == PolicyLabel::current or label == PolicyLabel::average,
+         "Policy label has to be either 'current' or 'average'."
+      );
+      return fetch_policy< label == PolicyLabel::current >(infostate, actions);
+   }
+
+   template < bool current_policy >
+   auto& fetch_policy(
+      const info_state_type& infostate,
+      const std::vector< action_type >& actions,
+      const action_type& action
+   )
+   {
+      this->_invalidate_policy_views();
+      return base::template fetch_policy< current_policy >(infostate, actions, action);
+   }
 
    [[nodiscard]] size_t history_value_entry_count() const
    {
@@ -274,7 +324,9 @@ class MCCFR:
     * @brief executes n iterations of the VanillaCFR algorithm.
     *
     * @param n_iters the number of iterations to perform.
-    * @return a pointer to the constant current policy after the update
+    * @return the root value map from each iteration. This is the historical
+    *         collection API; use advance(), advance_last(), or trace() when a
+    *         different collection policy is wanted.
     */
    auto iterate(size_t n_iters);
    /**
@@ -285,9 +337,11 @@ class MCCFR:
     * @param player_to_update the optional player to update this iteration. If not provided, the
     * function will continue with the regular update cycle. By providing this parameter the user can
     * expressly modify the update cycle to even update individual players multiple times in a row.
-    * @return the game value of the iteration with the current policy
+    * @return a one-element vector containing the historical
+    *         (updating-player, value) result. Use iterate() for the efficient
+    *         root StateValueMap operation.
     */
-   auto iterate(std::optional< Player > player_to_update = std::nullopt)
+   auto iterate(std::optional< Player > player_to_update)
       requires(config.update_mode == UpdateMode::alternating);
 
    ////////////////////////////////
@@ -295,6 +349,18 @@ class MCCFR:
    ////////////////////////////////
 
    inline auto& _infonodes() { return m_infonode; }
+   [[nodiscard]] auto _policy_source() const
+   {
+      using node_map_type = std::remove_cvref_t< decltype(m_infonode) >;
+      using current_policy_map_type = std::remove_cvref_t< decltype(this->policy()) >;
+      using average_policy_map_type = std::remove_cvref_t< decltype(this->average_policy()) >;
+      return detail::TablePolicySource<
+         node_map_type,
+         info_state_type,
+         action_type,
+         current_policy_map_type,
+         average_policy_map_type >{m_infonode, this->policy(), this->average_policy()};
+   }
    inline auto& infonode(const sptr< info_state_type >& infostate) const
    {
       return m_infonode.at(infostate);
@@ -392,6 +458,11 @@ class MCCFR:
     * same time (simultaneous updates).
     */
    auto _iterate(std::optional< Player > player_to_update);
+
+   /// one regular iteration hook consumed by the shared operation layer; the
+   /// caller owns view invalidation and this hook advances the solver counter.
+   StateValueMap _iterate_one();
+   StateValueMap _iterate_one(std::optional< Player > player_to_update);
 
    /**
     * @brief traverses the game tree and fills the nodes with current policy weighted value updates.
