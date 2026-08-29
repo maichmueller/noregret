@@ -2,8 +2,8 @@
   {
     "os": "ubuntu-22.04",
     "build_type": "Release",
+    "container": "gcc:16.1",
     "cc": "gcc",
-    "cxx": "g++",
-    "compiler_version": 16
+    "cxx": "g++"
   }
 ]
