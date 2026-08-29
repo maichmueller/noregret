@@ -425,3 +425,33 @@ TEST(TabularSolverOperations, MCCFRDirectPolicyLookupAndInvalidation)
    );
    EXPECT_THROW((void) stale_view.size(), std::logic_error);
 }
+
+TEST(TabularSolverOperations, MCCFRMoveTransfersPolicyGeneration)
+{
+   const games::rps::Infostate alex_root{Player::alex};
+   auto solver = make_rps_operation_solver< operations_config >();
+   (void) solver.iterate();
+   auto pre_move_lookup = solver.policy_lookup();
+   auto pre_move_view = pre_move_lookup.at< rm::PolicyLabel::current >(alex_root);
+   ASSERT_TRUE(pre_move_lookup.valid());
+   ASSERT_TRUE(pre_move_view.valid());
+
+   auto moved_view = [&] {
+      auto moved_solver = std::move(solver);
+      EXPECT_FALSE(pre_move_lookup.valid());
+      EXPECT_FALSE(pre_move_view.valid());
+
+      auto moved_lookup = moved_solver.policy_lookup();
+      EXPECT_TRUE(moved_lookup.valid());
+      auto view = moved_lookup.at< rm::PolicyLabel::current >(alex_root);
+      EXPECT_TRUE(view.valid());
+
+      // The moved-from MCCFR solver lazily acquires an independent token on its first lookup.
+      auto moved_from_lookup = solver.policy_lookup();
+      EXPECT_TRUE(moved_from_lookup.valid());
+      return view;
+   }();
+
+   EXPECT_FALSE(moved_view.valid());
+   EXPECT_THROW((void) moved_view.size(), std::logic_error);
+}

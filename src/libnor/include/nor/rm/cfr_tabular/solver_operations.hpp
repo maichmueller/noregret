@@ -527,19 +527,28 @@ class TabularSolverOperations {
    TabularSolverOperations(const TabularSolverOperations&) = delete;
    TabularSolverOperations& operator=(const TabularSolverOperations&) = delete;
 
-   // Copy the token before invalidating it. This keeps the moved-to solver's
-   // views tied to the moved storage while making every pre-move view stale.
+   // Transfer the token with the solver's storage. Invalidation makes every pre-move view stale,
+   // while leaving the moved-from solver without an owner ensures moved-to views expire when the
+   // moved-to solver is destroyed.
    TabularSolverOperations(TabularSolverOperations&& other) noexcept
-       : m_generation(other.m_generation)
+       : m_generation(std::move(other.m_generation))
    {
-      m_generation->invalidate();
+      if(m_generation != nullptr) {
+         m_generation->invalidate();
+      }
    }
 
    TabularSolverOperations& operator=(TabularSolverOperations&& other) noexcept
    {
       if(this != std::addressof(other)) {
-         m_generation = other.m_generation;
-         m_generation->invalidate();
+         if(m_generation != nullptr) {
+            m_generation->invalidate();
+            m_generation.reset();
+         }
+         m_generation = std::move(other.m_generation);
+         if(m_generation != nullptr) {
+            m_generation->invalidate();
+         }
       }
       return *this;
    }
@@ -547,12 +556,14 @@ class TabularSolverOperations {
    /** Execute exactly one regular solver iteration and return its root value map. */
    [[nodiscard]] root_value_type iterate()
    {
+      _ensure_generation();
       return _run_step([this] { return _derived()._iterate_one(); });
    }
 
    /** Execute n iterations and discard each root value immediately. */
    void advance(size_t n_iters)
    {
+      _ensure_generation();
       for([[maybe_unused]] auto _ : std::views::iota(size_t{0}, n_iters)) {
          (void) _run_step([this] { return _derived()._iterate_one(); });
       }
@@ -564,6 +575,7 @@ class TabularSolverOperations {
     */
    [[nodiscard]] std::optional< root_value_type > advance_last(size_t n_iters)
    {
+      _ensure_generation();
       if(n_iters == 0) {
          return std::nullopt;
       }
@@ -585,6 +597,7 @@ class TabularSolverOperations {
       if(every == 0) {
          throw std::invalid_argument("TabularSolverOperations::trace requires every > 0");
       }
+      _ensure_generation();
       std::vector< root_value_type > values;
       values.reserve(n_iters / every);
       for(size_t completed = 0; completed < n_iters; ++completed) {
@@ -596,11 +609,16 @@ class TabularSolverOperations {
       return values;
    }
 
-   [[nodiscard]] size_t policy_generation() const noexcept { return m_generation->value; }
+   [[nodiscard]] size_t policy_generation() const
+   {
+      _ensure_generation();
+      return m_generation->value;
+   }
 
    /** Return a non-owning, generation-checked direct lookup adapter. */
    [[nodiscard]] auto policy_lookup() const
    {
+      _ensure_generation();
       using source_type = std::remove_cvref_t< decltype(_derived()._policy_source()) >;
       return TabularPolicyLookup< source_type, InfoState, Action >{
          _derived()._policy_source(), m_generation};
@@ -648,7 +666,18 @@ class TabularSolverOperations {
       return std::invoke(std::forward< Fn >(fn));
    }
 
-   void _invalidate_policy_views() noexcept { m_generation->invalidate(); }
+   void _invalidate_policy_views()
+   {
+      _ensure_generation();
+      m_generation->invalidate();
+   }
+
+   void _ensure_generation() const
+   {
+      if(m_generation == nullptr) {
+         m_generation = std::make_shared< PolicyGeneration >();
+      }
+   }
 
   private:
    [[nodiscard]] Derived& _derived() noexcept { return static_cast< Derived& >(*this); }
@@ -657,7 +686,8 @@ class TabularSolverOperations {
       return static_cast< const Derived& >(*this);
    }
 
-   std::shared_ptr< PolicyGeneration > m_generation = std::make_shared< PolicyGeneration >();
+   mutable std::shared_ptr< PolicyGeneration > m_generation = std::make_shared< PolicyGeneration >(
+   );
 };
 
 }  // namespace detail

@@ -233,3 +233,58 @@ TEST(TabularSolverOperations, VanillaDirectPolicyLookupAndInvalidation)
    EXPECT_FALSE(orphaned_view->valid());
    EXPECT_THROW((void) orphaned_view->size(), std::logic_error);
 }
+
+TEST(TabularSolverOperations, VanillaMoveTransfersPolicyGeneration)
+{
+   const games::rps::Infostate alex_root{Player::alex};
+   auto solver = make_rps_operation_solver< operations_config >();
+   (void) solver.iterate();
+   auto pre_move_lookup = solver.policy_lookup();
+   auto pre_move_view = pre_move_lookup.at< rm::PolicyLabel::current >(alex_root);
+   ASSERT_TRUE(pre_move_lookup.valid());
+   ASSERT_TRUE(pre_move_view.valid());
+
+   auto moved_view = [&] {
+      auto moved_solver = std::move(solver);
+      EXPECT_FALSE(pre_move_lookup.valid());
+      EXPECT_FALSE(pre_move_view.valid());
+
+      auto moved_lookup = moved_solver.policy_lookup();
+      EXPECT_TRUE(moved_lookup.valid());
+      auto view = moved_lookup.at< rm::PolicyLabel::current >(alex_root);
+      EXPECT_TRUE(view.valid());
+
+      // A moved-from solver has no shared ownership of the moved-to token, but its next lookup
+      // receives a fresh token lazily.
+      auto moved_from_lookup = solver.policy_lookup();
+      EXPECT_TRUE(moved_from_lookup.valid());
+      return view;
+   }();
+
+   EXPECT_FALSE(moved_view.valid());
+   EXPECT_THROW((void) moved_view.size(), std::logic_error);
+}
+
+TEST(TabularSolverOperations, VanillaMoveAssignmentInvalidatesBothSources)
+{
+   const games::rps::Infostate alex_root{Player::alex};
+   auto destination = make_rps_operation_solver< operations_config >();
+   (void) destination.iterate();
+   auto destination_lookup = destination.policy_lookup();
+   auto destination_view = destination_lookup.at< rm::PolicyLabel::current >(alex_root);
+
+   auto source = make_rps_operation_solver< operations_config >();
+   (void) source.iterate();
+   auto source_lookup = source.policy_lookup();
+   auto source_view = source_lookup.at< rm::PolicyLabel::current >(alex_root);
+
+   destination = std::move(source);
+   EXPECT_FALSE(destination_lookup.valid());
+   EXPECT_FALSE(destination_view.valid());
+   EXPECT_FALSE(source_lookup.valid());
+   EXPECT_FALSE(source_view.valid());
+
+   auto assigned_lookup = destination.policy_lookup();
+   ASSERT_TRUE(assigned_lookup.valid());
+   EXPECT_TRUE(assigned_lookup.at< rm::PolicyLabel::current >(alex_root).valid());
+}

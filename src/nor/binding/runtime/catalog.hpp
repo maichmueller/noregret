@@ -922,14 +922,63 @@ template < typename Env >
 }
 
 template < typename Env, typename Profile >
+[[nodiscard]] consteval bool factory_constructible()
+{
+   if constexpr(not tabular_environment_supported< Env >()) {
+      return false;
+   } else {
+      using action_type = auto_action_type< Env >;
+      using info_state_type = auto_info_state_type< Env >;
+      using world_state_type = auto_world_state_type< Env >;
+      using policy_type = TabularPolicy< info_state_type, HashmapActionPolicy< action_type > >;
+
+      // Check the actual factory expression, including the exact root and policy types used by
+      // the runtime thunk. This keeps the capability matrix honest when a solver family changes
+      // its constructor requirements; a Cartesian count is never used as validation.
+      if constexpr(Profile::solver == SolverId::lazy_cfr_plus) {
+         return requires(
+            Env environment, uptr< world_state_type > root, policy_type current, policy_type average
+         ) {
+            factory::make_cfr_lazy_plus< Profile::factory_config, true >(
+               std::move(environment), std::move(root), std::move(current), std::move(average)
+            );
+         };
+      } else if constexpr(Profile::is_sampling) {
+         return requires(
+            Env environment, uptr< world_state_type > root, policy_type current, policy_type average
+         ) {
+            factory::make_cfr< Profile::factory_config, true >(
+               std::move(environment),
+               std::move(root),
+               std::move(current),
+               std::move(average),
+               double{},
+               size_t{}
+            );
+         };
+      } else {
+         return requires(
+            Env environment, uptr< world_state_type > root, policy_type current, policy_type average
+         ) {
+            factory::make_cfr< Profile::factory_config, true >(
+               std::move(environment), std::move(root), std::move(current), std::move(average)
+            );
+         };
+      }
+   }
+}
+
+template < typename Env, typename Profile >
 [[nodiscard]] consteval bool profile_supported()
 {
    if constexpr(not tabular_environment_supported< Env >()) {
       return false;
    } else if constexpr(Profile::is_sampling) {
-      return mccfr_config_supported< Profile::effective_config >();
+      return mccfr_config_supported< Profile::effective_config >()
+             and factory_constructible< Env, Profile >();
    } else {
-      return rm::detail::sanity_check_cfr_config< Profile::effective_config >();
+      return rm::detail::sanity_check_cfr_config< Profile::effective_config >()
+             and factory_constructible< Env, Profile >();
    }
 }
 
@@ -937,52 +986,181 @@ template < typename Env, typename Profile >
 //////////////////////////////////// session adapter //////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-template < typename PolicyMap >
-[[nodiscard]] size_t policy_entry_count(const PolicyMap& policies)
-{
-   size_t count = 0;
-   for(const auto& [player, state_policy] : policies) {
-      (void) player;
-      count += static_cast< size_t >(state_policy.size());
+template < typename TypedNode >
+struct ErasedPolicyNodeBackend final: PolicyNodeView::Backend {
+   explicit ErasedPolicyNodeBackend(
+      TypedNode concrete_node,
+      ErasedInfoState concrete_key,
+      Player concrete_owner,
+      PolicyViewKind concrete_kind
+   )
+       : node(std::move(concrete_node)),
+         key(std::move(concrete_key)),
+         owner(concrete_owner),
+         policy_kind(concrete_kind)
+   {
    }
-   return count;
+
+   TypedNode node;
+   ErasedInfoState key;
+   Player owner = Player::unknown;
+   PolicyViewKind policy_kind = PolicyViewKind::current;
+
+   [[nodiscard]] bool valid() const noexcept final { return node.valid(); }
+   [[nodiscard]] size_t generation() const noexcept final { return node.generation(); }
+   [[nodiscard]] PolicyViewKind kind() const noexcept final { return policy_kind; }
+   [[nodiscard]] Player player() const final
+   {
+      if(not valid())
+         throw std::logic_error("ErasedPolicyNodeBackend is stale");
+      return owner;
+   }
+
+   [[nodiscard]] ErasedInfoState info_state() const final
+   {
+      if(not valid())
+         throw std::logic_error("ErasedPolicyNodeBackend is stale");
+      return key;
+   }
+
+   [[nodiscard]] size_t size() const final { return node.size(); }
+
+   [[nodiscard]] ErasedAction action_at(size_t index) const final
+   {
+      return ErasedValue::action(node.action_at(index));
+   }
+
+   [[nodiscard]] double value_at(size_t index) const final { return node.value_at(index); }
+
+   [[nodiscard]] std::optional< double > find(const ErasedAction& action) const final
+   {
+      if(not action.valid() or action.kind() != ValueKind::action
+         or not action.template holds< typename TypedNode::action_type >()) {
+         return std::nullopt;
+      }
+      return node.find(*action.template get_if< typename TypedNode::action_type >());
+   }
+
+   [[nodiscard]] bool contains(const ErasedAction& action) const final
+   {
+      if(not action.valid() or action.kind() != ValueKind::action
+         or not action.template holds< typename TypedNode::action_type >()) {
+         return false;
+      }
+      return node.contains(*action.template get_if< typename TypedNode::action_type >());
+   }
+};
+
+template < typename TypedLookup, typename InfoState, typename Action >
+struct ErasedPolicyLookupBackend final: PolicyLookup::Backend {
+   explicit ErasedPolicyLookupBackend(TypedLookup concrete_lookup)
+       : lookup(std::move(concrete_lookup))
+   {
+   }
+
+   TypedLookup lookup;
+
+   [[nodiscard]] bool valid() const noexcept final { return lookup.valid(); }
+   [[nodiscard]] size_t generation() const noexcept final { return lookup.generation(); }
+
+   template < rm::PolicyLabel Label >
+   [[nodiscard]] std::optional< PolicyNodeView > find_label(const ErasedInfoState& key) const
+   {
+      if(not key.valid() or key.kind() != ValueKind::info_state
+         or not key.template holds< InfoState >()) {
+         return std::nullopt;
+      }
+      auto found = lookup.template find< Label >(*key.template get_if< InfoState >());
+      if(not found) {
+         return std::nullopt;
+      }
+      using typed_node_type = std::remove_cvref_t< decltype(*found) >;
+      using backend_type = ErasedPolicyNodeBackend< typed_node_type >;
+      return PolicyNodeView::from_backend(std::make_shared< backend_type >(
+         std::move(*found),
+         key,
+         key.template get_if< InfoState >()->player(),
+         Label == rm::PolicyLabel::current ? PolicyViewKind::current : PolicyViewKind::average
+      ));
+   }
+
+   [[nodiscard]] std::optional< PolicyNodeView >
+   find(PolicyViewKind kind, const ErasedInfoState& key) const final
+   {
+      switch(kind) {
+         case PolicyViewKind::current: return find_label< rm::PolicyLabel::current >(key);
+         case PolicyViewKind::average: return find_label< rm::PolicyLabel::average >(key);
+      }
+      return std::nullopt;
+   }
+
+   template < rm::PolicyLabel Label >
+   size_t visit_label(const std::function< void(const PolicyNodeView&) >& visitor) const
+   {
+      return lookup.template visit< Label >([&](const InfoState& key, const auto& node) {
+         using typed_node_type = std::remove_cvref_t< decltype(node) >;
+         using backend_type = ErasedPolicyNodeBackend< typed_node_type >;
+         auto erased_node = PolicyNodeView::from_backend(std::make_shared< backend_type >(
+            node,
+            ErasedValue::info_state(key),
+            key.player(),
+            Label == rm::PolicyLabel::current ? PolicyViewKind::current : PolicyViewKind::average
+         ));
+         visitor(erased_node);
+      });
+   }
+
+   size_t visit(PolicyViewKind kind, const std::function< void(const PolicyNodeView&) >& visitor)
+      const final
+   {
+      switch(kind) {
+         case PolicyViewKind::current: return visit_label< rm::PolicyLabel::current >(visitor);
+         case PolicyViewKind::average: return visit_label< rm::PolicyLabel::average >(visitor);
+      }
+      return 0;
+   }
+};
+
+template < typename TypedLookup, typename InfoState, typename Action >
+[[nodiscard]] PolicyView erase_policy_lookup(TypedLookup lookup, PolicyViewKind kind)
+{
+   using backend_type = ErasedPolicyLookupBackend<
+      std::remove_cvref_t< TypedLookup >,
+      InfoState,
+      Action >;
+   return PolicyView::from_backend(std::make_shared< backend_type >(std::move(lookup)), kind);
 }
 
-template < typename PolicyMap >
-void append_policy_entries(const PolicyMap& policies, PolicyView& output)
+template < typename RootMap >
+[[nodiscard]] IterationResult make_iteration_result(size_t iteration, const RootMap& root)
 {
-   for(const auto& [player, state_policy] : policies) {
-      for(const auto& [info_state, action_policy] : state_policy) {
-         (void) info_state;
-         PolicyEntry entry{.player = player, .action_probabilities = {}};
-         entry.action_probabilities.reserve(action_policy.size());
-         for(const auto& [action, probability] : action_policy) {
-            (void) action;
-            entry.action_probabilities.emplace_back(probability);
-         }
-         output.entries.emplace_back(std::move(entry));
-      }
+   IterationResult result{.iteration = iteration, .root_values = {}};
+   for(const auto [player, value] : root.get()) {
+      result.root_values.push_back(RootValue{.player = player, .value = value});
    }
-
-   // The concrete table is intentionally optimized for solver traversal and is not required to
-   // expose a stable iteration order. The temporary ABI does not expose the infoset key itself,
-   // so sorting the value snapshot is sufficient to make the observable view deterministic even
-   // when the solver's outer table is hash-backed. Equal snapshots are indistinguishable at this
-   // ABI boundary.
-   std::ranges::sort(output.entries, [](const PolicyEntry& left, const PolicyEntry& right) {
-      if(left.player != right.player) {
-         return static_cast< int >(left.player) < static_cast< int >(right.player);
-      }
-      return std::lexicographical_compare(
-         left.action_probabilities.begin(),
-         left.action_probabilities.end(),
-         right.action_probabilities.begin(),
-         right.action_probabilities.end()
-      );
+   std::ranges::sort(result.root_values, [](const RootValue& left, const RootValue& right) {
+      return static_cast< int >(left.player) < static_cast< int >(right.player);
    });
-   for(size_t ordinal = 0; ordinal < output.entries.size(); ++ordinal) {
-      output.entries[ordinal].info_state_ordinal = ordinal;
+   return result;
+}
+
+template < typename RootValues >
+[[nodiscard]] TraceResult make_trace_result(
+   size_t first_iteration,
+   size_t last_iteration,
+   size_t every,
+   const RootValues& roots
+)
+{
+   TraceResult result{
+      .first_iteration = first_iteration, .last_iteration = last_iteration, .iterations = {}};
+   result.iterations.reserve(roots.size());
+   for(size_t index = 0; index < roots.size(); ++index) {
+      result.iterations.push_back(
+         make_iteration_result(first_iteration + (index + 1) * every - 1, roots[index])
+      );
    }
+   return result;
 }
 
 template < typename Solver, GameId Game, SolverId SolverFamily, ProfileId Profile >
@@ -1004,55 +1182,85 @@ struct SessionModel {
          .profile = Profile});
    }
 
-   static Result< IterateResult > iterate(void* object, size_t iterations)
+   static Result< IterationResult > iterate(void* object)
    {
       auto& self = *static_cast< SessionModel* >(object);
       try {
-         const size_t first_iteration = self.solver.iteration();
-         auto roots = self.solver.iterate(iterations);
-         IterateResult result{
-            .first_iteration = first_iteration,
-            .last_iteration = self.solver.iteration(),
-            .iterations = {}};
-         result.iterations.reserve(roots.size());
-         size_t index = 0;
-         for(const auto& root : roots) {
-            IterationResult iteration{.iteration = first_iteration + index++, .root_values = {}};
-            for(const auto [player, value] : root.get()) {
-               iteration.root_values.push_back(RootValue{.player = player, .value = value});
-            }
-            result.iterations.emplace_back(std::move(iteration));
-         }
-         return result;
+         const size_t iteration = self.solver.iteration();
+         return make_iteration_result(iteration, self.solver.iterate());
       } catch(const std::exception& exception) {
-         return operation_error< IterateResult >(
+         return operation_error< IterationResult >(
             CapabilityErrorCode::session_failure,
             std::string("solver iteration failed: ") + exception.what()
          );
       }
    }
 
-   // Temporary adapter: until the sibling solver primitive lands, advance has the same coarse
-   // semantics as iterate.  It is deliberately isolated to this one vtable member.
-   static Result< IterateResult > advance(void* object, size_t iterations)
+   static Result< void > advance(void* object, size_t iterations)
    {
-      return iterate(object, iterations);
+      auto& self = *static_cast< SessionModel* >(object);
+      try {
+         self.solver.advance(iterations);
+         return {};
+      } catch(const std::exception& exception) {
+         return operation_error< void >(
+            CapabilityErrorCode::session_failure,
+            std::string("solver advance failed: ") + exception.what()
+         );
+      }
    }
 
-   static Result< TraceResult > trace(const void*, const TraceRequest&)
+   static Result< std::optional< IterationResult > > advance_last(void* object, size_t iterations)
    {
-      return operation_error< TraceResult >(
-         CapabilityErrorCode::operation_unavailable,
-         "trace awaits the solver trace primitive; no per-node callback is installed"
-      );
+      auto& self = *static_cast< SessionModel* >(object);
+      try {
+         const size_t first_iteration = self.solver.iteration();
+         auto root = self.solver.advance_last(iterations);
+         if(not root) {
+            return std::optional< IterationResult >{};
+         }
+         return std::optional< IterationResult >{
+            make_iteration_result(first_iteration + iterations - 1, *root)};
+      } catch(const std::exception& exception) {
+         return operation_error< std::optional< IterationResult > >(
+            CapabilityErrorCode::session_failure,
+            std::string("solver advance_last failed: ") + exception.what()
+         );
+      }
+   }
+
+   static Result< TraceResult > trace(void* object, size_t iterations, size_t every)
+   {
+      auto& self = *static_cast< SessionModel* >(object);
+      try {
+         if(every == 0) {
+            return operation_error< TraceResult >(
+               CapabilityErrorCode::invalid_spec, "trace cadence must be greater than zero"
+            );
+         }
+         const size_t first_iteration = self.solver.iteration();
+         auto roots = self.solver.trace(iterations, every);
+         return make_trace_result(first_iteration, self.solver.iteration(), every, roots);
+      } catch(const std::exception& exception) {
+         return operation_error< TraceResult >(
+            CapabilityErrorCode::session_failure,
+            std::string("solver trace failed: ") + exception.what()
+         );
+      }
    }
 
    static Result< SessionStats > stats(const void* object)
    {
       const auto& self = *static_cast< const SessionModel* >(object);
       try {
-         const auto& current = self.solver.policy();
-         auto&& average = self.solver.average_policy();
+         size_t current_entries = 0;
+         size_t average_entries = 0;
+         self.solver.visit_current_policy([&](const auto&, const auto& node) {
+            current_entries += node.size();
+         });
+         self.solver.visit_average_policy([&](const auto&, const auto& node) {
+            average_entries += node.size();
+         });
          return SessionStats{
             .game = Game,
             .solver = SolverFamily,
@@ -1060,8 +1268,8 @@ struct SessionModel {
             .iteration = self.solver.iteration(),
             .cycle = self.solver.cycle(),
             .player_count = self.solver.env().players(self.solver.root_state()).size(),
-            .current_policy_entries = policy_entry_count(current),
-            .average_policy_entries = policy_entry_count(average)};
+            .current_policy_entries = current_entries,
+            .average_policy_entries = average_entries};
       } catch(const std::exception& exception) {
          return operation_error< SessionStats >(
             CapabilityErrorCode::session_failure,
@@ -1070,23 +1278,18 @@ struct SessionModel {
       }
    }
 
-   static Result< PolicyView > policy_view(const void* object, PolicyViewKind kind)
+   static Result< PolicyView > policy_lookup(const void* object, PolicyViewKind kind)
    {
       const auto& self = *static_cast< const SessionModel* >(object);
       try {
-         PolicyView output{
-            .kind = kind, .complete = true, .temporary_adapter = true, .entries = {}};
-         if(kind == PolicyViewKind::current) {
-            append_policy_entries(self.solver.policy(), output);
-         } else {
-            auto&& average = self.solver.average_policy();
-            append_policy_entries(average, output);
-         }
-         return output;
+         return erase_policy_lookup<
+            decltype(self.solver.policy_lookup()),
+            typename Solver::info_state_type,
+            typename Solver::action_type >(self.solver.policy_lookup(), kind);
       } catch(const std::exception& exception) {
          return operation_error< PolicyView >(
             CapabilityErrorCode::session_failure,
-            std::string("policy view failed: ") + exception.what()
+            std::string("policy lookup failed: ") + exception.what()
          );
       }
    }
@@ -1095,9 +1298,10 @@ struct SessionModel {
       .destroy = &destroy,
       .iterate = &iterate,
       .advance = &advance,
+      .advance_last = &advance_last,
       .trace = &trace,
       .stats = &stats,
-      .policy_view = &policy_view};
+      .policy_lookup = &policy_lookup};
 };
 
 template < typename Profile, typename Env >
