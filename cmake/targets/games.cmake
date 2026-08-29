@@ -202,3 +202,29 @@ add_library(battleship_gs INTERFACE)
 target_include_directories(battleship_gs INTERFACE ${PROJECT_GAMES_DIR}/battleship_gs/include)
 
 target_link_libraries(battleship_gs INTERFACE required_min_libs common)
+
+# ######################################################################################################################
+# Game library roster
+# ######################################################################################################################
+
+# The Python extension links whichever of these are built as real libraries, so a wheel has to ship them next to the
+# extension. Collecting the names here keeps the installation rule from having to know which games happen to be
+# header-only today.
+set(NOR_GAME_LIBRARIES
+    stratego
+    kuhn_poker
+    leduc_poker
+    rock_paper_scissors
+    texas_holdem_poker
+    liars_dice
+    goofspiel
+    three_player_goofspiel
+    battleship
+    battleship_gs
+    dark_hex
+    pursuit_evasion
+    oshi_zumo
+    shapley
+    centipede
+    colonel_blotto
+    sheriff)

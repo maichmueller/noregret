@@ -45,10 +45,28 @@ if(ENABLE_TESTING)
     set(_pynor_test_dir "${PROJECT_TEST_DIR}/python")
     set(_pynor_package_dir "${CMAKE_BINARY_DIR}/python_package")
 
+    # The wheel carries the game libraries next to the extension, so the staged layout does too.
+    set(_pynor_runtime_libraries)
+    foreach(_pynor_game IN LISTS NOR_GAME_LIBRARIES)
+        if(TARGET ${_pynor_game})
+            get_target_property(_pynor_game_type ${_pynor_game} TYPE)
+            if(_pynor_game_type STREQUAL "SHARED_LIBRARY" OR _pynor_game_type STREQUAL "MODULE_LIBRARY")
+                list(APPEND _pynor_runtime_libraries $<TARGET_FILE:${_pynor_game}>)
+            endif()
+        endif()
+    endforeach()
+    string(
+        REPLACE ";"
+                "\\;"
+                _pynor_runtime_libraries_arg
+                "${_pynor_runtime_libraries}")
+
     add_test(
         NAME Test_python_package_stage
-        COMMAND ${CMAKE_COMMAND} -DEXTENSION=$<TARGET_FILE:${nor_pymodule}> -DPACKAGE_SOURCE_DIR=${PROJECT_PYNOR_DIR}
-                -DDESTINATION=${_pynor_package_dir} -P ${_cmake_DIR}/scripts/stage_python_package.cmake)
+        COMMAND
+            ${CMAKE_COMMAND} -DEXTENSION=$<TARGET_FILE:${nor_pymodule}> -DPACKAGE_SOURCE_DIR=${PROJECT_PYNOR_DIR}
+            -DRUNTIME_LIBRARIES=${_pynor_runtime_libraries_arg} -DDESTINATION=${_pynor_package_dir} -P
+            ${_cmake_DIR}/scripts/stage_python_package.cmake)
     set_tests_properties(Test_python_package_stage PROPERTIES FIXTURES_SETUP python_package)
 
     add_test(
@@ -67,4 +85,8 @@ if(ENABLE_TESTING)
 
     unset(_pynor_test_dir)
     unset(_pynor_package_dir)
+    unset(_pynor_game)
+    unset(_pynor_game_type)
+    unset(_pynor_runtime_libraries)
+    unset(_pynor_runtime_libraries_arg)
 endif()
