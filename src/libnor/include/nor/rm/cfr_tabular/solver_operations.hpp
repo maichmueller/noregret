@@ -23,14 +23,32 @@ namespace detail {
 /// Shared lifetime state for direct policy views. The solver owns the token;
 /// views retain only a weak reference so that a view cannot keep a destroyed
 /// solver's storage alive (or appear valid after the solver is destroyed).
+///
+/// An active visitor holds a strong reference for the duration of its traversal, which keeps this
+/// token readable even when the visitor callback destroys or move-assigns over the owning solver.
+/// The owner records that fact here so the traversal can stop before it touches the storage the
+/// source adapter still points at.
 struct PolicyGeneration {
    size_t value = 0;
    // C++ sessions are externally synchronized. This deliberately non-atomic counter adds no
    // cost to the solver's node hot loop; it is held only for the duration of an explicit policy
    // visitor so mutation can fail before invalidating the traversal's source map.
    mutable size_t active_visits = 0;
+   /// Set once the owning solver's storage is gone (destroyed, or replaced by move assignment).
+   bool abandoned = false;
 
    void invalidate() noexcept { ++value; }
+   /// Invalidate and additionally mark the owner's storage as no longer readable at all.
+   void abandon() noexcept
+   {
+      abandoned = true;
+      ++value;
+   }
+   /// Whether a handle taken at @p expected may still read the owner's storage.
+   [[nodiscard]] bool live(size_t expected) const noexcept
+   {
+      return not abandoned and value == expected;
+   }
    void begin_visit() const noexcept { ++active_visits; }
    void end_visit() const noexcept { --active_visits; }
 };
@@ -134,7 +152,7 @@ class TabularPolicyNodeView {
    {
       const auto generation = m_generation.lock();
       return m_node != nullptr and generation != nullptr
-             and generation->value == m_expected_generation;
+             and generation->live(m_expected_generation);
    }
 
    [[nodiscard]] size_t generation() const noexcept { return m_expected_generation; }
@@ -286,8 +304,15 @@ class NodePolicySource {
       return entry_type< Label >{&found->second, reader_type< Label >{&found->second}};
    }
 
+   /**
+    * Calls fn(infostate, entry) until it returns false. The predicate result is inspected before
+    * the map iterator is advanced again, so a callback that invalidates this source terminates the
+    * traversal without the loop ever touching the released storage.
+    *
+    * @return false if the callback stopped the traversal early.
+    */
    template < PolicyLabel Label, typename Fn >
-   void for_each(Fn&& fn) const
+   bool for_each(Fn&& fn) const
    {
       for(const auto& [infostate, node] : *m_nodes) {
          if constexpr(Label == PolicyLabel::average) {
@@ -295,8 +320,13 @@ class NodePolicySource {
                continue;
             }
          }
-         std::invoke(fn, *infostate, entry_type< Label >{&node, reader_type< Label >{&node}});
+         if(not std::invoke(
+               fn, *infostate, entry_type< Label >{&node, reader_type< Label >{&node}}
+            )) {
+            return false;
+         }
       }
+      return true;
    }
 
   private:
@@ -372,14 +402,18 @@ class TablePolicySource {
       return _entry< Label >(infostate, found_node->second);
    }
 
+   /// @copydoc NodePolicySource::for_each
    template < PolicyLabel Label, typename Fn >
-   void for_each(Fn&& fn) const
+   bool for_each(Fn&& fn) const
    {
       for(const auto& [infostate, node] : *m_nodes) {
          if(auto entry = _entry< Label >(*infostate, node)) {
-            std::invoke(fn, *infostate, std::move(*entry));
+            if(not std::invoke(fn, *infostate, std::move(*entry))) {
+               return false;
+            }
          }
       }
+      return true;
    }
 
   private:
@@ -435,8 +469,7 @@ class TabularPolicyLookup {
    [[nodiscard]] bool valid() const noexcept
    {
       const auto generation = m_generation.lock();
-      return m_source.valid() and generation != nullptr
-             and generation->value == m_expected_generation;
+      return m_source.valid() and generation != nullptr and generation->live(m_expected_generation);
    }
 
    [[nodiscard]] size_t generation() const noexcept { return m_expected_generation; }
@@ -475,6 +508,13 @@ class TabularPolicyLookup {
     * the lookup is current; views retained beyond a solver mutation fail their
     * generation check.
     *
+    * A callback that mutates the solver is rejected by the solver's own operation boundary before
+    * it touches the node map. A callback that destroys or move-assigns over the owning solver
+    * cannot be rejected that way, because those operations must stay noexcept; instead the owner
+    * marks the shared token, this loop observes that immediately after the callback returns, and
+    * the traversal stops with std::logic_error before the source adapter reads the released
+    * storage again.
+    *
     * @return the number of policy nodes visited.
     */
    template < PolicyLabel Label, typename Fn >
@@ -483,24 +523,35 @@ class TabularPolicyLookup {
       _check_current();
       auto generation = m_generation.lock();
       // _check_current() above establishes that this cannot be null. Keep a strong reference for
-      // the callback so destruction of the originating solver cannot invalidate the guard itself.
+      // the callback so destruction of the originating solver cannot invalidate the guard itself,
+      // and so the token stays readable after the callback releases the solver.
+      const auto* token = generation.get();
       detail::PolicyVisitGuard visit_guard{std::move(generation)};
       size_t visited = 0;
-      m_source.template for_each< Label >([&](const info_state_type& infostate, auto entry) {
-         view_type< Label > view{
-            *entry.node, std::move(entry.reader), m_generation, m_expected_generation};
-         if constexpr(std::invocable< Fn&, const info_state_type&, const view_type< Label >& >) {
-            std::invoke(fn, infostate, view);
-         } else if constexpr(std::invocable< Fn&, const view_type< Label >& >) {
-            std::invoke(fn, view);
-         } else {
-            static_assert(
-               detail::dependent_false_v< Fn >,
-               "TabularPolicyLookup visitor must accept (infostate, view) or (view)"
-            );
+      const bool completed = m_source.template for_each< Label >(
+         [&](const info_state_type& infostate, auto entry) {
+            view_type< Label > view{
+               *entry.node, std::move(entry.reader), m_generation, m_expected_generation};
+            if constexpr(std::invocable< Fn&, const info_state_type&, const view_type< Label >& >) {
+               std::invoke(fn, infostate, view);
+            } else if constexpr(std::invocable< Fn&, const view_type< Label >& >) {
+               std::invoke(fn, view);
+            } else {
+               static_assert(
+                  detail::dependent_false_v< Fn >,
+                  "TabularPolicyLookup visitor must accept (infostate, view) or (view)"
+               );
+            }
+            ++visited;
+            return token->live(m_expected_generation);
          }
-         ++visited;
-      });
+      );
+      if(not completed) {
+         throw std::logic_error(
+            "the owning solver was destroyed or moved during policy visitation; the traversal was "
+            "stopped"
+         );
+      }
       return visited;
    }
 
@@ -571,7 +622,9 @@ class TabularSolverOperations {
    {
       if(this != std::addressof(other)) {
          if(m_generation != nullptr) {
-            m_generation->invalidate();
+            // This object's own storage is about to be replaced, so its token can never become
+            // readable again; a visitor still traversing it must stop rather than merely go stale.
+            m_generation->abandon();
             m_generation.reset();
          }
          m_generation = std::move(other.m_generation);
@@ -580,6 +633,15 @@ class TabularSolverOperations {
          }
       }
       return *this;
+   }
+
+   // The token outlives this object whenever a visitor holds it. Marking it here is what lets an
+   // in-flight traversal terminate before the derived solver's released node map is read again.
+   ~TabularSolverOperations()
+   {
+      if(m_generation != nullptr) {
+         m_generation->abandon();
+      }
    }
 
    /** Execute exactly one regular solver iteration and return its root value map. */
