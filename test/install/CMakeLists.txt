@@ -12,7 +12,6 @@ run_conan()
 include(${PROJECT_BINARY_DIR}/conanbuildinfo.cmake)
 include(${CMAKE_BINARY_DIR}/conan_paths.cmake)
 
-find_package(pybind11 REQUIRED)
 find_package(
     nor
     REQUIRED

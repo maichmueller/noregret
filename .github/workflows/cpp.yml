@@ -59,52 +59,6 @@ jobs:
           version: ${{ matrix.config.compiler_version }}
           platform: x64
 
-      - name: Set up GCC standard library for Clang
-        if: ${{ runner.os == 'Linux' && matrix.config.cc == 'clang' }}
-        uses: egor-tensin/setup-gcc@v1
-        with:
-          version: 16
-          platform: x64
-          cc: 0
-
-      - name: Cache LLVM Download
-        id: cache-llvm
-        uses: actions/cache@v4
-        env:
-          cache-name: cache-llvm-files
-        with:
-          path: ./llvm-${{ matrix.config.compiler_version }}
-          key: ${{ runner.os }}-${{ env.cache-name }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-${{ hashFiles('**/workflows/cpp.yml') }}
-
-      - name: Install LLVM and Clang
-        if: ${{ steps.cache-llvm.outputs.cache-hit != 'true' && runner.os == 'Linux' && matrix.config.cc == 'clang' }}
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: ${{ matrix.config.compiler_version }}
-          directory: ./llvm-${{ matrix.config.compiler_version }}
-          env: 'true'
-
-      - name: Append LLVM To Path
-        if: ${{ runner.os == 'Linux' && matrix.config.cc == 'clang' }}
-        shell: bash
-        run: |
-          llvmdir=$(pwd)/llvm-${{ matrix.config.compiler_version }}
-          echo "$llvmdir"
-          echo "LLVM_DIR=$llvmdir" >> $GITHUB_OUTPUT
-          echo "$llvmdir/bin" >> $GITHUB_PATH
-
-
-      - name: Print Clang version
-        if: ${{ runner.os == 'Linux' && matrix.config.cc == 'clang' }}
-        shell: bash
-        run: |
-          echo $PATH
-          ls -l ./llvm-${{ matrix.config.compiler_version }}
-          ls -l ./llvm-${{ matrix.config.compiler_version }}/bin
-          echo "$PATH"
-          clang --version
-          llvm-config --version
-
       - name: Install conan
         id: conan
         shell: bash
@@ -171,7 +125,6 @@ jobs:
           -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES="conan_provider.cmake"
           -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
           -DWARNINGS_AS_ERRORS:BOOL=OFF
-          -DUSE_PYBIND11_FINDPYTHON:BOOL=ON
 
       - name: Build NOR Games
         shell: bash

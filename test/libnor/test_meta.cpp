@@ -1,22 +1,28 @@
 #include <gtest/gtest.h>
 
+#include <array>
+#include <concepts>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
 
+#include "battleship/environment.hpp"
 #include "common/common.hpp"
+#include "goofspiel/environment.hpp"
+#include "liars_dice/environment.hpp"
 #include "nor/game_defs.hpp"
+#include "nor/env.hpp"
+#include "nor/fosg_traits.hpp"
 #include "nor/meta/auto_types.hpp"
 #include "nor/meta/diagnostics.hpp"
 #include "nor/meta/enum_names.hpp"
 #include "nor/meta/features.hpp"
 #include "nor/utils/utils.hpp"
+#include "texas_holdem_poker/environment.hpp"
 
-// note: the golden expectations below were copied from the hand-maintained
-// player/stochasticity name tables BEFORE they were replaced by reflection
-// based lookup -- they pin down behavioral parity of both paths
+// The expected names pin down the spelling of the reflected enum declarations.
 
 namespace {
 
@@ -45,6 +51,14 @@ constexpr std::array< std::string_view, 3 > stochasticity_golden_names{
    "sample",
    "choice"};
 
+enum class ReflectionTestEnum { first = -1, second = 7 };
+
+struct ReflectedBase {
+   using observation_type = long;
+};
+
+struct ReflectedDerived: ReflectedBase {};
+
 }  // namespace
 
 static_assert(
@@ -54,6 +68,22 @@ static_assert(
 static_assert(
    nor::meta::enum_from_name< nor::Player >("chance") == nor::Player::chance,
    "enum_from_name must be usable in constant expressions"
+);
+static_assert(nor::meta::enum_name(ReflectionTestEnum::first) == "first");
+static_assert(
+   nor::meta::enum_from_name< ReflectionTestEnum >("second") == ReflectionTestEnum::second
+);
+static_assert(
+   std::same_as< nor::meta::auto_observation_type< ReflectedDerived >, long >,
+   "associated type lookup must include inherited reflected members"
+);
+static_assert(
+   std::same_as< nor::auto_observation_type< ReflectedDerived >, long >,
+   "the established auto_* aliases must use reflected lookup"
+);
+static_assert(
+   std::same_as< typename nor::fosg_traits< ReflectedDerived >::observation_type, long >,
+   "the compatibility fosg_traits view must use reflected lookup"
 );
 
 TEST(MetaEnumNames, player_names_match_golden_strings)
@@ -126,11 +156,8 @@ TEST(MetaStringUtils, from_string_parity_with_golden_tables)
    EXPECT_THROW(common::from_string< nor::Player >("nonsense"), std::range_error);
 }
 
-// note: the enum concat operator+ helpers require heterogeneous
-// string/string_view concatenation (P2591), which GCC16's libstdc++ only
-// provides in C++26 mode. This is a pre-existing limitation of the helpers
-// under C++20 and unchanged by this work.
-#if defined(NOR_REFLECTION)
+// The enum concat operator+ helpers require heterogeneous string/string_view
+// concatenation (P2591), provided by GCC 16's C++26 library.
 TEST(MetaStringUtils, concat_helpers)
 {
    EXPECT_EQ(std::string_view("p_") + nor::Player::bob, "p_bob");
@@ -138,41 +165,42 @@ TEST(MetaStringUtils, concat_helpers)
    EXPECT_EQ(nor::Player::bob + std::string_view("!"), "bob!");
    EXPECT_EQ(nor::Stochasticity::sample + "_suffix", "sample_suffix");
 }
-#endif
-
-#if defined(NOR_REFLECTION)
-
-   #include "battleship/environment.hpp"
-   #include "goofspiel/environment.hpp"
-   #include "liars_dice/environment.hpp"
-   #include "nor/env.hpp"
-   #include "texas_holdem_poker/environment.hpp"
 
 namespace {
 
 /**
- * @brief Compile-time proof that the reflection-based member type lookup and
- * the classic fosg_traits based trait chain agree on every registered
- * environment type.
+ * @brief Compile-time proof that the public auto_* aliases resolve through
+ * reflected associated types on every registered environment type.
  */
 template < typename Env >
-concept reflection_matches_classic_traits =
-   std::same_as< nor::meta::auto_action_type< Env >, nor::auto_action_type< Env > >
+concept canonical_reflected_aliases =
+   std::same_as< nor::auto_action_type< Env >, nor::meta::fosg_type_or_void< Env, "action_type" > >
    && std::
-      same_as< nor::meta::auto_chance_outcome_type< Env >, nor::auto_chance_outcome_type< Env > >
-   && std::same_as< nor::meta::auto_action_policy_type< Env >, nor::auto_action_policy_type< Env > >
+      same_as< nor::auto_chance_outcome_type< Env >,
+               nor::meta::fosg_type_or_void< Env, "chance_outcome_type" > >
    && std::same_as<
-      nor::meta::auto_chance_distribution_type< Env >,
-      nor::auto_chance_distribution_type< Env > >
-   && std::same_as< nor::meta::auto_observation_type< Env >, nor::auto_observation_type< Env > >
-   && std::same_as< nor::meta::auto_info_state_type< Env >, nor::auto_info_state_type< Env > >
-   && std::same_as< nor::meta::auto_public_state_type< Env >, nor::auto_public_state_type< Env > >
-   && std::same_as< nor::meta::auto_world_state_type< Env >, nor::auto_world_state_type< Env > >;
+      nor::auto_action_policy_type< Env >,
+      nor::meta::fosg_type_or_void< Env, "action_policy_type" > >
+   && std::same_as<
+      nor::auto_chance_distribution_type< Env >,
+      nor::meta::fosg_type_or_void< Env, "chance_distribution_type" > >
+   && std::same_as<
+      nor::auto_observation_type< Env >,
+      nor::meta::fosg_type_or_void< Env, "observation_type" > >
+   && std::same_as<
+      nor::auto_info_state_type< Env >,
+      nor::meta::fosg_type_or_void< Env, "info_state_type" > >
+   && std::same_as<
+      nor::auto_public_state_type< Env >,
+      nor::meta::fosg_type_or_void< Env, "public_state_type" > >
+   && std::same_as<
+      nor::auto_world_state_type< Env >,
+      nor::meta::fosg_type_or_void< Env, "world_state_type" > >;
 
 template < typename... Envs >
 consteval bool all_agree()
 {
-   return (reflection_matches_classic_traits< Envs > and ...);
+   return (canonical_reflected_aliases< Envs > and ...);
 }
 
 static_assert(all_agree<
@@ -184,6 +212,17 @@ static_assert(all_agree<
               nor::games::goofspiel::Environment,
               nor::games::liars_dice::Environment,
               nor::games::battleship::Environment >());
+
+static_assert(
+   std::same_as<
+      nor::auto_observation_type< nor::games::kuhn::Infostate >,
+      nor::games::kuhn::Observation >
+);
+static_assert(
+   std::same_as<
+      nor::auto_observation_type< nor::games::kuhn::Publicstate >,
+      nor::games::kuhn::Observation >
+);
 
 struct IncompleteEnv {};
 
@@ -203,14 +242,14 @@ static_assert(
 
 TEST(MetaDiagnostics, complete_environments_report_no_missing_members)
 {
-   static_assert(nor::meta::has_all_fosg_members< nor::games::kuhn::Environment >);
-   static_assert(nor::meta::has_all_fosg_members< nor::games::leduc::Environment >);
-   static_assert(nor::meta::has_all_fosg_members< nor::games::rps::Environment >);
-   static_assert(nor::meta::has_all_fosg_members< nor::games::stratego::Environment >);
-   static_assert(nor::meta::has_all_fosg_members< nor::games::texholdem::Environment >);
-   static_assert(nor::meta::has_all_fosg_members< nor::games::goofspiel::Environment >);
-   static_assert(nor::meta::has_all_fosg_members< nor::games::liars_dice::Environment >);
-   static_assert(nor::meta::has_all_fosg_members< nor::games::battleship::Environment >);
+   static_assert(nor::meta::has_all_fosg_members< nor::games::kuhn::Environment >());
+   static_assert(nor::meta::has_all_fosg_members< nor::games::leduc::Environment >());
+   static_assert(nor::meta::has_all_fosg_members< nor::games::rps::Environment >());
+   static_assert(nor::meta::has_all_fosg_members< nor::games::stratego::Environment >());
+   static_assert(nor::meta::has_all_fosg_members< nor::games::texholdem::Environment >());
+   static_assert(nor::meta::has_all_fosg_members< nor::games::goofspiel::Environment >());
+   static_assert(nor::meta::has_all_fosg_members< nor::games::liars_dice::Environment >());
+   static_assert(nor::meta::has_all_fosg_members< nor::games::battleship::Environment >());
    SUCCEED();
 }
 
@@ -222,5 +261,3 @@ TEST(MetaDiagnostics, incomplete_struct_yields_expected_message)
       "public_state_type, world_state_type, chance_outcome_type"
    );
 }
-
-#endif  // NOR_REFLECTION

@@ -470,25 +470,6 @@ inline std::string to_string(const nor::games::goofspiel::Observation& value)
 
 COMMON_ENABLE_PRINT(nor::games::goofspiel, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::goofspiel::Infostate > {
-   using observation_type = nor::games::goofspiel::Observation;
-};
-
-template <>
-struct fosg_traits< games::goofspiel::Environment > {
-   using world_state_type = nor::games::goofspiel::State;
-   using info_state_type = nor::games::goofspiel::Infostate;
-   using public_state_type = nor::games::goofspiel::Publicstate;
-   using action_type = nor::games::goofspiel::Bid;
-   using chance_outcome_type = nor::games::goofspiel::PrizeCard;
-   using observation_type = nor::games::goofspiel::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

@@ -94,6 +94,7 @@ class Env {
 struct Traits {
    using action_type = int;
    using info_state_type = std::string;
+   using world_state_type = std::size_t;
 };
 
 struct TraitsSuperClass {
@@ -106,13 +107,4 @@ struct TraitsSuperClass {
 
 }  // namespace dummy
 
-namespace nor {
-template <>
-struct fosg_traits< dummy::Traits > {
-   using action_type = int;
-   using info_state_type = std::string;
-   using world_state_type = std::size_t;
-};
-
-}  // namespace nor
 #endif  // NOR_DUMMY_CLASSES_HPP

@@ -696,6 +696,17 @@ macro(conan_provide_dependency method package_name)
         message(STATUS "CMake-Conan: find_package(${ARGV1}) found, 'conan install' already ran")
     endif()
 
+    # Some Conan packages intentionally set cmake_find_mode=none and expose their upstream package config through
+    # cpp_info.builddirs. CMakeDeps records those directories in the generated Conan toolchain, but the dependency
+    # provider does not load that toolchain after its first install. Include it in this macro scope so its search paths
+    # persist for the caller. Normal toolchain flows have already included this file, and its include guard makes this
+    # idempotent.
+    get_property(_conan_generators_folder GLOBAL PROPERTY CONAN_GENERATORS_FOLDER)
+    if(EXISTS "${_conan_generators_folder}/conan_toolchain.cmake")
+        include("${_conan_generators_folder}/conan_toolchain.cmake")
+    endif()
+    unset(_conan_generators_folder)
+
     get_property(CONAN_GENERATORS_FOLDER GLOBAL PROPERTY CONAN_GENERATORS_FOLDER)
 
     # Ensure that we consider Conan-provided packages ahead of any other, irrespective of other settings that modify the

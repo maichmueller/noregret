@@ -425,25 +425,6 @@ inline std::string to_string(const ::battleship::Result& value)
 
 COMMON_ENABLE_PRINT(nor::games::battleship, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::battleship::Infostate > {
-   using observation_type = nor::games::battleship::Observation;
-};
-
-template <>
-struct fosg_traits< games::battleship::Environment > {
-   using world_state_type = nor::games::battleship::State;
-   using info_state_type = nor::games::battleship::Infostate;
-   using public_state_type = nor::games::battleship::Publicstate;
-   using action_type = nor::games::battleship::Action;
-   using chance_outcome_type = std::monostate;
-   using observation_type = nor::games::battleship::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

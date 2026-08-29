@@ -15,7 +15,7 @@ option(ENABLE_BUILD_DOCS "Enable building the docs. Requires doxygen to be insta
 option(ENABLE_BUILD_PYTHON_EXTENSION "Enable building the python extension." ON)
 option(ENABLE_BUILD_SANDBOX "Enable building of the sandbox testbed (Only for development purposes)." ON)
 option(ENABLE_BUILD_BENCHMARK "Enable building of the benchmarks." OFF)
-option(ENABLE_BUILD_WITH_TIME_TRACE "Enable -ftime-trace to generate time tracing .json files on clang" OFF)
+option(ENABLE_BUILD_WITH_TIME_TRACE "Enable -ftime-trace to generate time tracing .json files" OFF)
 option(ENABLE_CACHE "Enable cache if available" ON)
 option(ENABLE_CLANG_TIDY "Enable static analysis with clang-tidy" OFF)
 option(ENABLE_COVERAGE "Enable coverage reporting for gcc/clang" OFF)
@@ -32,16 +32,66 @@ option(ENABLE_SANITIZER_UNDEFINED_BEHAVIOR "Enable undefined behavior sanitizer"
 option(ENABLE_TESTING "Enable Test Builds" ON)
 option(ENABLE_GAMES "Enable Game Builds" ON)
 option(ENABLE_WARNING_PADDING "Warn when structs are memory padded" OFF)
-option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" OFF)
 option(INSTALL_PYMODULE "Configure installation for python module." OFF)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
 # settings
 
-# Use C++26 (language floor; requires GCC 16+/Clang 21+ with C++26 views such as zip/enumerate/concat)
+# C++26 static reflection (P2996) is a project prerequisite. The supported
+# compiler contract is GCC 16.1 or newer with -freflection.
 set(PROJ_CXX_STD_FEATURE cxx_std_26)
 set(PROJ_CXX_STANDARD 26)
-set(CMAKE_CXX_STANDARD ${PROJ_CXX_STANDARD})
+if("${PROJ_CXX_STD_FEATURE}" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+    set(_nor_cxx26_feature_available TRUE)
+    set(CMAKE_CXX_STANDARD ${PROJ_CXX_STANDARD})
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+else()
+    # CMake versions before they learned the cxx_std_26 feature can still
+    # drive the supported compiler through its explicit dialect flag.
+    set(_nor_cxx26_feature_available FALSE)
+    # A Conan toolchain may have selected an older standard for its own
+    # dependencies. Do not let that setting override NOR's project-wide
+    # C++26 requirement in try_compile or consumer targets.
+    unset(CMAKE_CXX_STANDARD)
+    unset(CMAKE_CXX_STANDARD_REQUIRED)
+endif()
+
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+   OR CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.1")
+    message(
+        FATAL_ERROR
+        "NOR requires GCC 16.1 or newer with C++26 reflection enabled via -freflection; "
+        "found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+endif()
+
+set(_nor_reflection_probe "${CMAKE_BINARY_DIR}/CMakeFiles/nor_cxx26_reflection_probe.cpp")
+file(
+    WRITE
+    "${_nor_reflection_probe}"
+    [=[
+#include <meta>
+#if !defined(__cpp_impl_reflection) || !defined(__cpp_lib_reflection)
+#error "C++26 static reflection is not available"
+#endif
+int main() { return 0; }
+]=])
+execute_process(
+    COMMAND "${CMAKE_CXX_COMPILER}" -std=c++26 -freflection -fsyntax-only "${_nor_reflection_probe}"
+    RESULT_VARIABLE _nor_reflection_probe_result
+    OUTPUT_VARIABLE _nor_reflection_probe_output
+    ERROR_VARIABLE _nor_reflection_probe_error)
+
+if(NOT _nor_reflection_probe_result EQUAL 0)
+    string(STRIP "${_nor_reflection_probe_error}" _nor_reflection_probe_error)
+    message(
+        FATAL_ERROR
+        "NOR requires GCC 16.1 or newer with C++26 reflection enabled via -freflection; "
+        "compiler probe failed: ${_nor_reflection_probe_error}")
+endif()
+unset(_nor_reflection_probe)
+unset(_nor_reflection_probe_result)
+unset(_nor_reflection_probe_output)
+unset(_nor_reflection_probe_error)
 
 set(nor-lib-type INTERFACE)
 set(nor_lib nor++)
@@ -99,7 +149,9 @@ add_library(project_options INTERFACE)
 # Link this 'library' to use the warnings specified in CompilerWarnings.cmake
 add_library(project_warnings INTERFACE)
 
-target_compile_features(project_options INTERFACE ${PROJ_CXX_STD_FEATURE})
+if(_nor_cxx26_feature_available)
+    target_compile_features(project_options INTERFACE ${PROJ_CXX_STD_FEATURE})
+endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang" AND ENABLE_BUILD_WITH_TIME_TRACE)
     add_compile_definitions(project_options INTERFACE -ftime-trace)
 endif()
@@ -120,7 +172,14 @@ set(_options
     "$<$<CONFIG:RELEASE>:-O3>"
     "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
     ">")
-set(_extra_options "-ftemplate-backtrace-limit=0" "$<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=5>")
+set(
+    _extra_options
+    "-ftemplate-backtrace-limit=0"
+    "$<$<CXX_COMPILER_ID:GNU>:-freflection>"
+    "$<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=5>")
+if(NOT _nor_cxx26_feature_available)
+    list(APPEND _extra_options "$<$<CXX_COMPILER_ID:GNU>:-std=c++26>")
+endif()
 target_compile_options(project_options INTERFACE "${_options}" "${_extra_options}")
 
 # Set up some extra Conan dependencies based on our needs before loading Conan
@@ -161,13 +220,21 @@ endif()
 # allow for static analysis options
 include(${_cmake_DIR}/settings/StaticAnalyzers.cmake)
 
-if(USE_PYBIND11_FINDPYTHON)
-    set(PYBIND11_FINDPYTHON TRUE)
-else()
-    set(PYBIND11_FINDPYTHON FALSE)
-    find_package(Python3 COMPONENTS Interpreter Development)
+if(ENABLE_BUILD_PYTHON_EXTENSION)
+    # Nanobind uses the modern FindPython targets. Development.Module was introduced in CMake 3.18; older supported
+    # CMake versions expose it through the umbrella Development component.
+    if(CMAKE_VERSION VERSION_LESS 3.18)
+        set(_nor_python_development_component Development)
+    else()
+        set(_nor_python_development_component Development.Module)
+    endif()
+    find_package(
+        Python 3.9
+        COMPONENTS Interpreter ${_nor_python_development_component}
+        REQUIRED)
+    find_package(nanobind CONFIG REQUIRED)
+    unset(_nor_python_development_component)
 endif()
-find_package(pybind11 REQUIRED)
 find_package(namedtype REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
@@ -193,6 +260,7 @@ include(${_cmake_DIR}/targets/nor.cmake)
 if(ENABLE_GAMES)
     message("Configuring Game Builds.")
     include(${_cmake_DIR}/targets/games.cmake)
+    include(${_cmake_DIR}/targets/binding_runtime.cmake)
 endif()
 if(ENABLE_TESTING)
     find_package(GTest REQUIRED)

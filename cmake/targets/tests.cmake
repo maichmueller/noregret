@@ -4,6 +4,9 @@ register_nor_target(${nor_test}_type_traits test_fosg_traits.cpp test_type_trait
 register_nor_target(${nor_test}_concepts test_fosg_concepts.cpp)
 register_nor_target(${nor_test}_utils test_utils.cpp)
 register_nor_target(${nor_test}_meta test_meta.cpp)
+if(ENABLE_GAMES)
+    target_link_libraries(${nor_test}_meta PRIVATE battleship goofspiel liars_dice texas_holdem_poker)
+endif()
 register_nor_target(${nor_test}_rm_utils test_rm_utils.cpp)
 register_nor_target(${nor_test}_forest test_forest.cpp)
 register_nor_target(${nor_test}_internal_regret test_internal_regret.cpp)
@@ -53,6 +56,15 @@ foreach(sources_list IN LISTS REGISTERED_TEST_SOURCES_LIST)
 endforeach()
 register_nor_target(${nor_test}_all ${NOR_TEST_SOURCES})
 
+if(TARGET nor_binding_runtime)
+    # Keep the binding-runtime suite independent from the aggregate header-heavy test target. This executable links the
+    # compiled registry, so the test translation unit never instantiates the concrete game/profile matrix itself.
+    add_executable(${nor_test}_binding_runtime ${PROJECT_TEST_DIR}/main_tests.cpp
+                                               ${PROJECT_TEST_DIR}/nor/binding/runtime/test_runtime.cpp)
+    target_link_libraries(${nor_test}_binding_runtime PRIVATE shared_test_libs nor_binding_runtime)
+    add_test(NAME Test_${nor_test}_binding_runtime COMMAND ${nor_test}_binding_runtime)
+endif()
+
 if(ENABLE_GAMES)
     # the variance-reduction evaluation test also covers the header-only goofspiel game
     target_link_libraries(${nor_test}_variance_reduction PRIVATE goofspiel)
@@ -67,6 +79,8 @@ if(ENABLE_GAMES)
                 dark_hex
                 oshi_zumo
                 shapley
+                battleship
+                texas_holdem_poker
                 centipede)
 endif()
 
@@ -82,10 +96,6 @@ if(ENABLE_GAMES AND TARGET three_player_goofspiel)
     target_link_libraries(${nor_test}_team_dag PRIVATE three_player_goofspiel)
     target_link_libraries(${nor_test}_all PRIVATE three_player_goofspiel)
 endif()
-
-# the test of all parts needs an extra linkage for the pybind11 components and Python
-target_link_libraries(${nor_test}_all PRIVATE # pybind11::module
-                                              $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>)
 
 if(ENABLE_GAMES)
     # this is a mere collector of all game test targets to build them via a single command to build all games (eg in

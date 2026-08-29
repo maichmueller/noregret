@@ -337,25 +337,6 @@ inline std::string to_string(const nor::games::centipede::Observation& value)
 
 COMMON_ENABLE_PRINT(nor::games::centipede, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::centipede::Infostate > {
-   using observation_type = nor::games::centipede::Observation;
-};
-
-template <>
-struct fosg_traits< games::centipede::Environment > {
-   using world_state_type = nor::games::centipede::State;
-   using info_state_type = nor::games::centipede::Infostate;
-   using public_state_type = nor::games::centipede::Publicstate;
-   using action_type = nor::games::centipede::Move;
-   using chance_outcome_type = std::monostate;
-   using observation_type = nor::games::centipede::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

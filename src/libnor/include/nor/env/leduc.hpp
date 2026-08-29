@@ -141,25 +141,6 @@ class Environment {
 
 }  // namespace nor::games::leduc
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::leduc::Infostate > {
-   using observation_type = nor::games::leduc::Observation;
-};
-
-template <>
-struct fosg_traits< games::leduc::Environment > {
-   using world_state_type = nor::games::leduc::State;
-   using info_state_type = nor::games::leduc::Infostate;
-   using public_state_type = nor::games::leduc::Publicstate;
-   using action_type = nor::games::leduc::Action;
-   using chance_outcome_type = nor::games::leduc::Card;
-   using observation_type = nor::games::leduc::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 template < typename StateType >
    requires common::

@@ -444,25 +444,6 @@ inline std::string to_string(const nor::games::texholdem::Observation& value)
 
 COMMON_ENABLE_PRINT(nor::games::texholdem, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::texholdem::Infostate > {
-   using observation_type = nor::games::texholdem::Observation;
-};
-
-template <>
-struct fosg_traits< games::texholdem::Environment > {
-   using world_state_type = nor::games::texholdem::State;
-   using info_state_type = nor::games::texholdem::Infostate;
-   using public_state_type = nor::games::texholdem::Publicstate;
-   using action_type = nor::games::texholdem::Action;
-   using chance_outcome_type = nor::games::texholdem::Card;
-   using observation_type = nor::games::texholdem::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

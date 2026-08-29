@@ -8,14 +8,12 @@
 #include "nor/meta/features.hpp"
 #include "nor/meta/fosg.hpp"
 
-#if defined(NOR_REFLECTION)
-
 namespace nor::meta {
 
 /**
- * @brief The TYPE members a FOSG environment must provide so that the classic
- * nor::auto_*_type trait chain resolves them. This list mirrors the types
- * consumed by concepts::fosg in nor/concepts/concrete.hpp.
+ * @brief The TYPE members a FOSG environment must provide for the reflected
+ * nor::auto_*_type aliases. This list mirrors the types consumed by
+ * concepts::fosg in nor/concepts/concrete.hpp.
  */
 inline constexpr std::array< std::string_view, 6 > fosg_member_type_names{
    "action_type",
@@ -26,8 +24,8 @@ inline constexpr std::array< std::string_view, 6 > fosg_member_type_names{
    "chance_outcome_type"};
 
 /**
- * @brief Compile-time check whether T declares a TYPE member with the given
- * plain identifier (non-template convenience overload of
+ * @brief Compile-time check whether T declares or inherits a TYPE member with
+ * the given plain identifier (non-template convenience overload of
  * has_member_type<T, fixed_str>).
  */
 template < typename T >
@@ -37,7 +35,7 @@ consteval bool has_member_type(std::string_view name)
 }
 
 /**
- * @brief static_assert-friendly check whether Env declares every required FOSG
+ * @brief static_assert-friendly check whether Env provides every required FOSG
  * member type.
  */
 template < typename Env >
@@ -57,7 +55,7 @@ struct fosg_member_report {
 };
 
 /**
- * @brief Lists the FOSG member types Env does not declare.
+ * @brief Lists the FOSG member types Env does not provide.
  */
 template < typename Env >
 consteval fosg_member_report missing_fosg_members()
@@ -121,7 +119,5 @@ consteval constexpr_message< Capacity > missing_fosg_members_message()
 }
 
 }  // namespace nor::meta
-
-#endif  // NOR_REFLECTION
 
 #endif  // NOR_META_DIAGNOSTICS_HPP

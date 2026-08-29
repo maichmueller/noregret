@@ -10,7 +10,6 @@
 #include "nor/concepts.hpp"
 #include "nor/game_defs.hpp"
 #include "nor/meta/enum_names.hpp"
-#include "nor/meta/features.hpp"
 
 namespace nor::utils {
 
@@ -194,32 +193,6 @@ struct CEBijection {
    }
 };
 
-#ifndef NOR_REFLECTION
-// with reflection available the names are derived directly from the enum
-// declarations (see nor/meta/enum_names.hpp) and the hand-maintained tables
-// are not needed anymore
-constexpr CEBijection< Player, std::string_view, 28 > player_name_bij = {
-   std::pair{Player::chance, "chance"},     std::pair{Player::alex, "alex"},
-   std::pair{Player::bob, "bob"},           std::pair{Player::cedric, "cedric"},
-   std::pair{Player::dexter, "dexter"},     std::pair{Player::emily, "emily"},
-   std::pair{Player::florence, "florence"}, std::pair{Player::gustavo, "gustavo"},
-   std::pair{Player::henrick, "henrick"},   std::pair{Player::ian, "ian"},
-   std::pair{Player::julia, "julia"},       std::pair{Player::kelvin, "kelvin"},
-   std::pair{Player::lea, "lea"},           std::pair{Player::michael, "michael"},
-   std::pair{Player::norbert, "norbert"},   std::pair{Player::oscar, "oscar"},
-   std::pair{Player::pedro, "pedro"},       std::pair{Player::quentin, "quentin"},
-   std::pair{Player::rosie, "rosie"},       std::pair{Player::sophia, "sophia"},
-   std::pair{Player::tristan, "tristan"},   std::pair{Player::ulysses, "ulysses"},
-   std::pair{Player::victoria, "victoria"}, std::pair{Player::william, "william"},
-   std::pair{Player::xavier, "xavier"},     std::pair{Player::yusuf, "yusuf"},
-   std::pair{Player::zoey, "zoey"},         std::pair{Player::unknown, "unknown"}};
-
-constexpr CEBijection< Stochasticity, std::string_view, 3 > stochasticity_name_bij = {
-   std::pair{Stochasticity::deterministic, "deterministic"},
-   std::pair{Stochasticity::sample, "sample"},
-   std::pair{Stochasticity::choice, "choice"}};
-#endif
-
 /// a fixed-storage single-object slot that can be repeatedly (re)constructed
 /// from a prototype without heap traffic. Unlike copy assignment this only
 /// requires a copy constructor, so types with deleted copy assignment (e.g.
@@ -290,34 +263,22 @@ namespace common {
 template <>
 inline std::string to_string(const nor::Player& e)
 {
-#ifdef NOR_REFLECTION
    return std::string(nor::meta::enum_name(e));
-#else
-   return std::string(nor::utils::player_name_bij.at(e));
-#endif
 }
 template <>
 inline std::string to_string(const nor::Stochasticity& e)
 {
-#ifdef NOR_REFLECTION
    return std::string(nor::meta::enum_name(e));
-#else
-   return std::string(nor::utils::stochasticity_name_bij.at(e));
-#endif
 }
 
 template <>
 inline nor::Player from_string< nor::Player >(std::string_view str)
 {
-#ifdef NOR_REFLECTION
    auto player = nor::meta::enum_from_name< nor::Player >(str);
    if(not player.has_value()) {
       throw std::range_error("Not Found");
    }
    return *player;
-#else
-   return nor::utils::player_name_bij.at(str);
-#endif
 }
 
 }  // namespace common

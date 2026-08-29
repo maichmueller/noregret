@@ -12,30 +12,7 @@ namespace nor::rm {
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
 auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(size_t n_iters)
 {
-   std::vector< StateValueMap > root_values_per_iteration;
-   root_values_per_iteration.reserve(n_iters);
-   for([[maybe_unused]] auto _ : std::views::iota(size_t(0), n_iters)) {
-      SPDLOG_DEBUG("Iteration number: {}", _iteration());
-      StateValueMap value = std::invoke([&] {
-         if constexpr(config.update_mode == UpdateMode::alternating) {
-            auto player_to_update = _cycle_player_to_update();
-            if(_iteration() < _env().players(*_root_state_uptr()).size() - 1) [[unlikely]] {
-               return _iterate< true >(player_to_update);
-            } else [[likely]] {
-               return _iterate< false >(player_to_update);
-            }
-         } else {
-            if(_iteration() == 0) [[unlikely]] {
-               return _iterate< true >(std::nullopt);
-            } else [[likely]] {
-               return _iterate< false >(std::nullopt);
-            }
-         }
-      });
-      root_values_per_iteration.emplace_back(std::move(value));
-      _iteration()++;
-   }
-   return root_values_per_iteration;
+   return this->trace(n_iters);
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -44,17 +21,40 @@ auto VanillaCFR< config, Env, Policy, AveragePolicy >::iterate(
 )
    requires(config.update_mode == UpdateMode::alternating)
 {
+   auto value = this->_run_step([&] { return _iterate_one(player_to_update); });
+   return std::vector< StateValueMap >{std::move(value)};
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate_one()
+{
+   return _iterate_one(std::nullopt);
+}
+
+template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
+StateValueMap VanillaCFR< config, Env, Policy, AveragePolicy >::_iterate_one(
+   std::optional< Player > player_to_update
+)
+{
    SPDLOG_DEBUG("Iteration number: {}", _iteration());
-   // run the iteration
-   StateValueMap values = [&] {
-      if(_iteration() < _env().players(*_root_state_uptr()).size() - 1)
-         return _iterate< true >(_cycle_player_to_update(player_to_update));
-      else
-         return _iterate< false >(_cycle_player_to_update(player_to_update));
+   StateValueMap value = [&] {
+      if constexpr(config.update_mode == UpdateMode::alternating) {
+         auto player = _cycle_player_to_update(player_to_update);
+         if(_iteration() < _env().players(*_root_state_uptr()).size() - 1) [[unlikely]] {
+            return _iterate< true >(player);
+         } else [[likely]] {
+            return _iterate< false >(player);
+         }
+      } else {
+         if(_iteration() == 0) [[unlikely]] {
+            return _iterate< true >(std::nullopt);
+         } else [[likely]] {
+            return _iterate< false >(std::nullopt);
+         }
+      }
    }();
-   // and increment our iteration counter
-   _iteration()++;
-   return std::vector< StateValueMap >{std::move(values)};
+   ++_iteration();
+   return value;
 }
 
 template < CFRConfig config, typename Env, typename Policy, typename AveragePolicy >
@@ -1392,6 +1392,7 @@ void VanillaCFR< config, Env, Policy, AveragePolicy >::update_regret_and_policy(
    const ActionValueTable< action_variant_type >& action_value_map
 )
 {
+   this->_invalidate_policy_views();
    auto& istate_data = _infonode(infostate);
    auto& node_data = istate_data.data();
    const auto& actions = istate_data.actions();

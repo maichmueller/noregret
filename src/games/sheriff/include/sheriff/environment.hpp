@@ -418,25 +418,6 @@ inline std::string to_string(const nor::games::sheriff::Observation& value)
 
 COMMON_ENABLE_PRINT(nor::games::sheriff, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::sheriff::Infostate > {
-   using observation_type = nor::games::sheriff::Observation;
-};
-
-template <>
-struct fosg_traits< games::sheriff::Environment > {
-   using world_state_type = nor::games::sheriff::State;
-   using info_state_type = nor::games::sheriff::Infostate;
-   using public_state_type = nor::games::sheriff::Publicstate;
-   using action_type = nor::games::sheriff::Action;
-   using chance_outcome_type = std::monostate;
-   using observation_type = nor::games::sheriff::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >
