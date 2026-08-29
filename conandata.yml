@@ -5,7 +5,7 @@ requirements:
   - "namedtype/20190324"
   - "benchmark/1.8.0"
   - "gtest/1.13.0"
-  - "pybind11/2.10.4"
+  - "nanobind/2.13.0"
   - "fmt/10.2.1"
   - "xtensor/[>=0.24.3]"
   - "spdlog/1.12.0"

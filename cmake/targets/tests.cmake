@@ -88,10 +88,6 @@ if(ENABLE_GAMES AND TARGET three_player_goofspiel)
     target_link_libraries(${nor_test}_all PRIVATE three_player_goofspiel)
 endif()
 
-# the test of all parts needs an extra linkage for the pybind11 components and Python
-target_link_libraries(${nor_test}_all PRIVATE # pybind11::module
-                                              $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>)
-
 if(ENABLE_GAMES)
     # this is a mere collector of all game test targets to build them via a single command to build all games (eg in
     # workflow)

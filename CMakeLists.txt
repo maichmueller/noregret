@@ -32,7 +32,6 @@ option(ENABLE_SANITIZER_UNDEFINED_BEHAVIOR "Enable undefined behavior sanitizer"
 option(ENABLE_TESTING "Enable Test Builds" ON)
 option(ENABLE_GAMES "Enable Game Builds" ON)
 option(ENABLE_WARNING_PADDING "Warn when structs are memory padded" OFF)
-option(USE_PYBIND11_FINDPYTHON "Use pybind11 to search for the python library" OFF)
 option(INSTALL_PYMODULE "Configure installation for python module." OFF)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
@@ -221,13 +220,21 @@ endif()
 # allow for static analysis options
 include(${_cmake_DIR}/settings/StaticAnalyzers.cmake)
 
-if(USE_PYBIND11_FINDPYTHON)
-    set(PYBIND11_FINDPYTHON TRUE)
-else()
-    set(PYBIND11_FINDPYTHON FALSE)
-    find_package(Python3 COMPONENTS Interpreter Development)
+if(ENABLE_BUILD_PYTHON_EXTENSION)
+    # Nanobind uses the modern FindPython targets. Development.Module was introduced in CMake 3.18; older supported
+    # CMake versions expose it through the umbrella Development component.
+    if(CMAKE_VERSION VERSION_LESS 3.18)
+        set(_nor_python_development_component Development)
+    else()
+        set(_nor_python_development_component Development.Module)
+    endif()
+    find_package(
+        Python 3.9
+        COMPONENTS Interpreter ${_nor_python_development_component}
+        REQUIRED)
+    find_package(nanobind CONFIG REQUIRED)
+    unset(_nor_python_development_component)
 endif()
-find_package(pybind11 REQUIRED)
 find_package(namedtype REQUIRED)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)

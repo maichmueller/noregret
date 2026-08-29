@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61", "cmake>=3.17", "ninja", "conan<2.0"]
+requires = ["setuptools>=61", "cmake>=3.17", "ninja", "conan>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "noregret"
 version = "0.0.1"
 license = { file = "LICENSE" }
 description = "A Factored-Observation Stochastic Game Framework for Game Theory and Reinforcement Learning in Games"
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 authors = [
     { name = "Michael Aichmueller", email = "m.aichmueller@gmail.com" },
 ]

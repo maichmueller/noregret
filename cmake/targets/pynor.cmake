@@ -7,13 +7,11 @@ else()
     set(_pynor_exclude_from_all EXCLUDE_FROM_ALL)
 endif()
 
-pybind11_add_module(
-    ${nor_pymodule}
-    MODULE
-    ${_pynor_exclude_from_all}
-    ${LIBRARY_SOURCES}
-    ${PYTHON_MODULE_SOURCES})
+nanobind_add_module(${nor_pymodule} ${LIBRARY_SOURCES} ${PYTHON_MODULE_SOURCES})
+
+if(_pynor_exclude_from_all)
+    set_target_properties(${nor_pymodule} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
 
 set_target_properties(${nor_pymodule} PROPERTIES LIBRARY_OUTPUT_NAME _${nor_pymodule} CXX_VISIBILITY_PRESET hidden)
-target_link_libraries(${nor_pymodule} PUBLIC ${nor_lib}_envs pybind11::module
-                                             $<$<NOT:$<BOOL:USE_PYBIND11_FINDPYTHON>>:Python3::Module>)
+target_link_libraries(${nor_pymodule} PUBLIC ${nor_lib}_envs)
