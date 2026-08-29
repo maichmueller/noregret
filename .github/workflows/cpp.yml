@@ -172,9 +172,93 @@ jobs:
           path: ./build/**/gtest-report-${{ github.job }}-${{ matrix.config.cc }}-${{ matrix.config.compiler_version }}-lib.xml
           retention-days: 1
 
+  python-bindings:
+    needs: precommit_checks
+    name: Python bindings • gcc-16
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Set up GCC
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: 16
+          platform: x64
+
+      - name: Install conan
+        id: conan
+        shell: bash
+        run: |
+          python3 -m pip install --upgrade pip setuptools
+          python3 -m pip install conan
+          echo "CONAN_HOME=$HOME/.conan2-bindings" >> $GITHUB_OUTPUT
+
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.30'
+
+      - name: Cache Conan Dependencies Install
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.conan.outputs.CONAN_HOME }}
+          key: ${{ runner.os }}-conan-bindings-${{ hashFiles('**/conandata.yml') }}-${{ hashFiles('**/conanfile.py') }}
+
+      - name: Configure CMake
+        shell: bash
+        env:
+          CC: gcc
+          CXX: g++
+        run: >
+          export CONAN_HOME=${{ steps.conan.outputs.CONAN_HOME }} &&
+          cmake
+          -S .
+          -B ./build
+          -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES="conan_provider.cmake"
+          -DCMAKE_BUILD_TYPE=Release
+          -DENABLE_BUILD_PYTHON_EXTENSION:BOOL=ON
+          -DENABLE_BUILD_SANDBOX:BOOL=OFF
+          -DWARNINGS_AS_ERRORS:BOOL=OFF
+
+      # The runtime registry partitions share a serial Ninja job pool, so this step is long by
+      # construction: one game's concrete solver set is instantiated at a time on purpose.
+      - name: Build the binding runtime and its tests
+        shell: bash
+        run: cmake --build ./build --config Release --target nor_tests_binding_runtime
+
+      - name: Build the Python extension
+        shell: bash
+        run: cmake --build ./build --config Release --target noregret
+
+      - name: Run binding runtime tests
+        shell: bash
+        run: >
+          GTEST_OUTPUT=xml:gtest-report-binding-runtime.xml
+          GTEST_COLOR=1
+          ctest -R Test_nor_tests_binding_runtime --test-dir ./build --verbose -C Release
+
+      - name: Run Python binding tests
+        shell: bash
+        run: ctest -R Test_python --test-dir ./build --output-on-failure -C Release
+
+      - name: Upload binding test result artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: gtest-results-binding-runtime
+          path: ./build/**/gtest-report-binding-runtime.xml
+          retention-days: 1
+
   publish-gtest-results:
     name: "Publish GTest Results"
-    needs: build-test-install
+    needs: [build-test-install, python-bindings]
     runs-on: ubuntu-latest
     if: always()
 
