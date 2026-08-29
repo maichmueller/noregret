@@ -414,24 +414,6 @@ class TypeErasedObservation: public Observation {
 
 }  // namespace nor::games::polymorph
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::polymorph::Infostate > {
-   using observation_type = nor::games::polymorph::Observation;
-};
-
-template <>
-struct fosg_traits< nor::games::polymorph::Environment > {
-   using world_state_type = nor::games::polymorph::Worldstate;
-   using info_state_type = nor::games::polymorph::Infostate;
-   using public_state_type = nor::games::polymorph::Publicstate;
-   using action_type = nor::games::polymorph::Action;
-   using observation_type = nor::games::polymorph::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename Type >

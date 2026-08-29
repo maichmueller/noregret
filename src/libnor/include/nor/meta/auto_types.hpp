@@ -6,20 +6,14 @@
 #include "nor/meta/features.hpp"
 #include "nor/meta/fosg.hpp"
 
-#if defined(NOR_REFLECTION)
-
 namespace nor::meta {
 
 /**
- * @brief Reflection-based equivalents of the classic nor::auto_*_type traits
- * (see nor/fosg_traits.hpp). Instead of walking fosg_traits<T> specializations
- * and nested typedefs via SFINAE chains, these look up the corresponding TYPE
- * member of T directly through P2996 reflection. Missing members resolve to
- * void, exactly like the classic path.
+ * @brief Reflected FOSG associated types.
  *
- * NOTE: these are intentionally separate names in nor::meta. Replacing the
- * canonical nor::auto_*_type aliases globally is phase 3 and must not happen
- * here.
+ * These aliases look up the corresponding TYPE member through P2996
+ * reflection. Missing members resolve to void, which preserves the probing
+ * semantics of the former trait chain.
  */
 
 template < typename T >
@@ -52,6 +46,35 @@ using auto_world_state_type = fosg_type_or_void< std::remove_cvref_t< T >, "worl
 
 }  // namespace nor::meta
 
-#endif  // NOR_REFLECTION
+// Keep the established nor::auto_* names as aliases to the reflected source of
+// truth. This makes reflection canonical without forcing callers to migrate
+// their spelling.
+namespace nor {
+
+template < typename T >
+using auto_action_type = meta::auto_action_type< T >;
+
+template < typename T >
+using auto_chance_outcome_type = meta::auto_chance_outcome_type< T >;
+
+template < typename T >
+using auto_action_policy_type = meta::auto_action_policy_type< T >;
+
+template < typename T >
+using auto_chance_distribution_type = meta::auto_chance_distribution_type< T >;
+
+template < typename T >
+using auto_observation_type = meta::auto_observation_type< T >;
+
+template < typename T >
+using auto_info_state_type = meta::auto_info_state_type< T >;
+
+template < typename T >
+using auto_public_state_type = meta::auto_public_state_type< T >;
+
+template < typename T >
+using auto_world_state_type = meta::auto_world_state_type< T >;
+
+}  // namespace nor
 
 #endif  // NOR_META_AUTO_TYPES_HPP

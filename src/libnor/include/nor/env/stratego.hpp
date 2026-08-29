@@ -100,24 +100,6 @@ class Environment {
 
 }  // namespace nor::games::stratego
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::stratego::Infostate > {
-   using observation_type = nor::games::stratego::Observation;
-};
-
-template <>
-struct fosg_traits< games::stratego::Environment > {
-   using world_state_type = nor::games::stratego::State;
-   using info_state_type = nor::games::stratego::Infostate;
-   using public_state_type = nor::games::stratego::Publicstate;
-   using action_type = nor::games::stratego::Action;
-   using observation_type = nor::games::stratego::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

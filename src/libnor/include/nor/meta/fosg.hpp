@@ -7,8 +7,6 @@
 
 #include "nor/meta/features.hpp"
 
-#if defined(NOR_REFLECTION)
-
 namespace nor::meta {
 
 /**
@@ -35,9 +33,9 @@ template < std::size_t N >
 fixed_str(const char (&)[N]) -> fixed_str< N - 1 >;
 
 /**
- * @brief Searches the members of T for a TYPE member with the given identifier
- * and returns its reflection. Returns a null reflection if T does not declare
- * such a member.
+ * @brief Searches T and its base classes for a TYPE member with the given
+ * identifier and returns its reflection. Returns a null reflection if T does
+ * not declare or inherit such a member.
  *
  * Note: the transient range returned by members_of is intentionally consumed
  * inside this consteval function.
@@ -50,12 +48,18 @@ consteval std::meta::info member_type_or_void(std::meta::info T, std::string_vie
          return m;
       }
    }
+   for(auto base : std::meta::bases_of(T, std::meta::access_context::unchecked())) {
+      if(auto member = member_type_or_void(std::meta::type_of(base), name);
+         member != std::meta::info{}) {
+         return member;
+      }
+   }
    return std::meta::info{};
 }
 
 /**
- * @brief Compile-time check whether T declares a TYPE member with the given
- * name.
+ * @brief Compile-time check whether T declares or inherits a TYPE member with
+ * the given name.
  */
 template < typename T, fixed_str Name >
 consteval bool has_member_type()
@@ -67,7 +71,7 @@ consteval bool has_member_type()
 
 /**
  * @brief Splice-based lookup of the nested type 'Name.value' of T.
- * Substitution failure if T does not declare such a type member.
+ * Substitution failure if T does not provide such a type member.
  */
 template < typename T, fixed_str Name >
    requires(has_member_type< T, Name >())
@@ -89,15 +93,12 @@ struct fosg_type_or_void_impl< T, true, Name > {
 
 /**
  * @brief Like fosg_type but resolves to void instead of failing substitution
- * when T does not declare the requested type member. This mirrors the
- * semantics of the classic nor::auto_*_type trait chain.
+ * when T does not provide the requested type member.
  */
 template < typename T, fixed_str Name >
 using fosg_type_or_void = typename detail::
    fosg_type_or_void_impl< T, has_member_type< T, Name >(), Name >::type;
 
 }  // namespace nor::meta
-
-#endif  // NOR_REFLECTION
 
 #endif  // NOR_META_FOSG_HPP

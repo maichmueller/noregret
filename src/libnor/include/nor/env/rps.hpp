@@ -100,23 +100,6 @@ class Environment {
 
 }  // namespace nor::games::rps
 
-namespace nor {
-template <>
-struct fosg_traits< games::rps::Infostate > {
-   using observation_type = nor::games::rps::Observation;
-};
-
-template <>
-struct fosg_traits< games::rps::Environment > {
-   using world_state_type = nor::games::rps::State;
-   using info_state_type = nor::games::rps::Infostate;
-   using public_state_type = nor::games::rps::Publicstate;
-   using action_type = nor::games::rps::Action;
-   using observation_type = nor::games::rps::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 template < typename StateType >
    requires common::is_any_v< StateType, nor::games::rps::Publicstate, nor::games::rps::Infostate >

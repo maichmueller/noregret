@@ -418,25 +418,6 @@ inline std::string to_string(const nor::games::colonel_blotto::Observation& valu
 
 COMMON_ENABLE_PRINT(nor::games::colonel_blotto, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::colonel_blotto::Infostate > {
-   using observation_type = nor::games::colonel_blotto::Observation;
-};
-
-template <>
-struct fosg_traits< games::colonel_blotto::Environment > {
-   using world_state_type = nor::games::colonel_blotto::State;
-   using info_state_type = nor::games::colonel_blotto::Infostate;
-   using public_state_type = nor::games::colonel_blotto::Publicstate;
-   using action_type = nor::games::colonel_blotto::Deploy;
-   using chance_outcome_type = std::monostate;
-   using observation_type = nor::games::colonel_blotto::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

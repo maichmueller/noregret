@@ -401,25 +401,6 @@ inline std::string to_string(const nor::games::oshi_zumo::Observation& value)
 
 COMMON_ENABLE_PRINT(nor::games::oshi_zumo, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::oshi_zumo::Infostate > {
-   using observation_type = nor::games::oshi_zumo::Observation;
-};
-
-template <>
-struct fosg_traits< games::oshi_zumo::Environment > {
-   using world_state_type = nor::games::oshi_zumo::State;
-   using info_state_type = nor::games::oshi_zumo::Infostate;
-   using public_state_type = nor::games::oshi_zumo::Publicstate;
-   using action_type = nor::games::oshi_zumo::Bid;
-   using chance_outcome_type = std::monostate;
-   using observation_type = nor::games::oshi_zumo::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

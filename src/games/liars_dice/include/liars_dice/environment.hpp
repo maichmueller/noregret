@@ -435,25 +435,6 @@ inline std::string to_string(const nor::games::liars_dice::Observation& value)
 
 COMMON_ENABLE_PRINT(nor::games::liars_dice, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::liars_dice::Infostate > {
-   using observation_type = nor::games::liars_dice::Observation;
-};
-
-template <>
-struct fosg_traits< games::liars_dice::Environment > {
-   using world_state_type = nor::games::liars_dice::State;
-   using info_state_type = nor::games::liars_dice::Infostate;
-   using public_state_type = nor::games::liars_dice::Publicstate;
-   using action_type = nor::games::liars_dice::Action;
-   using chance_outcome_type = nor::games::liars_dice::Roll;
-   using observation_type = nor::games::liars_dice::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

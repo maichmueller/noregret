@@ -338,25 +338,6 @@ inline std::string to_string(const nor::games::shapley::Observation& value)
 
 COMMON_ENABLE_PRINT(nor::games::shapley, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::shapley::Infostate > {
-   using observation_type = nor::games::shapley::Observation;
-};
-
-template <>
-struct fosg_traits< games::shapley::Environment > {
-   using world_state_type = nor::games::shapley::State;
-   using info_state_type = nor::games::shapley::Infostate;
-   using public_state_type = nor::games::shapley::Publicstate;
-   using action_type = nor::games::shapley::Play;
-   using chance_outcome_type = std::monostate;
-   using observation_type = nor::games::shapley::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

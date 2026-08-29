@@ -444,25 +444,6 @@ inline std::string to_string(const nor::games::pursuit_evasion::Observation& val
 
 COMMON_ENABLE_PRINT(nor::games::pursuit_evasion, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::pursuit_evasion::Infostate > {
-   using observation_type = nor::games::pursuit_evasion::Observation;
-};
-
-template <>
-struct fosg_traits< games::pursuit_evasion::Environment > {
-   using world_state_type = nor::games::pursuit_evasion::State;
-   using info_state_type = nor::games::pursuit_evasion::Infostate;
-   using public_state_type = nor::games::pursuit_evasion::Publicstate;
-   using action_type = nor::games::pursuit_evasion::Action;
-   using chance_outcome_type = std::monostate;
-   using observation_type = nor::games::pursuit_evasion::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

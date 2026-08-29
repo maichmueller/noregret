@@ -299,25 +299,6 @@ inline std::string to_string(const nor::games::dark_hex::Observation& value)
 
 COMMON_ENABLE_PRINT(nor::games::dark_hex, Observation);
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::dark_hex::Infostate > {
-   using observation_type = nor::games::dark_hex::Observation;
-};
-
-template <>
-struct fosg_traits< games::dark_hex::Environment > {
-   using world_state_type = nor::games::dark_hex::State;
-   using info_state_type = nor::games::dark_hex::Infostate;
-   using public_state_type = nor::games::dark_hex::Publicstate;
-   using action_type = nor::games::dark_hex::Move;
-   using chance_outcome_type = std::monostate;
-   using observation_type = nor::games::dark_hex::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 
 template < typename StateType >

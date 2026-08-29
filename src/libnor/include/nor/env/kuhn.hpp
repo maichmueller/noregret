@@ -213,25 +213,6 @@ struct formatter< nor::games::kuhn::Observation >: formatter< std::string > {
 
 }  // namespace fmt
 
-namespace nor {
-
-template <>
-struct fosg_traits< games::kuhn::Infostate > {
-   using observation_type = nor::games::kuhn::Observation;
-};
-
-template <>
-struct fosg_traits< games::kuhn::Environment > {
-   using world_state_type = nor::games::kuhn::State;
-   using info_state_type = nor::games::kuhn::Infostate;
-   using public_state_type = nor::games::kuhn::Publicstate;
-   using action_type = nor::games::kuhn::Action;
-   using chance_outcome_type = nor::games::kuhn::ChanceOutcome;
-   using observation_type = nor::games::kuhn::Observation;
-};
-
-}  // namespace nor
-
 namespace std {
 template < typename StateType >
    requires common::
