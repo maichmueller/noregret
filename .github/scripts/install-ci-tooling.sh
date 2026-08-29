@@ -19,10 +19,12 @@ apt-get install -y -qq --no-install-recommends \
 python3 -m venv /opt/conan
 /opt/conan/bin/pip install --quiet --upgrade pip conan
 
-# Both the venv and the interpreter matter to later steps: CMake looks up Python through PATH.
-echo "/opt/conan/bin" >> "${GITHUB_PATH}"
+# Only Conan is published onto PATH, not the whole virtual environment. Putting the venv's bin
+# directory first would make CMake resolve Python to the venv interpreter and build the extension
+# against that instead of the system Python the image ships.
+ln -sf /opt/conan/bin/conan /usr/local/bin/conan
 
 cmake --version | head -1
 ninja --version
 python3 --version
-/opt/conan/bin/conan --version
+conan --version
