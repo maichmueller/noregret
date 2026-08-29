@@ -5,7 +5,12 @@ register_nor_target(${nor_test}_concepts test_fosg_concepts.cpp)
 register_nor_target(${nor_test}_utils test_utils.cpp)
 register_nor_target(${nor_test}_meta test_meta.cpp)
 if(ENABLE_GAMES)
-    target_link_libraries(${nor_test}_meta PRIVATE battleship goofspiel liars_dice texas_holdem_poker)
+    target_link_libraries(
+        ${nor_test}_meta
+        PRIVATE battleship
+                goofspiel
+                liars_dice
+                texas_holdem_poker)
 endif()
 register_nor_target(${nor_test}_rm_utils test_rm_utils.cpp)
 register_nor_target(${nor_test}_forest test_forest.cpp)

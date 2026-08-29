@@ -12,9 +12,9 @@
 #include "common/common.hpp"
 #include "goofspiel/environment.hpp"
 #include "liars_dice/environment.hpp"
-#include "nor/game_defs.hpp"
 #include "nor/env.hpp"
 #include "nor/fosg_traits.hpp"
+#include "nor/game_defs.hpp"
 #include "nor/meta/auto_types.hpp"
 #include "nor/meta/diagnostics.hpp"
 #include "nor/meta/enum_names.hpp"
@@ -175,9 +175,9 @@ namespace {
 template < typename Env >
 concept canonical_reflected_aliases =
    std::same_as< nor::auto_action_type< Env >, nor::meta::fosg_type_or_void< Env, "action_type" > >
-   && std::
-      same_as< nor::auto_chance_outcome_type< Env >,
-               nor::meta::fosg_type_or_void< Env, "chance_outcome_type" > >
+   && std::same_as<
+      nor::auto_chance_outcome_type< Env >,
+      nor::meta::fosg_type_or_void< Env, "chance_outcome_type" > >
    && std::same_as<
       nor::auto_action_policy_type< Env >,
       nor::meta::fosg_type_or_void< Env, "action_policy_type" > >
@@ -213,16 +213,12 @@ static_assert(all_agree<
               nor::games::liars_dice::Environment,
               nor::games::battleship::Environment >());
 
-static_assert(
-   std::same_as<
-      nor::auto_observation_type< nor::games::kuhn::Infostate >,
-      nor::games::kuhn::Observation >
-);
-static_assert(
-   std::same_as<
-      nor::auto_observation_type< nor::games::kuhn::Publicstate >,
-      nor::games::kuhn::Observation >
-);
+static_assert(std::same_as<
+              nor::auto_observation_type< nor::games::kuhn::Infostate >,
+              nor::games::kuhn::Observation >);
+static_assert(std::same_as<
+              nor::auto_observation_type< nor::games::kuhn::Publicstate >,
+              nor::games::kuhn::Observation >);
 
 struct IncompleteEnv {};
 
