@@ -1064,20 +1064,23 @@ class PythonSession {
    {
       SessionOperation operation(m_state, true);
       unwrap(operation.solver().advance(iterations));
-      operation.changed();
+      if(iterations != 0)
+         operation.changed();
    }
    [[nodiscard]] std::optional< rt::IterationResult > advance_last(size_t iterations)
    {
       SessionOperation operation(m_state, true);
       auto result = unwrap(operation.solver().advance_last(iterations));
-      operation.changed();
+      if(iterations != 0)
+         operation.changed();
       return result;
    }
    [[nodiscard]] rt::TraceResult trace(size_t iterations, size_t every)
    {
       SessionOperation operation(m_state, true);
       auto result = unwrap(operation.solver().trace(iterations, every));
-      operation.changed();
+      if(iterations != 0)
+         operation.changed();
       return result;
    }
    [[nodiscard]] rt::SessionStats stats() const
@@ -1199,10 +1202,20 @@ class PythonGame {
    if(nb::isinstance< nb::bool_ >(value))
       return nb::cast< bool >(value);
    if(nb::isinstance< nb::int_ >(value)) {
-      const auto signed_value = nb::cast< long long >(value);
-      if(signed_value < 0)
-         return static_cast< double >(signed_value);
-      return static_cast< uint64_t >(signed_value);
+      // Try the signed spelling first so negative values retain the existing failed-conversion
+      // representation for unsigned fields. A Python int can exceed LLONG_MAX while still being
+      // a valid uint64_t, so the unsigned conversion must be a separate fallback rather than an
+      // implicit narrowing through long long.
+      long long signed_value = 0;
+      if(nb::try_cast< long long >(value, signed_value)) {
+         if(signed_value < 0)
+            return static_cast< double >(signed_value);
+         return static_cast< uint64_t >(signed_value);
+      }
+      uint64_t unsigned_value = 0;
+      if(nb::try_cast< uint64_t >(value, unsigned_value))
+         return unsigned_value;
+      throw nb::type_error("an integer GameSpec field value must fit in uint64_t");
    }
    if(nb::isinstance< nb::float_ >(value))
       return nb::cast< double >(value);
@@ -1661,7 +1674,7 @@ NB_MODULE(_noregret, module)
          &PythonSession::trace,
          "n"_a,
          "every"_a = 1,
-         "Run n iterations and collect the result after every n-th one."
+         "Run n iterations and collect the result after every `every`-th one."
       )
       .def("stats", &PythonSession::stats)
       .def("policy", &PythonSession::policy, "kind"_a = rt::PolicyViewKind::current)
