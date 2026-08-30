@@ -259,6 +259,13 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_iterate(
    };
    auto init_reach_probs = [&] {
       ReachProbabilityMap rp_map{};
+      // Chance is a reach contributor even when the environment's participant roster omits it.
+      // Leduc, for example, reports only its currently remaining seats from `players(state)`;
+      // keeping that roster semantic intact must not make chance-sampling unable to account for
+      // the sampled chance edge.
+      if constexpr(concepts::stochastic_env< env_type >) {
+         rp_map.get().emplace(Player::chance, 1.);
+      }
       for(auto player : players) {
          rp_map.get().emplace(player, 1.);
       }
@@ -538,7 +545,13 @@ MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
    }
 
    const auto& actions = infonode_data.actions();
-   auto& action_policy = this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
+   // The default TabularPolicy stores infoset entries in a flat table. A recursive visit may
+   // append another infoset and reallocate that table, so a policy reference is only borrowed
+   // for the operation that consumes it. Re-resolve it by the stable infoset key after descent.
+   auto current_policy_for_node = [&]() -> auto& {
+      return this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
+   };
+   auto& action_policy = current_policy_for_node();
 
    // apply one round of regret matching on the current policy before using it. MCCFR only
    // updates the policy once you revisit it, as it is a lazy update schedule. As such, one would
@@ -741,6 +754,7 @@ MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
    };
    if constexpr(vr_mode != VarianceReductionMode::none) {
       if(vr_active) {
+         auto& current_policy = current_policy_for_node();
          vr_sampled_idx = infonode_data.data().index_of(sampled_action);
          // incoming bootstrapped value u(h a*|z): the raw terminal reward at
          // the deepest of this player's infosets, else the eq-(10) mixture
@@ -769,10 +783,10 @@ MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          double off_trajectory_mass = 0.;
          for(auto idx : std::views::iota(size_t{0}, actions.size())) {
             if(! (actions[idx] == sampled_action)) {
-               off_trajectory_mass += action_policy[actions[idx]] * vr_baseline_at(idx);
+               off_trajectory_mass += current_policy[actions[idx]] * vr_baseline_at(idx);
             }
          }
-         stream = action_policy[sampled_action] * vr_sampled_value + off_trajectory_mass;
+         stream = current_policy[sampled_action] * vr_sampled_value + off_trajectory_mass;
          // eq (11) prefactor: counterfactual reach over prefix sampling
          // probability q(h) (everything sampled above this infoset). ESCHER
          // fixed-policy sampling omits it entirely.
@@ -804,10 +818,11 @@ MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          tail_prob
       );
 
+      auto& current_policy = current_policy_for_node();
       _update_average_policy(
          *infostate,
          infonode_data,
-         action_policy,
+         current_policy,
          Probability{reach_probability.get()[active_player]},
          sample_probability,
          sampled_action,
@@ -829,12 +844,13 @@ MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
             // value vector (paper Algorithm 1 lines 40-44). VR baselines are
             // statically incompatible (see probing_supported).
             if(probing_engaged) {
+               auto& current_policy = current_policy_for_node();
                _update_regrets_probing(
                   reach_probability,
                   active_player,
                   infonode_data,
                   actions,
-                  action_policy,
+                  current_policy,
                   probed_action_values
                );
             } else {
@@ -851,10 +867,11 @@ MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          } else if constexpr(vr_mode != VarianceReductionMode::none) {
             // paper step (d): regret accumulation against the untouched
             // baseline snapshot
+            auto& current_policy = current_policy_for_node();
             _vr_accumulate_regrets(
                infonode_data,
                actions,
-               action_policy,
+               current_policy,
                vr_sampled_idx,
                vr_cf_weight,
                vr_sampled_value,
@@ -916,10 +933,11 @@ MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          }
       } else if(active_player == _preview_next_player_to_update()) {
          // the check in this if statement collapses to a simple true in the 2-player case
+         auto& current_policy = current_policy_for_node();
          _update_average_policy(
             *infostate,
             infonode_data,
-            action_policy,
+            current_policy,
             Probability{reach_probability.get()[active_player]},
             sample_probability,
             sampled_action,
@@ -951,9 +969,10 @@ MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
    // SHALLOWEST engaged frame, i.e. the one closest to the root.
    if constexpr(probing_active) {
       if(probing_engaged) {
+         auto& current_policy = current_policy_for_node();
          m_probe_root_value = std::ranges::fold_left(
             std::views::iota(size_t{0}, actions.size()) | std::views::transform([&](size_t idx) {
-               return action_policy[actions[idx]] * probed_action_values[idx];
+               return current_policy[actions[idx]] * probed_action_values[idx];
             }),
             0.,
             std::plus{}
@@ -986,7 +1005,8 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_terminal_value(
          if constexpr(config.update_mode == UpdateMode::alternating) {
             return _env().reward(player_to_update.value(), state);
          } else {
-            return collect_rewards(_env(), state).at(player_to_update.value());
+            return collect_rewards(_env(), state, _env().players(*_root_state_uptr()))
+               .at(player_to_update.value());
          }
       });
    }
@@ -1002,7 +1022,10 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_terminal_value(
                {player_to_update.value(), _env().reward(player_to_update.value(), state)}}},
             Probability{1.}};
       } else if constexpr(config.update_mode == UpdateMode::simultaneous) {
-         return std::pair{StateValueMap{collect_rewards(_env(), state)}, Probability{1.}};
+         return std::pair{
+            StateValueMap{collect_rewards(_env(), state, _env().players(*_root_state_uptr()))},
+            Probability{1.}
+         };
       } else {
          static_assert(
             common::always_false_v< Env >, "Update Mode not one of alternating or simultaneous"
@@ -1017,7 +1040,9 @@ auto MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_terminal_value(
    } else if constexpr(config.update_mode == UpdateMode::simultaneous) {
       return std::pair{
          StateValueMap{[&] {
-            auto rewards_map = collect_rewards(_env(), state);
+            auto rewards_map = collect_rewards(
+               _env(), state, _env().players(*_root_state_uptr())
+            );
             for(double& reward : rewards_map.values()) {
                reward /= sample_probability.get();
             }
@@ -1620,7 +1645,11 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
       _invoke_regret_minimizer(common::deref(infostate), infonode_data);
    }
    const auto& actions = infonode_data.actions();
-   auto& action_policy = this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
+   // Policy entries live in the solver's flat infoset table. Recursive child visits may grow that
+   // table, so keep only a stable key here and borrow the action policy for each local operation.
+   auto current_policy_for_node = [&]() -> auto& {
+      return this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
+   };
 
    auto traverse_for_action_value = [&](const auto& action) {
       // advance the arena slot of the next depth: in-place reconstruction + transition
@@ -1731,9 +1760,11 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          auto& sampled_action_opt = infonode_data.data().extras.sampled_action;
          return sampled_action_opt.has_value()
                    ? *sampled_action_opt
-                   : sampled_action_opt.emplace(_sample_action_on_policy(actions, action_policy));
+                   : sampled_action_opt.emplace(
+                        _sample_action_on_policy(actions, current_policy_for_node())
+                     );
       } else {
-         return _sample_action_on_policy(actions, action_policy);
+         return _sample_action_on_policy(actions, current_policy_for_node());
       }
    };
 
@@ -1771,8 +1802,9 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          if constexpr(config.algorithm == MCCFRAlgorithmMode::external_sampling) {
             return std::ranges::fold_left(
                actions | std::views::transform([&](const auto& action) {
-                  return emplace_estimate(action, traverse_for_action_value(action))
-                         * action_policy[action];
+                  const auto value = traverse_for_action_value(action);
+                  return emplace_estimate(action, value)
+                         * current_policy_for_node()[action];
                }),
                double(0.),
                std::plus{}
@@ -1818,7 +1850,7 @@ StateValue MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traverse(
          } else {
             // external sampling updates all entries by the current policy
             for(const auto& action : actions) {
-               average_action_policy[action] += action_policy[action];
+               average_action_policy[action] += current_policy_for_node()[action];
             }
          }
       }
@@ -1856,7 +1888,9 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
 // clang-format on
 {
    if(_env().is_terminal(curr_worldstate)) {
-      return StateValueMap{collect_rewards(_env(), curr_worldstate)};
+      return StateValueMap{
+         collect_rewards(_env(), curr_worldstate, _env().players(*_root_state_uptr()))
+      };
    }
 
    if constexpr(config.algorithm != MCCFRAlgorithmMode::pure_cfr and config.pruning_mode == CFRPruningMode::partial) {
@@ -1865,7 +1899,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
          // each player
          return StateValueMap{std::invoke([&] {
             StateValueMap::UnderlyingType map;
-            for(auto player : _env().players(curr_worldstate) | utils::is_actual_player_pred) {
+            for(auto player : _env().players(*_root_state_uptr()) | utils::is_actual_player_pred) {
                map[player] = 0.;
             }
             return map;
@@ -1930,15 +1964,22 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
       infonode_data.emplace(_env().actions(active_player, curr_worldstate));
    }
    const auto& actions = infonode_data.actions();
-   auto& curr_action_policy = this->template fetch_policy< PolicyLabel::current >(
-      *infostate, actions
-   );
-   auto& avg_action_policy = this->template fetch_policy< PolicyLabel::average >(
-      *infostate, actions
-   );
+   // The default TabularPolicy stores infoset entries in a flat table. Child traversal can grow
+   // that table, invalidating references into it; borrow each policy only for the local operation
+   // that consumes it and re-resolve it by the stable infoset key after recursion.
+   auto current_policy_for_node = [&]() -> auto& {
+      return this->template fetch_policy< PolicyLabel::current >(*infostate, actions);
+   };
+   auto average_policy_for_node = [&]() -> auto& {
+      return this->template fetch_policy< PolicyLabel::average >(*infostate, actions);
+   };
+   // Preserve the historical first-touch initialization of both policy tables before traversing
+   // any child, without retaining either reference across the recursive calls below.
+   (void) current_policy_for_node();
+   (void) average_policy_for_node();
 
    for(const action_type& action : actions) {
-      auto action_prob = curr_action_policy[action];
+      const auto action_prob = current_policy_for_node()[action];
 
       // advance the arena slot of the next depth: in-place reconstruction + transition
       world_state_type& next_wstate = _arena_state(depth + 1, curr_worldstate);
@@ -2053,7 +2094,7 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
       auto& sampled_action_opt = infonode_data.data().extras.sampled_action;
       if(not sampled_action_opt.has_value()) {
          // emplace sampled action for the pure strategy at this infostate if not already done
-         sampled_action_opt = _sample_action_on_policy(actions, curr_action_policy);
+         sampled_action_opt = _sample_action_on_policy(actions, current_policy_for_node());
       }
       for(auto [player, child_value] :
           detail::find_action_value(action_value, *sampled_action_opt).get()) {
@@ -2067,6 +2108,8 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
       // in alternating updates, we only update the regret and strategy if the current
       // player is the chosen player to update.
       if(active_player == player_to_update.value()) {
+         auto& avg_action_policy = average_policy_for_node();
+         auto& curr_action_policy = current_policy_for_node();
          update_regret_and_policy(
             *infostate,
             reach_probability,
@@ -2079,6 +2122,8 @@ StateValueMap MCCFR< config, Env, Policy, AveragePolicy, SamplingRule >::_traver
    } else {
       // if we do simultaneous updates, then we always update the regret and strategy
       // values of the node's active player.
+      auto& avg_action_policy = average_policy_for_node();
+      auto& curr_action_policy = current_policy_for_node();
       update_regret_and_policy(
          *infostate,
          reach_probability,

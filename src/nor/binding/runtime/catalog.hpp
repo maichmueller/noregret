@@ -379,15 +379,19 @@ struct texas_holdem_game {
       reflected_field(GameFieldId::n_players, SpecKind::unsigned_integer, uint64_t{2}),
       reflected_field(GameFieldId::starting_stack, SpecKind::floating_point, 200.),
       reflected_field(GameFieldId::small_blind, SpecKind::floating_point, 1.),
-      reflected_field(GameFieldId::big_blind, SpecKind::floating_point, 2.)};
+      reflected_field(GameFieldId::big_blind, SpecKind::floating_point, 2.),
+      reflected_field(GameFieldId::deck_size, SpecKind::unsigned_integer, uint64_t{52})};
 
    static Result< env_type > make_env(const GameSpec& spec)
    {
-      return env_type{::texholdem::PokerConfig{
+      auto config = ::texholdem::PokerConfig{
          spec_unsigned_as< size_t >(spec, GameFieldId::n_players),
          spec_floating(spec, GameFieldId::starting_stack),
          spec_floating(spec, GameFieldId::small_blind),
-         spec_floating(spec, GameFieldId::big_blind)}};
+         spec_floating(spec, GameFieldId::big_blind)};
+      config.deck_size = spec_unsigned_as< size_t >(spec, GameFieldId::deck_size);
+      config.validate();
+      return env_type{std::move(config)};
    }
 };
 

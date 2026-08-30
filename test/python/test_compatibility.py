@@ -18,6 +18,47 @@ def capability_label(capability):
     )
 
 
+def bounded_static_game(game_id):
+    """Return a valid small instance while keeping the advertised game identity unchanged."""
+    if game_id == nor.GameId.dark_hex:
+        # Classical dark hex permits retries on occupied cells, so an unlimited board has an
+        # infinite exhaustive tree. A 2x2 board with a four-attempt cap is the smallest legal
+        # finite instance and still exercises the game's actual transition and solver path.
+        return nor.Game(game_id, board_size=2, move_limit=4)
+    if game_id == nor.GameId.pursuit_evasion:
+        # The published six-round instance is intentionally a larger benchmark. One round keeps
+        # this catalog smoke test finite while retaining the simultaneous attacker/defender game.
+        return nor.Game(game_id, rounds=1)
+    if game_id == nor.GameId.oshi_zumo:
+        # Use the smallest board, purse, and horizon that preserve the simultaneous bidding rules.
+        return nor.Game(game_id, size=1, coins=1, min_bid=0, horizon=1)
+    if game_id == nor.GameId.centipede:
+        # One decision round is the smallest valid centipede and still has both take/pass paths.
+        return nor.Game(game_id, rounds=1, pile_big=2, pile_small=1)
+    if game_id == nor.GameId.colonel_blotto:
+        # A one-troop budget keeps all three battlefield commitments while minimizing branches.
+        return nor.Game(game_id, budget=1)
+    if game_id == nor.GameId.sheriff:
+        # One item, one bribe, and one bargaining round retain loading, offer, and response.
+        return nor.Game(game_id, v=1.0, p=1.0, s=1.0, n_max=1, b_max=1, rounds=1)
+    if game_id == nor.GameId.liars_dice:
+        # Two players with one three-faced die are the smallest valid chance/bluffing instance.
+        return nor.Game(game_id, n_players=2, dice_per_player=1, n_faces=3)
+    if game_id == nor.GameId.texas_holdem_poker:
+        # A nine-card canonical-prefix deck is the minimum that can deal two hole cards per
+        # player and a five-card board. Equal stacks/blinds make this a legal all-in hand, so exact
+        # profiles exercise their real chance traversal without turning a compatibility test into
+        # a full 52-card Hold'em enumeration. The normal Game default remains a 52-card deck.
+        return nor.Game(
+            game_id,
+            deck_size=9,
+            starting_stack=2.0,
+            small_blind=2.0,
+            big_blind=2.0,
+        )
+    return nor.Game(game_id)
+
+
 class StaticCompatibilityTest(BindingTestCase):
     def test_game_views_match_the_global_capability_catalog(self):
         catalog = tuple(nor.capabilities())
@@ -84,7 +125,7 @@ class StaticCompatibilityTest(BindingTestCase):
                 profile=capability.profile.name,
             ):
                 try:
-                    session = nor.Game(capability.game).make_session(
+                    session = bounded_static_game(capability.game).make_session(
                         capability.solver, capability.profile
                     )
                     result = session.advance(1)

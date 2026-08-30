@@ -26,7 +26,9 @@ class NoPybind11Test(unittest.TestCase):
                 path
                 for path in REPOSITORY.rglob("*")
                 if not any(
-                    part == ".git" or part.startswith("build") or part == "__pycache__"
+                    part in {".git", ".conan-home"}
+                    or part.startswith("build")
+                    or part == "__pycache__"
                     for part in path.relative_to(REPOSITORY).parts
                 )
             ]

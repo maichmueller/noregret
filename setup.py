@@ -141,6 +141,10 @@ class Build(build_ext):
 
 
 setuptools.setup(
+    name="noregret",
+    version="0.0.1",
+    packages=setuptools.find_packages(where="src"),
+    package_dir={"": "src"},
     ext_modules=[CMakeExtension("noregret", sourcedir="src/nor")],
     cmdclass={"build_ext": Build},
 )

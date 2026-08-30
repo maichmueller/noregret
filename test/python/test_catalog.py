@@ -122,6 +122,7 @@ class CatalogTest(BindingTestCase):
         names = {field.name for field in holdem.fields}
         self.assertIn("n_players", names)
         self.assertIn("small_blind", names)
+        self.assertIn("deck_size", names)
         for field in holdem.fields:
             self.assertEqual(field.name, field.id.name)
             self.assertIsInstance(field.kind, nor.SpecKind)

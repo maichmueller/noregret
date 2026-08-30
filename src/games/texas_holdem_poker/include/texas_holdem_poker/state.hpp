@@ -125,6 +125,9 @@ struct PokerConfig {
    double starting_stack = 200.;  //< stack size of every player at hand start
    double small_blind = 1.;  //< the small blind posting
    double big_blind = 2.;  //< the big blind posting (also the minimal bet size)
+   /// number of cards in the prefix of the canonical 52-card deck that is in play
+   /// (the standard game keeps the default value of 52)
+   size_t deck_size = 52;
    /// bet/raise increments in multiples of the big blind offered on each street
    std::vector< double > bet_size_multiples = {1., 2., 4., 8.};
    /// optional per-player starting stacks (if empty every player receives 'starting_stack')
@@ -137,12 +140,14 @@ struct PokerConfig {
       double small_blind_ = 1.,
       double big_blind_ = 2.,
       std::vector< double > bet_size_multiples_ = {1., 2., 4., 8.},
-      std::vector< double > starting_stacks_ = {}
+      std::vector< double > starting_stacks_ = {},
+      size_t deck_size_ = 52
    )
        : n_players(n_players_),
          starting_stack(starting_stack_),
          small_blind(small_blind_),
          big_blind(big_blind_),
+         deck_size(deck_size_),
          bet_size_multiples(std::move(bet_size_multiples_)),
          starting_stacks(std::move(starting_stacks_))
    {
@@ -154,6 +159,13 @@ struct PokerConfig {
          throw std::invalid_argument(
             "texas hold'em supports between 2 and " + std::to_string(max_player_count)
             + " players (got " + std::to_string(n_players) + ")."
+         );
+      }
+      if(deck_size < hole_cards_per_player * n_players + community_card_count or deck_size > 52) {
+         throw std::invalid_argument(
+            "The deck size has to provide every hole and community card and be at most 52 "
+            "cards (got "
+            + std::to_string(deck_size) + ")."
          );
       }
       if(big_blind <= 0. or small_blind <= 0. or small_blind > big_blind) {
@@ -174,6 +186,7 @@ struct PokerConfig {
    {
       return left.n_players == right.n_players && left.starting_stack == right.starting_stack
              && left.small_blind == right.small_blind && left.big_blind == right.big_blind
+             && left.deck_size == right.deck_size
              && left.bet_size_multiples == right.bet_size_multiples
              && left.starting_stacks == right.starting_stacks;
    }
@@ -250,7 +263,7 @@ class State {
       return m_board_dealt < community_card_count ? m_board[m_board_dealt] : std::nullopt;
    }
    /// number of cards still in the deck
-   [[nodiscard]] size_t deck_size() const { return 52 - m_dealt.count(); }
+   [[nodiscard]] size_t deck_size() const { return m_config.deck_size - m_dealt.count(); }
    [[nodiscard]] bool is_dealt(Card card) const { return m_dealt[card.index()]; }
 
    [[nodiscard]] double stack(Player player) const { return m_players[as_int(player)].stack; }

@@ -33,6 +33,11 @@ nor.capabilities_for(nor.GameId.leduc_poker)   # every profile this game admits
 nor.profiles_for(nor.SolverId.mccfr)           # every profile in one solver family
 ```
 
+Game specifications retain the concrete game's rules. Texas hold'em uses the standard 52-card
+deck by default and also accepts a smaller prefix of that canonical deck when a bounded finite
+variant is useful for experiments or compatibility checks; the deck must still contain every hole
+and community card required by the configured player count.
+
 ## Sessions
 
 A session exposes one coarse operation set:
