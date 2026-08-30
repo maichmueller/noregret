@@ -37,8 +37,8 @@ option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 
 # settings
 
-# C++26 static reflection (P2996) is a project prerequisite. The supported
-# compiler contract is GCC 16.1 or newer with -freflection.
+# C++26 static reflection (P2996) is a project prerequisite. The supported compiler contract is GCC 16.1 or newer with
+# -freflection.
 set(PROJ_CXX_STD_FEATURE cxx_std_26)
 set(PROJ_CXX_STANDARD 26)
 if("${PROJ_CXX_STD_FEATURE}" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
@@ -46,28 +46,27 @@ if("${PROJ_CXX_STD_FEATURE}" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
     set(CMAKE_CXX_STANDARD ${PROJ_CXX_STANDARD})
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 else()
-    # CMake versions before they learned the cxx_std_26 feature can still
-    # drive the supported compiler through its explicit dialect flag.
+    # CMake versions before they learned the cxx_std_26 feature can still drive the supported compiler through its
+    # explicit dialect flag.
     set(_nor_cxx26_feature_available FALSE)
-    # A Conan toolchain may have selected an older standard for its own
-    # dependencies. Do not let that setting override NOR's project-wide
-    # C++26 requirement in try_compile or consumer targets.
+    # A Conan toolchain may have selected an older standard for its own dependencies. Do not let that setting override
+    # NOR's project-wide C++26 requirement in try_compile or consumer targets.
     unset(CMAKE_CXX_STANDARD)
     unset(CMAKE_CXX_STANDARD_REQUIRED)
 endif()
 
-if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+if(NOT
+   CMAKE_CXX_COMPILER_ID
+   STREQUAL
+   "GNU"
    OR CMAKE_CXX_COMPILER_VERSION VERSION_LESS "16.1")
-    message(
-        FATAL_ERROR
-        "NOR requires GCC 16.1 or newer with C++26 reflection enabled via -freflection; "
-        "found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+    message(FATAL_ERROR "NOR requires GCC 16.1 or newer with C++26 reflection enabled via -freflection; "
+                        "found ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 endif()
 
 set(_nor_reflection_probe "${CMAKE_BINARY_DIR}/CMakeFiles/nor_cxx26_reflection_probe.cpp")
 file(
-    WRITE
-    "${_nor_reflection_probe}"
+    WRITE "${_nor_reflection_probe}"
     [=[
 #include <meta>
 #if !defined(__cpp_impl_reflection) || !defined(__cpp_lib_reflection)
@@ -81,12 +80,13 @@ execute_process(
     OUTPUT_VARIABLE _nor_reflection_probe_output
     ERROR_VARIABLE _nor_reflection_probe_error)
 
-if(NOT _nor_reflection_probe_result EQUAL 0)
+if(NOT
+   _nor_reflection_probe_result
+   EQUAL
+   0)
     string(STRIP "${_nor_reflection_probe_error}" _nor_reflection_probe_error)
-    message(
-        FATAL_ERROR
-        "NOR requires GCC 16.1 or newer with C++26 reflection enabled via -freflection; "
-        "compiler probe failed: ${_nor_reflection_probe_error}")
+    message(FATAL_ERROR "NOR requires GCC 16.1 or newer with C++26 reflection enabled via -freflection; "
+                        "compiler probe failed: ${_nor_reflection_probe_error}")
 endif()
 unset(_nor_reflection_probe)
 unset(_nor_reflection_probe_result)
@@ -172,11 +172,8 @@ set(_options
     "$<$<CONFIG:RELEASE>:-O3>"
     "$<$<AND:$<CONFIG:RELEASE>,$<BOOL:${ENABLE_FAST_MATH}>>:-ffast-math>"
     ">")
-set(
-    _extra_options
-    "-ftemplate-backtrace-limit=0"
-    "$<$<CXX_COMPILER_ID:GNU>:-freflection>"
-    "$<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=5>")
+set(_extra_options "-ftemplate-backtrace-limit=0" "$<$<CXX_COMPILER_ID:GNU>:-freflection>"
+                   "$<$<CXX_COMPILER_ID:GNU>:-fconcepts-diagnostics-depth=5>")
 if(NOT _nor_cxx26_feature_available)
     list(APPEND _extra_options "$<$<CXX_COMPILER_ID:GNU>:-std=c++26>")
 endif()

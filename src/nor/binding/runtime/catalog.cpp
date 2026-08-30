@@ -9,34 +9,22 @@ namespace {
 
 using detail::CatalogPartition;
 
+#define NOR_BINDING_RUNTIME_PARTITION_ADDRESS(Tag, Name) &detail::Name##_partition(),
+
+/// Assembled from the single roster in catalog_partitions.hpp, so this file cannot drift from it.
 [[nodiscard]] const auto& partitions()
 {
-   static const auto value = std::array{
-      &detail::kuhn_partition(),
-      &detail::leduc_partition(),
-      &detail::rps_partition(),
-      &detail::stratego_partition(),
-      &detail::texas_holdem_partition(),
-      &detail::goofspiel_partition(),
-      &detail::three_player_goofspiel_partition(),
-      &detail::battleship_partition(),
-      &detail::battleship_gs_partition(),
-      &detail::dark_hex_partition(),
-      &detail::pursuit_evasion_partition(),
-      &detail::oshi_zumo_partition(),
-      &detail::shapley_partition(),
-      &detail::centipede_partition(),
-      &detail::colonel_blotto_partition(),
-      &detail::sheriff_partition(),
-      &detail::liars_dice_partition()};
+   static const std::array< const CatalogPartition*, detail::partition_count > value{
+      NOR_BINDING_RUNTIME_PARTITIONS(NOR_BINDING_RUNTIME_PARTITION_ADDRESS)};
    return value;
 }
+
+#undef NOR_BINDING_RUNTIME_PARTITION_ADDRESS
 
 [[nodiscard]] const auto& game_descriptors()
 {
    static const auto value = [] {
-      using partition_array = std::remove_cvref_t< decltype(partitions()) >;
-      std::array< GameDescriptor, std::tuple_size_v< partition_array > > result{};
+      std::array< GameDescriptor, detail::partition_count > result{};
       size_t index = 0;
       for(const auto* partition : partitions())
          result[index++] = partition->game;

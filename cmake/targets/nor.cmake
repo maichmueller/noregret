@@ -41,6 +41,11 @@ list(TRANSFORM WRAPPER_SOURCES PREPEND "${PROJECT_NOR_DIR}/impl/")
 if(ENABLE_GAMES)
     add_library(${nor_lib}_envs STATIC)
 
+    # The environment wrappers are archived into the Python extension, which is a shared module. Every other game target
+    # is already SHARED and therefore position independent; this static archive has to opt in explicitly or the
+    # extension fails to link.
+    set_target_properties(${nor_lib}_envs PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
     target_sources(${nor_lib}_envs PRIVATE ${WRAPPER_SOURCES})
 
     target_link_libraries(

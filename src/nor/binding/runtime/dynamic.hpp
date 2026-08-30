@@ -1,13 +1,18 @@
 #ifndef NOR_BINDING_RUNTIME_DYNAMIC_HPP
 #define NOR_BINDING_RUNTIME_DYNAMIC_HPP
 
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -293,6 +298,15 @@ class DynamicEnvironmentProvider {
    [[nodiscard]] virtual DynamicWorldState initial_world_state() const = 0;
    [[nodiscard]] virtual std::vector< DynamicAction >
    actions(Player, const DynamicWorldState& state) const = 0;
+   /**
+    * @brief The participants of the game.
+    *
+    * The roster must be the same set at every state, unlike some compiled environments which drop
+    * a player once they can no longer act. A dynamic provider signals that a participant is out of
+    * the hand through is_partaking() instead, so that a single admitted roster stays checkable at
+    * every state -- an out-of-range player array is one of the failures the checked adapter has to
+    * rule out, and it cannot do that against a roster that is allowed to change.
+    */
    [[nodiscard]] virtual std::vector< Player > players(const DynamicWorldState&) const = 0;
    [[nodiscard]] virtual Player active_player(const DynamicWorldState&) const = 0;
    [[nodiscard]] virtual bool is_terminal(const DynamicWorldState&) const = 0;
@@ -320,11 +334,11 @@ class DynamicEnvironmentProvider {
    [[nodiscard]] virtual double
    chance_probability(const DynamicWorldState&, const DynamicChanceOutcome&) const
    {
-      throw std::logic_error("dynamic provider has no chance probability");
+      throw DynamicProviderError("dynamic provider has no chance probability");
    }
    virtual void transition(DynamicWorldState&, const DynamicChanceOutcome&) const
    {
-      throw std::logic_error("dynamic provider has no chance transition");
+      throw DynamicProviderError("dynamic provider has no chance transition");
    }
    [[nodiscard]] virtual DynamicObservation
    private_observation(Player, const DynamicWorldState&, const DynamicChanceOutcome&, const DynamicWorldState&)
@@ -340,13 +354,101 @@ class DynamicEnvironmentProvider {
    }
 };
 
+namespace detail {
+
+/// The player identifiers a dynamic provider may use for an actual (non-chance) participant.
+[[nodiscard]] constexpr bool is_actual_player(Player player) noexcept
+{
+   const auto value = static_cast< int >(player);
+   return value >= static_cast< int >(Player::alex) and value <= static_cast< int >(Player::zoey);
+}
+
+/// The number of distinct actual players the Player enumeration can express.
+inline constexpr size_t max_actual_player_count = static_cast< size_t >(Player::zoey) + 1;
+
 /**
- * @brief Concrete FOSG adapter for a provider.
+ * @brief Whether @p values contains the same value twice.
+ *
+ * Small sets are compared pairwise because that beats building a hash set for a handful of
+ * elements, and a legal-action list is usually tiny. The hashed path exists so a provider with a
+ * wide action space does not pay a quadratic cost at every node it is checked at.
+ */
+template < typename Value >
+[[nodiscard]] bool contains_duplicate(const std::vector< Value >& values)
+{
+   constexpr size_t pairwise_limit = 16;
+   if(values.size() <= pairwise_limit) {
+      for(size_t left = 0; left < values.size(); ++left) {
+         for(size_t right = left + 1; right < values.size(); ++right) {
+            if(values[left] == values[right])
+               return true;
+         }
+      }
+      return false;
+   }
+   std::unordered_set< Value > seen;
+   seen.reserve(values.size());
+   for(const auto& value : values) {
+      if(not seen.insert(value).second)
+         return true;
+   }
+   return false;
+}
+
+}  // namespace detail
+
+/**
+ * @brief The immutable facts a provider declares once, at admission time.
+ *
+ * These are the only provider answers the checked adapter is allowed to reuse instead of asking
+ * again: they are declarations about the game, not about a particular state. Caching them keeps
+ * the per-node virtual call count identical to an unchecked adapter while giving every later
+ * per-state answer a fixed reference to be validated against.
+ */
+struct DynamicAdmission {
+   size_t max_player_count = 0;
+   size_t player_count = 0;
+   Stochasticity stochasticity = Stochasticity::deterministic;
+   /// The admitted actual players, in the order the provider reported them at the initial state.
+   std::vector< Player > roster;
+   /// The exact initial state that was validated. Sessions are rooted at this value, so validation
+   /// and solver construction can never disagree about which snapshot was admitted.
+   DynamicWorldState initial_state;
+};
+
+/**
+ * @brief Validate a provider's declarations and its initial state.
+ *
+ * On success the returned record is the single admitted snapshot used both by the caller that
+ * requested admission and by the environment adapter constructed from it.
+ */
+[[nodiscard]] Result< std::shared_ptr< const DynamicAdmission > >
+admit_dynamic_provider(const std::shared_ptr< const DynamicEnvironmentProvider >&);
+
+/**
+ * @brief Checked concrete FOSG adapter for a provider.
  *
  * The static choice classification is deliberate: it is the compile-time superset needed by the
  * solver traversal. The provider's runtime stochasticity() remains an admission-time declaration
  * and may be deterministic or choice, but sample is rejected because it cannot provide an outcome
  * distribution to this concrete adapter.
+ *
+ * Every value that crosses from the provider into solver code is validated here, not only at the
+ * initial state: a provider that is well formed at its root but malformed at a later reachable
+ * state is rejected deterministically instead of driving the solver into empty-action sampling,
+ * an out-of-range player array, or a non-distribution over chance outcomes. Violations are
+ * reported by throwing DynamicProviderError, which the erased session boundary turns into a
+ * CapabilityError; there is no valid way to return an expected value from the middle of a
+ * concrete traversal.
+ *
+ * Checking costs no additional provider calls on the normal path. Structural questions that the
+ * returned value alone cannot answer -- "is an empty action list legal here?" -- are asked only
+ * when the suspicious value actually occurs. A chance node's outcome distribution is summed and
+ * checked once per distinct chance state and then remembered, so revisiting that node during
+ * later iterations costs exactly the probability queries the solver would have made anyway.
+ *
+ * Providers are externally synchronized, so the memo needs no locking. Copies of an adapter share
+ * one memo, because the solver stores its environment by value.
  */
 class DynamicEnvironment {
   public:
@@ -362,11 +464,25 @@ class DynamicEnvironment {
    static constexpr bool serialized() noexcept { return true; }
    static constexpr bool unrolled() noexcept { return true; }
 
-   explicit DynamicEnvironment(std::shared_ptr< const DynamicEnvironmentProvider > provider)
-       : m_provider(std::move(provider))
+   /// Adopt an already validated admission record. This is the constructor sessions use.
+   DynamicEnvironment(
+      std::shared_ptr< const DynamicEnvironmentProvider > provider,
+      std::shared_ptr< const DynamicAdmission > admission
+   )
+       : m_provider(std::move(provider)),
+         m_admission(std::move(admission)),
+         m_checked_chance_states(std::make_shared< std::unordered_set< world_state_type > >())
    {
       if(not m_provider)
          throw std::invalid_argument("DynamicEnvironment requires a provider");
+      if(not m_admission)
+         throw std::invalid_argument("DynamicEnvironment requires an admission record");
+   }
+
+   /// Admit the provider eagerly. Throws DynamicProviderError when the provider is inadmissible.
+   explicit DynamicEnvironment(std::shared_ptr< const DynamicEnvironmentProvider > provider)
+       : DynamicEnvironment(provider, _admit_or_throw(provider))
+   {
    }
 
    [[nodiscard]] const std::shared_ptr< const DynamicEnvironmentProvider >& provider(
@@ -374,61 +490,124 @@ class DynamicEnvironment {
    {
       return m_provider;
    }
-   [[nodiscard]] size_t max_player_count() const { return m_provider->max_player_count(); }
-   [[nodiscard]] size_t player_count() const { return m_provider->player_count(); }
-   [[nodiscard]] Stochasticity provider_stochasticity() const
+   [[nodiscard]] const DynamicAdmission& admission() const noexcept { return *m_admission; }
+
+   [[nodiscard]] size_t max_player_count() const { return m_admission->max_player_count; }
+   [[nodiscard]] size_t player_count() const { return m_admission->player_count; }
+   [[nodiscard]] Stochasticity provider_stochasticity() const { return m_admission->stochasticity; }
+   [[nodiscard]] bool provider_serialized() const { return true; }
+   [[nodiscard]] bool provider_unrolled() const { return true; }
+
+   /// The admitted initial snapshot. No provider call is made; the value was validated once.
+   [[nodiscard]] const world_state_type& initial_world_state() const noexcept
    {
-      return m_provider->stochasticity();
+      return m_admission->initial_state;
    }
-   [[nodiscard]] bool provider_serialized() const { return m_provider->serialized(); }
-   [[nodiscard]] bool provider_unrolled() const { return m_provider->unrolled(); }
-   [[nodiscard]] DynamicWorldState initial_world_state() const
-   {
-      return m_provider->initial_world_state();
-   }
+
    [[nodiscard]] std::vector< action_type > actions(Player player, const world_state_type& state)
       const
    {
-      return m_provider->actions(player, state);
+      auto result = m_provider->actions(player, state);
+      _check_choice_set(result, "legal actions");
+      if(result.empty())
+         _require_empty_action_set_is_legal(player, state);
+      return result;
    }
+
    [[nodiscard]] std::vector< chance_outcome_type > chance_actions(const world_state_type& state
    ) const
    {
-      return m_provider->chance_actions(state);
+      auto result = m_provider->chance_actions(state);
+      _check_choice_set(result, "chance outcomes");
+      if(result.empty()) {
+         _require_empty_chance_set_is_legal(state);
+         return result;
+      }
+      _check_chance_distribution(state, result);
+      return result;
    }
+
    [[nodiscard]] double
    chance_probability(const world_state_type& state, const chance_outcome_type& outcome) const
    {
-      return m_provider->chance_probability(state, outcome);
+      return _checked_probability(m_provider->chance_probability(state, outcome));
    }
+
    [[nodiscard]] std::vector< Player > players(const world_state_type& state) const
    {
-      return m_provider->players(state);
+      auto result = m_provider->players(state);
+      if(result.size() != m_admission->roster.size()) {
+         throw DynamicProviderError(
+            "provider players() returned a roster of a different size than the admitted roster"
+         );
+      }
+      for(const auto player : result) {
+         if(not detail::is_actual_player(player)) {
+            throw DynamicProviderError("provider players() returned a non-actual player");
+         }
+         if(std::ranges::find(m_admission->roster, player) == m_admission->roster.end()) {
+            throw DynamicProviderError(
+               "provider players() returned a player outside the admitted roster"
+            );
+         }
+      }
+      if(detail::contains_duplicate(result)) {
+         throw DynamicProviderError("provider players() returned duplicate players");
+      }
+      return result;
    }
+
    [[nodiscard]] Player active_player(const world_state_type& state) const
    {
-      return m_provider->active_player(state);
+      const auto result = m_provider->active_player(state);
+      if(result == Player::chance) {
+         if(m_admission->stochasticity != Stochasticity::choice) {
+            throw DynamicProviderError(
+               "provider active_player() returned chance although it declared no chance moves"
+            );
+         }
+         return result;
+      }
+      if(not detail::is_actual_player(result)
+         or std::ranges::find(m_admission->roster, result) == m_admission->roster.end()) {
+         throw DynamicProviderError(
+            "provider active_player() is neither chance nor an admitted actual player"
+         );
+      }
+      return result;
    }
+
    [[nodiscard]] bool is_terminal(const world_state_type& state) const
    {
       return m_provider->is_terminal(state);
    }
+
    [[nodiscard]] bool is_partaking(const world_state_type& state, Player player) const
    {
       return m_provider->is_partaking(state, player);
    }
+
    [[nodiscard]] double reward(Player player, const world_state_type& state) const
    {
-      return m_provider->reward(player, state);
+      const auto result = m_provider->reward(player, state);
+      if(not std::isfinite(result)) {
+         throw DynamicProviderError("provider reward() returned a non-finite value");
+      }
+      return result;
    }
+
    void transition(world_state_type& state, const action_type& action) const
    {
       m_provider->transition(state, action);
+      _check_world(state, "transition(action)");
    }
+
    void transition(world_state_type& state, const chance_outcome_type& outcome) const
    {
       m_provider->transition(state, outcome);
+      _check_world(state, "transition(chance outcome)");
    }
+
    [[nodiscard]] observation_type private_observation(
       Player player,
       const world_state_type& state,
@@ -436,16 +615,22 @@ class DynamicEnvironment {
       const world_state_type& next_state
    ) const
    {
-      return m_provider->private_observation(player, state, action, next_state);
+      return _checked_observation(
+         m_provider->private_observation(player, state, action, next_state), "private_observation"
+      );
    }
+
    [[nodiscard]] observation_type public_observation(
       const world_state_type& state,
       const action_type& action,
       const world_state_type& next_state
    ) const
    {
-      return m_provider->public_observation(state, action, next_state);
+      return _checked_observation(
+         m_provider->public_observation(state, action, next_state), "public_observation"
+      );
    }
+
    [[nodiscard]] observation_type private_observation(
       Player player,
       const world_state_type& state,
@@ -453,19 +638,139 @@ class DynamicEnvironment {
       const world_state_type& next_state
    ) const
    {
-      return m_provider->private_observation(player, state, outcome, next_state);
+      return _checked_observation(
+         m_provider->private_observation(player, state, outcome, next_state), "private_observation"
+      );
    }
+
    [[nodiscard]] observation_type public_observation(
       const world_state_type& state,
       const chance_outcome_type& outcome,
       const world_state_type& next_state
    ) const
    {
-      return m_provider->public_observation(state, outcome, next_state);
+      return _checked_observation(
+         m_provider->public_observation(state, outcome, next_state), "public_observation"
+      );
    }
 
   private:
+   [[nodiscard]] static std::shared_ptr< const DynamicAdmission > _admit_or_throw(
+      const std::shared_ptr< const DynamicEnvironmentProvider >& provider
+   )
+   {
+      auto admission = admit_dynamic_provider(provider);
+      if(not admission)
+         throw DynamicProviderError(admission.error().message);
+      return std::move(*admission);
+   }
+
+   static void _check_world(const world_state_type& state, const char* context)
+   {
+      if(not state.value().valid()) {
+         throw DynamicProviderError(
+            std::string("provider ") + context
+            + " produced a world state without a type name and identity"
+         );
+      }
+   }
+
+   [[nodiscard]] static observation_type
+   _checked_observation(observation_type observation, const char* context)
+   {
+      if(not observation.valid()) {
+         throw DynamicProviderError(
+            std::string("provider ") + context
+            + "() returned an observation without a type name and identity"
+         );
+      }
+      return observation;
+   }
+
+   [[nodiscard]] static double _checked_probability(double probability)
+   {
+      if(not std::isfinite(probability) or probability < 0.) {
+         throw DynamicProviderError("provider chance_probability() must be finite and nonnegative");
+      }
+      return probability;
+   }
+
+   template < typename Value >
+   static void _check_choice_set(const std::vector< Value >& values, const char* what)
+   {
+      for(const auto& value : values) {
+         if(not value.valid()) {
+            throw DynamicProviderError(
+               std::string("provider ") + what + " must have a nonempty type name and identity"
+            );
+         }
+      }
+      if(detail::contains_duplicate(values)) {
+         throw DynamicProviderError(std::string("provider ") + what + " must be unique");
+      }
+   }
+
+   /**
+    * @brief Decide whether an empty action list was legal here.
+    *
+    * Reached only when the provider actually returned one, so the extra queries cost nothing on
+    * the normal path. They go through this adapter's own checked accessors rather than straight to
+    * the provider, so a provider that answers inconsistently is rejected instead of talking its
+    * way out of the emptiness check.
+    */
+   void _require_empty_action_set_is_legal(Player player, const world_state_type& state) const
+   {
+      if(is_terminal(state))
+         return;
+      // A serialized environment has exactly one player to move, so an inactive player having no
+      // actions at a nonterminal state is expected rather than a violation.
+      if(active_player(state) != player)
+         return;
+      throw DynamicProviderError(
+         "provider returned no legal actions for the active player of a nonterminal state"
+      );
+   }
+
+   /// @copydoc _require_empty_action_set_is_legal
+   void _require_empty_chance_set_is_legal(const world_state_type& state) const
+   {
+      if(is_terminal(state))
+         return;
+      if(active_player(state) != Player::chance)
+         return;
+      throw DynamicProviderError(
+         "provider returned no chance outcomes for a nonterminal chance state"
+      );
+   }
+
+   void _check_chance_distribution(
+      const world_state_type& state,
+      const std::vector< chance_outcome_type >& outcomes
+   ) const
+   {
+      if(m_checked_chance_states->contains(state))
+         return;
+      double sum = 0.;
+      for(const auto& outcome : outcomes) {
+         sum += _checked_probability(m_provider->chance_probability(state, outcome));
+      }
+      if(not std::isfinite(sum) or std::abs(sum - 1.) > chance_probability_tolerance) {
+         throw DynamicProviderError(
+            "provider chance probabilities must sum approximately to one at every chance state"
+         );
+      }
+      // Bound the memo so a game with a very large chance-state space degrades to revalidating
+      // instead of growing without limit.
+      if(m_checked_chance_states->size() < max_checked_chance_states)
+         m_checked_chance_states->insert(state);
+   }
+
+   static constexpr double chance_probability_tolerance = 1.e-8;
+   static constexpr size_t max_checked_chance_states = 1u << 16u;
+
    std::shared_ptr< const DynamicEnvironmentProvider > m_provider;
+   std::shared_ptr< const DynamicAdmission > m_admission;
+   std::shared_ptr< std::unordered_set< world_state_type > > m_checked_chance_states;
 };
 
 class DynamicGameHandle;
@@ -484,7 +789,8 @@ class DynamicGameHandle {
 
    [[nodiscard]] explicit operator bool() const noexcept
    {
-      return m_provider != nullptr and m_spec.game_id() == GameId::dynamic;
+      return m_provider != nullptr and m_admission != nullptr
+             and m_spec.game_id() == GameId::dynamic;
    }
    [[nodiscard]] GameId game_id() const noexcept { return m_spec.game_id(); }
    [[nodiscard]] const GameSpec& spec() const noexcept { return m_spec; }
@@ -493,6 +799,13 @@ class DynamicGameHandle {
    {
       return m_provider;
    }
+   /// The immutable admission certificate produced when this handle was created. Every session
+   /// reuses this exact snapshot, so the Game metadata and the concrete solver adapter cannot
+   /// disagree if a pure-Python provider mutates after Game construction.
+   [[nodiscard]] const std::shared_ptr< const DynamicAdmission >& admission() const noexcept
+   {
+      return m_admission;
+   }
 
    [[nodiscard]] Result< SolverSession >
    make_session(SolverId solver, ProfileId profile, SessionOptions options = {}) const;
@@ -500,8 +813,12 @@ class DynamicGameHandle {
    [[nodiscard]] Result< GameSpec > game_spec() const;
 
   private:
-   DynamicGameHandle(GameSpec spec, std::shared_ptr< const DynamicEnvironmentProvider > provider)
-       : m_spec(std::move(spec)), m_provider(std::move(provider))
+   DynamicGameHandle(
+      GameSpec spec,
+      std::shared_ptr< const DynamicEnvironmentProvider > provider,
+      std::shared_ptr< const DynamicAdmission > admission
+   )
+       : m_spec(std::move(spec)), m_provider(std::move(provider)), m_admission(std::move(admission))
    {
    }
 
@@ -510,6 +827,7 @@ class DynamicGameHandle {
 
    GameSpec m_spec{GameId::dynamic};
    std::shared_ptr< const DynamicEnvironmentProvider > m_provider;
+   std::shared_ptr< const DynamicAdmission > m_admission;
 };
 
 [[nodiscard]] std::span< const DynamicCapabilityDescriptor > dynamic_capabilities() noexcept;

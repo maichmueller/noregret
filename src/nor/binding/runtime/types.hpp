@@ -132,7 +132,8 @@ enum class GameFieldId : uint16_t {
    b_max = 0x0705,
    starting_stack = 0x0801,
    small_blind = 0x0802,
-   big_blind = 0x0803
+   big_blind = 0x0803,
+   max_turn_count = 0x0901
 };
 
 enum class SpecKind : uint8_t { unsigned_integer = 0, floating_point = 1, boolean = 2 };
@@ -232,6 +233,20 @@ struct CapabilityError {
    GameId game = static_cast< GameId >(0);
    SolverId solver = static_cast< SolverId >(0);
    ProfileId profile = static_cast< ProfileId >(0);
+};
+
+/**
+ * @brief Thrown by the checked dynamic-environment adapter when a provider value is inadmissible.
+ *
+ * The adapter is called from deep inside a concrete solver traversal, where returning an expected
+ * value is not possible. Throwing is the only way to abort that traversal, so the coarse erased
+ * session boundary catches this type specifically and reports it as
+ * CapabilityErrorCode::invalid_dynamic_provider rather than as a generic session failure.
+ */
+class DynamicProviderError: public std::runtime_error {
+  public:
+   explicit DynamicProviderError(const std::string& message) : std::runtime_error(message) {}
+   explicit DynamicProviderError(const char* message) : std::runtime_error(message) {}
 };
 
 template < typename T >
@@ -819,8 +834,17 @@ class PolicyLookup {
       return m_backend->visit(requested_kind, visitor);
    }
 
-   /// Explicitly copy all rows in this policy. This is the only operation that walks the complete
-   /// policy through the erased API.
+   /**
+    * @brief Explicitly copy all rows in this policy.
+    *
+    * This is the only operation that walks the complete policy through the erased API.
+    *
+    * The row order is UNSPECIFIED. Rows are produced in the concrete solver's node-map order,
+    * which is a hash-map order and may differ between builds, allocations and solver families.
+    * Ordinary lookup deliberately does not sort, and neither does this bulk copy; callers that
+    * need a stable presentation must sort the returned rows themselves by a key they define. The
+    * action order *within* one row is the node's deterministic action-registry order.
+    */
    [[nodiscard]] std::vector< PolicyEntry > to_entries() const
    {
       std::vector< PolicyEntry > result;

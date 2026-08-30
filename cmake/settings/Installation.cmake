@@ -22,14 +22,36 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 if(INSTALL_PYMODULE)
     message("Configuring installation for python module.")
-    if(APPLE)
-        set(rpath_orig "'@executable_path'")
-    else()
-        set(rpath_orig "'$ORIGIN'")
-    endif()
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath=$ORIGIN")
 
-    install(TARGETS ${nor_pymodule} LIBRARY DESTINATION nor)
+    # A wheel is relocatable, so the extension has to find its siblings relative to itself rather than through an
+    # absolute prefix that will not exist on the installing machine.
+    if(APPLE)
+        set(_pymodule_origin "@loader_path")
+    else()
+        set(_pymodule_origin "$ORIGIN")
+    endif()
+    set_target_properties(${nor_pymodule} PROPERTIES INSTALL_RPATH "${_pymodule_origin}")
+
+    # The extension links the game libraries that are built as real libraries. Installing only the extension produces a
+    # wheel that imports and then immediately fails on a missing .so, so they travel with it. Header-only games
+    # contribute no runtime file and are skipped.
+    set(_pymodule_runtime_libraries)
+    foreach(_pymodule_game IN LISTS NOR_GAME_LIBRARIES)
+        if(TARGET ${_pymodule_game})
+            get_target_property(_pymodule_game_type ${_pymodule_game} TYPE)
+            if(_pymodule_game_type STREQUAL "SHARED_LIBRARY" OR _pymodule_game_type STREQUAL "MODULE_LIBRARY")
+                set_target_properties(${_pymodule_game} PROPERTIES INSTALL_RPATH "${_pymodule_origin}")
+                list(APPEND _pymodule_runtime_libraries ${_pymodule_game})
+            endif()
+        endif()
+    endforeach()
+
+    install(TARGETS ${nor_pymodule} ${_pymodule_runtime_libraries} LIBRARY DESTINATION nor)
+
+    unset(_pymodule_origin)
+    unset(_pymodule_game)
+    unset(_pymodule_game_type)
+    unset(_pymodule_runtime_libraries)
 else()
     message("Configuring Installation For C++ Library.")
     #

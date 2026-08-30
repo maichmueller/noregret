@@ -1,24 +1,28 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/optional.h>
+#include <nanobind/stl/pair.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/stl/string.h>
-#include <nanobind/stl/tuple.h>
+#include <nanobind/stl/variant.h>
 #include <nanobind/stl/vector.h>
 #include <nanobind/trampoline.h>
 
 #include <algorithm>
-#include <cmath>
+#include <cstdint>
 #include <exception>
 #include <mutex>
 #include <new>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
 
+// The binding sees only the value-oriented runtime contract. catalog.hpp, and with it every
+// concrete game and solver instantiation, stays inside the compiled partitions.
 #include "runtime/runtime.hpp"
 
 namespace nb = nanobind;
@@ -26,6 +30,10 @@ namespace rt = nor::binding::runtime;
 using namespace nb::literals;
 
 namespace noregret_binding {
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// reflected enum plumbing //////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 template < typename Enum >
 [[nodiscard]] std::string enum_name(Enum value)
@@ -35,6 +43,8 @@ template < typename Enum >
                        : std::string(name);
 }
 
+/// Accept either the bound enumeration object or its reflected name, so Python callers never have
+/// to spell out an enumerator table this module did not write by hand either.
 template < typename Enum >
 [[nodiscard]] Enum enum_from_python(nb::handle value, const char* description)
 {
@@ -44,12 +54,15 @@ template < typename Enum >
          return *result;
       throw nb::value_error((std::string("unknown ") + description + " name: " + name).c_str());
    }
-   try {
-      return nb::cast< Enum >(value);
-   } catch(const nb::cast_error&) {
-      throw nb::type_error((std::string("expected ") + description + " enum or name").c_str());
-   }
+   Enum result{};
+   if(nb::try_cast< Enum >(value, result))
+      return result;
+   throw nb::type_error((std::string("expected a ") + description + " or its name").c_str());
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// errors ///////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] std::string capability_message(const rt::CapabilityError& error)
 {
@@ -65,6 +78,8 @@ template < typename Enum >
    return out.str();
 }
 
+/// Carries the full CapabilityError so the translator can attach its context to the Python object
+/// instead of flattening everything into a message string.
 class BindingCapabilityError final: public std::exception {
   public:
    explicit BindingCapabilityError(rt::CapabilityError error)
@@ -82,12 +97,21 @@ class BindingCapabilityError final: public std::exception {
 
 class StaleViewError final: public std::logic_error {
   public:
-   StaleViewError() : std::logic_error("policy view is stale; obtain a new view after mutation") {}
+   explicit StaleViewError(const char* message) : std::logic_error(message) {}
+};
+
+class ClosedSessionError final: public std::logic_error {
+  public:
+   ClosedSessionError() : std::logic_error("the solver session has been closed") {}
 };
 
 class ReentrantSessionError final: public std::logic_error {
   public:
-   ReentrantSessionError() : std::logic_error("same-session reentrant operation is not permitted")
+   ReentrantSessionError()
+       : std::logic_error(
+          "a session operation was reentered from inside the same session; provider callbacks "
+          "and policy inspection may not call back into their own session"
+       )
    {
    }
 };
@@ -105,6 +129,10 @@ inline void unwrap(rt::Result< void > result)
    if(not result)
       throw BindingCapabilityError(std::move(result.error()));
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// domain values ////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 template < rt::ValueKind Kind >
 struct dynamic_value_for;
@@ -138,45 +166,29 @@ template < rt::ValueKind Kind >
 using dynamic_value_t = typename dynamic_value_for< Kind >::type;
 
 template < rt::ValueKind Kind >
+inline constexpr bool is_named_kind = Kind == rt::ValueKind::action
+                                      or Kind == rt::ValueKind::chance_outcome
+                                      or Kind == rt::ValueKind::observation;
+
+/**
+ * @brief The one Python-facing type per domain kind.
+ *
+ * A value is either a copy of a concrete C++ value that a compiled game produced (erased once, at
+ * the runtime boundary) or a value a Python provider authored. Both are exposed identically:
+ * to_string() and to_tensor() answer None when the underlying value has no such representation,
+ * and no representation is ever invented for one that does not.
+ */
+template < rt::ValueKind Kind >
 class PythonValue {
   public:
    using dynamic_type = dynamic_value_t< Kind >;
 
    PythonValue()
    {
-      if constexpr(Kind == rt::ValueKind::info_state or Kind == rt::ValueKind::public_state or Kind == rt::ValueKind::world_state)
+      if constexpr(Kind == rt::ValueKind::info_state or Kind == rt::ValueKind::public_state or Kind == rt::ValueKind::world_state) {
          m_value.template emplace< dynamic_type >();
-      else
-         m_value.template emplace< rt::ErasedValue >();
-   }
-
-   PythonValue(
-      std::string type_name,
-      std::string identity,
-      std::optional< std::string > text,
-      std::optional< rt::TensorData > tensor
-   )
-   {
-      if constexpr(Kind == rt::ValueKind::action or Kind == rt::ValueKind::chance_outcome or Kind == rt::ValueKind::observation) {
-         m_value = dynamic_type::named(
-            std::move(type_name), std::move(identity), std::move(text), std::move(tensor)
-         );
-      } else if constexpr(Kind == rt::ValueKind::world_state) {
-         m_value = dynamic_type{rt::DynamicWorldValue::named(
-            std::move(type_name), std::move(identity), std::move(text), std::move(tensor)
-         )};
       } else {
-         throw nb::type_error("state values are constructed with their state-specific API");
-      }
-   }
-
-   explicit PythonValue(nor::Player player)
-   {
-      if constexpr(Kind == rt::ValueKind::info_state)
-         m_value = dynamic_type{player};
-      else {
-         (void) player;
-         throw nb::type_error("only InfoState accepts a player constructor");
+         m_value.template emplace< rt::ErasedValue >();
       }
    }
 
@@ -187,16 +199,51 @@ class PythonValue {
       std::optional< rt::TensorData > tensor = std::nullopt
    )
    {
-      return PythonValue{
-         std::move(type_name), std::move(identity), std::move(text), std::move(tensor)};
+      PythonValue result;
+      if constexpr(is_named_kind< Kind >) {
+         result.m_value = dynamic_type::named(
+            std::move(type_name), std::move(identity), std::move(text), std::move(tensor)
+         );
+      } else if constexpr(Kind == rt::ValueKind::world_state) {
+         result.m_value = dynamic_type{rt::DynamicWorldValue::named(
+            std::move(type_name), std::move(identity), std::move(text), std::move(tensor)
+         )};
+      } else {
+         throw nb::type_error("state histories are built with their own API, not from a name");
+      }
+      return result;
    }
 
+   [[nodiscard]] static PythonValue with_player(nor::Player player)
+   {
+      PythonValue result;
+      if constexpr(Kind == rt::ValueKind::info_state) {
+         result.m_value = dynamic_type{player};
+      } else {
+         (void) player;
+         throw nb::type_error("only InfoState is constructed from a player");
+      }
+      return result;
+   }
+
+   /**
+    * @brief Adopt a value that crossed the erased runtime boundary.
+    *
+    * A dynamic game's solver stores the very values its provider authored, so when one comes back
+    * it is unwrapped rather than left erased. Otherwise the same action would look different
+    * depending on which side of the boundary handed it to Python, and its identity -- the only
+    * thing a provider can compare on -- would read as absent.
+    */
    [[nodiscard]] static PythonValue from_static(rt::ErasedValue value)
    {
       if(value.valid() and value.kind() != Kind)
-         throw std::invalid_argument("erased value has the wrong domain kind");
+         throw nb::type_error("erased value has the wrong domain kind");
       PythonValue result;
-      result.m_value = std::move(value);
+      if(const auto* authored = value.template get_if< dynamic_type >()) {
+         result.m_value = *authored;
+      } else {
+         result.m_value = std::move(value);
+      }
       return result;
    }
 
@@ -208,66 +255,75 @@ class PythonValue {
    }
 
    [[nodiscard]] static constexpr rt::ValueKind kind() noexcept { return Kind; }
+
    [[nodiscard]] bool is_dynamic() const noexcept
    {
       return std::holds_alternative< dynamic_type >(m_value);
    }
+
    [[nodiscard]] bool valid() const noexcept
    {
       if(const auto* value = std::get_if< rt::ErasedValue >(&m_value))
          return value->valid();
-      if constexpr(Kind == rt::ValueKind::info_state or Kind == rt::ValueKind::public_state)
+      if constexpr(Kind == rt::ValueKind::info_state or Kind == rt::ValueKind::public_state) {
          return true;
-      else if constexpr(Kind == rt::ValueKind::world_state)
+      } else if constexpr(Kind == rt::ValueKind::world_state) {
          return std::get< dynamic_type >(m_value).value().valid();
-      else
+      } else {
          return std::get< dynamic_type >(m_value).valid();
+      }
    }
-   [[nodiscard]] explicit operator bool() const noexcept { return valid(); }
 
    [[nodiscard]] std::string type_name() const
    {
       if(const auto* value = std::get_if< rt::ErasedValue >(&m_value))
          return std::string(value->type_name());
-      if constexpr(Kind == rt::ValueKind::world_state)
+      if constexpr(Kind == rt::ValueKind::world_state) {
          return std::string(std::get< dynamic_type >(m_value).value().type_name());
-      if constexpr(Kind == rt::ValueKind::action or Kind == rt::ValueKind::chance_outcome or Kind == rt::ValueKind::observation)
+      } else if constexpr(is_named_kind< Kind >) {
          return std::string(std::get< dynamic_type >(m_value).type_name());
-      return {};
+      } else {
+         return {};
+      }
    }
-   [[nodiscard]] std::string name() const { return type_name(); }
 
    [[nodiscard]] std::optional< std::string > identity() const
    {
       if(std::holds_alternative< rt::ErasedValue >(m_value))
          return std::nullopt;
-      if constexpr(Kind == rt::ValueKind::world_state)
+      if constexpr(Kind == rt::ValueKind::world_state) {
          return std::string(std::get< dynamic_type >(m_value).value().identity());
-      if constexpr(Kind == rt::ValueKind::action or Kind == rt::ValueKind::chance_outcome or Kind == rt::ValueKind::observation)
+      } else if constexpr(is_named_kind< Kind >) {
          return std::string(std::get< dynamic_type >(m_value).identity());
-      return std::nullopt;
+      } else {
+         return std::nullopt;
+      }
    }
 
    [[nodiscard]] std::optional< std::string > to_string() const
    {
       if(const auto* value = std::get_if< rt::ErasedValue >(&m_value))
          return value->to_string();
-      if constexpr(Kind == rt::ValueKind::world_state)
+      if constexpr(Kind == rt::ValueKind::world_state) {
          return std::get< dynamic_type >(m_value).value().to_string();
-      if constexpr(Kind == rt::ValueKind::action or Kind == rt::ValueKind::chance_outcome or Kind == rt::ValueKind::observation)
+      } else if constexpr(is_named_kind< Kind >) {
          return std::get< dynamic_type >(m_value).to_string();
-      return std::nullopt;
+      } else {
+         return std::nullopt;
+      }
    }
 
    [[nodiscard]] std::optional< rt::TensorData > to_tensor() const
    {
       if(const auto* value = std::get_if< rt::ErasedValue >(&m_value))
          return value->to_tensor();
-      if constexpr(Kind == rt::ValueKind::world_state)
+      if constexpr(Kind == rt::ValueKind::world_state) {
          return std::get< dynamic_type >(m_value).value().to_tensor();
-      if constexpr(Kind == rt::ValueKind::action or Kind == rt::ValueKind::chance_outcome or Kind == rt::ValueKind::observation)
+      } else if constexpr(is_named_kind< Kind >) {
          return std::get< dynamic_type >(m_value).to_tensor();
-      return std::nullopt;
+      } else {
+         return std::nullopt;
+      }
    }
 
    [[nodiscard]] rt::ValueCapabilities capabilities() const
@@ -277,17 +333,8 @@ class PythonValue {
             return metadata->capabilities;
          return {};
       }
-      if constexpr(Kind == rt::ValueKind::world_state) {
-         const auto& value = std::get< dynamic_type >(m_value).value();
-         return {
-            .to_string = value.to_string().has_value(), .to_tensor = value.to_tensor().has_value()};
-      } else if constexpr(Kind == rt::ValueKind::action or Kind == rt::ValueKind::chance_outcome or Kind == rt::ValueKind::observation) {
-         const auto& value = std::get< dynamic_type >(m_value);
-         return {
-            .to_string = value.to_string().has_value(), .to_tensor = value.to_tensor().has_value()};
-      } else {
-         return {};
-      }
+      return rt::ValueCapabilities{
+         .to_string = to_string().has_value(), .to_tensor = to_tensor().has_value()};
    }
 
    [[nodiscard]] size_t hash() const
@@ -306,95 +353,92 @@ class PythonValue {
       return std::get< dynamic_type >(left.m_value) == std::get< dynamic_type >(right.m_value);
    }
 
-   [[nodiscard]] const rt::ErasedValue& erased() const
+   /// The value in the erased runtime representation, re-erasing a provider-authored value. A
+   /// lookup key therefore works the same whether it came from the solver or from Python.
+   [[nodiscard]] rt::ErasedValue as_erased() const
    {
-      const auto* value = std::get_if< rt::ErasedValue >(&m_value);
-      if(value == nullptr)
-         throw std::invalid_argument("dynamic value cannot be used as a static erased value");
-      return *value;
+      if(const auto* value = std::get_if< rt::ErasedValue >(&m_value))
+         return *value;
+      return rt::ErasedValue::make< Kind >(std::get< dynamic_type >(m_value));
    }
 
    [[nodiscard]] const dynamic_type& dynamic() const
    {
       const auto* value = std::get_if< dynamic_type >(&m_value);
       if(value == nullptr)
-         throw std::invalid_argument("static value cannot be used as a dynamic provider value");
+         throw nb::type_error("a compiled game value cannot be used as a provider value");
       return *value;
    }
 
-   void update(
+   [[nodiscard]] dynamic_type& mutable_dynamic()
+   {
+      auto* value = std::get_if< dynamic_type >(&m_value);
+      if(value == nullptr)
+         throw nb::type_error("a compiled game value cannot be used as a provider value");
+      return *value;
+   }
+
+   // -- history-shaped kinds -----------------------------------------------------------------
+
+   void update_info(
       const PythonValue< rt::ValueKind::observation >& public_observation,
       const PythonValue< rt::ValueKind::observation >& private_observation
    )
    {
       if constexpr(Kind == rt::ValueKind::info_state) {
-         if(not is_dynamic())
-            throw std::invalid_argument("static InfoState values are immutable");
-         std::get< dynamic_type >(m_value).update(
-            public_observation.dynamic(), private_observation.dynamic()
-         );
+         mutable_dynamic().update(public_observation.dynamic(), private_observation.dynamic());
       } else {
          (void) public_observation;
          (void) private_observation;
-         throw nb::type_error("update(public, private) is only valid for InfoState");
+         throw nb::type_error("update(public, private) is only defined for InfoState");
       }
    }
 
-   void update(const PythonValue< rt::ValueKind::observation >& observation)
+   void update_public(const PythonValue< rt::ValueKind::observation >& observation)
    {
       if constexpr(Kind == rt::ValueKind::public_state) {
-         if(not is_dynamic())
-            throw std::invalid_argument("static PublicState values are immutable");
-         std::get< dynamic_type >(m_value).update(observation.dynamic());
+         mutable_dynamic().update(observation.dynamic());
       } else {
          (void) observation;
-         throw nb::type_error("update(observation) is only valid for PublicState");
+         throw nb::type_error("update(observation) is only defined for PublicState");
       }
    }
 
-   void set(const PythonValue< rt::ValueKind::world_state >& value)
+   void set_world(const PythonValue< rt::ValueKind::world_state >& value)
    {
       if constexpr(Kind == rt::ValueKind::world_state) {
-         if(not value.is_dynamic())
-            throw std::invalid_argument("WorldState.set requires a dynamic WorldState");
          m_value = value.dynamic();
       } else {
          (void) value;
-         throw nb::type_error("set(WorldState) is only valid for WorldState");
+         throw nb::type_error("set(WorldState) is only defined for WorldState");
       }
    }
 
    [[nodiscard]] nor::Player player() const
    {
       if constexpr(Kind == rt::ValueKind::info_state) {
-         if(not is_dynamic())
-            throw std::invalid_argument("static InfoState does not expose a player");
-         return std::get< dynamic_type >(m_value).player();
+         return dynamic().player();
       } else {
-         throw nb::type_error("player is only valid for InfoState");
+         throw nb::type_error("player is only defined for InfoState");
       }
    }
 
    [[nodiscard]] size_t size() const
    {
       if constexpr(Kind == rt::ValueKind::info_state or Kind == rt::ValueKind::public_state) {
-         if(not is_dynamic())
-            throw std::invalid_argument("static state history is not exposed");
-         return std::get< dynamic_type >(m_value).size();
+         return dynamic().size();
       } else {
-         throw nb::type_error("size is only valid for state histories");
+         throw nb::type_error("a history length is only defined for InfoState and PublicState");
       }
    }
 
    [[nodiscard]] PythonValue< rt::ValueKind::observation > observation_at(size_t index) const
    {
-      if constexpr(Kind == rt::ValueKind::public_state)
-         return PythonValue< rt::ValueKind::observation >::from_dynamic(
-            std::get< dynamic_type >(m_value)[index]
-         );
-      else {
+      if constexpr(Kind == rt::ValueKind::public_state) {
+         return PythonValue< rt::ValueKind::observation >::from_dynamic(dynamic()[index]);
+      } else {
          (void) index;
-         throw nb::type_error("indexed observations are only valid for PublicState");
+         throw nb::type_error("indexed observations are only defined for PublicState");
       }
    }
 
@@ -403,25 +447,23 @@ class PythonValue {
       info_at(size_t index) const
    {
       if constexpr(Kind == rt::ValueKind::info_state) {
-         const auto& [public_observation, private_observation] = std::get< dynamic_type >(m_value
-         )[index];
+         const auto& [public_observation, private_observation] = dynamic()[index];
          return {
             PythonValue< rt::ValueKind::observation >::from_dynamic(public_observation),
             PythonValue< rt::ValueKind::observation >::from_dynamic(private_observation)};
       } else {
          (void) index;
-         throw nb::type_error("indexed pairs are only valid for InfoState");
+         throw nb::type_error("indexed observation pairs are only defined for InfoState");
       }
    }
 
    [[nodiscard]] PythonValue< rt::ValueKind::observation > latest_observation() const
    {
-      if constexpr(Kind == rt::ValueKind::public_state)
-         return PythonValue< rt::ValueKind::observation >::from_dynamic(
-            std::get< dynamic_type >(m_value).latest()
-         );
-      else
-         throw nb::type_error("latest is only valid for PublicState");
+      if constexpr(Kind == rt::ValueKind::public_state) {
+         return PythonValue< rt::ValueKind::observation >::from_dynamic(dynamic().latest());
+      } else {
+         throw nb::type_error("latest() is only defined for PublicState");
+      }
    }
 
    [[nodiscard]] std::
@@ -429,13 +471,12 @@ class PythonValue {
       latest_info() const
    {
       if constexpr(Kind == rt::ValueKind::info_state) {
-         const auto& [public_observation, private_observation] = std::get< dynamic_type >(m_value)
-                                                                    .latest();
+         const auto& [public_observation, private_observation] = dynamic().latest();
          return {
             PythonValue< rt::ValueKind::observation >::from_dynamic(public_observation),
             PythonValue< rt::ValueKind::observation >::from_dynamic(private_observation)};
       } else {
-         throw nb::type_error("latest is only valid for InfoState");
+         throw nb::type_error("latest() is only defined for InfoState");
       }
    }
 
@@ -450,23 +491,19 @@ using PythonInfoState = PythonValue< rt::ValueKind::info_state >;
 using PythonPublicState = PythonValue< rt::ValueKind::public_state >;
 using PythonWorldState = PythonValue< rt::ValueKind::world_state >;
 
-template < typename Value >
-[[nodiscard]] std::vector< Value > python_vector(nb::handle value)
-{
-   std::vector< Value > result;
-   for(const nb::handle item : nb::borrow< nb::iterable >(value))
-      result.push_back(nb::cast< Value >(item));
-   return result;
-}
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// dynamic provider trampoline //////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 template < typename Value >
 [[nodiscard]] std::vector< typename Value::dynamic_type > dynamic_vector(nb::handle value)
 {
    std::vector< typename Value::dynamic_type > result;
-   for(const auto& item : python_vector< Value >(value)) {
-      if(not item.is_dynamic())
-         throw nb::value_error("dynamic providers must return owned dynamic domain values");
-      result.push_back(item.dynamic());
+   for(const nb::handle item : nb::borrow< nb::iterable >(value)) {
+      const auto entry = nb::cast< Value >(item);
+      if(not entry.is_dynamic())
+         throw nb::value_error("a provider must return values it authored itself");
+      result.push_back(entry.dynamic());
    }
    return result;
 }
@@ -475,7 +512,7 @@ template < typename Value >
 {
    const auto state = nb::cast< PythonWorldState >(value);
    if(not state.is_dynamic())
-      throw nb::value_error("dynamic provider must return a dynamic WorldState");
+      throw nb::value_error("a provider must return a WorldState it authored itself");
    return state.dynamic();
 }
 
@@ -483,10 +520,11 @@ template < typename Value >
 {
    const auto observation = nb::cast< PythonObservation >(value);
    if(not observation.is_dynamic())
-      throw nb::value_error("dynamic provider must return a dynamic Observation");
+      throw nb::value_error("a provider must return an Observation it authored itself");
    return observation.dynamic();
 }
 
+/// The trampoline's ticket acquires the GIL and raises for a missing pure override on its own.
 [[nodiscard]] nb::object call_override(
    const nb::detail::trampoline< 24 >& trampoline,
    const char* name,
@@ -497,73 +535,73 @@ template < typename Value >
    nb::detail::ticket ticket(trampoline, name, pure);
    if(not ticket.key.is_valid()) {
       if(pure)
-         throw std::runtime_error(std::string("Python provider must implement ") + name);
+         throw std::runtime_error(std::string("the provider must implement ") + name);
       return nb::none();
    }
    return trampoline.base().attr(ticket.key)(std::forward< decltype(args) >(args)...);
 }
 
+/**
+ * @brief Bridges a Python provider onto the one dynamic-provider interface.
+ *
+ * This class performs no validation of its own: every value returned here passes through
+ * DynamicEnvironment, which is the single place that decides what a solver is allowed to see.
+ */
 class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider {
   public:
    NB_TRAMPOLINE(rt::DynamicEnvironmentProvider, 24);
 
    [[nodiscard]] size_t max_player_count() const final
    {
-      nb::gil_scoped_acquire acquire;
       return nb::cast< size_t >(call_override(nb_trampoline, "max_player_count", true));
    }
    [[nodiscard]] size_t player_count() const final
    {
-      nb::gil_scoped_acquire acquire;
       return nb::cast< size_t >(call_override(nb_trampoline, "player_count", true));
    }
    [[nodiscard]] nor::Stochasticity stochasticity() const final
    {
-      nb::gil_scoped_acquire acquire;
       return nb::cast< nor::Stochasticity >(call_override(nb_trampoline, "stochasticity", true));
    }
    [[nodiscard]] bool serialized() const final
    {
-      nb::gil_scoped_acquire acquire;
       const auto result = call_override(nb_trampoline, "serialized", false);
       return result.is_none() ? true : nb::cast< bool >(result);
    }
    [[nodiscard]] bool unrolled() const final
    {
-      nb::gil_scoped_acquire acquire;
       const auto result = call_override(nb_trampoline, "unrolled", false);
       return result.is_none() ? true : nb::cast< bool >(result);
    }
    [[nodiscard]] rt::DynamicWorldState initial_world_state() const final
    {
-      nb::gil_scoped_acquire acquire;
       return dynamic_world(call_override(nb_trampoline, "initial_world_state", true));
    }
    [[nodiscard]] std::vector< rt::DynamicAction >
    actions(nor::Player player, const rt::DynamicWorldState& state) const final
    {
-      nb::gil_scoped_acquire acquire;
       return dynamic_vector< PythonAction >(call_override(
          nb_trampoline, "actions", true, player, PythonWorldState::from_dynamic(state)
       ));
    }
    [[nodiscard]] std::vector< nor::Player > players(const rt::DynamicWorldState& state) const final
    {
-      nb::gil_scoped_acquire acquire;
-      return python_vector< nor::Player >(
-         call_override(nb_trampoline, "players", true, PythonWorldState::from_dynamic(state))
+      std::vector< nor::Player > result;
+      const auto returned = call_override(
+         nb_trampoline, "players", true, PythonWorldState::from_dynamic(state)
       );
+      for(const nb::handle item : nb::borrow< nb::iterable >(returned))
+         result.push_back(nb::cast< nor::Player >(item));
+      return result;
    }
    [[nodiscard]] nor::Player active_player(const rt::DynamicWorldState& state) const final
    {
-      nb::gil_scoped_acquire acquire;
       return nb::cast< nor::Player >(
          call_override(nb_trampoline, "active_player", true, PythonWorldState::from_dynamic(state))
       );
    }
    [[nodiscard]] bool is_terminal(const rt::DynamicWorldState& state) const final
    {
-      nb::gil_scoped_acquire acquire;
       return nb::cast< bool >(
          call_override(nb_trampoline, "is_terminal", true, PythonWorldState::from_dynamic(state))
       );
@@ -571,14 +609,13 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
    [[nodiscard]] bool is_partaking(const rt::DynamicWorldState& state, nor::Player player)
       const final
    {
-      nb::gil_scoped_acquire acquire;
-      return nb::cast< bool >(call_override(
-         nb_trampoline, "is_partaking", true, PythonWorldState::from_dynamic(state), player
-      ));
+      const auto result = call_override(
+         nb_trampoline, "is_partaking", false, PythonWorldState::from_dynamic(state), player
+      );
+      return result.is_none() ? true : nb::cast< bool >(result);
    }
    [[nodiscard]] double reward(nor::Player player, const rt::DynamicWorldState& state) const final
    {
-      nb::gil_scoped_acquire acquire;
       return nb::cast< double >(
          call_override(nb_trampoline, "reward", true, player, PythonWorldState::from_dynamic(state))
       );
@@ -586,15 +623,13 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
 
    void transition(rt::DynamicWorldState& state, const rt::DynamicAction& action) const final
    {
-      nb::gil_scoped_acquire acquire;
-      auto result = call_override(
+      state = dynamic_world(call_override(
          nb_trampoline,
          "transition_action",
          true,
          PythonWorldState::from_dynamic(state),
          PythonAction::from_dynamic(action)
-      );
-      apply_transition_result(state, result);
+      ));
    }
 
    [[nodiscard]] rt::DynamicObservation private_observation(
@@ -604,7 +639,6 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
       const rt::DynamicWorldState& next_state
    ) const final
    {
-      nb::gil_scoped_acquire acquire;
       return dynamic_observation(call_override(
          nb_trampoline,
          "private_observation_action",
@@ -622,7 +656,6 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
       const rt::DynamicWorldState& next_state
    ) const final
    {
-      nb::gil_scoped_acquire acquire;
       return dynamic_observation(call_override(
          nb_trampoline,
          "public_observation_action",
@@ -637,19 +670,18 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
       const rt::DynamicWorldState& state
    ) const final
    {
-      nb::gil_scoped_acquire acquire;
       const auto result = call_override(
          nb_trampoline, "chance_actions", false, PythonWorldState::from_dynamic(state)
       );
       return result.is_none() ? std::vector< rt::DynamicChanceOutcome >{}
                               : dynamic_vector< PythonChanceOutcome >(result);
    }
+
    [[nodiscard]] double chance_probability(
       const rt::DynamicWorldState& state,
       const rt::DynamicChanceOutcome& outcome
    ) const final
    {
-      nb::gil_scoped_acquire acquire;
       const auto result = call_override(
          nb_trampoline,
          "chance_probability",
@@ -661,10 +693,10 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
          return rt::DynamicEnvironmentProvider::chance_probability(state, outcome);
       return nb::cast< double >(result);
    }
+
    void transition(rt::DynamicWorldState& state, const rt::DynamicChanceOutcome& outcome)
       const final
    {
-      nb::gil_scoped_acquire acquire;
       const auto result = call_override(
          nb_trampoline,
          "transition_chance",
@@ -672,10 +704,13 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
          PythonWorldState::from_dynamic(state),
          PythonChanceOutcome::from_dynamic(outcome)
       );
-      if(result.is_none())
-         return rt::DynamicEnvironmentProvider::transition(state, outcome);
-      apply_transition_result(state, result);
+      if(result.is_none()) {
+         rt::DynamicEnvironmentProvider::transition(state, outcome);
+         return;
+      }
+      state = dynamic_world(result);
    }
+
    [[nodiscard]] rt::DynamicObservation private_observation(
       nor::Player player,
       const rt::DynamicWorldState& state,
@@ -683,7 +718,6 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
       const rt::DynamicWorldState& next_state
    ) const final
    {
-      nb::gil_scoped_acquire acquire;
       const auto result = call_override(
          nb_trampoline,
          "private_observation_chance",
@@ -698,13 +732,13 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
              )
                               : dynamic_observation(result);
    }
+
    [[nodiscard]] rt::DynamicObservation public_observation(
       const rt::DynamicWorldState& state,
       const rt::DynamicChanceOutcome& outcome,
       const rt::DynamicWorldState& next_state
    ) const final
    {
-      nb::gil_scoped_acquire acquire;
       const auto result = call_override(
          nb_trampoline,
          "public_observation_chance",
@@ -717,131 +751,142 @@ class PyDynamicEnvironmentProvider final: public rt::DynamicEnvironmentProvider 
                 ? rt::DynamicEnvironmentProvider::public_observation(state, outcome, next_state)
                 : dynamic_observation(result);
    }
-
-  private:
-   static void apply_transition_result(rt::DynamicWorldState& state, const nb::object& result)
-   {
-      if(not result.is_none())
-         state = dynamic_world(result);
-   }
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// session synchronization //////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * @brief The single synchronization state a session and every wrapper derived from it share.
+ *
+ * The mutex serializes operations on one session; the epoch marks every wrapper handed out before
+ * a mutation as stale. Wrappers hold only a weak reference to this object, so a policy handle can
+ * never keep a solver alive past the Python session object that owns it.
+ */
 struct SessionState {
-   explicit SessionState(rt::SolverSession session, bool dynamic_game)
+   SessionState(rt::SolverSession session, bool dynamic_game)
        : solver(std::move(session)), dynamic(dynamic_game)
    {
    }
 
    ~SessionState()
    {
-      std::lock_guard lock(mutex);
+      const std::lock_guard lock(mutex);
       closed = true;
       solver = rt::SolverSession{};
    }
 
-   mutable std::mutex mutex;
+   std::mutex mutex;
    rt::SolverSession solver;
+   /// A dynamic session runs Python provider code inside the solver, so it keeps the GIL.
    bool dynamic = false;
    size_t epoch = 0;
    bool closed = false;
 };
 
+/// Sessions currently executing an operation on this thread, innermost last.
 thread_local std::vector< SessionState* > active_sessions;
 
+/**
+ * @brief RAII entry into one session operation.
+ *
+ * Ordering matters here. Reentrancy is rejected before anything blocks, because a reentrant call
+ * on the same thread would otherwise deadlock on a mutex its own frame already holds. Neither kind
+ * of session waits for that mutex while holding the GIL; the difference is what happens afterwards.
+ * A static session keeps the GIL released for the whole operation, because nothing inside a
+ * compiled game's traversal touches Python. A dynamic session takes the GIL back, because its
+ * environment calls into the Python provider on this very thread.
+ *
+ * Every read of shared session state happens under this guard. That is why even the advisory
+ * `valid` queries on the policy wrappers go through it rather than peeking at the epoch.
+ */
 class SessionOperation {
   public:
-   SessionOperation(std::shared_ptr< SessionState > state, bool mutation)
+   template < typename Predicate >
+   SessionOperation(
+      std::shared_ptr< SessionState > state,
+      bool mutation,
+      std::optional< size_t > expected_epoch,
+      Predicate&& still_valid
+   )
        : m_state(std::move(state)), m_mutation(mutation)
    {
       if(not m_state or m_state->closed or not m_state->solver)
-         throw std::runtime_error("session is closed");
+         throw ClosedSessionError{};
       if(std::ranges::find(active_sessions, m_state.get()) != active_sessions.end())
          throw ReentrantSessionError{};
 
-      // Static work releases the GIL before it can block on the binding-owned mutex. Dynamic work
-      // keeps it so provider callbacks can execute safely.
-      if(not m_state->dynamic)
+      if(m_state->dynamic) {
+         // A dynamic operation must run holding the GIL, but it must not *wait* holding it: the
+         // thread that owns the session is running Python provider code, and the interpreter
+         // hands the GIL around while it does. Blocking for the mutex with the GIL in hand would
+         // stall that thread on the GIL while it still owns the mutex, and neither would move
+         // again. Drop the GIL for the wait only, then take it back for the operation itself.
+         {
+            const nb::gil_scoped_release release;
+            m_lock = std::unique_lock< std::mutex >(m_state->mutex);
+         }
+      } else {
+         // Nothing inside a compiled game's traversal touches Python, so the whole operation runs
+         // without the GIL.
          m_release.emplace();
-      m_lock = std::unique_lock< std::mutex >(m_state->mutex);
+         m_lock = std::unique_lock< std::mutex >(m_state->mutex);
+      }
       if(m_state->closed or not m_state->solver)
-         throw std::runtime_error("session is closed");
+         throw ClosedSessionError{};
+      if(expected_epoch.has_value() and m_state->epoch != *expected_epoch) {
+         throw StaleViewError{
+            "this policy handle was taken before the session advanced; take a new one"};
+      }
+      if(not std::forward< Predicate >(still_valid)()) {
+         throw StaleViewError{"this policy handle no longer refers to live solver storage"};
+      }
       active_sessions.push_back(m_state.get());
+      m_registered = true;
    }
+
+   SessionOperation(std::shared_ptr< SessionState > state, bool mutation)
+       : SessionOperation(std::move(state), mutation, std::nullopt, [] { return true; })
+   {
+   }
+
+   SessionOperation(const SessionOperation&) = delete;
+   SessionOperation& operator=(const SessionOperation&) = delete;
+   SessionOperation(SessionOperation&&) = delete;
+   SessionOperation& operator=(SessionOperation&&) = delete;
 
    ~SessionOperation()
    {
-      if(not active_sessions.empty() and active_sessions.back() == m_state.get())
+      if(m_registered and not active_sessions.empty() and active_sessions.back() == m_state.get()) {
          active_sessions.pop_back();
+      }
    }
 
    [[nodiscard]] rt::SolverSession& solver() noexcept { return m_state->solver; }
-   [[nodiscard]] const std::shared_ptr< SessionState >& state() const noexcept { return m_state; }
+   [[nodiscard]] const rt::SolverSession& solver() const noexcept { return m_state->solver; }
+   [[nodiscard]] size_t epoch() const noexcept { return m_state->epoch; }
+
+   /// Marks every previously handed out wrapper stale. Called after a mutation succeeds.
    void changed() noexcept
    {
       if(m_mutation)
          ++m_state->epoch;
    }
-   void require_epoch(size_t epoch) const
-   {
-      if(m_state->closed or m_state->epoch != epoch)
-         throw StaleViewError{};
-   }
 
   private:
    std::shared_ptr< SessionState > m_state;
    bool m_mutation = false;
+   bool m_registered = false;
+   // Declaration order is the destruction contract: the lock is released first, then the GIL is
+   // reacquired, so an exception leaves the interpreter in the state nanobind expects.
    std::optional< nb::gil_scoped_release > m_release;
    std::unique_lock< std::mutex > m_lock;
 };
 
-class PythonPolicyRow;
-
-class PythonPolicy {
-  public:
-   PythonPolicy(
-      std::weak_ptr< SessionState > state,
-      rt::PolicyLookup lookup,
-      rt::PolicyViewKind kind,
-      size_t epoch
-   )
-       : m_state(std::move(state)), m_lookup(std::move(lookup)), m_kind(kind), m_epoch(epoch)
-   {
-   }
-
-   [[nodiscard]] bool valid() const
-   {
-      auto operation = lock();
-      return m_lookup.valid();
-   }
-   [[nodiscard]] rt::PolicyViewKind kind() const noexcept { return m_kind; }
-   [[nodiscard]] size_t generation() const
-   {
-      auto operation = lock();
-      return m_lookup.generation();
-   }
-   [[nodiscard]] std::optional< PythonPolicyRow > find(const PythonInfoState& info_state) const;
-   [[nodiscard]] PythonPolicyRow at(const PythonInfoState& info_state) const;
-   [[nodiscard]] std::vector< rt::PolicyEntry > entries() const
-   {
-      auto operation = lock();
-      return m_lookup.to_entries();
-   }
-
-  private:
-   [[nodiscard]] SessionOperation lock() const
-   {
-      SessionOperation operation(m_state.lock(), false);
-      operation.require_epoch(m_epoch);
-      if(not m_lookup.valid())
-         throw StaleViewError{};
-      return operation;
-   }
-
-   std::weak_ptr< SessionState > m_state;
-   rt::PolicyLookup m_lookup;
-   rt::PolicyViewKind m_kind = rt::PolicyViewKind::current;
-   size_t m_epoch = 0;
-};
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// policy wrappers //////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 class PythonPolicyRow {
   public:
@@ -852,19 +897,18 @@ class PythonPolicyRow {
 
    [[nodiscard]] bool valid() const
    {
-      auto operation = lock();
-      return m_row.valid();
+      try {
+         const auto operation = lock();
+         return true;
+      } catch(const ClosedSessionError&) {
+         return false;
+      } catch(const StaleViewError&) {
+         return false;
+      }
    }
-   [[nodiscard]] rt::PolicyViewKind kind() const
-   {
-      auto operation = lock();
-      return m_row.kind();
-   }
-   [[nodiscard]] size_t generation() const
-   {
-      auto operation = lock();
-      return m_row.generation();
-   }
+   [[nodiscard]] rt::PolicyViewKind kind() const noexcept { return m_row.kind(); }
+   [[nodiscard]] size_t generation() const noexcept { return m_row.generation(); }
+
    [[nodiscard]] nor::Player player() const
    {
       auto operation = lock();
@@ -893,21 +937,19 @@ class PythonPolicyRow {
    [[nodiscard]] std::optional< double > find(const PythonAction& action) const
    {
       auto operation = lock();
-      if(not action.is_dynamic())
-         return m_row.find(action.erased());
-      return std::nullopt;
+      return m_row.find(action.as_erased());
    }
    [[nodiscard]] bool contains(const PythonAction& action) const
    {
       auto operation = lock();
-      return not action.is_dynamic() and m_row.contains(action.erased());
+      return m_row.contains(action.as_erased());
    }
    [[nodiscard]] double at(const PythonAction& action) const
    {
-      auto operation = lock();
-      if(action.is_dynamic())
-         throw std::out_of_range("policy row does not contain this dynamic action");
-      return m_row.at(action.erased());
+      auto result = find(action);
+      if(not result)
+         throw nb::key_error("this action is not present in the policy row");
+      return *result;
    }
    [[nodiscard]] std::vector< rt::PolicyActionEntry > entries() const
    {
@@ -923,11 +965,7 @@ class PythonPolicyRow {
   private:
    [[nodiscard]] SessionOperation lock() const
    {
-      SessionOperation operation(m_state.lock(), false);
-      operation.require_epoch(m_epoch);
-      if(not m_row.valid())
-         throw StaleViewError{};
-      return operation;
+      return SessionOperation{m_state.lock(), false, m_epoch, [this] { return m_row.valid(); }};
    }
 
    std::weak_ptr< SessionState > m_state;
@@ -935,24 +973,81 @@ class PythonPolicyRow {
    size_t m_epoch = 0;
 };
 
-std::optional< PythonPolicyRow > PythonPolicy::find(const PythonInfoState& info_state) const
-{
-   auto operation = lock();
-   if(info_state.is_dynamic())
-      return std::nullopt;
-   auto row = m_lookup.find(info_state.erased());
-   if(not row)
-      return std::nullopt;
-   return PythonPolicyRow{m_state, std::move(*row), m_epoch};
-}
+/**
+ * @brief A borrowed policy of one session.
+ *
+ * No visitor callback is exposed. A Python callback running inside the solver's node traversal is
+ * exactly the hazard the C++ side guards against, and there is nothing a visitor offers here that
+ * focused lookup plus the explicit to_entries() bulk copy does not.
+ */
+class PythonPolicy {
+  public:
+   PythonPolicy(
+      std::weak_ptr< SessionState > state,
+      rt::PolicyLookup lookup,
+      rt::PolicyViewKind kind,
+      size_t epoch
+   )
+       : m_state(std::move(state)), m_lookup(std::move(lookup)), m_kind(kind), m_epoch(epoch)
+   {
+   }
 
-PythonPolicyRow PythonPolicy::at(const PythonInfoState& info_state) const
-{
-   auto result = find(info_state);
-   if(not result)
-      throw std::out_of_range("information state is not present in this policy");
-   return std::move(*result);
-}
+   /// Advisory: true when a lookup taken right now would succeed. It is answered under the same
+   /// guard every other read uses, so a reentrant query reports the reentrancy rather than a stale
+   /// snapshot.
+   [[nodiscard]] bool valid() const
+   {
+      try {
+         const auto operation = lock();
+         return true;
+      } catch(const ClosedSessionError&) {
+         return false;
+      } catch(const StaleViewError&) {
+         return false;
+      }
+   }
+   [[nodiscard]] rt::PolicyViewKind kind() const noexcept { return m_kind; }
+   [[nodiscard]] size_t generation() const noexcept { return m_lookup.generation(); }
+
+   [[nodiscard]] std::optional< PythonPolicyRow > find(const PythonInfoState& info_state) const
+   {
+      auto operation = lock();
+      auto row = m_lookup.find(info_state.as_erased());
+      if(not row)
+         return std::nullopt;
+      return PythonPolicyRow{m_state, std::move(*row), m_epoch};
+   }
+
+   [[nodiscard]] PythonPolicyRow at(const PythonInfoState& info_state) const
+   {
+      auto result = find(info_state);
+      if(not result)
+         throw nb::key_error("this information state is not present in the policy");
+      return std::move(*result);
+   }
+
+   /// The explicit bulk copy. Row order is unspecified; see the C++ contract in types.hpp.
+   [[nodiscard]] std::vector< rt::PolicyEntry > entries() const
+   {
+      auto operation = lock();
+      return m_lookup.to_entries();
+   }
+
+  private:
+   [[nodiscard]] SessionOperation lock() const
+   {
+      return SessionOperation{m_state.lock(), false, m_epoch, [this] { return m_lookup.valid(); }};
+   }
+
+   std::weak_ptr< SessionState > m_state;
+   rt::PolicyLookup m_lookup;
+   rt::PolicyViewKind m_kind = rt::PolicyViewKind::current;
+   size_t m_epoch = 0;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// session and game /////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 class PythonSession {
   public:
@@ -969,20 +1064,23 @@ class PythonSession {
    {
       SessionOperation operation(m_state, true);
       unwrap(operation.solver().advance(iterations));
-      operation.changed();
+      if(iterations != 0)
+         operation.changed();
    }
    [[nodiscard]] std::optional< rt::IterationResult > advance_last(size_t iterations)
    {
       SessionOperation operation(m_state, true);
       auto result = unwrap(operation.solver().advance_last(iterations));
-      operation.changed();
+      if(iterations != 0)
+         operation.changed();
       return result;
    }
    [[nodiscard]] rt::TraceResult trace(size_t iterations, size_t every)
    {
       SessionOperation operation(m_state, true);
       auto result = unwrap(operation.solver().trace(iterations, every));
-      operation.changed();
+      if(iterations != 0)
+         operation.changed();
       return result;
    }
    [[nodiscard]] rt::SessionStats stats() const
@@ -994,18 +1092,17 @@ class PythonSession {
    {
       SessionOperation operation(m_state, false);
       auto lookup = unwrap(operation.solver().policy_lookup(kind));
-      return PythonPolicy{m_state, std::move(lookup), kind, operation.state()->epoch};
+      return PythonPolicy{m_state, std::move(lookup), kind, operation.epoch()};
    }
-   [[nodiscard]] bool closed() const noexcept
-   {
-      const auto state = m_state;
-      return not state or state->closed;
-   }
+   [[nodiscard]] bool dynamic() const noexcept { return m_state and m_state->dynamic; }
+   [[nodiscard]] bool closed() const noexcept { return not m_state or m_state->closed; }
 
   private:
    std::shared_ptr< SessionState > m_state;
 };
 
+/// The one Python-facing game abstraction. A compiled game and a pure-Python provider differ only
+/// in which handle this holds; both produce the same Session type and the same solver families.
 class PythonGame {
   public:
    explicit PythonGame(rt::GameHandle game) : m_game(std::move(game)) {}
@@ -1019,15 +1116,29 @@ class PythonGame {
    {
       return std::visit([](const auto& game) { return game.game_id(); }, m_game);
    }
-   [[nodiscard]] std::string name() const
-   {
-      if(is_dynamic())
-         return "dynamic";
-      return enum_name(id());
-   }
+   [[nodiscard]] std::string name() const { return enum_name(id()); }
    [[nodiscard]] rt::GameSpec spec() const
    {
       return std::visit([](const auto& game) { return game.spec(); }, m_game);
+   }
+   /// A dynamic game's roster is fixed by admission, so its bounds coincide.
+   [[nodiscard]] std::pair< size_t, size_t > player_bounds() const
+   {
+      if(const auto* dynamic_game = std::get_if< rt::DynamicGameHandle >(&m_game)) {
+         const auto count = dynamic_game->admission()->player_count;
+         return {count, count};
+      }
+      const auto* descriptor = rt::find_game(id());
+      if(descriptor == nullptr)
+         return {0, 0};
+      return {descriptor->min_players, descriptor->max_players};
+   }
+   [[nodiscard]] nor::Stochasticity stochasticity() const
+   {
+      if(const auto* dynamic_game = std::get_if< rt::DynamicGameHandle >(&m_game))
+         return dynamic_game->admission()->stochasticity;
+      const auto* descriptor = rt::find_game(id());
+      return descriptor == nullptr ? nor::Stochasticity::deterministic : descriptor->stochasticity;
    }
    [[nodiscard]] nb::list capabilities() const
    {
@@ -1042,9 +1153,9 @@ class PythonGame {
       return result;
    }
 
-   [[nodiscard]] std::shared_ptr< PythonSession > make_session(
-      nb::object solver_or_profile,
-      nb::object profile,
+   [[nodiscard]] PythonSession make_session(
+      nb::handle solver_or_profile,
+      nb::handle profile,
       double epsilon,
       uint64_t seed
    ) const
@@ -1055,7 +1166,7 @@ class PythonGame {
          selected_profile = enum_from_python< rt::ProfileId >(solver_or_profile, "ProfileId");
          const auto* descriptor = rt::find_profile(selected_profile);
          if(descriptor == nullptr)
-            throw nb::value_error("unknown profile");
+            throw nb::value_error("unknown solver profile");
          solver = descriptor->solver;
       } else {
          solver = enum_from_python< rt::SolverId >(solver_or_profile, "SolverId");
@@ -1066,97 +1177,67 @@ class PythonGame {
       rt::Result< rt::SolverSession > result = std::visit(
          [&](const auto& game) -> rt::Result< rt::SolverSession > {
             using game_type = std::remove_cvref_t< decltype(game) >;
-            if constexpr(std::is_same_v< game_type, rt::GameHandle >)
+            if constexpr(std::is_same_v< game_type, rt::GameHandle >) {
                return rt::make_session(game, solver, selected_profile, options);
-            else
+            } else {
                return game.make_session(solver, selected_profile, options);
+            }
          },
          m_game
       );
       auto session = unwrap(std::move(result));
-      return std::make_shared< PythonSession >(
-         std::make_shared< SessionState >(std::move(session), is_dynamic())
-      );
+      return PythonSession{std::make_shared< SessionState >(std::move(session), is_dynamic())};
    }
 
   private:
    std::variant< rt::GameHandle, rt::DynamicGameHandle > m_game;
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// spec plumbing ////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
 [[nodiscard]] rt::SpecValue spec_value(nb::handle value)
 {
-   if(PyBool_Check(value.ptr()))
+   if(nb::isinstance< nb::bool_ >(value))
       return nb::cast< bool >(value);
-   if(PyLong_Check(value.ptr())) {
-      const auto signed_value = PyLong_AsLongLong(value.ptr());
-      if(signed_value == -1 and PyErr_Occurred()) {
-         PyErr_Clear();
-         throw nb::value_error("integer GameSpec fields must fit in a signed 64-bit value");
+   if(nb::isinstance< nb::int_ >(value)) {
+      // Try the signed spelling first so negative values retain the existing failed-conversion
+      // representation for unsigned fields. A Python int can exceed LLONG_MAX while still being
+      // a valid uint64_t, so the unsigned conversion must be a separate fallback rather than an
+      // implicit narrowing through long long.
+      long long signed_value = 0;
+      if(nb::try_cast< long long >(value, signed_value)) {
+         if(signed_value < 0)
+            return static_cast< double >(signed_value);
+         return static_cast< uint64_t >(signed_value);
       }
-      if(signed_value < 0)
-         return static_cast< double >(signed_value);
-      return static_cast< uint64_t >(signed_value);
+      uint64_t unsigned_value = 0;
+      if(nb::try_cast< uint64_t >(value, unsigned_value))
+         return unsigned_value;
+      throw nb::type_error("an integer GameSpec field value must fit in uint64_t");
    }
-   if(PyFloat_Check(value.ptr()))
+   if(nb::isinstance< nb::float_ >(value))
       return nb::cast< double >(value);
-   throw nb::type_error("GameSpec fields must be bool, int, or float");
-}
-
-template < typename Enum >
-[[nodiscard]] Enum field_enum(nb::handle value, const char* description)
-{
-   return enum_from_python< Enum >(value, description);
+   throw nb::type_error("a GameSpec field value must be a bool, int or float");
 }
 
 [[nodiscard]] rt::GameFieldId field_from_python(nb::handle value)
 {
-   return field_enum< rt::GameFieldId >(value, "GameFieldId");
+   return enum_from_python< rt::GameFieldId >(value, "GameFieldId");
 }
 
 void apply_kwargs(rt::GameSpec& spec, const nb::kwargs& fields)
 {
-   for(const nb::handle item : fields.items()) {
-      const auto pair = nb::cast< nb::tuple >(item);
-      spec.set(field_from_python(pair[0]), spec_value(pair[1]));
+   for(const auto item : fields) {
+      spec.set(field_from_python(item.first), spec_value(item.second));
    }
-}
-
-[[nodiscard]] rt::GameSpec static_spec(rt::GameId id, const nb::kwargs& fields)
-{
-   auto spec = rt::GameSpec::defaults(id);
-   apply_kwargs(spec, fields);
-   return spec;
-}
-
-void construct_static_game(PythonGame* self, rt::GameId id, const nb::kwargs& fields)
-{
-   new(self) PythonGame(unwrap(rt::make_game(static_spec(id, fields))));
-}
-
-void construct_named_game(PythonGame* self, const std::string& name, const nb::kwargs& fields)
-{
-   const auto id = enum_from_python< rt::GameId >(nb::str(name), "GameId");
-   construct_static_game(self, id, fields);
-}
-
-void construct_dynamic_game(
-   PythonGame* self,
-   const std::shared_ptr< PyDynamicEnvironmentProvider >& provider,
-   const nb::kwargs& fields
-)
-{
-   if(not provider)
-      throw nb::value_error("dynamic Game requires a provider");
-   auto spec = rt::GameSpec{rt::GameId::dynamic};
-   apply_kwargs(spec, fields);
-   std::shared_ptr< const rt::DynamicEnvironmentProvider > const_provider = provider;
-   new(self) PythonGame(unwrap(rt::make_dynamic_game(std::move(spec), std::move(const_provider))));
 }
 
 class PythonGameSpec {
   public:
-   explicit PythonGameSpec(rt::GameId id) : m_spec(id) {}
    explicit PythonGameSpec(rt::GameSpec spec) : m_spec(std::move(spec)) {}
+
    [[nodiscard]] rt::GameId game_id() const noexcept { return m_spec.game_id(); }
    [[nodiscard]] std::vector< rt::SpecField > fields() const { return m_spec.fields(); }
    [[nodiscard]] bool contains(nb::handle field) const
@@ -1169,55 +1250,67 @@ class PythonGameSpec {
          return *value;
       return std::nullopt;
    }
-   PythonGameSpec& set(nb::handle field, nb::handle value)
+   void set(nb::handle field, nb::handle value)
    {
       m_spec.set(field_from_python(field), spec_value(value));
-      return *this;
    }
-   [[nodiscard]] rt::GameSpec copy() const { return m_spec; }
+   [[nodiscard]] const rt::GameSpec& spec() const noexcept { return m_spec; }
 
   private:
    rt::GameSpec m_spec;
 };
 
-class PythonCatalog {
-  public:
-   [[nodiscard]] std::vector< rt::GameDescriptor > games() const
-   {
-      return {rt::games().begin(), rt::games().end()};
-   }
-   [[nodiscard]] std::vector< rt::SolverDescriptor > solvers() const
-   {
-      return {rt::solvers().begin(), rt::solvers().end()};
-   }
-   [[nodiscard]] std::vector< rt::ProfileDescriptor > profiles() const
-   {
-      return {rt::profiles().begin(), rt::profiles().end()};
-   }
-   [[nodiscard]] std::vector< rt::CapabilityDescriptor > combinations() const
-   {
-      return {rt::capabilities().begin(), rt::capabilities().end()};
-   }
-};
+void construct_static_game(PythonGame* self, nb::handle game, const nb::kwargs& fields)
+{
+   const auto id = enum_from_python< rt::GameId >(game, "GameId");
+   auto spec = rt::GameSpec::defaults(id);
+   apply_kwargs(spec, fields);
+   new(self) PythonGame(unwrap(rt::make_game(spec)));
+}
+
+void construct_dynamic_game(
+   PythonGame* self,
+   std::shared_ptr< rt::DynamicEnvironmentProvider > provider,
+   const nb::kwargs& fields
+)
+{
+   if(not provider)
+      throw nb::value_error("a dynamic Game requires a provider");
+   auto spec = rt::GameSpec{rt::GameId::dynamic};
+   apply_kwargs(spec, fields);
+   new(self) PythonGame(unwrap(rt::make_dynamic_game(std::move(spec), std::move(provider))));
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// registration helpers /////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 PyObject* capability_exception_type = nullptr;
 
+/// Registered after nb::exception<> so that it runs first and can attach structured context.
 void translate_capability(const std::exception_ptr& pointer, void* payload)
 {
    try {
       std::rethrow_exception(pointer);
    } catch(const BindingCapabilityError& error) {
       auto* type = static_cast< PyObject* >(payload);
-      auto* instance = PyObject_CallFunction(type, "s", error.what());
-      if(instance == nullptr)
+      nb::object instance = nb::steal(PyObject_CallFunction(type, "s", error.what()));
+      if(not instance.is_valid())
          return;
       const auto& context = error.error();
-      nb::setattr(nb::handle(instance), "code", nb::cast(context.code));
-      nb::setattr(nb::handle(instance), "game", nb::cast(context.game));
-      nb::setattr(nb::handle(instance), "solver", nb::cast(context.solver));
-      nb::setattr(nb::handle(instance), "profile", nb::cast(context.profile));
-      PyErr_SetObject(type, instance);
-      Py_DECREF(instance);
+      // An error raised before a solver or profile was selected leaves those fields at zero, which
+      // is not an enumerator. Casting one would raise from inside the translator itself and the
+      // caller would see that failure instead of the real error.
+      const auto optional_enum = [](auto value) -> nb::object {
+         if(static_cast< uint16_t >(value) == 0)
+            return nb::none();
+         return nb::cast(value);
+      };
+      nb::setattr(instance, "code", nb::cast(context.code));
+      nb::setattr(instance, "game", optional_enum(context.game));
+      nb::setattr(instance, "solver", optional_enum(context.solver));
+      nb::setattr(instance, "profile", optional_enum(context.profile));
+      PyErr_SetObject(type, instance.ptr());
    }
 }
 
@@ -1225,6 +1318,7 @@ template < typename Enum >
 void bind_enum(nb::module_& module, const char* name)
 {
    auto enumeration = nb::enum_< Enum >(module, name);
+   // The enumerator table comes from reflection; this module never repeats an enumerator name.
    for(const auto entry : nor::meta::detail::make_enum_entries< Enum >())
       enumeration.value(std::string(entry.name).c_str(), entry.value);
 }
@@ -1235,63 +1329,92 @@ void bind_domain_value(nb::module_& module, const char* name)
    using value_type = PythonValue< Kind >;
    auto value = nb::class_< value_type >(module, name);
    value.def(nb::init<>());
-   if constexpr(Kind == rt::ValueKind::action or Kind == rt::ValueKind::chance_outcome or Kind == rt::ValueKind::observation or Kind == rt::ValueKind::world_state) {
+
+   if constexpr(is_named_kind< Kind > or Kind == rt::ValueKind::world_state) {
+      const auto make_named = [](std::string type_name,
+                                 std::string identity,
+                                 std::optional< std::string > text,
+                                 std::optional< rt::TensorData > tensor) {
+         return value_type::named(
+            std::move(type_name), std::move(identity), std::move(text), std::move(tensor)
+         );
+      };
       value.def(
-         nb::init<
-            std::string,
-            std::string,
-            std::optional< std::string >,
-            std::optional< rt::TensorData > >(),
-         "type_name"_a,
-         "identity"_a,
-         "text"_a = std::nullopt,
-         "tensor"_a = std::nullopt
-      );
-      value.def_static(
-         "named",
-         [](std::string type_name,
+         "__init__",
+         [make_named](
+            value_type* self,
+            std::string type_name,
             std::string identity,
             std::optional< std::string > text,
-            std::optional< rt::TensorData > tensor) {
-            return value_type::named(
+            std::optional< rt::TensorData > tensor
+         ) {
+            new(self) value_type(make_named(
                std::move(type_name), std::move(identity), std::move(text), std::move(tensor)
-            );
+            ));
          },
          "type_name"_a,
          "identity"_a,
-         "text"_a = std::nullopt,
-         "tensor"_a = std::nullopt
+         "text"_a = nb::none(),
+         "tensor"_a = nb::none()
+      );
+      value.def_static(
+         "named",
+         make_named,
+         "type_name"_a,
+         "identity"_a,
+         "text"_a = nb::none(),
+         "tensor"_a = nb::none()
       );
    }
-   if constexpr(Kind == rt::ValueKind::info_state)
-      value.def(nb::init< nor::Player >(), "player"_a = nor::Player::unknown);
+   if constexpr(Kind == rt::ValueKind::info_state) {
+      value.def(
+         "__init__",
+         [](value_type* self, nor::Player player) {
+            new(self) value_type(value_type::with_player(player));
+         },
+         "player"_a
+      );
+   }
+
    value.def_prop_ro("valid", &value_type::valid)
       .def_prop_ro("is_dynamic", &value_type::is_dynamic)
-      .def_prop_ro("kind", &value_type::kind)
+      .def_prop_ro("kind", [](const value_type&) { return Kind; })
       .def_prop_ro("type_name", &value_type::type_name)
-      .def_prop_ro("type", &value_type::type_name)
-      .def_prop_ro("name", &value_type::name)
       .def_prop_ro("identity", &value_type::identity)
+      .def_prop_ro("capabilities", &value_type::capabilities)
       .def("to_string", &value_type::to_string)
       .def("to_tensor", &value_type::to_tensor)
-      .def_prop_ro("capabilities", &value_type::capabilities)
       .def("__bool__", &value_type::valid)
       .def("__hash__", &value_type::hash)
-      .def("__eq__", [](const value_type& left, const value_type& right) { return left == right; });
+      .def(
+         "__eq__",
+         [](const value_type& left, nb::handle right) -> nb::object {
+            value_type other;
+            if(not nb::try_cast< value_type >(right, other))
+               return nb::borrow(Py_NotImplemented);
+            return nb::cast(left == other);
+         }
+      )
+      .def("__repr__", [name](const value_type& self) {
+         auto text = self.to_string();
+         const auto identity = self.identity();
+         return std::string(name) + "(" + self.type_name() + ", "
+                + (identity ? *identity : (text ? *text : std::string{"<opaque>"})) + ")";
+      });
 
    if constexpr(Kind == rt::ValueKind::info_state) {
       value.def_prop_ro("player", &value_type::player)
-         .def("update", &value_type::update, "public_observation"_a, "private_observation"_a)
+         .def("update", &value_type::update_info, "public_observation"_a, "private_observation"_a)
          .def("__len__", &value_type::size)
-         .def("__getitem__", &value_type::info_at)
+         .def("__getitem__", &value_type::info_at, "index"_a)
          .def("latest", &value_type::latest_info);
    } else if constexpr(Kind == rt::ValueKind::public_state) {
-      value.def("update", &value_type::update, "observation"_a)
+      value.def("update", &value_type::update_public, "observation"_a)
          .def("__len__", &value_type::size)
-         .def("__getitem__", &value_type::observation_at)
+         .def("__getitem__", &value_type::observation_at, "index"_a)
          .def("latest", &value_type::latest_observation);
    } else if constexpr(Kind == rt::ValueKind::world_state) {
-      value.def("set", &value_type::set);
+      value.def("set", &value_type::set_world, "state"_a);
    }
 }
 
@@ -1301,6 +1424,11 @@ NB_MODULE(_noregret, module)
 {
    using namespace noregret_binding;
 
+   module.doc(
+   ) = "Compiled no-regret solver bindings. Compiled games select one registered game/solver "
+       "profile and then run entirely in statically dispatched C++; a pure-Python game runs the "
+       "same compiled solvers through the dynamic provider boundary.";
+
    bind_enum< nor::Player >(module, "Player");
    bind_enum< nor::Stochasticity >(module, "Stochasticity");
    bind_enum< rt::GameId >(module, "GameId");
@@ -1309,13 +1437,28 @@ NB_MODULE(_noregret, module)
    bind_enum< rt::GameFieldId >(module, "GameFieldId");
    bind_enum< rt::SpecKind >(module, "SpecKind");
    bind_enum< rt::ValueKind >(module, "ValueKind");
-   bind_enum< rt::PolicyViewKind >(module, "PolicyViewKind");
+   bind_enum< rt::PolicyViewKind >(module, "PolicyKind");
    bind_enum< rt::CapabilityErrorCode >(module, "CapabilityErrorCode");
 
    nb::class_< rt::TensorData >(module, "TensorData")
       .def(nb::init<>())
+      .def(
+         "__init__",
+         [](rt::TensorData* self, std::vector< double > values, std::vector< size_t > shape) {
+            new(self) rt::TensorData{std::move(values), std::move(shape)};
+         },
+         "values"_a,
+         "shape"_a
+      )
       .def_rw("values", &rt::TensorData::values)
-      .def_rw("shape", &rt::TensorData::shape);
+      .def_rw("shape", &rt::TensorData::shape)
+      .def("__eq__", [](const rt::TensorData& left, nb::handle right) -> nb::object {
+         rt::TensorData other;
+         if(not nb::try_cast< rt::TensorData >(right, other))
+            return nb::borrow(Py_NotImplemented);
+         return nb::cast(left == other);
+      });
+
    nb::class_< rt::ValueCapabilities >(module, "ValueCapabilities")
       .def(nb::init<>())
       .def_rw("to_string", &rt::ValueCapabilities::to_string)
@@ -1327,102 +1470,134 @@ NB_MODULE(_noregret, module)
    bind_domain_value< rt::ValueKind::info_state >(module, "InfoState");
    bind_domain_value< rt::ValueKind::public_state >(module, "PublicState");
    bind_domain_value< rt::ValueKind::world_state >(module, "WorldState");
-   module.attr("DynamicAction") = module.attr("Action");
-   module.attr("DynamicChanceOutcome") = module.attr("ChanceOutcome");
-   module.attr("DynamicObservation") = module.attr("Observation");
-   module.attr("DynamicInfoState") = module.attr("InfoState");
-   module.attr("DynamicPublicState") = module.attr("PublicState");
-   module.attr("DynamicWorldState") = module.attr("WorldState");
 
    nb::class_< rt::SpecField >(module, "SpecField")
-      .def(nb::init<>())
-      .def_rw("id", &rt::SpecField::id)
-      .def_prop_ro("value", [](const rt::SpecField& field) { return field.value; });
+      .def_ro("id", &rt::SpecField::id)
+      .def_prop_ro("value", [](const rt::SpecField& field) { return field.value; })
+      .def("__repr__", [](const rt::SpecField& field) {
+         return "SpecField(" + enum_name(field.id) + ")";
+      });
+
    nb::class_< PythonGameSpec >(module, "GameSpec")
-      .def(nb::init< rt::GameId >(), "game"_a)
+      .def(
+         "__init__",
+         [](PythonGameSpec* self, nb::handle game, const nb::kwargs& fields) {
+            auto spec = rt::GameSpec::defaults(enum_from_python< rt::GameId >(game, "GameId"));
+            apply_kwargs(spec, fields);
+            new(self) PythonGameSpec(std::move(spec));
+         },
+         "game"_a,
+         "fields"_a
+      )
       .def_prop_ro("game", &PythonGameSpec::game_id)
-      .def_prop_ro("game_id", &PythonGameSpec::game_id)
       .def_prop_ro("fields", &PythonGameSpec::fields)
       .def("contains", &PythonGameSpec::contains, "field"_a)
       .def("find", &PythonGameSpec::find, "field"_a)
-      .def("set", &PythonGameSpec::set, "field"_a, "value"_a, nb::rv_policy::reference_internal)
-      .def("copy", &PythonGameSpec::copy)
-      .def_static("defaults", [](rt::GameId id) {
-         return PythonGameSpec{rt::GameSpec::defaults(id)};
+      .def("set", &PythonGameSpec::set, "field"_a, "value"_a)
+      .def("__repr__", [](const PythonGameSpec& spec) {
+         return "GameSpec(" + enum_name(spec.game_id()) + ")";
       });
 
    nb::class_< rt::FieldDescriptor >(module, "FieldDescriptor")
-      .def_prop_ro("id", [](const rt::FieldDescriptor& value) { return value.id; })
+      .def_ro("id", &rt::FieldDescriptor::id)
       .def_prop_ro("name", [](const rt::FieldDescriptor& value) { return std::string(value.name); })
-      .def_prop_ro("kind", [](const rt::FieldDescriptor& value) { return value.kind; })
+      .def_ro("kind", &rt::FieldDescriptor::kind)
       .def_prop_ro("default_value", [](const rt::FieldDescriptor& value) {
          return value.default_value;
       });
+
    nb::class_< rt::GameDescriptor >(module, "GameDescriptor")
-      .def_prop_ro("id", &rt::GameDescriptor::id)
+      .def_ro("id", &rt::GameDescriptor::id)
       .def_prop_ro("name", [](const rt::GameDescriptor& value) { return std::string(value.name); })
-      .def_prop_ro("min_players", &rt::GameDescriptor::min_players)
-      .def_prop_ro("max_players", &rt::GameDescriptor::max_players)
-      .def_prop_ro("stochasticity", &rt::GameDescriptor::stochasticity)
-      .def_prop_ro("fields", [](const rt::GameDescriptor& value) {
-         return std::vector< rt::FieldDescriptor >{value.fields.begin(), value.fields.end()};
+      .def_ro("min_players", &rt::GameDescriptor::min_players)
+      .def_ro("max_players", &rt::GameDescriptor::max_players)
+      .def_ro("stochasticity", &rt::GameDescriptor::stochasticity)
+      .def_prop_ro(
+         "fields",
+         [](const rt::GameDescriptor& value) {
+            return std::vector< rt::FieldDescriptor >{value.fields.begin(), value.fields.end()};
+         }
+      )
+      .def("__repr__", [](const rt::GameDescriptor& value) {
+         return "GameDescriptor(" + std::string(value.name) + ")";
       });
+
    nb::class_< rt::SolverDescriptor >(module, "SolverDescriptor")
-      .def_prop_ro("id", &rt::SolverDescriptor::id)
+      .def_ro("id", &rt::SolverDescriptor::id)
       .def_prop_ro("name", [](const rt::SolverDescriptor& value) {
          return std::string(value.name);
       });
+
    nb::class_< rt::ProfileDescriptor >(module, "ProfileDescriptor")
-      .def_prop_ro("id", &rt::ProfileDescriptor::id)
-      .def_prop_ro("solver", &rt::ProfileDescriptor::solver)
+      .def_ro("id", &rt::ProfileDescriptor::id)
+      .def_ro("solver", &rt::ProfileDescriptor::solver)
       .def_prop_ro("name", [](const rt::ProfileDescriptor& value) {
          return std::string(value.name);
       });
+
    nb::class_< rt::CapabilityDescriptor >(module, "CapabilityDescriptor")
-      .def_prop_ro("game", &rt::CapabilityDescriptor::game)
-      .def_prop_ro("solver", &rt::CapabilityDescriptor::solver)
-      .def_prop_ro("profile", &rt::CapabilityDescriptor::profile);
+      .def_ro("game", &rt::CapabilityDescriptor::game)
+      .def_ro("solver", &rt::CapabilityDescriptor::solver)
+      .def_ro("profile", &rt::CapabilityDescriptor::profile)
+      .def("__repr__", [](const rt::CapabilityDescriptor& value) {
+         return "CapabilityDescriptor(" + enum_name(value.game) + ", " + enum_name(value.profile)
+                + ")";
+      });
+
    nb::class_< rt::DynamicCapabilityDescriptor >(module, "DynamicCapabilityDescriptor")
       .def_prop_ro(
          "game", [](const rt::DynamicCapabilityDescriptor&) { return rt::GameId::dynamic; }
       )
-      .def_prop_ro("solver", &rt::DynamicCapabilityDescriptor::solver)
-      .def_prop_ro("profile", &rt::DynamicCapabilityDescriptor::profile)
-      .def_prop_ro("name", [](const rt::DynamicCapabilityDescriptor& value) {
-         return std::string(value.name);
+      .def_ro("solver", &rt::DynamicCapabilityDescriptor::solver)
+      .def_ro("profile", &rt::DynamicCapabilityDescriptor::profile)
+      .def_prop_ro(
+         "name",
+         [](const rt::DynamicCapabilityDescriptor& value) { return std::string(value.name); }
+      )
+      .def("__repr__", [](const rt::DynamicCapabilityDescriptor& value) {
+         return "DynamicCapabilityDescriptor(" + enum_name(value.profile) + ")";
       });
 
    nb::class_< rt::RootValue >(module, "RootValue")
-      .def(nb::init<>())
-      .def_rw("player", &rt::RootValue::player)
-      .def_rw("value", &rt::RootValue::value);
+      .def_ro("player", &rt::RootValue::player)
+      .def_ro("value", &rt::RootValue::value)
+      .def("__repr__", [](const rt::RootValue& value) {
+         return "RootValue(" + enum_name(value.player) + ", " + std::to_string(value.value) + ")";
+      });
+
    nb::class_< rt::IterationResult >(module, "IterationResult")
-      .def_prop_ro("iteration", [](const rt::IterationResult& value) { return value.iteration; })
-      .def_prop_ro(
-         "root_values", [](const rt::IterationResult& value) { return value.root_values; }
-      )
+      .def_ro("iteration", &rt::IterationResult::iteration)
+      .def_ro("root_values", &rt::IterationResult::root_values)
       .def("__len__", [](const rt::IterationResult& value) { return value.root_values.size(); });
+
    nb::class_< rt::TraceResult >(module, "TraceResult")
-      .def_prop_ro("first_iteration", &rt::TraceResult::first_iteration)
-      .def_prop_ro("last_iteration", &rt::TraceResult::last_iteration)
-      .def_prop_ro("iterations", [](const rt::TraceResult& value) { return value.iterations; })
-      .def_prop_ro("empty", &rt::TraceResult::empty)
+      .def_ro("first_iteration", &rt::TraceResult::first_iteration)
+      .def_ro("last_iteration", &rt::TraceResult::last_iteration)
+      .def_ro("iterations", &rt::TraceResult::iterations)
       .def("__len__", &rt::TraceResult::size)
-      .def("__getitem__", [](const rt::TraceResult& value, size_t index) { return value[index]; });
+      .def("__getitem__", [](const rt::TraceResult& value, size_t index) {
+         if(index >= value.size())
+            throw nb::index_error("trace index out of range");
+         return value[index];
+      });
+
    nb::class_< rt::SessionStats >(module, "SessionStats")
-      .def_prop_ro("game", &rt::SessionStats::game)
-      .def_prop_ro("solver", &rt::SessionStats::solver)
-      .def_prop_ro("profile", &rt::SessionStats::profile)
-      .def_prop_ro("iteration", &rt::SessionStats::iteration)
-      .def_prop_ro("cycle", &rt::SessionStats::cycle)
-      .def_prop_ro("player_count", &rt::SessionStats::player_count)
-      .def_prop_ro("current_policy_entries", &rt::SessionStats::current_policy_entries)
-      .def_prop_ro("average_policy_entries", &rt::SessionStats::average_policy_entries);
+      .def_ro("game", &rt::SessionStats::game)
+      .def_ro("solver", &rt::SessionStats::solver)
+      .def_ro("profile", &rt::SessionStats::profile)
+      .def_ro("iteration", &rt::SessionStats::iteration)
+      .def_ro("cycle", &rt::SessionStats::cycle)
+      .def_ro("player_count", &rt::SessionStats::player_count)
+      .def_ro("current_policy_entries", &rt::SessionStats::current_policy_entries)
+      .def_ro("average_policy_entries", &rt::SessionStats::average_policy_entries);
 
    nb::exception< BindingCapabilityError > capability_error(module, "CapabilityError");
    capability_exception_type = capability_error.ptr();
+   // Translators are consulted most-recently-registered first, so this one wins over the plain
+   // message-only translator that nb::exception installed above.
    nb::register_exception_translator(translate_capability, capability_exception_type);
    nb::exception< StaleViewError > stale_error(module, "StaleViewError");
+   nb::exception< ClosedSessionError > closed_error(module, "ClosedSessionError");
    nb::exception< ReentrantSessionError > reentrant_error(module, "ReentrantSessionError");
 
    nb::class_< PythonPolicyRow >(module, "PolicyRow")
@@ -1432,129 +1607,268 @@ NB_MODULE(_noregret, module)
       .def_prop_ro("player", &PythonPolicyRow::player)
       .def_prop_ro("info_state", &PythonPolicyRow::info_state)
       .def_prop_ro("size", &PythonPolicyRow::size)
+      .def("__len__", &PythonPolicyRow::size)
       .def("action_at", &PythonPolicyRow::action_at, "index"_a)
       .def("value_at", &PythonPolicyRow::value_at, "index"_a)
       .def("find", &PythonPolicyRow::find, "action"_a)
       .def("contains", &PythonPolicyRow::contains, "action"_a)
+      .def("__contains__", &PythonPolicyRow::contains, "action"_a)
       .def("at", &PythonPolicyRow::at, "action"_a)
+      .def("__getitem__", &PythonPolicyRow::at, "action"_a)
       .def(
          "to_entries",
-         [](const PythonPolicyRow& value) {
+         [](const PythonPolicyRow& row) {
             nb::list result;
-            for(const auto& entry : value.entries())
+            for(const auto& entry : row.entries()) {
                result.append(
                   nb::make_tuple(PythonAction::from_static(entry.action), entry.probability)
                );
+            }
             return result;
-         }
+         },
+         "Explicitly copy this row as a list of (Action, probability) pairs, in the node's "
+         "deterministic action order."
       )
       .def("to_tensor", &PythonPolicyRow::tensor);
+
    nb::class_< PythonPolicy >(module, "Policy")
       .def_prop_ro("valid", &PythonPolicy::valid)
       .def_prop_ro("kind", &PythonPolicy::kind)
       .def_prop_ro("generation", &PythonPolicy::generation)
       .def("find", &PythonPolicy::find, "info_state"_a)
       .def("at", &PythonPolicy::at, "info_state"_a)
-      .def("to_entries", [](const PythonPolicy& value) {
-         nb::list result;
-         for(const auto& entry : value.entries()) {
-            nb::list actions;
-            for(const auto& action : entry.actions)
-               actions.append(
-                  nb::make_tuple(PythonAction::from_static(action.action), action.probability)
-               );
-            result.append(
-               nb::make_tuple(entry.player, PythonInfoState::from_static(entry.info_state), actions)
-            );
-         }
-         return result;
-      });
+      .def("__getitem__", &PythonPolicy::at, "info_state"_a)
+      .def(
+         "to_entries",
+         [](const PythonPolicy& policy) {
+            nb::list result;
+            for(const auto& entry : policy.entries()) {
+               nb::list actions;
+               for(const auto& action : entry.actions) {
+                  actions.append(
+                     nb::make_tuple(PythonAction::from_static(action.action), action.probability)
+                  );
+               }
+               result.append(nb::make_tuple(
+                  entry.player, PythonInfoState::from_static(entry.info_state), actions
+               ));
+            }
+            return result;
+         },
+         "Explicitly copy the whole policy as a list of (player, InfoState, actions) rows. The "
+         "ROW ORDER IS UNSPECIFIED: it follows the solver's hash-map order and may change between "
+         "builds and runs. Sort the result if a stable presentation is needed."
+      );
 
-   nb::class_< PythonSession, std::shared_ptr< PythonSession > >(module, "Session")
-      .def("iterate", &PythonSession::iterate)
-      .def("advance", &PythonSession::advance, "n"_a)
-      .def("advance_last", &PythonSession::advance_last, "n"_a)
-      .def("trace", &PythonSession::trace, "n"_a, "every"_a = 1)
+   nb::class_< PythonSession >(module, "Session")
+      .def("iterate", &PythonSession::iterate, "Run exactly one iteration and return its result.")
+      .def("advance", &PythonSession::advance, "n"_a, "Run n iterations, collecting nothing.")
+      .def(
+         "advance_last",
+         &PythonSession::advance_last,
+         "n"_a,
+         "Run n iterations and return only the last result, or None when n is zero."
+      )
+      .def(
+         "trace",
+         &PythonSession::trace,
+         "n"_a,
+         "every"_a = 1,
+         "Run n iterations and collect the result after every `every`-th one."
+      )
       .def("stats", &PythonSession::stats)
       .def("policy", &PythonSession::policy, "kind"_a = rt::PolicyViewKind::current)
-      .def("policy_lookup", &PythonSession::policy, "kind"_a = rt::PolicyViewKind::current)
+      .def_prop_ro("dynamic", &PythonSession::dynamic)
       .def_prop_ro("closed", &PythonSession::closed);
 
-   nb::class_<
-      PyDynamicEnvironmentProvider,
-      rt::DynamicEnvironmentProvider,
-      std::shared_ptr< PyDynamicEnvironmentProvider > >
-      provider(module, "DynamicEnvironmentProvider");
-   provider.def(nb::init<>())
-      .def("max_player_count", &PyDynamicEnvironmentProvider::max_player_count)
-      .def("player_count", &PyDynamicEnvironmentProvider::player_count)
-      .def("stochasticity", &PyDynamicEnvironmentProvider::stochasticity)
-      .def("serialized", &PyDynamicEnvironmentProvider::serialized)
-      .def("unrolled", &PyDynamicEnvironmentProvider::unrolled)
-      .def("initial_world_state", &PyDynamicEnvironmentProvider::initial_world_state)
-      .def("actions", &PyDynamicEnvironmentProvider::actions)
-      .def("players", &PyDynamicEnvironmentProvider::players)
-      .def("active_player", &PyDynamicEnvironmentProvider::active_player)
-      .def("is_terminal", &PyDynamicEnvironmentProvider::is_terminal)
-      .def("is_partaking", &PyDynamicEnvironmentProvider::is_partaking)
-      .def("reward", &PyDynamicEnvironmentProvider::reward)
+   nb::class_< rt::DynamicEnvironmentProvider, PyDynamicEnvironmentProvider >(
+      module, "DynamicEnvironmentProvider"
+   )
+      .def(nb::init<>())
+      .def("max_player_count", &rt::DynamicEnvironmentProvider::max_player_count)
+      .def("player_count", &rt::DynamicEnvironmentProvider::player_count)
+      .def("stochasticity", &rt::DynamicEnvironmentProvider::stochasticity)
+      .def("serialized", &rt::DynamicEnvironmentProvider::serialized)
+      .def("unrolled", &rt::DynamicEnvironmentProvider::unrolled)
+      .def(
+         "initial_world_state",
+         [](const rt::DynamicEnvironmentProvider& self) {
+            return PythonWorldState::from_dynamic(self.initial_world_state());
+         }
+      )
+      .def(
+         "actions",
+         [](const rt::DynamicEnvironmentProvider& self,
+            nor::Player player,
+            const PythonWorldState& state) {
+            nb::list result;
+            for(const auto& action : self.actions(player, state.dynamic()))
+               result.append(PythonAction::from_dynamic(action));
+            return result;
+         },
+         "player"_a,
+         "state"_a
+      )
+      .def(
+         "players",
+         [](const rt::DynamicEnvironmentProvider& self, const PythonWorldState& state) {
+            return self.players(state.dynamic());
+         },
+         "state"_a
+      )
+      .def(
+         "active_player",
+         [](const rt::DynamicEnvironmentProvider& self, const PythonWorldState& state) {
+            return self.active_player(state.dynamic());
+         },
+         "state"_a
+      )
+      .def(
+         "is_terminal",
+         [](const rt::DynamicEnvironmentProvider& self, const PythonWorldState& state) {
+            return self.is_terminal(state.dynamic());
+         },
+         "state"_a
+      )
+      .def(
+         "is_partaking",
+         [](const rt::DynamicEnvironmentProvider& self,
+            const PythonWorldState& state,
+            nor::Player player) { return self.is_partaking(state.dynamic(), player); },
+         "state"_a,
+         "player"_a
+      )
+      .def(
+         "reward",
+         [](const rt::DynamicEnvironmentProvider& self,
+            nor::Player player,
+            const PythonWorldState& state) { return self.reward(player, state.dynamic()); },
+         "player"_a,
+         "state"_a
+      )
       .def(
          "transition_action",
-         [](const PyDynamicEnvironmentProvider& self, PythonWorldState state, PythonAction action) {
-            self.transition(state.dynamic(), action.dynamic());
+         [](const rt::DynamicEnvironmentProvider& self,
+            PythonWorldState state,
+            const PythonAction& action) {
+            self.transition(state.mutable_dynamic(), action.dynamic());
             return state;
-         }
+         },
+         "state"_a,
+         "action"_a,
+         "Return the successor world state. The argument is a copy; providers return a new state."
       )
       .def(
          "transition_chance",
-         [](const PyDynamicEnvironmentProvider& self,
+         [](const rt::DynamicEnvironmentProvider& self,
             PythonWorldState state,
-            PythonChanceOutcome outcome) {
-            self.transition(state.dynamic(), outcome.dynamic());
+            const PythonChanceOutcome& outcome) {
+            self.transition(state.mutable_dynamic(), outcome.dynamic());
             return state;
-         }
+         },
+         "state"_a,
+         "outcome"_a
       )
-      .def("private_observation_action", &PyDynamicEnvironmentProvider::private_observation)
-      .def("public_observation_action", &PyDynamicEnvironmentProvider::public_observation)
-      .def("chance_actions", &PyDynamicEnvironmentProvider::chance_actions)
-      .def("chance_probability", &PyDynamicEnvironmentProvider::chance_probability)
+      .def(
+         "private_observation_action",
+         [](const rt::DynamicEnvironmentProvider& self,
+            nor::Player player,
+            const PythonWorldState& state,
+            const PythonAction& action,
+            const PythonWorldState& next_state) {
+            return PythonObservation::from_dynamic(self.private_observation(
+               player, state.dynamic(), action.dynamic(), next_state.dynamic()
+            ));
+         },
+         "player"_a,
+         "state"_a,
+         "action"_a,
+         "next_state"_a
+      )
+      .def(
+         "public_observation_action",
+         [](const rt::DynamicEnvironmentProvider& self,
+            const PythonWorldState& state,
+            const PythonAction& action,
+            const PythonWorldState& next_state) {
+            return PythonObservation::from_dynamic(
+               self.public_observation(state.dynamic(), action.dynamic(), next_state.dynamic())
+            );
+         },
+         "state"_a,
+         "action"_a,
+         "next_state"_a
+      )
+      .def(
+         "chance_actions",
+         [](const rt::DynamicEnvironmentProvider& self, const PythonWorldState& state) {
+            nb::list result;
+            for(const auto& outcome : self.chance_actions(state.dynamic()))
+               result.append(PythonChanceOutcome::from_dynamic(outcome));
+            return result;
+         },
+         "state"_a
+      )
+      .def(
+         "chance_probability",
+         [](const rt::DynamicEnvironmentProvider& self,
+            const PythonWorldState& state,
+            const PythonChanceOutcome& outcome) {
+            return self.chance_probability(state.dynamic(), outcome.dynamic());
+         },
+         "state"_a,
+         "outcome"_a
+      )
       .def(
          "private_observation_chance",
-         [](const PyDynamicEnvironmentProvider& self,
+         [](const rt::DynamicEnvironmentProvider& self,
             nor::Player player,
-            PythonWorldState state,
-            PythonChanceOutcome outcome,
-            PythonWorldState next_state) {
+            const PythonWorldState& state,
+            const PythonChanceOutcome& outcome,
+            const PythonWorldState& next_state) {
             return PythonObservation::from_dynamic(self.private_observation(
                player, state.dynamic(), outcome.dynamic(), next_state.dynamic()
             ));
-         }
+         },
+         "player"_a,
+         "state"_a,
+         "outcome"_a,
+         "next_state"_a
       )
       .def(
          "public_observation_chance",
-         [](const PyDynamicEnvironmentProvider& self,
-            PythonWorldState state,
-            PythonChanceOutcome outcome,
-            PythonWorldState next_state) {
+         [](const rt::DynamicEnvironmentProvider& self,
+            const PythonWorldState& state,
+            const PythonChanceOutcome& outcome,
+            const PythonWorldState& next_state) {
             return PythonObservation::from_dynamic(
                self.public_observation(state.dynamic(), outcome.dynamic(), next_state.dynamic())
             );
-         }
+         },
+         "state"_a,
+         "outcome"_a,
+         "next_state"_a
       );
 
    nb::class_< PythonGame >(module, "Game")
-      .def("__init__", &construct_static_game, "game"_a)
-      .def("__init__", &construct_named_game, "game"_a)
-      .def("__init__", &construct_dynamic_game, "provider"_a)
+      // The provider overload is declared first because the static one accepts an untyped handle
+      // (a GameId or its reflected name) and would otherwise swallow a provider argument.
+      .def("__init__", &construct_dynamic_game, "provider"_a, "fields"_a)
+      .def("__init__", &construct_static_game, "game"_a, "fields"_a)
       .def_static(
          "from_spec",
-         [](const PythonGameSpec& spec) { return PythonGame{unwrap(rt::make_game(spec.copy()))}; }
+         [](const PythonGameSpec& spec) { return PythonGame{unwrap(rt::make_game(spec.spec()))}; },
+         "spec"_a
       )
       .def_prop_ro("id", &PythonGame::id)
-      .def_prop_ro("game_id", &PythonGame::id)
       .def_prop_ro("name", &PythonGame::name)
       .def_prop_ro("is_dynamic", &PythonGame::is_dynamic)
-      .def_prop_ro("spec", &PythonGame::spec)
+      .def_prop_ro("min_players", [](const PythonGame& game) { return game.player_bounds().first; })
+      .def_prop_ro(
+         "max_players", [](const PythonGame& game) { return game.player_bounds().second; }
+      )
+      .def_prop_ro("stochasticity", &PythonGame::stochasticity)
+      .def_prop_ro("spec", [](const PythonGame& game) { return PythonGameSpec{game.spec()}; })
       .def_prop_ro("capabilities", &PythonGame::capabilities)
       .def(
          "make_session",
@@ -1566,13 +1880,6 @@ NB_MODULE(_noregret, module)
       )
       .def("__repr__", [](const PythonGame& game) { return "Game(" + game.name() + ")"; });
 
-   nb::class_< PythonCatalog >(module, "Catalog")
-      .def_prop_ro("games", &PythonCatalog::games)
-      .def_prop_ro("solvers", &PythonCatalog::solvers)
-      .def_prop_ro("profiles", &PythonCatalog::profiles)
-      .def_prop_ro("combinations", &PythonCatalog::combinations);
-
-   module.def("catalog", [] { return PythonCatalog{}; });
    module.def("games", [] {
       return std::vector< rt::GameDescriptor >{rt::games().begin(), rt::games().end()};
    });
@@ -1591,9 +1898,17 @@ NB_MODULE(_noregret, module)
          rt::dynamic_capabilities().begin(), rt::dynamic_capabilities().end()};
    });
    module.def(
-      "capabilities_for", [](rt::GameId game) { return rt::capabilities_for(game); }, "game"_a
+      "capabilities_for",
+      [](nb::handle game) {
+         return rt::capabilities_for(enum_from_python< rt::GameId >(game, "GameId"));
+      },
+      "game"_a
    );
    module.def(
-      "profiles_for", [](rt::SolverId solver) { return rt::profiles_for(solver); }, "solver"_a
+      "profiles_for",
+      [](nb::handle solver) {
+         return rt::profiles_for(enum_from_python< rt::SolverId >(solver, "SolverId"));
+      },
+      "solver"_a
    );
 }

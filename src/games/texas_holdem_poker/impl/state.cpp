@@ -333,8 +333,8 @@ std::vector< Card > State::chance_actions() const
       return {};
    }
    std::vector< Card > out;
-   out.reserve(52 - m_dealt.count());
-   for(size_t index = 0; index < 52; ++index) {
+   out.reserve(m_config.deck_size - m_dealt.count());
+   for(size_t index = 0; index < m_config.deck_size; ++index) {
       if(not m_dealt[index]) {
          out.emplace_back(Card{Rank(2 + index / 4), Suit(index % 4)});
       }
@@ -361,7 +361,8 @@ bool State::is_valid(Action action) const
 
 bool State::is_valid(Card outcome) const
 {
-   if(m_active_player != Player::chance or is_terminal() or is_dealt(outcome)) {
+   if(m_active_player != Player::chance or is_terminal() or outcome.index() >= m_config.deck_size
+      or is_dealt(outcome)) {
       return false;
    }
    return true;

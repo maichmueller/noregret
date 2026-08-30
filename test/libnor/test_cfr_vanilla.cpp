@@ -265,6 +265,85 @@ TEST(TabularSolverOperations, VanillaMoveTransfersPolicyGeneration)
    EXPECT_THROW((void) moved_view.size(), std::logic_error);
 }
 
+TEST(TabularSolverOperations, VanillaDestroyingTheSolverInsideAVisitorStopsTheTraversal)
+{
+   // A visitor callback is arbitrary user code. Releasing the solver from inside it frees the very
+   // node map the traversal is walking, and unlike a mutation the release cannot be rejected --
+   // destruction has no error channel. The traversal must therefore notice and stop before the
+   // source adapter reads that storage again.
+   auto solver = std::make_unique< decltype(make_rps_operation_solver< operations_config >()) >(
+      make_rps_operation_solver< operations_config >()
+   );
+   (void) solver->iterate();
+
+   auto lookup = solver->policy_lookup();
+   size_t visited = 0;
+   EXPECT_THROW(
+      {
+         (void) lookup.visit< rm::PolicyLabel::current >([&](const auto&, const auto&) {
+            ++visited;
+            solver.reset();
+         });
+      },
+      std::logic_error
+   );
+   // Exactly the callback that released the solver ran; the loop stopped instead of stepping on.
+   EXPECT_EQ(visited, 1u);
+   EXPECT_FALSE(lookup.valid());
+   EXPECT_THROW(
+      (void) lookup.find< rm::PolicyLabel::current >(games::rps::Infostate{Player::alex}),
+      std::logic_error
+   );
+}
+
+TEST(TabularSolverOperations, VanillaMoveAssigningOverTheSolverInsideAVisitorStopsTheTraversal)
+{
+   auto destination = make_rps_operation_solver< operations_config >();
+   (void) destination.iterate();
+   auto source = make_rps_operation_solver< operations_config >();
+   (void) source.iterate();
+
+   auto lookup = destination.policy_lookup();
+   size_t visited = 0;
+   EXPECT_THROW(
+      {
+         (void) lookup.visit< rm::PolicyLabel::current >([&](const auto&, const auto&) {
+            ++visited;
+            // Replaces the node map the traversal is reading. Move assignment must stay noexcept,
+            // so it abandons the shared token rather than rejecting the operation.
+            destination = std::move(source);
+         });
+      },
+      std::logic_error
+   );
+   EXPECT_EQ(visited, 1u);
+   EXPECT_FALSE(lookup.valid());
+
+   // The moved-to solver is fully usable afterwards; only handles taken before the move are gone.
+   auto fresh = destination.policy_lookup();
+   ASSERT_TRUE(fresh.valid());
+   EXPECT_GT(fresh.visit< rm::PolicyLabel::current >([](const auto&, const auto&) {}), 0u);
+}
+
+TEST(TabularSolverOperations, VanillaMutatingInsideAVisitorIsRejectedBeforeItInvalidatesAnything)
+{
+   auto solver = make_rps_operation_solver< operations_config >();
+   (void) solver.iterate();
+   auto lookup = solver.policy_lookup();
+
+   size_t visited = 0;
+   const auto total = lookup.visit< rm::PolicyLabel::current >([&](const auto&, const auto& view) {
+      ++visited;
+      EXPECT_TRUE(view.valid());
+      EXPECT_THROW(solver.advance(1), std::logic_error);
+      EXPECT_THROW((void) solver.iterate(), std::logic_error);
+   });
+   EXPECT_EQ(total, visited);
+   EXPECT_GT(visited, 0u);
+   // The rejected mutations left the lookup untouched, so it is still usable.
+   EXPECT_TRUE(lookup.valid());
+}
+
 TEST(TabularSolverOperations, VanillaMoveAssignmentInvalidatesBothSources)
 {
    const games::rps::Infostate alex_root{Player::alex};

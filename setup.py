@@ -83,6 +83,12 @@ class Build(build_ext):
             os.makedirs(build_folder)
 
         # cmake configure
+        #
+        # The dependency provider is what makes this build self-contained: without it CMake has no
+        # way to find nanobind or the other Conan packages, and the wheel can only be built by
+        # someone who already configured a toolchain by hand. Conan is a declared build
+        # requirement, so the provider has everything it needs.
+        conan_provider = os.path.join(source_folder, "conan_provider.cmake")
         subprocess.check_call(
             [
                 CMAKE,
@@ -90,9 +96,12 @@ class Build(build_ext):
                 source_folder,
                 "-B",
                 build_folder,
+                f"-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES={conan_provider}",
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-DCMAKE_GENERATOR:INTERNAL=Ninja",
                 "-DENABLE_BUILD_PYTHON_EXTENSION=ON",
+                "-DENABLE_BUILD_SANDBOX=OFF",
+                "-DENABLE_BUILD_BENCHMARK=OFF",
                 "-DENABLE_TESTING=OFF",
                 "-DENABLE_CACHE=OFF",
                 "-DINSTALL_PYMODULE=ON",
@@ -132,6 +141,10 @@ class Build(build_ext):
 
 
 setuptools.setup(
+    name="noregret",
+    version="0.0.1",
+    packages=setuptools.find_packages(where="src"),
+    package_dir={"": "src"},
     ext_modules=[CMakeExtension("noregret", sourcedir="src/nor")],
     cmdclass={"build_ext": Build},
 )

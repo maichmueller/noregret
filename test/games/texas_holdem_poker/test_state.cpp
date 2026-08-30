@@ -130,6 +130,30 @@ TEST(EvaluatorTest, category_ordering)
    EXPECT_GT(royal, quads);
 }
 
+TEST(PokerConfigTest, reduced_deck_is_a_valid_canonical_prefix)
+{
+   PokerConfig config{2, 2., 2., 2., {}, {}, 9};
+   State state{config};
+
+   EXPECT_EQ(state.deck_size(), 9u);
+   EXPECT_EQ(state.chance_actions().size(), 9u);
+   EXPECT_DOUBLE_EQ(state.chance_probability(state.chance_actions().front()), 1. / 9.);
+   EXPECT_FALSE(state.is_valid(Card{Rank::five, Suit::clubs}));
+
+   for(size_t dealt = 0; dealt < 9; ++dealt) {
+      const auto outcomes = state.chance_actions();
+      ASSERT_FALSE(outcomes.empty());
+      state.apply_action(outcomes.front());
+   }
+   EXPECT_TRUE(state.is_terminal());
+   EXPECT_EQ(state.deck_size(), 0u);
+   EXPECT_TRUE(state.chance_actions().empty());
+   EXPECT_EQ(state.payoffs().size(), 2u);
+
+   EXPECT_THROW((PokerConfig{2, 2., 2., 2., {}, {}, 8}.validate()), std::invalid_argument);
+   EXPECT_THROW((PokerConfig{2, 2., 2., 2., {}, {}, 53}.validate()), std::invalid_argument);
+}
+
 TEST(EvaluatorTest, kickers_decide_within_category)
 {
    // pair of kings with ace kicker beats pair of kings with queen kicker
