@@ -745,11 +745,11 @@ TEST(Dynamic, ValidationRejectsProvidersThatOnlyBreakLater)
    );
 }
 
-TEST(Dynamic, AdmissionAndSolverConstructionShareOneInitialSnapshot)
+TEST(Dynamic, HandleAndSolverConstructionShareOneInitialSnapshot)
 {
-   // A provider whose initial_world_state() answers differently on the second call would let the
-   // solver start from a state nothing validated. The session must root itself at the snapshot it
-   // validated, not at a fresh query.
+   // A provider whose initial_world_state() answers differently on a later call would let a
+   // session start from a state nothing validated. The handle's admission certificate is the
+   // session root, so session construction must not ask for a second snapshot.
    class DriftingProvider final: public TestDynamicProvider {
      public:
       using TestDynamicProvider::TestDynamicProvider;
@@ -772,9 +772,8 @@ TEST(Dynamic, AdmissionAndSolverConstructionShareOneInitialSnapshot)
    const auto calls_after_admission = provider->initial_calls();
    auto session = game->make_session(SolverId::vanilla_cfr, ProfileId::vanilla_alternating);
    ASSERT_TRUE(session) << session.error().message;
-   // Exactly one query per admission pass: the session re-admits, and then roots itself at that
-   // very snapshot rather than asking a third time.
-   EXPECT_EQ(provider->initial_calls(), calls_after_admission + 1);
+   // The session reuses the handle's admission certificate rather than re-admitting the provider.
+   EXPECT_EQ(provider->initial_calls(), calls_after_admission);
    ASSERT_TRUE(session->iterate());
 }
 
