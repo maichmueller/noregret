@@ -69,6 +69,28 @@ if(ENABLE_TESTING)
             ${_cmake_DIR}/scripts/stage_python_package.cmake)
     set_tests_properties(Test_python_package_stage PROPERTIES FIXTURES_SETUP python_package)
 
+    set(_pynor_install_prefix "${CMAKE_BINARY_DIR}/python_package_install")
+    add_test(
+        NAME Test_python_package_install_stage
+        COMMAND
+            ${CMAKE_COMMAND} -DCMAKE_COMMAND=${CMAKE_COMMAND} -DBUILD_DIR=${CMAKE_BINARY_DIR}
+            -DPACKAGE_SOURCE_DIR=${PROJECT_PYNOR_DIR} -DDESTINATION=${_pynor_install_prefix}
+            -DCONFIGURATION=${CMAKE_BUILD_TYPE} -P ${_cmake_DIR}/scripts/install_python_package.cmake)
+    set_tests_properties(Test_python_package_install_stage PROPERTIES FIXTURES_SETUP python_package_install)
+
+    add_test(
+        NAME Test_python_package_relocated
+        COMMAND ${Python_EXECUTABLE} -m unittest test_packaging.RelocatedInstalledPackageTest --verbose
+        WORKING_DIRECTORY ${_pynor_test_dir})
+    set_tests_properties(
+        Test_python_package_relocated
+        PROPERTIES
+            FIXTURES_REQUIRED
+            python_package_install
+            ENVIRONMENT
+            "PYTHONPATH=${_pynor_test_dir};NOR_INSTALLED_PACKAGE_ROOT=${_pynor_install_prefix};PYTHON_EXECUTABLE=${Python_EXECUTABLE}"
+    )
+
     add_test(
         NAME Test_python_bindings
         COMMAND ${Python_EXECUTABLE} -m unittest discover --start-directory ${_pynor_test_dir} --top-level-directory
@@ -85,6 +107,7 @@ if(ENABLE_TESTING)
 
     unset(_pynor_test_dir)
     unset(_pynor_package_dir)
+    unset(_pynor_install_prefix)
     unset(_pynor_game)
     unset(_pynor_game_type)
     unset(_pynor_runtime_libraries)

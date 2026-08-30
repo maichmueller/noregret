@@ -7,6 +7,25 @@ import _noregret as nor
 from support import BindingTestCase, DeterministicProvider, static_session
 
 
+class MutableDeclarations(DeterministicProvider):
+    """A provider whose declarations can change after its Game has been admitted."""
+
+    def __init__(self):
+        super().__init__()
+        self.declared_max_players = 2
+        self.declared_players = 2
+        self.declared_stochasticity = nor.Stochasticity.deterministic
+
+    def max_player_count(self):
+        return self.declared_max_players
+
+    def player_count(self):
+        return self.declared_players
+
+    def stochasticity(self):
+        return self.declared_stochasticity
+
+
 class APIContractTest(BindingTestCase):
     def test_static_and_dynamic_games_share_the_same_game_and_session_surface(self):
         games = [nor.Game("rock_paper_scissors"), nor.Game(DeterministicProvider())]
@@ -120,6 +139,22 @@ class APIContractTest(BindingTestCase):
         self.assertTrue(policy.valid)
         self.assertTrue(row.valid)
         self.assertTrue(policy.to_entries())
+
+    def test_sessions_reuse_the_game_admission_snapshot(self):
+        provider = MutableDeclarations()
+        game = nor.Game(provider)
+
+        # The provider is malformed relative to the already admitted Game. The session must use
+        # the same immutable certificate that supplies the public metadata, rather than re-admit a
+        # second, contradictory declaration set.
+        provider.declared_max_players = 1
+        provider.declared_players = 1
+        provider.declared_stochasticity = nor.Stochasticity.choice
+
+        self.assertEqual((game.min_players, game.max_players), (2, 2))
+        self.assertIs(game.stochasticity, nor.Stochasticity.deterministic)
+        session = game.make_session("vanilla_alternating")
+        self.assertEqual(session.iterate().iteration, 0)
 
 
 if __name__ == "__main__":

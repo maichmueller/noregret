@@ -194,15 +194,12 @@ make_dynamic_session_impl(const DynamicGameHandle& handle, SessionOptions option
          .profile = Profile::id});
    } else {
       try {
-         auto admission = admit_dynamic_provider(handle.provider());
-         if(not admission) {
-            return std::unexpected(
-               with_session_context(std::move(admission.error()), Profile::solver, Profile::id)
-            );
-         }
-         DynamicEnvironment environment{handle.provider(), *admission};
-         // The root is the snapshot that was just validated, not a second initial_world_state()
-         // query that the provider could answer differently.
+         // The handle's admission is the certificate for this game. Reusing it keeps the Game
+         // metadata and every session's static adapter rooted at one immutable snapshot, even if
+         // a pure-Python provider mutates its declarations after Game construction.
+         DynamicEnvironment environment{handle.provider(), handle.admission()};
+         // The root is the snapshot that was validated when the handle was created, not a later
+         // initial_world_state() query that the provider could answer differently.
          auto root = std::make_unique< DynamicWorldState >(environment.initial_world_state());
          auto solver = detail::make_concrete_solver< Profile >(
             std::move(environment), std::move(root), options

@@ -799,8 +799,9 @@ class DynamicGameHandle {
    {
       return m_provider;
    }
-   /// The record produced when this handle was created. Sessions re-admit the provider so that a
-   /// session always starts from a snapshot validated at its own creation time.
+   /// The immutable admission certificate produced when this handle was created. Every session
+   /// reuses this exact snapshot, so the Game metadata and the concrete solver adapter cannot
+   /// disagree if a pure-Python provider mutates after Game construction.
    [[nodiscard]] const std::shared_ptr< const DynamicAdmission >& admission() const noexcept
    {
       return m_admission;

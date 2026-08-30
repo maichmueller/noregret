@@ -3,7 +3,9 @@
 import importlib
 import os
 import pathlib
+import shutil
 import subprocess
+import tempfile
 import unittest
 
 REPOSITORY = pathlib.Path(__file__).resolve().parents[2]
@@ -81,6 +83,41 @@ class InstalledPackageTest(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("import nor ok", completed.stdout)
+
+
+@unittest.skipUnless(
+    os.environ.get("NOR_INSTALLED_PACKAGE_ROOT"),
+    "set NOR_INSTALLED_PACKAGE_ROOT to the installed package prefix",
+)
+class RelocatedInstalledPackageTest(unittest.TestCase):
+    def test_import_nor_after_copying_the_installed_package(self):
+        installed_root = pathlib.Path(os.environ["NOR_INSTALLED_PACKAGE_ROOT"])
+        installed_package = installed_root / "nor"
+        self.assertTrue(installed_package.is_dir())
+
+        with tempfile.TemporaryDirectory(prefix="noregret-relocated-") as temporary:
+            relocated_root = pathlib.Path(temporary)
+            shutil.copytree(installed_package, relocated_root / "nor")
+            environment = dict(os.environ)
+            # Deliberately remove the build-tree module path: this child process may resolve only
+            # the copied install, proving that the package's relative runtime layout is complete.
+            environment["PYTHONPATH"] = str(relocated_root)
+            script = (
+                "import nor;"
+                "assert nor.Game is not None;"
+                "s = nor.Game('rock_paper_scissors').make_session('vanilla_alternating');"
+                "assert s.iterate().iteration == 0;"
+                "print('relocated import nor ok')"
+            )
+            completed = subprocess.run(
+                [os.environ.get("PYTHON_EXECUTABLE", "python3"), "-c", script],
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("relocated import nor ok", completed.stdout)
 
 
 if __name__ == "__main__":
